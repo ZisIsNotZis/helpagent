@@ -36,6 +36,24 @@ full control, orchestrate independent fork=false subagents to do actual work."
 - [ ] M0 baseline: tasks fixed / total, model calls, tokens, wall time, per-task
 - [ ] deviations + blockers
 
+## Numbers (final, 2026-09-15 night)
+- **pytest: 41 passed / 41, 0.18 s** (gate ≤10 s) — TEST_PLAN §3.1 + §3.8 pinned invariants
+  incl. the 4 added ones; erasure contract test green; happy-path contract scenario green.
+- **Kernel: 2,848 lines** (envelopes 722, tree 671, fake model 158, runner 194, tests 1,013);
+  24 doc-ambiguity decisions recorded inline; 3 TEST_PLAN items honestly deferred (artifact
+  store, tree.attach, trajectory git — M2+ machinery).
+- **Docs: slices 2+3 landed** — feature showcase + diagnostic trace, per-side split rule,
+  consistency sweep (B7 de-duplicated, index threading, bound phrasing).
+- **M0 baseline (Spark-X2.5-4B-Q4_K_M, the design's reference model, llama-server :8833):**
+  run 1: 4/4 fixed · 4 calls · 6,488 tok · 16.8 s wall (model 10.2 / harness 6.6)
+  run 2: 4/4 fixed · 6 calls · 20,175 tok · 47.0 s wall — T-03 needed 3 attempts.
+  => Sampling noise at temp 0.2 is real (same task: 1 vs 3 calls) — N-repeated-runs and
+  best-of-N are empirically necessary, not just doctrine (DESIGN §6).
+  KV-cache reuse: 744–932 of ~1,400 prompt tokens cached per call (§9.11 datum).
+  Every fix was the minimal one-liner; untouched-files contract held in all 8 task-runs;
+  zero grammar refusals/schema violations across 10 calls; `unable` fired once (designed escape).
+- Corpus: 4 tasks + mini_repo, all red→green verified, contract validated incl. corruption catch.
+
 ## Deviations log
 - Reference model Spark-X2.5-4B-Q4_K_M **found** in HF cache (/home/z/hf/models--XHToken--...) —
   the symlink in auto_maintain_bench was dangling; no deviation after all. Server on :8833,
