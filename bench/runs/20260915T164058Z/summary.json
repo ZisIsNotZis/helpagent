@@ -1,0 +1,148 @@
+{
+  "run_id": "20260915T164058Z",
+  "utc": "2026-09-15T16:41:18.576739+00:00",
+  "milestone": "M0 — bare llm() whole-file-edit baseline",
+  "base_url": "http://127.0.0.1:8833",
+  "model": "spark-x2.5-4b",
+  "params": {
+    "temperature": 0.2,
+    "max_tokens": 3000,
+    "chat_template_kwargs": {
+      "enable_thinking": false
+    },
+    "response_format": "json_schema whole-file-edit envelope",
+    "max_attempts": 3
+  },
+  "tasks_fixed": "4/4",
+  "totals": {
+    "model_calls": 0,
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "total_tokens": 0,
+    "model_wall_s": 13.716,
+    "harness_wall_s": 5.789,
+    "wall_s": 19.505,
+    "run_wall_s": 19.923
+  },
+  "anomaly_counts": {},
+  "tasks": [
+    {
+      "task": "T-01-ttl-seconds-ms",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "cached_tokens": 0,
+      "model_wall_s": 0.869,
+      "harness_wall_s": 1.088,
+      "wall_s": 1.957,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "auth/config.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-02-off-by-one",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "cached_tokens": 0,
+      "model_wall_s": 2.206,
+      "harness_wall_s": 1.095,
+      "wall_s": 3.302,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "catalog/pagination.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-03-wrong-comparison",
+      "pass": true,
+      "attempts_used": 3,
+      "model_calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "cached_tokens": 0,
+      "model_wall_s": 8.275,
+      "harness_wall_s": 2.545,
+      "wall_s": 10.821,
+      "unable_attempts": 1,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "fail",
+          "envelope_status": "ok",
+          "file_path": "billing/plans.py",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": []
+        },
+        {
+          "attempt": 2,
+          "outcome": "fail",
+          "envelope_status": "unable",
+          "file_path": "",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": []
+        },
+        {
+          "attempt": 3,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "billing/plans.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-04-missing-default",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "cached_tokens": 0,
+      "model_wall_s": 2.366,
+      "harness_wall_s": 1.061,
+      "wall_s": 3.427,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "mailer/config.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    }
+  ]
+}

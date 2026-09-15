@@ -1,0 +1,10 @@
+[project]
+name = "authsvc"
+version = "0.1.0"
+description = "Session layer of the auth service."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

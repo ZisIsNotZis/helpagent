@@ -1,0 +1,7 @@
+{
+  "repo/README.md": "83cce50966b5d1e01632cc9deeb665347ee4354c6ee20968b60b16d09d6ae9e3",
+  "repo/auth/__init__.py": "b6d1a837bee8fc0788d046bc7e8d88ee2df3fc77a79fd010002e55a34869109c",
+  "repo/auth/sessions.py": "511d3694782908e197286e6150cd894c950967332ee8316cf8019175e75db5aa",
+  "repo/pyproject.toml": "9fba0be36f98af4a3082822107224e06a35ee72a5f145c3128e98f97dc5181a3",
+  "repo/tests/test_sessions.py": "7a34c5c55433cbd9062bbe7b75752b528cbf64422eb4b4bec469122cd7f56adb"
+}

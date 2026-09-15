@@ -1,0 +1,6 @@
+{
+  "repo/README.md": "bce954186805d25e4096da3a70e0fed7894771ff3ad1ebf930370826f463cb4f",
+  "repo/mailer/__init__.py": "7600f7e9a18ada22cf319bbf6e61d7aa8bf887193785b894730a37d252f354bb",
+  "repo/pyproject.toml": "49d5f4657883cc989b9d3d7eb5ac587ced1d4494cceaa54e4c47fca2ff9ab65e",
+  "repo/tests/test_config.py": "466e324670552403bbe851f89c9dfad9c7783cd8f83d5ec070d7204c55d31ed2"
+}

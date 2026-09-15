@@ -1,0 +1,5 @@
+task_id,attempt,model_calls,prompt_tokens,completion_tokens,cached_tokens,model_wall_s,harness_wall_s,finish_reason,envelope_status,file_path,pytest_exit,verify_exit,contract_ok,outcome,anomalies
+T-01-ttl-seconds-ms,1,1,1449,101,932,1.323,1.092,stop,ok,auth/config.py,0,0,True,pass,
+T-02-off-by-one,1,1,1405,285,888,2.792,1.046,stop,ok,catalog/pagination.py,0,0,True,pass,
+T-03-wrong-comparison,1,1,1261,327,744,3.157,0.78,stop,ok,billing/plans.py,0,0,True,pass,
+T-04-missing-default,1,1,1361,299,844,2.925,1.138,stop,ok,mailer/config.py,0,0,True,pass,

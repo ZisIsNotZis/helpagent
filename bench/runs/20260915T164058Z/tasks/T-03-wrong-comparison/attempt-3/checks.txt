@@ -1,0 +1,13 @@
+== envelope application ==
+status=ok file_path=billing/plans.py bytes=714 sha256=2498443b36ed03ce8bbc0ca143efb94c8b348ef09d03fbba9e47fb93ca295838
+
+== pytest (after write, exit=0) ==
+...                                                                      [100%]
+3 passed in 0.01s
+
+== checks.py verify (exit=0) ==
+== checks: T-03-wrong-comparison ==
+[tests]    OK (python -m pytest in repo/)
+[contract] OK (4 untouched paths byte-identical)
+result: PASS
+

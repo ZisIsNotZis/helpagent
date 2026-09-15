@@ -1,0 +1,10 @@
+[project]
+name = "minirepo"
+version = "0.1.0"
+description = "Tiny arithmetic package used as the harness fixture repo."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
