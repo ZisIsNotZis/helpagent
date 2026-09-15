@@ -52,6 +52,14 @@ full control, orchestrate independent fork=false subagents to do actual work."
   KV-cache reuse: 744–932 of ~1,400 prompt tokens cached per call (§9.11 datum).
   Every fix was the minimal one-liner; untouched-files contract held in all 8 task-runs;
   zero grammar refusals/schema violations across 10 calls; `unable` fired once (designed escape).
+- **Erasure independently re-verified (sharper than the agent's audit):** positional check —
+  attempt-2's prompt embeds `is_enterprise` with the restored original buggy line, so the failed
+  attempt's text is genuinely absent; the one line my first diff flagged is byte-identical to the
+  pre-existing `is_known` body (the agent's false-positive explanation, confirmed).
+- **Fix-variant finding:** run 2 accepted a non-canonical T-03 fix (`plan == PLAN_ENTERPRISE.lower()`;
+  official run = canonical `==`). Checks correctly pass both — gate = correctness, diff-canonicity
+  belongs to the scoring rubric (DESIGN §6 "fix quality"). "Minimal one-liner" claim is scoped to
+  the official run.
 - Corpus: 4 tasks + mini_repo, all red→green verified, contract validated incl. corruption catch.
 
 ## Deviations log
