@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>helpagent — Mission Control (Mockup: peak-complexity instant)</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2333; --border:#30363d;
+    --fg:#e6edf3; --dim:#8b949e; --faint:#484f58;
+    --green:#3fb950; --amber:#d29922; --red:#f85149; --blue:#58a6ff;
+    --purple:#bc8cff; --cyan:#39c5cf; --mono:ui-monospace,'JetBrains Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--fg);font:13px/1.45 -apple-system,'Segoe UI',sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  .mono{font-family:var(--mono)}
+  /* ===== header ===== */
+  header{display:flex;align-items:center;gap:16px;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--border);flex:0 0 auto}
+  header .title{font-weight:600;font-size:14px}
+  header .rev{color:var(--dim);font-size:11px;font-family:var(--mono)}
+  .budget{display:flex;gap:14px;margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--dim)}
+  .budget b{color:var(--fg)}
+  .budget .warn{color:var(--amber)} .budget .crit{color:var(--red)}
+  .runstate{font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;background:#12261e;color:var(--green);border:1px solid #1e4634}
+  /* ===== banners ===== */
+  #banners{flex:0 0 auto;display:flex;flex-direction:column}
+  .banner{display:flex;align-items:center;gap:10px;padding:6px 14px;font-size:12px;border-bottom:1px solid var(--border)}
+  .banner.wait{background:#241d0e;color:#e3b341}
+  .banner.crash{background:#251416;color:#f85149}
+  .banner .dismiss{margin-left:auto;color:var(--dim);cursor:pointer;font-size:11px}
+  /* ===== main ===== */
+  main{flex:1;display:flex;min-height:0}
+  /* ---- tree ---- */
+  #treewrap{flex:0 0 420px;display:flex;flex-direction:column;border-right:1px solid var(--border);background:var(--panel)}
+  #treewrap .panehead{padding:6px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);border-bottom:1px solid var(--border);display:flex;justify-content:space-between}
+  #tree{flex:1;overflow:auto;padding:8px 6px;font-family:var(--mono);font-size:12px}
+  .node{padding:1px 0;white-space:nowrap}
+  .row{display:flex;align-items:center;gap:7px;padding:2px 6px;border-radius:5px;cursor:pointer}
+  .row:hover{background:#21262d}
+  .row.sel{background:#1f3a5f;outline:1px solid #2f5a8f}
+  .row .glyph{width:14px;text-align:center;flex:0 0 auto}
+  .row .id{color:var(--fg)}
+  .row .id .seg{color:var(--dim)} .row .id .last{color:var(--fg);font-weight:600}
+  .row .tag{font-size:10px;padding:0 6px;border-radius:8px;border:1px solid var(--border);color:var(--dim)}
+  .row .pct{margin-left:auto;font-size:10px;color:var(--faint)}
+  .glyph.run{color:var(--blue)} .glyph.done{color:var(--green)} .glyph.pend{color:var(--faint)}
+  .glyph.wait{color:var(--amber)} .glyph.stale{color:var(--purple)} .glyph.blocked{color:var(--red)}
+  .glyph.decision{color:var(--amber)}
+  .runline{height:2px;border-radius:2px;background:#21262d;margin:1px 0 1px 34px;width:180px;overflow:hidden}
+  .runline i{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--cyan));animation:slide 1.4s linear infinite}
+  @keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(250%)}}
+  .spin{display:inline-block;animation:spin 1.2s linear infinite}
+  @keyframes spin{100%{transform:rotate(360deg)}}
+  .legend{padding:6px 12px;border-top:1px solid var(--border);font-size:10px;color:var(--dim);display:flex;gap:10px;flex-wrap:wrap}
+  /* ---- side panel ---- */
+  #side{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+  #nodehead{padding:10px 16px;border-bottom:1px solid var(--border);background:var(--panel)}
+  #nodehead h2{font-size:15px;font-family:var(--mono)}
+  #nodehead h2 .seg{color:var(--dim)} #nodehead h2 .last{color:var(--blue)}
+  #nodehead .meta{display:flex;gap:14px;margin-top:4px;font-size:11px;color:var(--dim);font-family:var(--mono)}
+  #nodehead .meta b{color:var(--fg)}
+  .chip{font-size:10px;padding:1px 8px;border-radius:9px;border:1px solid var(--border);color:var(--dim)}
+  .chip.attempt{border-color:#35404f;color:#9aa7b5}
+  /* tabs */
+  #tabs{display:flex;gap:2px;padding:0 16px;border-bottom:1px solid var(--border);background:var(--panel)}
+  .tab{padding:7px 14px;font-size:12px;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent}
+  .tab.on{color:var(--fg);border-bottom-color:var(--blue)}
+  .tab .badge{font-size:9px;background:var(--red);color:#fff;border-radius:8px;padding:0 5px;margin-left:4px}
+  /* body */
+  #panelbody{flex:1;overflow:auto;min-height:0}
+  section{padding:12px 16px;border-bottom:1px solid var(--border)}
+  section h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin-bottom:8px}
+  /* AC map */
+  .acrow{display:flex;gap:8px;align-items:baseline;padding:3px 0;font-size:12px}
+  .acrow .st{font-family:var(--mono);flex:0 0 52px}
+  .acrow .st.g{color:var(--green)} .acrow .st.r{color:var(--red)} .acrow .st.j{color:var(--amber)}
+  .acrow .check{color:var(--dim);font-family:var(--mono);font-size:11px}
+  /* judge panel */
+  .judges{display:flex;gap:8px;flex-wrap:wrap}
+  .judge{font-size:11px;padding:3px 10px;border-radius:9px;border:1px solid var(--border);color:var(--dim)}
+  .judge b{color:var(--fg)}
+  .judge.y{border-color:#1e4634;color:var(--green)} .judge.n{border-color:#5a2320;color:var(--red)} .judge.u{border-color:#4d3b12;color:var(--amber)}
+  /* trajectory */
+  .step{border:1px solid var(--border);border-radius:7px;margin:8px 0;background:var(--panel);overflow:hidden}
+  .stephead{display:flex;gap:10px;align-items:center;padding:5px 10px;font-family:var(--mono);font-size:11px;color:var(--dim);background:var(--panel2)}
+  .stephead .t{color:var(--fg);font-weight:600}
+  .stephead .ms{margin-left:auto}
+  .stepbody{padding:8px 10px;font-family:var(--mono);font-size:11.5px}
+  .kv{color:var(--dim)} .kv b{color:var(--fg)}
+  .stream{color:#9ecbff;white-space:pre-wrap}
+  .cursor{display:inline-block;width:7px;height:13px;background:var(--blue);vertical-align:-2px;animation:blink 1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .tool{display:flex;gap:8px;padding:3px 0;align-items:baseline}
+  .tool .cmd{color:var(--cyan)}
+  .tool .out{color:var(--dim)}
+  .tool .exit0{color:var(--green)} .tool .exit1{color:var(--red)}
+  .rung{display:inline-block;font-size:9px;padding:0 6px;border-radius:7px;margin-left:6px;border:1px solid var(--border);color:var(--dim)}
+  .rung.fix{color:var(--green);border-color:#1e4634}
+  .tombstone{border:1px dashed #35404f;border-radius:7px;margin:8px 0;padding:6px 10px;font-family:var(--mono);font-size:11px;color:var(--faint);background:repeating-linear-gradient(45deg,transparent,transparent 6px,#141a22 6px,#141a22 12px)}
+  .tombstone b{color:#8b949e}
+  .errline{color:var(--red)}
+  .verify-ok{color:var(--green)}
+  /* message box */
+  #msgbox{flex:0 0 auto;border-top:1px solid var(--border);background:var(--panel);padding:10px 16px}
+  #msgbox .target{font-size:11px;color:var(--dim);margin-bottom:6px;font-family:var(--mono)}
+  #msgbox .target b{color:var(--amber)}
+  .actions{display:flex;gap:8px;margin-bottom:8px}
+  .act{font-size:12px;padding:5px 14px;border-radius:7px;border:1px solid var(--border);background:var(--panel2);color:var(--dim);cursor:pointer}
+  .act.on{color:var(--fg);border-color:var(--blue);background:#16283f}
+  .act.answer.on{border-color:var(--amber);background:#2c2410}
+  .act.patch.on{border-color:var(--red);background:#331a1c}
+  textarea{width:100%;height:56px;background:#0a0e14;color:var(--fg);border:1px solid var(--border);border-radius:7px;padding:8px;font:12px var(--mono);resize:vertical}
+  .sendrow{display:flex;align-items:center;gap:10px;margin-top:8px}
+  .sendbtn{margin-left:auto;background:#1f6feb;color:#fff;border:0;border-radius:7px;padding:7px 18px;font-size:13px;font-weight:600;cursor:pointer}
+  .warnline{font-size:11px;color:var(--amber)}
+  .preview{border:1px solid var(--border);border-radius:7px;margin-top:8px;font-family:var(--mono);font-size:11px;overflow:hidden}
+  .preview .ph{padding:4px 10px;background:var(--panel2);color:var(--dim)}
+  .preview .d{padding:4px 10px;white-space:pre-wrap}
+  .d.del{background:#2d1517;color:#ffb3ad;text-decoration:line-through}
+  .d.add{background:#12261e;color:#7ee787}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="title">helpagent · mission control</span>
+  <span class="rev">run r-20260214-a3f · script v1 · task “Add JWT auth to the API”</span>
+  <div class="budget">
+    <span>leaves <b>9</b>/24</span>
+    <span>calls <b>118</b>/400</span>
+    <span>wall <b class="warn">41m</b>/60m</span>
+    <span>cache <b>87%</b></span>
+  </div>
+  <span class="runstate">RUNNING · 4 parallel</span>
+</header>
+
+<div id="banners">
+  <div class="banner wait">⚑ <b>fixbug.db.decide</b> waits for you — debug ladder exhausted (4 fix attempts). <span class="mono">ladder: token-cache skew → clock drift → key rotation → retry storm (all failed)</span> <span style="margin-left:12px;color:#e3b341;cursor:pointer;text-decoration:underline">open question →</span><span class="dismiss">later</span></div>
+  <div class="banner crash">⟲ boot r-20260214-a3f reset a dirty workdir (previous run killed — 3 files, uncommitted). Ledger note #211. <span class="dismiss">dismiss</span></div>
+</div>
+
+<main>
+  <!-- ================= TREE ================= -->
+  <div id="treewrap">
+    <div class="panehead"><span>task tree</span><span class="mono">9/24 leaves · 4 running</span></div>
+    <div id="tree">
+      <div class="node"><div class="row"><span class="glyph done">✓</span><span class="id"><span class="seg">jwtauth</span></span><span class="tag">root</span><span class="pct">AC 7/9</span></div></div>
+      <div class="node" style="padding-left:18px"><div class="row"><span class="glyph done">✓</span><span class="id"><span class="seg">jwtauth.</span><span class="last">config</span></span><span class="tag">spec+tests+impl</span></div></div>
+      <div class="node" style="padding-left:18px"><div class="row sel"><span class="glyph run"><span class="spin">◐</span></span><span class="id"><span class="seg">jwtauth.</span><span class="last">sign</span></span><span class="tag">selected · implement</span><span class="pct">attempt 2/4</span></div>
+        <div class="runline"><i></i></div>
+      </div>
+      <div class="node" style="padding-left:18px"><div class="row"><span class="glyph run"><span class="spin">◒</span></span><span class="id"><span class="seg">jwtauth.</span><span class="last">verify-mw</span></span><span class="tag">implement</span><span class="pct">attempt 1/4</span></div>
+        <div class="runline"><i></i></div>
+      </div>
+      <div class="node" style="padding-left:18px"><div class="row"><span class="glyph run"><span class="spin">◓</span></span><span class="id"><span class="seg">jwtauth.</span><span class="last">tests</span></span><span class="tag">write_tests</span><span class="pct">6/8 cases</span></div>
+        <div class="runline"><i></i></div>
+      </div>
+      <div class="node" style="padding-left:18px"><div class="row"><span class="glyph stale">↻</span><span class="id"><span class="seg">jwtauth.</span><span class="last">refresh</span></span><span class="tag">stale — parent spec patched</span></div></div>
+      <div class="node" style="padding-left:18px"><div class="row"><span class="glyph wait">⏸</span><span class="id"><span class="seg">jwtauth.</span><span class="last">keyrotate</span></span><span class="tag">hinted · held</span><span class="pct">runs after sign</span></div></div>
+      <div class="node" style="padding-left:18px"><div class="row"><span class="glyph decision">⚑</span><span class="id"><span class="seg">jwtauth.db.</span><span class="last">decide</span></span><span class="tag">decision node</span></div></div>
+      <div class="node" style="padding-left:36px"><div class="row"><span class="glyph blocked">⛔</span><span class="id"><span class="seg">jwtauth.db.decide.</span><span class="last">2</span></span><span class="tag">blocked · parent ladder</span></div></div>
+      <div class="node" style="padding-left:18px"><div class="row"><span class="glyph pend">○</span><span class="id"><span class="seg">jwtauth.</span><span class="last">docs</span></span><span class="tag">pending · dep: sign+verify-mw</span></div></div>
+      <div class="node" style="padding-left:18px"><div class="row"><span class="glyph done">✓</span><span class="id"><span class="seg">jwtauth.</span><span class="last">errorfmt</span></span><span class="tag">closed · gate 4/4</span></div></div>
+    </div>
+    <div class="legend">
+      <span>● running</span><span>✓ done</span><span>○ pending</span><span>⏸ held</span>
+      <span>⚑ decision</span><span>↻ stale</span><span>⛔ blocked</span>
+    </div>
+  </div>
+
+  <!-- ================= SIDE PANEL ================= -->
+  <div id="side">
+    <div id="nodehead">
+      <h2><span class="seg">jwtauth.</span><span class="last">sign</span> <span class="chip" style="color:var(--blue)">● implement · attempt 2/4</span></h2>
+      <div class="meta">
+        <span>est <b>7</b> rds · budget <b>10</b></span>
+        <span>calls <b>23</b></span>
+        <span>files <b>auth/sign.py</b> · <b>auth/keys.py</b></span>
+        <span>owner: leaf pipeline (exclusive)</span>
+      </div>
+    </div>
+
+    <div id="tabs">
+      <div class="tab">spec</div>
+      <div class="tab">AC map</div>
+      <div class="tab on">trajectory <span class="badge">2</span></div>
+      <div class="tab">artifacts</div>
+      <div class="tab">evidence</div>
+    </div>
+
+    <div id="panelbody">
+
+      <section>
+        <h3>AC test map</h3>
+        <div class="acrow"><span class="st g">✓ pass</span><span>HS256 token carries exp+sub claims</span><span class="check">test_sign_claims.py::test_exp_sub</span></div>
+        <div class="acrow"><span class="st g">✓ pass</span><span>expired token rejected with 401</span><span class="check">test_sign_claims.py::test_expired</span></div>
+        <div class="acrow"><span class="st r">✗ fail</span><span>key rotation picks new key within 60s</span><span class="check">test_rotation.py::test_pick_new <span class="rung">attempt 2</span></span></div>
+        <div class="acrow"><span class="st j">⚖ judge</span><span>error paths don't leak key material</span><span class="check">subjective — panel below</span></div>
+        <div class="judges" style="margin-top:6px">
+          <span class="judge y">spec-match <b>pass</b></span>
+          <span class="judge n">no-leak <b>flag</b> · line 41 logs header</span>
+          <span class="judge u">test-meaning <b>uncertain</b></span>
+        </div>
+      </section>
+
+      <section>
+        <h3>trajectory — live</h3>
+
+        <div class="step">
+          <div class="stephead"><span class="t">implement</span><span class="kv">attempt 2</span><span class="ms">8.4s · 412 tok</span></div>
+          <div class="stepbody">
+            <div class="kv">ctx: spec · conventions · <b>2 covering tests</b> · ground truth <b>jwt.encode()</b> · memory hit <b>“pyjwt exp datetime”</b> · failure summary from attempt 1 (missing kid header)</div>
+            <div class="stream">writing auth/sign.py — token = jwt.encode(payload, key, algorithm="HS256", headers={"kid": current_kid_id})
+<span class="cursor"></span></div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="stephead"><span class="t">tool: write_file</span><span class="ms">0.3s</span></div>
+          <div class="stepbody">
+            <div class="tool"><span class="cmd">auth/sign.py</span><span class="out">+34 −11 · sandbox: scoped-ok</span></div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="stephead"><span class="t">check pipeline</span><span class="ms">6.1s</span></div>
+          <div class="stepbody">
+            <div class="tool"><span>ruff format</span><span class="rung fix">auto-fix 1</span><span class="out">2 reflows</span></div>
+            <div class="tool"><span>ruff --fix</span><span class="out">unused import removed</span></div>
+            <div class="tool"><span>pyright (project-wide, filtered)</span><span class="exit0">0 errors in touched</span><span class="out">2 pre-existing elsewhere — out of scope</span></div>
+            <div class="tool"><span>pytest tests/auth/test_sign_claims.py</span><span class="exit1">1 failed</span><span class="out errline">assert 401 == None — expired token not rejected</span></div>
+          </div>
+        </div>
+
+        <div class="tombstone"><b>attempt 1 — rolled back.</b> check pipeline unfixable: KeyError 'kid' ×3 · worktree reverted (auth/sign.py, auth/keys.py) · lesson → ledger #L-88 “encode headers before kid exists”</div>
+
+        <div class="step">
+          <div class="stephead"><span class="t">judge: failure_judge</span><span class="badge" style="margin-left:0">1</span><span class="ms">fresh · 5.2s</span></div>
+          <div class="stepbody"><span class="kv">verdict: <b>code-buggy</b> (test correct per spec §expiry) — exp claim compared as datetime vs int. routed → implementer.</span></div>
+        </div>
+
+        <div class="step">
+          <div class="stephead"><span class="t">implement</span><span class="kv">attempt 3 — composing</span><span class="ms">…</span></div>
+          <div class="stepbody"><span class="stream">reading spec §error-model: expiry check contract… <span class="cursor"></span></span></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ================= MESSAGE BOX ================= -->
+    <div id="msgbox">
+      <div class="target">target: <b>jwtauth.sign</b> <span style="color:var(--faint)">(selected · running → interrupts at next step boundary; children pause)</span></div>
+      <div class="actions">
+        <div class="act">hint</div>
+        <div class="act answer on">answer</div>
+        <div class="act patch">patch…</div>
+        <div class="act" style="margin-left:auto;color:var(--red)">⏹ force stop (2nd click)</div>
+      </div>
+      <textarea>expiry must compare tz-aware datetimes — use utils.utc_now(); see convention CONN-7</textarea>
+      <div class="sendrow">
+        <span class="warnline">1 unresolved judge flag (no-leak) will block close until resolved or waived with reason.</span>
+        <button class="sendbtn">send → jwtauth.sign</button>
+      </div>
+      <div class="preview">
+        <div class="ph">patch preview (only shown for patch action) — children regenerate:</div>
+        <div class="d del">− jwtauth.sign.children: [sign.impl, sign.wire]</div>
+        <div class="d add">+ jwtauth.sign.children: [sign.impl, sign.wire, sign.kidcache]  (from your: “add key-id cache”)</div>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>
