@@ -17,6 +17,13 @@ from pydantic import ValidationError
 
 from harness.envelopes import JUDGE_STEP_PREFIX, SCHEMAS, Envelope
 
+# Step types whose envelope validators consume a validation context (ENVELOPE_SCHEMAS
+# §4/§6/§7/§9/§10: seam candidates + grounding, node_kind, boundary subset, ac_id ∈ map).
+# Without a context those reference checks silently skip — legal for tests, a silent-off
+# gate in a run. llm_step records the skip in the append-only ledger; M1's real runner
+# must inject the context for these step types on every call.
+CONTEXT_SENSITIVE_STEPS = frozenset({"expand", "draft_acs", "write_spec", "test_plan", "write_test"})
+
 # ---------------------------------------------------------------------------
 # Byte-stable prefix — scaffold + static standing knowledge only (DESIGN §2.7).
 # ---------------------------------------------------------------------------
@@ -157,6 +164,8 @@ async def llm_step(
     records the violation in the ledger and raises immediately.
     """
     schema = schema_for_step(step_type)
+    if step_type in CONTEXT_SENSITIVE_STEPS and context is None:
+        note("validation_context_missing", step_type=step_type)
     prompt = compose_prompt(step_type, artifacts, question, fresh=fresh, failure=failure)
     request = LLMRequest(
         step_type=step_type,
