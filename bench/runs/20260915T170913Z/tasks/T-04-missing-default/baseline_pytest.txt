@@ -1,0 +1,31 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+_______________ test_missing_optional_keys_fall_back_to_defaults _______________
+
+    def test_missing_optional_keys_fall_back_to_defaults():
+>       cfg = load({"host": "smtp.example.com"})
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_config.py:7: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+raw = {'host': 'smtp.example.com'}
+
+    def load(raw: dict) -> MailerConfig:
+        """Build a :class:`MailerConfig` from a raw settings mapping.
+    
+        Every key except ``host`` is optional; missing keys fall back to the documented
+        defaults. Unknown keys are ignored.
+        """
+        return MailerConfig(
+            host=raw["host"],
+            timeout_s=raw.get("timeout_s", DEFAULT_TIMEOUT_S),
+>           retries=raw["retries"],
+                    ^^^^^^^^^^^^^^
+        )
+E       KeyError: 'retries'
+
+mailer/config.py:26: KeyError
+=========================== short test summary info ============================
+FAILED tests/test_config.py::test_missing_optional_keys_fall_back_to_defaults
+1 failed, 1 passed in 0.02s

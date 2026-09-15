@@ -1,0 +1,27 @@
+F.F.                                                                     [100%]
+=================================== FAILURES ===================================
+____________________ test_first_page_returns_per_page_items ____________________
+
+    def test_first_page_returns_per_page_items():
+>       assert paginate(ITEMS, 1, 4) == [0, 1, 2, 3]
+E       assert [0, 1, 2] == [0, 1, 2, 3]
+E         
+E         Right contains one more item: 3
+E         Use -v to get more diff
+
+tests/test_pagination.py:9: AssertionError
+____________________ test_consecutive_pages_are_contiguous _____________________
+
+    def test_consecutive_pages_are_contiguous():
+>       assert paginate(ITEMS, 1, 4) + paginate(ITEMS, 2, 4) == ITEMS[:8]
+E       assert [0, 1, 2, 4, 5, 6] == [0, 1, 2, 3, 4, 5, ...]
+E         
+E         At index 3 diff: 4 != 3
+E         Right contains 2 more items, first extra item: 6
+E         Use -v to get more diff
+
+tests/test_pagination.py:17: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_pagination.py::test_first_page_returns_per_page_items - ass...
+FAILED tests/test_pagination.py::test_consecutive_pages_are_contiguous - asse...
+2 failed, 2 passed in 0.04s
