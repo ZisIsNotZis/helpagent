@@ -75,3 +75,13 @@ runner, not by the task; they are rubric components, not footnotes.
    `checks.py` with its explicit `UNTOUCHED` list.
 4. Re-run `snapshot && verify` on the pristine (broken) task: contract must be OK while
    tests fail — that is the shipped state.
+
+## Determinism notes
+
+- **T-03 pins the interpreter.** Its bug (`plan is PLAN_ENTERPRISE`) only bites because
+  CPython does not intern `split`/`partition`/`strip`/`lower` results; checks.py invokes
+  pytest via `sys.executable`, so a run uses the interpreter that ran checks.py. Verified on
+  CPython 3.12.3 — re-verify non-interning if the interpreter changes.
+- `pythonpath` ini key requires pytest >= 7 (system has 9.x).
+- `.untouched.baseline.json` files are runtime state written by checks.py `snapshot` —
+  gitignored, never part of a task's shipped repo.

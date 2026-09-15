@@ -1,6 +1,0 @@
-{
-  "repo/README.md": "03c424afe9014bf9e4906a79e1ea45fccc286cdc2e7db97fdb657e00ac683001",
-  "repo/billing/__init__.py": "bf0dbafa6dd9e89e7ebe742ac997f17b2c3cecc3768e05ec1c4cf812dd073374",
-  "repo/pyproject.toml": "10c7898cecc2a3ee04e9bed04d7df48a11382fabd62dc518bdc012a8ccbd3e15",
-  "repo/tests/test_plans.py": "c089baae7be9530090c4e97506f7f8c2cb886dc860d0062a5f79466d3e2041ca"
-}
