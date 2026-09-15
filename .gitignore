@@ -2,3 +2,4 @@
 .pi-glla/
 __pycache__/
 *.pyc
+.venv/

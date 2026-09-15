@@ -1,0 +1,23 @@
+[project]
+name = "helpagent"
+version = "0.1.0"
+description = "Small-model coding harness: kernel envelopes, task tree, fake model layer"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.13.5",
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+# Unit gate = unit + contract, <10s, CPU-only (TEST_PLAN §3); tests/fixtures/ holds
+# shared fixture repos consumed by scenarios, not gate tests themselves.
+testpaths = ["tests/unit", "tests/contract"]
+pythonpath = ["."]
+addopts = "-q"
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+
+[[tool.uv.index]]
+url = "https://download.pytorch.org/whl/nightly/cu132"
+default = true
