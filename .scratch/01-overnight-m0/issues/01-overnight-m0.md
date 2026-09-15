@@ -69,3 +69,18 @@ full control, orchestrate independent fork=false subagents to do actual work."
 - Required: `chat_template_kwargs: {"enable_thinking": false}` — otherwise the model burns the
   budget on a thinking preamble and returns empty content (verified). All runner calls must set it.
 - Port 8899 is taken by an unrelated python http.server → baseline uses :8833.
+
+## Kernel report — verification addendum (post-night)
+- Headline reproduced by owner session before commit: 41/41 green; inventory matches; no
+  network/exec surface. Now 44/44 (3 new tests, below).
+- DECISION spot-checks: (15) internal-entry resolution and (1)/(5) sentinel + context-only
+  validation verified against docs — implementations carry correct doc citations.
+- Gap found & closed (050f064): decision (5) lets reference checks (seam grounding, boundary
+  subset, ac_id ∈ map) skip silently when no validation context is injected. llm_step now
+  records `validation_context_missing` in the ledger for expand/draft_acs/write_spec/
+  test_plan/write_test. **M1 requirement: the real runner must inject context on every call —
+  the ledger note is the safety net, not the fix.**
+- K's remaining-risk note (REQUIRED-sentinel consolidated error vs per-field errors) adopted
+  as an M1 constraint: the real decoder grammar must branch identically to §0 so error
+  messages align. (§0 already specifies the two-alternative grammar; this is implementation
+  guidance, no doc change needed.)
