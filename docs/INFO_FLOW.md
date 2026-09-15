@@ -1,145 +1,25 @@
 # INFORMATION FLOW — Engine Script v1 (pure dataflow, worked example inside)
 
-The main diagram is the complete topology. **The worked example below it is the same
-graph with real payloads filled in** — one concrete task traced through the most important
-steps, with the actual JSON each edge carries. Read the example first if the full diagram is
-too dense; read the diagram to see how the example generalizes.
+The main diagram is the complete topology. **The worked examples below it are the same
+graph with real payloads filled in** — §2 traces the *structural* entry (feature class: the
+request names the layers, so module-map seams are the real seams), §3 the *diagnostic* entry
+(bugfix: location unknown, so the plan is written after `locate` produces evidence). Read the
+examples first if the full diagram is too dense; read the diagram to see how they generalize.
 
-**Status (§2):** the trace predates the candidate-cut mode split, the AC/`gate_decide`
-repair and the contract-routing fix, so treat its payloads as *shape* examples, not sanctioned
-routing. It is being re-based on a feature-class task, with the bugfix trace re-homed to the
-diagnostic path (`locate` → reproduce → evidence-seeded plan). §1 is current.
+## 2. Worked example — "add per-user login rate limiting" (feature class, structural)
 
-## 1. Full topology
+Stack pinned for concreteness: **FastAPI + SQLite + React** (the mechanism is stack-agnostic —
+C6 owns a per-stack bootstrap; unknown stacks fall back to the model). This trace shows the
+*structural* entry: the request names the layers, so the module map's seams are the real seams.
+It includes one rejected split, one rejected AC, and one spec-blame failure — the interesting
+steps are the ones where the harness says no.
 
-Nodes are **actual LLM steps** plus **kernel data stores**. Every arrow is labeled with
-the **exact JSON fields** (ENVELOPE_SCHEMAS.md) that travel along it — no control flow
-here. Node shapes: `[step]` = LLM step · `[(store)]` = kernel store · `[[user]]` = human.
+### Step 0 — `task_card` (intake)
 
-```mermaid
-flowchart LR
-  %% ===== intake =====
-  REQ[("user request")]
-  CARD[task_card]
-  AMB[find_ambiguities]
-  USR[[user]]
-  REV[revise_task_card]
-  FIND[("expansion_findings")]
-
-  REQ -->|"raw text"| CARD
-  CARD -->|"goal"| AMB
-  AMB -->|"items[].question (kind=needs-user)"| USR
-  USR -->|"answers"| REV
-  FIND -->|"findings[].{topic,evidence}"| REV
-  REV -->|"card.{goal,task_class} (revised)"| CARD
-
-  %% ===== plan =====
-  IDX[("repo index — candidate cuts, conventions, test patterns, symbol ground truth")]
-  LOC[locate / reproduce]
-  EXP[expand]
-  TREE[("task tree — nodes, ac_test_map, file boundaries")]
-  SPREV[split_review]
-  GAC[gate_decide — AC map]
-
-  CARD -->|"goal, task_class (structural)"| EXP
-  CARD -->|"goal, task_class (diagnostic)"| LOC
-  IDX -->|"ranked slices"| LOC
-  LOC -->|"evidence — failing symbol, stack frames, covering tests"| IDX
-  IDX -->|"candidate_cuts[].{seam_id, files, rationale} — structural | evidence-seeded"| EXP
-  EXP -->|"children[].{seam_id, what, why, leaf, est_rounds}"| TREE
-  TREE -->|"subtree children[], parent{what,why}"| SPREV
-  SPREV -->|"issues[].{kind,target,description}"| FIND
-  TREE -->|"internal node children[] — integration ACs (optional)"| GAC
-  GAC -->|"accepted map"| TREE
-
-  %% ===== leaf pipeline — runs per leaf, parallel =====
-  subgraph LEAF["leaf pipeline — runs per leaf"]
-    SPEC[write_spec]
-    SREV[spec_review]
-    ACS[draft_acs]
-    TPLAN[test_plan]
-    WTEST[write_test]
-    IMPL[implement]
-    JASP[judge_aspects]
-  end
-
-  TREE -->|"node{what,why}, seam boundary files"| SPEC
-  IDX -->|"conventions, symbol signatures"| SPEC
-  SPEC -->|"spec — interfaces, behavior, implementation_notes, files_touched"| SREV
-  SREV -->|"issues[].{severity, location, description}"| SPEC
-  SPEC -->|"node, spec (frozen)"| ACS
-  ACS -->|"proposed map"| GAC
-  SPEC -->|"interfaces[], behavior, implementation_notes"| IMPL
-  TREE -->|"ac_test_map — ac_id, statement, hint"| TPLAN
-  SPEC -->|"interfaces[], behavior — the contract, never the code"| TPLAN
-  TPLAN -->|"cases[].{case_id, ac_id, kind, description}"| WTEST
-  IDX -->|"test_patterns"| WTEST
-  WTEST -->|"file_path + content — whole file (last content-emitting envelope)"| WT[("work tree")]
-  IMPL -->|"tool-round writes via k.check_write"| WT
-
-  %% ===== failure and debug =====
-  GATER[("gate results — per-check verdicts, failures, missing")]
-  TRAJ[("trajectory — diff, commands, transcripts, failure summaries")]
-  FJ[failure_judge]
-  IB[identify_bugs]
-  PP[propose_probe]
-  IPR[interpret_probe]
-  EV[("evidence artifact — append-only")]
-  DJ[debug_judge]
-  FA[fix_attempt]
-  MEM[("memory store — governed")]
-
-  WT -->|"changed files, test output"| GATER
-  WT -->|"diff, command output"| TRAJ
-  GATER -->|"failure excerpt, test_source"| FJ
-  SPEC -->|"behavior"| FJ
-  TRAJ -->|"diff of touched files"| FJ
-  FJ -->|"problems[].side, confidence, evidence"| ROUTE[("routing decision — kernel")]
-  GATER -->|"failures array"| IB
-  EV -->|"evidence items — fact, implies"| IB
-  IB -->|"bugs[].{symptom, evidence, location, severity, reproducible}"| TREE
-  EV -->|"evidence items — fact, implies"| PP
-  PP -->|"command, expected_info, why, confident_enough"| EXEC[("k.exec — sandboxed")]
-  EXEC -->|"shaped result — exit, excerpts, verdict"| IPR
-  IPR -->|"fact, implies"| EV
-  IPR -->|"lesson — line, topic_key, provenance"| MEM
-  EV -->|"evidence items — fact, implies"| DJ
-  SPEC -->|"behavior"| DJ
-  TRAJ -->|"diff"| DJ
-  DJ -->|"problem, fixes[] — rank, approach, how"| FA
-  TRAJ -->|"prior_failures[] — shaped"| FA
-  FA -->|"tool-round writes via k.check_write"| WT
-  FA -->|"new_issues[].{keywords, description, blocked}"| TREE
-  FA -->|"status, comment"| OUTC[("attempt outcome — kernel-computed")]
-  GATER -->|"verify verdicts"| OUTC
-  OUTC -->|"trigger, outcome"| PG[propose_growth]
-  PG -->|"evidence_refs[], nodes[], reason"| GD[gate_decide — tree growth]
-
-  %% ===== closure and governance =====
-  TREE -->|"ac statement + hint, boundary"| JASP
-  WT -->|"diff"| JASP
-  GATER -->|"per-check verdicts"| JASP
-  JASP -->|"aspect, target_ac_id, verdict, confidence, evidence"| GATEC[("gate.close — kernel")]
-  LED[("ledger")]
-  GD -->|"decision, explanation"| TREE
-  LED -->|"resolved evidence refs"| GD
-  MEM -->|"topic-matched lessons — composer injection"| LEAF
-  TREE -->|"snapshot, statuses"| RS[run_summary]
-  TRAJ -->|"summary, counters"| RS
-  RS -->|"outcome, what_was_done, what_changed, what_remains"| REC[("run record — to UI")]
-```
-
-## 2. Worked example — "sessions expire after 60s instead of 1h"
-
-One bugfix, traced through intake → plan → spec → implement → debug. Every payload below
-is what actually travels; fields are verbatim from ENVELOPE_SCHEMAS.md.
-
-### Step 1 — `task_card` (intake)
-
-**Input** (composed by the kernel from `run_config`): the user's raw request, verbatim —
+**Input** (kernel-composed from `run_config`): the user's raw request, verbatim —
 
 ```json
-{"request": "Sessions in the API expire after 60s instead of 1h. Probably broke when we refactored auth last week. Don't touch the public API."}
+{"request": "Add per-user login rate limiting: after 5 failed logins within 15 minutes, reject that user's attempts for 15 minutes, reset the counter on success. Show remaining attempts on the login screen. Stack: FastAPI + SQLite + React."}
 ```
 
 **Output envelope:**
@@ -147,218 +27,222 @@ is what actually travels; fields are verbatim from ENVELOPE_SCHEMAS.md.
 ```json
 {
   "status": "ok",
-  "comment": "Session expiry is 100x too short; likely a seconds-vs-ms bug.",
-  "task_class": "bugfix",
-  "goal": "Sessions expire after 60s instead of 1h — fix the computation.\nConstraints: no new dependencies; public API stays backward compatible.\nOut of scope: session persistence across restarts."
+  "comment": "Cross-layer feature: DB state, API enforcement, UI display. No ambiguity blocking a plan.",
+  "task_class": "feature",
+  "goal": "Per-user login rate limiting: 5 failed logins in 15 min → 15 min lockout per user; success resets. UI shows remaining attempts.\nConstraints: existing users unaffected (no data loss); follow repo conventions.\nOut of scope: IP-based limiting, e-mail notification."
 }
 ```
 
-Routed: `goal` → `expand` (and into every later ctx); `task_class` → selects the budget
-class (kernel). Constraints/out-of-scope live inside `goal` — no program consumes them
-separately, so they are not separate fields (merge rule). The `comment` (self-summary)
-travels nowhere — trajectory/inspection only.
+`task_class: "feature"` → structural candidate cuts, index build already done (C1/C2 precede A/B).
 
-### Step 2 — `expand` (planning; harness proposes seams, model fills)
+### Step 1 — structural cuts → `expand` → `split_review` rejects → re-expand
 
-**Input** (kernel-composed): the task card's `goal` + the repo index's candidate cuts —
+**Candidate cuts** (harness-side, from the module map — lookup + deterministic ranking, no model):
 
 ```json
-{
-  "task": {"goal": "Sessions expire after 60s instead of 1h — … (full task card goal)"},
-  "candidate_cuts": [
-    {"seam_id": "seam-2", "files": ["auth/config.py"], "rationale": "TTL constants live here"},
-    {"seam_id": "seam-3", "files": ["middleware/auth.py"], "rationale": "expiry enforcement point"},
-    {"seam_id": "seam-4", "files": ["models/session.py"], "rationale": "session row shape"},
-    {"seam_id": "seam-5", "files": ["tests/auth/"], "rationale": "auth test scope"}
-  ]
-}
+{"candidate_cuts": [
+  {"seam_id": "seam-db",  "files": ["backend/db/schema.py", "migrations/"],      "rationale": "users table DDL and migrations"},
+  {"seam_id": "seam-api", "files": ["backend/api/auth.py"],                      "rationale": "login endpoint"},
+  {"seam_id": "seam-ui",  "files": ["frontend/src/Login.jsx"],                   "rationale": "login form component"},
+  {"seam_id": "seam-tests","files": ["tests/"],                                  "rationale": "auth test scope"}
+]}
 ```
 
-The `files` on each cut come from the repo index's module map — this is the answer to
-"where do boundary files come from": the engine knew before asking the model.
-
-**How indexing works without a model ("is it RAG?"):** the index is *precomputed structural*
-ground truth — symbol table, module map, test map, conventions — built at C1/C2 by parsers
-and LSP, no model call, no retrieval model. Turning it into `candidate_cuts` for a *specific*
-task is a **lookup + deterministic ranking**, not inference: symbols/paths named in the task
-goal, in the ACs, or in the evidence anchor a module, and its seams are emitted with the files
-they own. So the model is never asked "what is relevant" — it is asked to fill children along
-cuts the index already ranked (embeddings/semantic ranking are explicitly an open question,
-not a v1 mechanism). For a task whose *location is the unknown* (bugfix/perf/crash) the anchor
-is the evidence cut — failing symbol, stack frames, covering tests — produced by `locate`, and
-`expand` runs **after** that step, so a cut list built from filenames alone is never a plan.
-
-**Output envelope:**
+**First `expand` output — rejected by `split_review`:**
 
 ```json
 {
   "status": "ok",
-  "comment": "Expiry logic is central in auth; split config vs enforcement vs tests.",
+  "comment": "Three work leaves along the seams.",
   "children": [
-    {"seam_id": "seam-2", "what": "Fix expires_at computation in auth/config.py", "why": "Root cause of the 60s value", "leaf": true, "est_rounds": 3}, //Like it already knows a plan for fix without even looking at actual file, just from a bunch of filenames?
-    {"seam_id": "seam-3", "what": "Enforce expiry check in middleware/auth.py — reject expired sessions with 401", "why": "Central enforcement point", "leaf": true, "est_rounds": 4}, //I don't think timeout-value config have anything to do with "reject expired sessions with 401"? That's a total more serious never mentioned thing?
-    {"seam_id": "seam-3b", "what": "Session-create path sets expiry from config, not literal", "why": "Second half of the bug", "leaf": true, "est_rounds": 3} //Is that even mentioned? Yes it's good to be config, but user didn't mention it, and how did you know it isn't? On the contrary, if you did looked at files, it's convenient to directly point out hte problem for the fixer right? Instead of a very generic message.
+    {"seam_id": "seam-api", "what": "Failed-login counter + lockout check in the login endpoint", "why": "Enforcement point", "leaf": true, "est_rounds": 6},
+    {"seam_id": "seam-db",  "what": "Add failed_login_attempts + locked_until columns, backfill", "why": "State for the counter", "leaf": true, "est_rounds": 4},
+    {"seam_id": "seam-ui",  "what": "Show remaining attempts on the login form", "why": "Requested UI", "leaf": true, "est_rounds": 3}
   ]
 }
 ```
 
-(No "write tests" child: every leaf is *forced* to carry an AC test map — tests are a
-property of every task, not a task of their own. The closure gate will not close a leaf
-without its tests.)
-
-Routed: each child → a task-tree node; `est_rounds` × 1.5 → that leaf's round budget;
-`seam_id` is grammar-constrained to the injected candidate list (the model cannot invent
-a seam). The middle child's spec is worked below.
-
-### Step 3 — `write_spec` (leaf `jwtauth.middleware-auth`)
-
-**Input** (kernel-composed): the leaf node + its boundary (seam-3's file scope) + repo-index
-knowledge —
-
 ```json
-{
-  "node": {"what": "Enforce expiry check in middleware/auth.py — reject expired sessions with 401", "why": "Central enforcement point"},
-  "boundary_files": ["middleware/auth.py"],
-  "conventions": "Auth errors use ApiError(status, detail). All datetimes tz-aware UTC (CONN-7).",
-  "ground_truth": {"get_session_expiry": "def get_session_expiry(role: str) -> datetime — exists at auth/config.py:12"},
-  "test_commands": ["pytest tests/auth/ -x"]
-}
+{"ok": false,
+ "issues": [
+  {"kind": "overlap", "target": "seam-api", "description": "lockout read/write hits the users row that seam-db owns — both leaves mutate the same row"},
+  {"kind": "missing-piece", "target": "parent", "description": "nothing owns 'counter resets on success' — it spans the endpoint and the row"}
+ ]}
 ```
 
-The boundary came from the seam cut (step 2); the kernel also injects covering-test
-locations and the canonical test command (the implementer will be told to run exactly this).
+The kernel hands the issues back to `expand` (bounded revise → re-review). **Second attempt — accepted:**
 
 ```json
 {
   "status": "ok",
-  "comment": "One interface; expiry math is the whole bug.",
+  "comment": "DB leaf owns the row shape, API leaf owns enforcement via that row, UI reads it. Tests split out per side.",
+  "children": [
+    {"seam_id": "seam-db",  "what": "users table gains failed_login_attempts INTEGER NOT NULL DEFAULT 0 and locked_until TEXT NULL; migration 0007", "why": "Row shape is the single owner of lockout state", "leaf": true, "est_rounds": 4},
+    {"seam_id": "seam-api", "what": "Login endpoint enforces the window through the users row: count, lock, reset on success", "why": "One writer of lockout state, behind the existing transaction", "leaf": true, "est_rounds": 6},
+    {"seam_id": "seam-ui",  "what": "Login form renders remaining attempts and the locked message from the 429 body", "why": "Requested UI", "leaf": true, "est_rounds": 3},
+    {"seam_id": "seam-tests", "what": "API tests for lockout window, reset, and user-indistinguishable errors (tests/api/test_lockout.py)", "why": "Test side is heavier than the UI side — split it (per-side leaf criterion)", "leaf": true, "est_rounds": 5},
+    {"seam_id": "seam-tests", "what": "E2E: full login flow through UI + API + DB (tests/e2e/test_login_flow.py)", "why": "The user story's AC is end-to-end and must be exercised locally", "leaf": true, "est_rounds": 4}
+  ]
+}
+```
+
+Note the shape this produces: three *work* leaves and two *test* leaves — the owner rule in
+action (the criterion applies per side; the UI's own light component test stays inside
+`seam-ui`, no split needed there). The two test leaves share the `seam-tests` scope but own
+disjoint files; `files_touched` narrows each to its own file, and the file-overlap scheduler
+serializes same-group writers.
+
+### Step 2 — `write_spec` (leaf `seam-api`)
+
+**Input** (kernel-composed): node + boundary (`backend/api/auth.py`) + conventions + symbol
+ground truth (`login` handler exists at `backend/api/auth.py:31`).
+
+```json
+{
+  "status": "ok",
+  "comment": "One interface; window math and state ownership are the whole feature.",
   "interfaces": [
-    {"name": "get_session_expiry", "signature": "def get_session_expiry(role: str) -> datetime", "contract": "Returns tz-aware UTC datetime; 1h base, role-adjusted; must never return past."}
+    {"name": "login", "signature": "async def login(credentials: Credentials) -> TokenResponse", "contract": "On success: 200 + token, counter reset, locked_until cleared. When locked: 429, body carries retry_after_seconds. Existing/unknown users are indistinguishable in error bodies."}
   ],
-  "behavior": "Expiry = utc_now() + timedelta(hours=SESSION_TTL_HOURS[role], default 1h). Types: tz-aware UTC datetime throughout (no epoch ints). Errors: invalid role → ApiError(400); missing config key → default 1h, never raises. Edge cases: role='admin' bonus; missing config → 1h default.",
-  "files_touched": ["middleware/auth.py"]
+  "behavior": "Lockout window 15 min, threshold 5 failures, per user. Counter and locked_until live on the users row (migration 0007). Failure path increments inside the existing transaction; the 6th attempt within the window → 429. Success path resets both fields in the same transaction as token issue.",
+  "implementation_notes": "No new table — state is two columns on users. Read-modify-write inside the existing session transaction; no second round-trip.",
+  "files_touched": ["backend/api/auth.py"]
 }
 ```
 
-(`edge_cases` as a separate JSON field is gone — enumerating concrete cases is now
-`test_plan`'s job, from the same inputs; `types_schema`/`error_model` folded into
-`behavior` — one consumer set, one field. The example's behavior line carries them.)
+**Routed (the firewall — withhold solutions, share requirements):**
 
-Routed (the step-separation rule in action):
+- `interfaces + behavior + implementation_notes` → `implement` ctx
+- `interfaces + behavior` → the *test* leaves' ctx — never `implementation_notes`, never the
+  diff, never code. The test writer asserts the **contract** (429, `retry_after_seconds`,
+  indistinguishable errors) because the contract said so — not because it guessed.
+- `files_touched` narrows the boundary (kernel checks ⊆); the implementer *cannot* write
+  `tests/…` even though it must run those tests — different seam, policy-blocked.
 
-- `interfaces+behavior+implementation_notes` → `implement` ctx
-- `ac_test_map` + `interfaces` + `behavior` → `test_plan` ctx — **the test writer gets the
-  whole contract but never the implementation or `implementation_notes`**: the firewall
-  withholds solutions, not requirements (an under-informed test writer produces unfounded
-  tests instead of independent ones)
-- `files_touched` narrows the seam boundary (kernel checks ⊆) — scheduler + writes outside
-  it are policy-blocked (this is also what stops the implementer editing its own tests)
-- `interfaces+behavior` → also stored for `failure_judge`/`debug_judge` later (the spec is
-  the "who meets the spec" ground truth when something fails)
+### Step 3 — AC map from the frozen spec → `gate_decide` decides
 
-### Step 4 — AC map, then `implement` ⟂ `write_test` (parallel)
-
-First, the AC map — authored at leaf creation in this trace, but per the current design it
-derives from the **frozen spec** and is decided by `gate_decide` (ENVELOPE_SCHEMAS §6); the
-kernel-validated map is what the gate consumes:
+Authored **after** `spec_review` passed, from the frozen contract (never from the plan line):
 
 ```json
-{
-  "ac_test_map": {
-    "AC-1": {"statement": "expiry == creation + SESSION_TTL_HOURS[role] (default 1h)", "check_kind": "test"},
-    "AC-2": {"statement": "missing config key falls back to 1h default", "check_kind": "test"},
-    "AC-3": {"statement": "error paths never leak key material", "check_kind": "subjective", "check_hint": "inspect error responses in diff"}
-  }
-}
+{"acs": [
+  {"ac_id": "AC-1", "statement": "6th failed attempt within the window → 429, body carries retry_after_seconds", "check_kind": "test", "check_hint": "tests/api/test_lockout.py::test_sixth_attempt_429"},
+  {"ac_id": "AC-2", "statement": "successful login resets failed_login_attempts and clears locked_until", "check_kind": "test", "check_hint": "tests/api/test_lockout.py::test_success_resets"},
+  {"ac_id": "AC-3", "statement": "locked-out and unknown users are indistinguishable", "check_kind": "subjective", "check_hint": "inspect error responses in the diff"}
+]}
 ```
 
-Now parallel. `test_plan` (blind to implementation — written BEFORE the code exists, TDD
-order; inputs: ac_test_map + spec interfaces):
+`gate_decide` (fresh context) **rejects** it:
+
+```json
+{"decision": "reject", "reason_is_real": true, "weakens_gate": true, "meaning_preserved": false,
+ "explanation": "AC-3 as subjective is gate-easing: a deterministic check is feasible — assert identical error body for existing vs unknown user."}
+```
+
+Revised AC-3 → `check_kind: "test"`, hint `test_lockout.py::test_unknown_user_indistinguishable`.
+Map frozen. This is the subjective-inflation guard doing its one job.
+
+### Step 4 — `implement` ⟂ test leaves (parallel, per side)
+
+`seam-api` implements in a bounded tool-loop (writes through the check pipeline, runs the
+canonical command itself, envelope is the report only):
+
+```json
+{"status": "ok", "comment": "Window math in auth.py:31-58; state via users row; ran pytest tests/api -x green locally.", "tests_run": ["pytest tests/api -x"]}
+```
+
+`seam-db`'s migration is verified on a **throwaway SQLite file the harness creates and
+destroys** — apply → test → drop; never live-stateful. `T-api` writes its test file blind to
+the implementation:
+
+```json
+{"file_path": "tests/api/test_lockout.py", "content": "...whole test file..."}
+```
+
+### Step 5 — gate red → `failure_judge` blames the SPEC
+
+TC for AC-1 fails: the test asserts `retry_after_seconds` in the 429 **body**; the repo's
+`ApiError(status, detail)` has no body-field mechanism — the spec invented a response shape the
+error model cannot produce. Judge (fresh context, sees failure excerpt + test source + spec +
+diff):
+
+```json
+{"status": "ok",
+ "comment": "Test and code each match the spec; the spec's contract is unimplementable as written.",
+ "problems": [
+  {"side": "spec", "description": "contract requires retry_after_seconds in the 429 body; ApiError has no body-field path", "evidence": "backend/api/errors.py:8 vs AC-1", "confidence": "high"}
+ ]}
+```
+
+`side: "spec"` routes to a spec-change proposal, gate-reviewed (proposer ≠ decider), revised to
+*"429 status; `retry_after_seconds` as a response header"*. Both sides get the revised contract;
+the gate re-runs. Green.
+
+### Step 6 — closure
+
+- Work leaves close on their own maps (regression command + own tests).
+- Test leaves close on their own files' results.
+- The **parent** (the feature node) closes on (c) + its **integration map** — the view rule:
+
+```json
+{"ac_test_map": [
+  {"ac_id": "INT-1", "statement": "full story: 5 failures → locked → success after window", "check_kind": "test", "command": "pytest tests/e2e/test_login_flow.py::test_lockout_story"},
+  {"ac_id": "INT-2", "statement": "API contract holds (429 + retry_after_seconds)", "check_kind": "test", "command": "pytest tests/api/test_lockout.py"},
+  {"ac_id": "INT-3", "statement": "migration applies on a fresh DB", "check_kind": "script-assertion", "command": "python -m minirepo.migrate --throwaway"}
+]}
+```
+
+Every entry resolves to a check a descendant already owns — references, never copies, which is
+why five leaves did not produce five copies of the same AC.
+
+## 3. Worked example b — the same bug, the diagnostic entry (evidence-seeded)
+
+Request: *"Sessions expire after 60s instead of 1h. Probably broke when we refactored auth."*
+Location is the unknown, so the plan is written **after** the evidence exists.
+
+**D1 `locate`** — C3: model over H-ranked slices (index already built). Ranked candidates:
+
+```json
+{"candidates": [
+  {"path": "auth/config.py", "symbol": "SESSION_TTL", "confidence": "high", "why": "only definition of the TTL constant"},
+  {"path": "middleware/auth.py", "symbol": "check_session", "confidence": "high", "why": "reads expiry; in the failing path"},
+  {"path": "tests/auth/test_expiry.py", "symbol": "test_expiry_is_one_hour", "confidence": "medium", "why": "covers the reported behavior"}
+]}
+```
+
+**D2 reproduce** — canonical command runs, shaped failure; call-graph lookup shows
+`create_session → get_session_expiry` — the create path reads the *same* constant.
+
+**D3 evidence-seeded cuts** — `propose_cuts(node, evidence)`:
+
+```json
+{"candidate_cuts": [
+  {"seam_id": "seam-config", "files": ["auth/config.py"], "rationale": "failing symbol's constant, anchored by stack frame + test"},
+  {"seam_id": "seam-tests", "files": ["tests/auth/"], "rationale": "regression pin for the reported behavior"}
+]}
+```
+
+**D4 `expand` (evidence-seeded):**
 
 ```json
 {
   "status": "ok",
-  "comment": "Three cases, one per checkable AC.",
-  "cases": [
-    {"case_id": "TC-1", "ac_id": "AC-1", "kind": "unit", "description": "fresh session → expiry == utc_now()+1h ±1s"},
-    {"case_id": "TC-2", "ac_id": "AC-2", "kind": "unit", "description": "config missing → default 1h"},
-    {"case_id": "TC-3", "ac_id": "AC-1", "kind": "api", "description": "expired token → 401 within tolerance"}
+  "comment": "One constant, one regression pin. Create path shares the constant — no second fix.",
+  "children": [
+    {"seam_id": "seam-config", "what": "auth/config.py:12 — SESSION_TTL is 60 (seconds) where the consumer treats it as hours; set 3600 and rename to SESSION_TTL_SECONDS with an explicit unit", "why": "Failing symbol's constant is the root cause (evidence: test_expiry red + single definition)", "leaf": true, "est_rounds": 2},
+    {"seam_id": "seam-tests", "what": "Pin expiry == creation + 1h (tests/auth/test_expiry.py already red — make it the regression)", "why": "The failing test is the AC's check", "leaf": true, "est_rounds": 1}
   ]
 }
 ```
 
-Each `case` → one `write_test` call `{"file_path": "tests/auth/test_expiry.py", "content":
-"...whole test file..."}` → work tree (this is the last content-emitting envelope).
+What changed against the old trace, by name: the plan names **file:line** because `locate` put
+it in the evidence (grounding, not filenames — and `est_rounds` 2 comes from a one-constant
+diff, not a guess). The invented `seam-3b` ("session-create sets expiry from config") is
+**refuted by the call graph** — the create path already reads the constant, so a second leaf
+would have been duplicated work and an unrelated change. And nothing invented a 401 feature:
+the only behaviors in the plan are the reported one and its regression pin. Everything
+downstream (spec → AC map → parallel impl/test → gate) is identical in shape to §2.
 
-`implement` — **a bounded tool-loop, not a patch emitter**. Input: spec + boundary files +
-the canonical test command. The model edits files via tools (every write passes the check
-pipeline), runs `pytest tests/auth/ -x` itself, iterates within the round budget, and the
-envelope is only its final report:
-
-```json
-{
-  "status": "ok",
-  "comment": "Computation fixed at auth.py:41; config value respected; ran tests green.",
-  "tests_run": ["pytest tests/auth/ -x"]
-}
-```
-
-No file contents travel in it — the harness knows every change from the trajectory git
-snapshots, and the gate re-verifies the tests regardless of the model's "confirmed".
-
-### Step 5 — the failure loop (gate → failure_judge → fix)
-
-Gate runs TC-3; it fails. `failure_judge` receives: failure excerpt + test source + spec
-`behavior` + trajectory diff.
-
-```json
-{
-  "status": "ok",
-  "comment": "Code compares datetime to epoch int; test and spec are consistent.",
-  "problems": [
-    {"side": "code", "description": "expiry (datetime) compared with request.time (int epoch)", "evidence": "middleware/auth.py:41", "confidence": "high"}
-  ]
-}
-```
-
-A problems **list**, not a single side — if the judge had also found the test asserting the
-wrong status code, there would be a second entry with `side: "test"`, and the router acts
-on *every* entry: `code` → implementer, `test` → fix ticket, `spec` → spec-change proposal
-(gate-reviewed). All routes fire from one verdict.
-
-### Step 6 — `fix_attempt` (a tool-loop: judge's advice + own testing)
-
-**Input** (kernel-composed): the judge's problems (advice, not orders) + the failing test
-command + prior shaped failures —
-
-```json
-{
-  "problems": [{"side": "code", "description": "datetime vs epoch int comparison", "evidence": "middleware/auth.py:41"}],
-  "failing_tests": ["pytest tests/auth/test_expiry.py::TC-3"],
-  "prior_failures": []
-}
-```
-
-The fixer edits via tools (check pipeline on every write), runs the failing test itself,
-and reports only when it believes it is fixed:
-
-```json
-{
-  "status": "fixed",
-  "comment": "Epoch comparison replaced with tz-aware datetime compare; TC-3 green locally.",
-  "tests_run": ["pytest tests/auth/test_expiry.py::TC-3", "pytest tests/auth/ -x"],
-  "new_issues": [
-    {"keywords": "datetime timezone naive", "description": "utils.utc_now used in two more places; same class of bug possible", "blocked": false}
-  ]
-}
-```
-
-Routed: gate re-runs everything — the model's "confirmed" is a claim, never a close;
-`new_issues` → a ticket node (non-blocking, so the leaf can close); `status` × gate
-verdicts → outcome enum, computed by the kernel, never by the model. `comment` →
-trajectory + UI panel.
-
-## 3. Full topology — how to read it against the example
+## 4. Full topology — how to read it against the example
 
 - Every edge label in §1 names fields; the example shows their concrete shapes.
 - **Stores are the memory**: `task tree` and `evidence artifact` are the two hubs; the

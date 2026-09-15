@@ -347,7 +347,8 @@ its internals are kernel-internal. `<!-- DECISION: ENGINE_SCRIPT implements boot
 ## 7. Budget enforcement
 
 Global run budget, kernel-enforced, per task class: `max_leaves`, `max_calls`,
-`max_wall`. Expansion appetite is bounded per-parent (depth 3–4, 5–15 leaves/parent) but
+`max_wall`. Expansion appetite is bounded per-parent (depth 3–4, 5–15 leaves/parent — a default,
+not a hard bound) but
 the global cap is what stops 3,000-leaf trees.
 
 - **Pre-check:** before each primitive call the kernel verifies headroom. `budget`

@@ -202,8 +202,8 @@ async def boot_recover(k, workdir):
     #      both sides get interfaces + behavior; implementation_notes goes to the implementer
     #      only. The test writer never sees code; the implementer sees tests (it must run them)
     #      but its boundary excludes the test files, so it cannot edit them. ----
-    code_t = asyncio.create_task(implement(k, leaf, spec, rounds_budget))
-    test_t = asyncio.create_task(write_tests(k, leaf, spec))   # whole contract, never the code
+    code_t = asyncio.create_task(implement(k, index, leaf, spec, rounds_budget))
+    test_t = asyncio.create_task(write_tests(k, index, leaf, spec))   # whole contract, never the code
 
     code_ok, tests_ok = await asyncio.gather(code_t, test_t, return_exceptions=True)
 
@@ -227,8 +227,9 @@ async def boot_recover(k, workdir):
 # Implement one leaf — bounded attempt loop
 # ============================================================
 
-async def implement(k, leaf, spec, rounds_budget):
-    files = index.files_in_scope(leaf)              # task's declared file boundary
+async def implement(k, index, leaf, spec, rounds_budget):
+    files = index.files_in_scope(leaf)              # task's declared file boundary (index passed
+                                                    #  in — no module globals; execute_leaf owns it)
     ctx   = await k.compose(leaf, spec, files)      # per-call adaptive injection (no fixed cap)
 
     for attempt in range(MAX_ATTEMPTS):             # bounded-attempt rule: one hypothesis each
@@ -247,7 +248,7 @@ async def implement(k, leaf, spec, rounds_budget):
     return split_signal(leaf)                       # → re-split into smaller leaves (below)
 
 
-async def write_tests(k, leaf, spec):
+async def write_tests(k, index, leaf, spec):
     plan = await llm_step(k, "test_plan",
         artifacts={"ac_test_map": leaf.ac_test_map, "spec": spec},   # contract only — no code
         question="Concrete test cases per check_id.")

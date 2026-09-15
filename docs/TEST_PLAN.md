@@ -233,7 +233,8 @@ Shared fixture: `tests/fixtures/mini_repo/` — a tiny Python package with one s
 sequences in `tests/contract/scenarios/<name>.py`.
 
 1. `test_scenario_happy_path_bugfix` — understand → plan (clean trial split, no findings) → DAG
-   validated → spec → parallel code+tests → gate all_green → run summary. Assert: call counts per
+   validated → spec → AC map decided by `gate_decide` → parallel code+tests → gate all_green →
+   run summary. Assert: call counts per
    step_type match the script's topology; tree root `done`; leaf artifact carries self-summary; the
    golden flow's six phases each appear in the trajectory.
 2. `test_scenario_test_bug_loop` — test writer's canned test is wrong; `failure_judge` envelope says
