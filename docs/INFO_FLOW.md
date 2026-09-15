@@ -1,10 +1,14 @@
 # INFORMATION FLOW — Engine Script v1 (pure dataflow, worked example inside)
 
 The main diagram is the complete topology. **The worked example below it is the same
-graph with real payloads filled in** — one concrete bugfix task ("sessions expire after
-60s instead of 1h") traced through the four most important steps, with the actual JSON
-each edge carries. Read the example first if the full diagram is too dense; read the
-diagram to see how the example generalizes.
+graph with real payloads filled in** — one concrete task traced through the most important
+steps, with the actual JSON each edge carries. Read the example first if the full diagram is
+too dense; read the diagram to see how the example generalizes.
+
+**Status (§2):** the trace predates the candidate-cut mode split, the AC/`gate_decide`
+repair and the contract-routing fix, so treat its payloads as *shape* examples, not sanctioned
+routing. It is being re-based on a feature-class task, with the bugfix trace re-homed to the
+diagnostic path (`locate` → reproduce → evidence-seeded plan). §1 is current.
 
 ## 1. Full topology
 
@@ -31,23 +35,28 @@ flowchart LR
 
   %% ===== plan =====
   IDX[("repo index — candidate cuts, conventions, test patterns, symbol ground truth")]
+  LOC[locate / reproduce]
   EXP[expand]
   TREE[("task tree — nodes, ac_test_map, file boundaries")]
   SPREV[split_review]
-  ACS[draft_acs]
+  GAC[gate_decide — AC map]
 
-  CARD -->|"goal, task_class"| EXP
-  IDX -->|"candidate_cuts[].seam_id"| EXP
+  CARD -->|"goal, task_class (structural)"| EXP
+  CARD -->|"goal, task_class (diagnostic)"| LOC
+  IDX -->|"ranked slices"| LOC
+  LOC -->|"evidence — failing symbol, stack frames, covering tests"| IDX
+  IDX -->|"candidate_cuts[].{seam_id, files, rationale} — structural | evidence-seeded"| EXP
   EXP -->|"children[].{seam_id, what, why, leaf, est_rounds}"| TREE
   TREE -->|"subtree children[], parent{what,why}"| SPREV
   SPREV -->|"issues[].{kind,target,description}"| FIND
-  TREE -->|"node{what,why}"| ACS
-  ACS -->|"acs[].{ac_id, statement, check_kind, check_hint}"| TREE
+  TREE -->|"internal node children[] — integration ACs (optional)"| GAC
+  GAC -->|"accepted map"| TREE
 
   %% ===== leaf pipeline — runs per leaf, parallel =====
   subgraph LEAF["leaf pipeline — runs per leaf"]
     SPEC[write_spec]
     SREV[spec_review]
+    ACS[draft_acs]
     TPLAN[test_plan]
     WTEST[write_test]
     IMPL[implement]
@@ -56,11 +65,13 @@ flowchart LR
 
   TREE -->|"node{what,why}, seam boundary files"| SPEC
   IDX -->|"conventions, symbol signatures"| SPEC
-  SPEC -->|"spec — interfaces, behavior, files_touched"| SREV
+  SPEC -->|"spec — interfaces, behavior, implementation_notes, files_touched"| SREV
   SREV -->|"issues[].{severity, location, description}"| SPEC
-  SPEC -->|"interfaces[], behavior"| IMPL
+  SPEC -->|"node, spec (frozen)"| ACS
+  ACS -->|"proposed map"| GAC
+  SPEC -->|"interfaces[], behavior, implementation_notes"| IMPL
   TREE -->|"ac_test_map — ac_id, statement, hint"| TPLAN
-  SPEC -->|"interfaces[]"| TPLAN
+  SPEC -->|"interfaces[], behavior — the contract, never the code"| TPLAN
   TPLAN -->|"cases[].{case_id, ac_id, kind, description}"| WTEST
   IDX -->|"test_patterns"| WTEST
   WTEST -->|"file_path + content — whole file (last content-emitting envelope)"| WT[("work tree")]
@@ -164,7 +175,18 @@ travels nowhere — trajectory/inspection only.
 ```
 
 The `files` on each cut come from the repo index's module map — this is the answer to
-"where do boundary files come from": the engine knew before asking the model. //Like RAG? If not given any "keyword", how does indexing work at all?
+"where do boundary files come from": the engine knew before asking the model.
+
+**How indexing works without a model ("is it RAG?"):** the index is *precomputed structural*
+ground truth — symbol table, module map, test map, conventions — built at C1/C2 by parsers
+and LSP, no model call, no retrieval model. Turning it into `candidate_cuts` for a *specific*
+task is a **lookup + deterministic ranking**, not inference: symbols/paths named in the task
+goal, in the ACs, or in the evidence anchor a module, and its seams are emitted with the files
+they own. So the model is never asked "what is relevant" — it is asked to fill children along
+cuts the index already ranked (embeddings/semantic ranking are explicitly an open question,
+not a v1 mechanism). For a task whose *location is the unknown* (bugfix/perf/crash) the anchor
+is the evidence cut — failing symbol, stack frames, covering tests — produced by `locate`, and
+`expand` runs **after** that step, so a cut list built from filenames alone is never a plan.
 
 **Output envelope:**
 
@@ -224,18 +246,21 @@ locations and the canonical test command (the implementer will be told to run ex
 
 Routed (the step-separation rule in action):
 
-- `interfaces+behavior` → `implement` ctx
-- `ac_test_map` + `interfaces` → `test_plan` ctx — **the test writer gets these but NOT
-  the implementation, because that edge simply doesn't exist in the diagram**
+- `interfaces+behavior+implementation_notes` → `implement` ctx
+- `ac_test_map` + `interfaces` + `behavior` → `test_plan` ctx — **the test writer gets the
+  whole contract but never the implementation or `implementation_notes`**: the firewall
+  withholds solutions, not requirements (an under-informed test writer produces unfounded
+  tests instead of independent ones)
 - `files_touched` narrows the seam boundary (kernel checks ⊆) — scheduler + writes outside
-  it are policy-blocked
+  it are policy-blocked (this is also what stops the implementer editing its own tests)
 - `interfaces+behavior` → also stored for `failure_judge`/`debug_judge` later (the spec is
   the "who meets the spec" ground truth when something fails)
 
 ### Step 4 — AC map, then `implement` ⟂ `write_test` (parallel)
 
-First, the AC map — defined at leaf creation, *before* any code (this answers "where does
-AC-1 come from": from `draft_acs`, run when the leaf was created; kernel-validated):
+First, the AC map — authored at leaf creation in this trace, but per the current design it
+derives from the **frozen spec** and is decided by `gate_decide` (ENVELOPE_SCHEMAS §6); the
+kernel-validated map is what the gate consumes:
 
 ```json
 {
@@ -338,11 +363,18 @@ trajectory + UI panel.
 - Every edge label in §1 names fields; the example shows their concrete shapes.
 - **Stores are the memory**: `task tree` and `evidence artifact` are the two hubs; the
   work tree is the only place code lives; the ledger/trajectory are append-only truth.
-- **Isolation by absence of edges**: test writer has no edge from `implement`; fixer has
-  no edge from any transcript (only `prior_failures[]`, shaped); `comment` fields route
-  to inspection only, never to another model step.
+- **Two entry points, one graph**: `task_class` selects the candidate-cut mode — **structural**
+  (feature/port/refactor/scaffold: module-map seams) or **evidence-seeded** via `locate`
+  (bugfix/perf/crash: the failing symbol, stack frames, covering tests). A diagnostic plan is
+  never fabricated from filenames, which is why `EXP` sits downstream of `LOC` for those classes
+  (TASK_TAXONOMY pipeline routing).
+- **Isolation is enforced by routing + boundary, not by edge absence**: the test writer has no
+  edge from `IMPL` and never receives `implementation_notes`; the implementer has no edge from
+  any transcript (only `prior_failures[]`, shaped) and *cannot edit the tests* even though it
+  must run them — writes are scoped to its seam boundary, and the check pipeline blocks the rest.
+  Both sides receive the full contract (`interfaces` + `behavior`): withholding *requirements*
+  produced unfounded tests, not independence. `comment` fields route to inspection only, never
+  to another model step.
 - **Kernel-computed nodes** (routing, outcome, gate.close, cascade): all-data in,
   decision-out — the "model never decides" principle as graph shape.
 - **`lesson` is the only debug→memory edge.**
-
-```

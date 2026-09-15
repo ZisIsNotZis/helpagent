@@ -10,18 +10,31 @@ Companion to DESIGN.md §4.1. Every activity SE ever requires, classified: minim
 - **Splitting rule:** a step needing two handovers splits into two. **Non-step rule:** an output that can't be pydantic-schema'd or acceptance-checked stays in-round.
 - **Merge rule (too simple):** steps chained by yes/no + dependent question merge into one step with a union schema (e.g. `{bugs: [...] | []}`). Also merge steps sharing identical inputs and one judgment round.
 - **Bounded-attempt rule (too complex):** no step "solves" anything open-ended. A fix/attempt step = one hypothesis, implemented, verified, outcome recorded: `{fixed, fixed-with-concerns, blocked-design-question, new-bug-found, needs-user}`. Next hypothesis = new sibling node; design questions bubble to the user as decision nodes.
-- **AC rule & closure gate (100% strict, kernel-enforced):** every AC is a checkbox resolving to ≥1 executable check — UT/API/E2E test, script assertion, or, for genuinely subjective ACs, an `llm("check: ...")` judge script (schema'd verdict + confidence). Spec/interface defined first; then code and tests are written **in parallel**, both targeting the AC test map (test writer never sees the implementation — independent verification). A node closes only when: (a) every AC has ≥1 test, (b) every test passes unconditionally (no skips, no flaky tolerance), (c) all child nodes are closed first. Closure is procedural — F7 runs the map mechanically; the model never decides whether to close, at most flags candidate gaps that become new nodes.
+- **AC rule & closure gate (100% strict, kernel-enforced):** every AC is a checkbox resolving to ≥1 executable check — UT/API/E2E test, script assertion, or, for genuinely subjective ACs, an `llm("check: ...")` judge script (schema'd verdict + confidence). **Every leaf carries an AC test map; an internal node MAY carry one**, and an internal map is an *integration view*: only checks that span its children, each resolving to a check a descendant already owns (a command or test id) — references, never copies, so ACs do not repeat upward. Spec/interface defined first; then code and tests are written **in parallel**, both targeting the AC test map. **Firewall = withhold solutions, share requirements:** both sides get the full contract (`interfaces` + `behavior`); only the implementation artifact is withheld from the test writer (the test writer never sees code — independent verification), while solver guidance lives in `implementation_notes` (implementer-only). A node closes only when: (a) every AC **present in its map** has ≥1 test, (b) every such test passes unconditionally (no skips, no flaky tolerance), (c) all child nodes are closed first. Closure is procedural — F7 runs the map mechanically; the model never decides whether to close, at most flags candidate gaps that become new nodes. **The map is a gate definition, so authoring it is a propose≠decide act:** `draft_acs` proposes, a fresh-context `gate_decide` decides (`weakens_gate` is exactly the subjective-where-deterministic-is-feasible check).
 - **Proposer never decides:** AC/test/tree-structure changes (add/remove/modify) are proposed by one agent with a written reason and decided by an independent fresh-context reviewer reading that reason. System-wide rule, same pattern as memory governance: no agent ever loosens a gate it is itself measured against.
-- **Expansion strategy:** **harness proposes candidate cuts from the repo's module map (real seams), model annotates/fills — propose-validate, never free decomposition.** Uniform-layer expansion: one layer at a time; all children of a node pass the same leaf criterion before the layer is done. Leaf criterion: (a) estimated execution ≤10 tool-rounds, (b) exactly one output artifact, (c) one subsystem area. Defaults: depth cap 3–4, 5–15 leaves per parent, plus a kernel-enforced **global node budget per task class** (per-parent bounds alone permit thousands of leaves).
+- **Expansion strategy:** **harness proposes candidate cuts, model annotates/fills — propose-validate, never free decomposition.** Two candidate modes, selected by what is known: **structural** (module-map seams) when the task's location is known or irrelevant — feature, port, scaffold, refactor; **evidence-seeded** (failing symbol, stack frames, covering tests — from the locate/reproduce artifact) when the location *is* the unknown — bugfix, perf, crash. Filename-only planning for a diagnostic task is a non-goal: when the location is the unknown, `expand` runs **after** locate, seeded with evidence, so the plan points at a real symbol instead of a plausible-sounding file. Uniform-layer expansion: one layer at a time; all children of a node pass the same leaf criterion before the layer is done. Leaf criterion: (a) estimated execution ≤10 tool-rounds, (b) exactly one output artifact, (c) one subsystem area. Defaults: depth cap 3–4, 5–15 leaves per parent (a *default*, not a bound — a small seam list legitimately yields fewer), plus a kernel-enforced **global node budget per task class** (per-parent bounds alone permit thousands of leaves).
 
 Legend: `H` harness · `M` model one-shot · `H+M` propose-validate (M proposes, H validates/executes).
+
+### Pipeline routing by task class
+
+The sections below are the activity catalogue, not a fixed sequence: the task class picks the entry point, because *what is unknown* differs.
+
+| task_class | Entry | Why |
+| --- | --- | --- |
+| bugfix, perf, crash (`location unknown`) | A → **C3 locate / D reproduce** → B expansion (evidence-seeded) → E/F | The plan cannot be written from names; the failing symbol comes from evidence, and the plan is written *after* it exists. Routes through the D pipeline from D0. |
+| add-feature, port, refactor (`location known or irrelevant`) | A → **B expansion (structural)** → E/F | The layers/modules the request names *are* the seams; module-map cuts are grounded. |
+| scaffold, new-repo | A → C6 bootstrap → B expansion (structural) | Environment and skeleton precede seams. |
+| docs-only | A → H | No code boundary to plan. |
+
+C1/C2 (index build) is a precondition of A/B, not a later phase — B1 consumes candidate cuts, and A3 consumes the index. The C activities that consume it per-need (C3 locate, C4 context, C5 negative-space) run where the routing table says.
 
 ## A. Understand & specify
 
 | # | Activity | Min? | Job | Clean input | Clean output |
 | --- | --- | --- | --- | --- | --- |
 | A1 | Requirement intake (NL → structure) | yes | M + `user()` gate | raw user request | task_card {goal, constraints, out-of-scope}; user confirms via `user()` |
-| A2 | Acceptance-criteria drafting + AC test map authoring | yes | H+M | task_card | AC list each with ≥1 check `{ac_id → [check_id, command]}` (kernel-validated; held in node schema); uncheckable → needs-human |
+| A2 | Acceptance-criteria drafting + AC test map authoring | yes | H+M | task_card (+ spec, for leaves — ACs derive from the frozen contract) | AC list each with ≥1 check `{ac_id → [check_id, command]}` (kernel-validated; held in node schema), **decided by a fresh-context `gate_decide` before it is frozen** (authoring is gate-defining, so proposer≠decider applies); uncheckable → needs-human |
 | A3 | Feasibility / repo-fit | yes | H+M | task_card + repo index | feasibility {blocking risks, affected areas, verdict} |
 | A4 | Clarification question to user | yes | `user()` primitive | task_card + ambiguity list | answered task_card; **hard cap 3 rounds** → excess ambiguities become needs-user decision nodes |
 
@@ -33,7 +46,7 @@ There is exactly one plan artifact: **the task tree**. Every node (big or small)
 
 | # | Activity | Min? | Job | Clean input | Clean output |
 | --- | --- | --- | --- | --- | --- |
-| B1 | Plan: expansion into task tree (merged impact-scoping + splitting) | yes | H+M (propose-validate) | task node + module map (repo seams) | child subtree (each node with selected output schema + AC test map); harness proposes cuts, model fills |
+| B1 | Plan: expansion into task tree (merged impact-scoping + splitting) | yes | H+M (propose-validate) | task node + candidate cuts (structural: module map · evidence-seeded: locate/reproduce artifact) | child subtree (each node with selected output schema); harness proposes cuts, model fills |
 | B2 | Split review (peer agent, fresh ctx) | yes | M | subtree + ACs | verdict {ok, issues[]} |
 | B3 | Dependency ordering | yes | H | tree (leaf I/O edges) | validated execution DAG |
 | B4 | User patch from node | yes | H + M (user exempt from gate review — final authority) | user-selected node + intent | rewritten subtree; cascade: touched leaf → parents re-validate up (done parent reopens, AC map re-runs); touched branch → children marked stale (must re-verify) |
@@ -154,6 +167,8 @@ Things that exist only inside a round, consumed by the model in the same breath:
 - reading comprehension of a long file (in-round; clean output = the extracted structure)
 
 Rule: whenever one of these seems like the *deliverable*, it isn't — wrap it so the step emits its structured shadow (choice, verdict, excerpt-set, mechanism). If no structured shadow exists, the activity is a human conversation, not a model step.
+
+**Guided thinking is a within-round strategy, not an exception to this rule** (DESIGN §2.2): an enum call → one map call per dimension → a *mechanical* reduce (union/dedup) still emits exactly one handover, so the step keeps its schema and boundary. It is a per-step-type option, spent only where coverage is the failure mode, and only after the cheaper already-specified mechanism (best-of-N + deterministic union) has been measured against it.
 
 ## Coverage check (SE phases × taxonomy)
 

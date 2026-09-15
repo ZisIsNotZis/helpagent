@@ -5,18 +5,22 @@ The SE methodology as a Python-ish script against the six kernel primitives. Thi
 ```python
 # ============================================================
 # scripts/v1/main.py — entrypoint
-# Kernel injects `k` (the six primitives) + `run_config`.
+# Kernel injects `k` (the six primitives) + `run_config` {request, repo, budget}.
 # ============================================================
 
 async def main(k, run_config):
     budget = run_config.budget          # max_leaves, max_calls, max_wall (kernel-enforced)
 
+    # ---- C1/C2. Index build — a PRECONDITION of planning, not a later phase: B1 consumes
+    #      candidate cuts and A3 consumes the index, so it precedes A/B. The C activities
+    #      that consume it per-need (locate, context gathering) stay where routing puts them. ----
+    index = await k.index.build(run_config.repo)  # C1/C2: harness-side, no model call
+
     # ---- A+B. Understand & plan CO-EVOLVE: trial decomposition is the ambiguity detector ----
     task, tree = await understand_and_plan(k, run_config.request, budget)
 
-    # ---- C. Orient: environment + index ----
-    await bootstrap_environment(k, tree)          # C6: engine-owned lifecycle per stack
-    index = await k.index.build(tree.repo)        # C1/C2: harness-side
+    # ---- C6. Environment: engine-owned lifecycle per stack ----
+    await bootstrap_environment(k, tree)
 
     # ---- Execute the tree ----
     await execute_tree(k, tree, index, budget)
@@ -35,7 +39,13 @@ async def main(k, run_config):
 async def understand_and_plan(k, request, budget):
     """Understanding and decomposition co-evolve: you often can't know whether a task
     is well-understood until you try to split it precisely — the split IS the test.
-    Intake is done when trial expansion stops surfacing contradictions."""
+    Intake is done when trial expansion stops surfacing contradictions.
+
+    Routing (TASK_TAXONOMY pipeline routing): for a DIAGNOSTIC task class (bugfix/perf/crash)
+    the location is the unknown, so trial decomposition is seeded by locate/reproduce
+    (C3/D pipeline) and the evidence-seeded cuts land in `node.initial_evidence` — the plan
+    is written after the evidence exists. The structural case below (plan straight from
+    module-map seams) is for tasks whose location is known or irrelevant."""
     card = await llm_step(k, "task_card",
         artifacts={"request": request},
         question="Extract: goal, constraints, out-of-scope.")
@@ -85,14 +95,18 @@ async def expand_subtree(k, node, depth, budget):
         return
 
     if is_leaf_sized(node):                         # ≤10 est. rounds, 1 artifact, 1 area
-        node.ac_test_map = await author_ac_map(k, node)     # A2: {ac_id → [check_id, cmd]}
-        return
+        return                                      # its ACs are authored later, AFTER the spec
+                                                    # (execute_leaf below) — the gate must derive
+                                                    # from the frozen contract, not from this line
 
-    # harness proposes candidate cuts from the module map; model fills/annotates
-    candidates = k.index.propose_cuts(node)                     # H
+    # harness proposes candidate cuts; model fills/annotates. Two modes (KERNEL_API §4.4):
+    #   structural      — module-map seams: location known or irrelevant (feature/port/refactor)
+    #   evidence-seeded — failing symbol / stack frames / covering tests: location IS the unknown
+    #                     (bugfix/perf/crash). Never filename-only planning for a diagnostic task.
+    candidates = k.index.propose_cuts(node, evidence=node.initial_evidence)   # H
     subtree = await llm_step(k, "expand",
         artifacts={"node": node, "candidate_cuts": candidates},
-        question="Fill in child tasks along the proposed seams: what/why/AC per child.")  # M
+        question="Fill in child tasks along the proposed seams: what/why + leaf flag per child.")  # M
 
     # peer review the split (fresh context) — B2
     verdict = await llm_step(k, "split_review",
@@ -106,12 +120,26 @@ async def expand_subtree(k, node, depth, budget):
     for child in node.children:
         await expand_subtree(k, child, depth + 1, budget)       # uniform-layer recursion
 
-async def author_ac_map(k, node):
+    # Integration ACs for THIS node — optional by design: an empty list is the explicit
+    # "no cross-child behavior" answer. Checks span the children just placed; each resolves
+    # to a check a descendant already owns (a view, never a copy of leaf ACs).
+    await author_acs(k, node)
+
+async def author_acs(k, node, spec=None):
+    """One step type, two triggers (ENVELOPE_SCHEMAS §6): a leaf's own ACs after its spec is
+    frozen; an internal node's integration ACs after its children are placed. Either map is a
+    GATE DEFINITION — authored here, decided by gate_decide in fresh context (proposer≠decider
+    covers authoring a gate, not just changing one)."""
     acs = await llm_step(k, "draft_acs",
-        artifacts={"node": node},
+        artifacts={"node": node, "spec": spec, "children": node.children},
         question="For each AC give the check: test, script assertion, or 'subjective'.")
-    map = k.validate_ac_map(acs)                    # kernel: every ac_id → ≥1 check
-    return map
+    verdict = await llm_step(k, "gate_decide",
+        artifacts={"proposal": acs, "node": node, "spec": spec},
+        question="Is this AC map a real gate? Flag 'subjective' where a deterministic check is feasible.",
+        fresh=True)                                 # fresh ctx: never the author
+    if verdict.decision != "accept":
+        acs = await revise(k, acs, verdict.explanation)     # bounded: re-decide ≤2 rounds
+    node.set_ac_test_map(acs)                       # kernel: every ac_id → ≥1 check
 
 
 # ============================================================
@@ -166,9 +194,16 @@ async def boot_recover(k, workdir):
         question="Write the spec: interfaces, types, behavior contract, error model, edge cases, files.")
     spec = await review(k, spec, reviewer="spec_review")       # E1 artifact IS reviewed — fresh ctx
 
-    # ---- Code and tests in parallel; test writer blind to implementation ----
+    # ---- The gate's contract is frozen from the FROZEN spec, and decided by gate_decide —
+    #      never authored from the plan line, never self-approved (A2) ----
+    await author_acs(k, leaf, spec=spec)
+
+    # ---- Code and tests in parallel. Firewall = withhold solutions, share requirements:
+    #      both sides get interfaces + behavior; implementation_notes goes to the implementer
+    #      only. The test writer never sees code; the implementer sees tests (it must run them)
+    #      but its boundary excludes the test files, so it cannot edit them. ----
     code_t = asyncio.create_task(implement(k, leaf, spec, rounds_budget))
-    test_t = asyncio.create_task(write_tests(k, leaf, spec))   # consumes spec only
+    test_t = asyncio.create_task(write_tests(k, leaf, spec))   # whole contract, never the code
 
     code_ok, tests_ok = await asyncio.gather(code_t, test_t, return_exceptions=True)
 
@@ -214,7 +249,7 @@ async def implement(k, leaf, spec, rounds_budget):
 
 async def write_tests(k, leaf, spec):
     plan = await llm_step(k, "test_plan",
-        artifacts={"ac_test_map": leaf.ac_test_map, "spec": spec},
+        artifacts={"ac_test_map": leaf.ac_test_map, "spec": spec},   # contract only — no code
         question="Concrete test cases per check_id.")
     files = []
     for case in plan.cases:

@@ -194,6 +194,16 @@ Format: name — arrange/act/assert — [fake | pure].
 - `test_closure_gate_requires_three_conditions` — table-driven: (a) AC missing test → no close;
   (b) test skipped/flaky → no close; (c) child open → no close; all three → close. Gate decision
   asserted to be kernel code, not an `llm()` call. [pure]
+- `test_leaf_ac_map_mandatory_internal_optional` — leaf with empty map → `set_ac_test_map`
+  findings; internal node with empty map → accepted, and the node closes on (c) alone. [pure]
+- `test_internal_ac_entry_must_resolve_to_descendant_check` — internal entry naming a command
+  or test id no descendant owns → close refused with a structured reason. [pure]
+- `test_ac_map_is_decided_not_self_approved` — canned `draft_acs` map with a `subjective`
+  entry where a deterministic check is feasible → canned `gate_decide` rejects → map not frozen;
+  assert the `gate_decide` call ran `fresh=True` and in a session without the author's context. [fake]
+- `test_ungrounded_child_reference_rejected` — canned `expand` child whose `what` names a file
+  outside the injected candidate scope + symbol DB → kernel rejects the child (enum-first rule
+  applied to the free strings), so an invented file cannot enter the plan. [fake]
 - `test_dag_validation_rejects_orphan_duplicate_producer_cycle` — three cases each produce a
   structured re-expansion request, not a stall or exception leak. [pure]
 - `test_file_overlap_serializes_writers` — two ready leaves touching `calc.py` → executed
@@ -240,6 +250,17 @@ sequences in `tests/contract/scenarios/<name>.py`.
    resume reused persisted artifacts (see also §5 WAL-free resumption).
 
 Contract extras (not scenarios, per-pair):
+
+- `test_scenario_feature_path_uses_structural_cuts` — `task_class=add-feature`:
+  `propose_cuts(evidence=None)`, no `locate` call, expand runs straight off module-map seams.
+- `test_scenario_diagnostic_routing_evidence_seeded_cuts` — `task_class=bugfix`: assert call order
+  (`locate` before `expand`), that `propose_cuts` received the evidence artifact, and that the
+  composed `expand` ctx carries evidence-anchored cuts — not filename-only cuts. Pins the rule that
+  a diagnostic plan is never fabricated from names.
+- `test_firewall_contract_reaches_both_sides_solutions_do_not` — compose the leaf's prompts and
+  assert: `test_plan`/`write_test` ctx contains `interfaces` + `behavior` and does **not** contain
+  `implementation_notes`, the diff, or any code; `implement` ctx contains `implementation_notes`;
+  a write attempt by the implementer into the test file's path is policy-blocked. [fake]
 
 - `test_all_step_types_have_prompt_file_and_schema` — every `llm_step` step_type in `scripts/v1/` has
   `prompts/<step>.md` + an envelope schema; both ship in the revision bundle. [pure]

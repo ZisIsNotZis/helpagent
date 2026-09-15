@@ -40,11 +40,11 @@ referenced but not defined here live in **ENVELOPE_SCHEMAS.md**.
 | `k.user(render(...))` | primitive 6 | §3.6 |
 | `budget.exceeded()`, `run_config.budget` | read-only kernel-injected data object | §7 |
 | `k.validate_dag(root)` | → `tree.validate_dag()` (TaskTree handle) | §4.1 |
-| `k.validate_ac_map(acs)` | → `node.set_ac_test_map(acs)` (kernel validates) | §4.2 |
+| `node.set_ac_test_map(acs)` | NodeHandle method (kernel validates the map) | §4.2 |
 | `tree.ready_leaves() / refresh_status / insert_ticket / insert_attempt / expansion_findings / has_work / snapshot / root` | TaskTree handle methods | §4.1 |
 | `leaf.close()`, `node.status = ...`, `leaf.estimate_rounds`, `node.initial_evidence`, `evidence.add(f)` | node-handle members | §4.2 |
 | `k.gate.run(map)`, `k.gate.all_green(leaf, ...)` | → `tree.gate.run / tree.gate.close` (bound to tree handle) | §4.3 |
-| `k.index.build(repo)`, `index.files_in_scope`, `k.index.propose_cuts`, `k.index.conventions`, `k.index.test_patterns` | Index handle + its constructor accessor | §4.4 |
+| `k.index.build(repo)`, `index.files_in_scope`, `k.index.propose_cuts(node, evidence=…)`, `k.index.conventions`, `k.index.test_patterns` | Index handle + its constructor accessor | §4.4 |
 | `k.git.diff(node)` | → `trajectory.diff(node)` (read from recorded per-step snapshots) | §4.5 |
 | `k.trajectory.summary()`, `k.evidence.for_leaf(leaf)` | Trajectory read access | §4.5 |
 | `k.ledger.resolve(refs)` | Ledger read access | §4.5 |
@@ -205,9 +205,10 @@ The one plan artifact (DESIGN §4.8, TASK_TAXONOMY §B). Node schema:
   group is ready concurrently (v1: one writer per group, groups run in parallel);
   read-only judges/peers are never in a writer group. This is the scheduler input for the
   script's parallel DAG loop.
-- `tree.refresh_status()` — re-validates upward: closure requires (a) every AC ≥1 test,
-  (b) every test passes unconditionally, (c) all children closed first; re-validates
-  `done` parents whose subtree was touched.
+- `tree.refresh_status()` — re-validates upward: closure requires (a) every AC **present in
+the node's map** has ≥1 test, (b) those tests pass unconditionally, (c) all children closed
+first; re-validates `done` parents whose subtree was touched. A node with no map closes on
+(c) alone.
 - `tree.insert_ticket(parent, issue) -> NodeHandle`,
   `tree.insert_attempt(node, hypothesis) -> NodeHandle` — tree edits; kernel assigns ids,
   validates producer/input refs, runs the **cascade**: insertion/modification under a
@@ -223,7 +224,13 @@ The one plan artifact (DESIGN §4.8, TASK_TAXONOMY §B). Node schema:
 - `node.set_ac_test_map(raw)` — kernel validates every `ac_id → ≥1 executable check`
   (`{check_id, command}` or `subjective`); invalid ⇒ findings returned (A2: uncheckable
   ⇒ needs-human path). Replaces `k.validate_ac_map`. The map is held in the node schema
-  before any work starts.
+  before any work starts. **Mandatory for leaves, optional for internal nodes** — an
+  internal map is an integration view whose every entry must resolve to a descendant
+  check or an existing command at close time (`<!-- DECISION: references-not-copies keeps
+  E2E/integration ACs expressible without repeating leaf ACs at every ancestor; an entry
+  that resolves to nothing fails the node's close, which is the existing generic path
+  (findings → re-expansion) rather than a new mechanism. -->`). Authored by `draft_acs`
+  and **decided by `gate_decide` before the map is frozen** (ENVELOPE_SCHEMAS §6).
 - `node.close(results, quality, verdicts) -> bool` — the script proposes closure; the
   kernel re-checks (a)(b)(c) itself and refuses (`False` + reasons) if not green. The
   model never decides closure (F7/F8).
@@ -236,8 +243,8 @@ The one plan artifact (DESIGN §4.8, TASK_TAXONOMY §B). Node schema:
 
 - `tree.gate.run(ac_test_map) -> GateResults` — mechanically executes every deterministic
   check in the map (existence/completeness of tests per AC checked by code, never by LLM).
-  Read-only over the work tree; returns `{per_check verdicts, all_map_entries_have_tests,
-  missing, failures}`.
+  Runs over any node's map, leaf or internal. Read-only over the work tree; returns
+  `{per_check verdicts, all_map_entries_have_tests, missing, failures}`.
 - `tree.gate.close(leaf, results, quality, verdicts) -> bool` — combines deterministic
   green + judge-panel verdicts (subjective ACs, multi-aspect, config-driven fleet) and
   applies `leaf.close` semantics. Rejection reasons are structured (per-AC, per-rule).
@@ -246,10 +253,18 @@ The one plan artifact (DESIGN §4.8, TASK_TAXONOMY §B). Node schema:
 
 - `index = await k.index.build(repo)` — builds/resumes the repo index (symbol table,
   module map, test map, convention file). Incremental: refresh rescans exactly the paths
-  in the trajectory change records. `<!-- DECISION: k.index.build performs kernel-internal infra compute over kernel-owned state (no model call, no work-tree mutation, no budget); under §1 it is a handle constructor accessor, not a primitive. -->`
+  in the trajectory change records. **Called before A/B: B1 consumes candidate cuts and A3
+  consumes the index, so building it after planning is an ordering bug, not a style choice.**
+  `<!-- DECISION: k.index.build performs kernel-internal infra compute over kernel-owned state (no model call, no work-tree mutation, no budget); under §1 it is a handle constructor accessor, not a primitive. -->`
 - `index.files_in_scope(leaf)`, `index.conventions`, `index.test_patterns`,
-  `index.propose_cuts(node)` (candidate cuts from module-map seams — B1 propose side).
-  All read-only.
+  `index.propose_cuts(node, evidence=None)` — candidate cuts for B1, in two modes selected by
+  task class (TASK_TAXONOMY pipeline routing): **structural** (`evidence=None`) = module-map
+  seams, for tasks whose location is known or irrelevant; **evidence-seeded** (`evidence` =
+  the locate/reproduce artifact) = cuts around the failing symbol, stack frames and covering
+  tests, for tasks where the location is the unknown. All read-only.
+  `<!-- DECISION: the model must not choose the file to change from filenames alone — that is
+  a lookup, and DESIGN §2.1 forbids handing the model a lookup. The mode split keeps
+  propose-validate for feature work without letting a diagnostic plan be fabricated from names. -->`
 
 ### 4.5 Trajectory / Ledger read access
 

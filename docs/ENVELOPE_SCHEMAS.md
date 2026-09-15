@@ -104,7 +104,7 @@ class ChildFill(Base):
     est_rounds: int                # 1–10; drives per-step budget = estimate × 1.5 (B7)
 
 class Expand(Envelope):
-    children: list[ChildFill]      # 5–15 items per layer  <!-- DECISION: taxonomy default -->
+    children: list[ChildFill]      # 1–15 items per layer  <!-- DECISION: taxonomy default is 5–15; per-class config, not a bound — a small seam list legitimately yields fewer. -->
 ```
 
 ```text
@@ -116,7 +116,11 @@ child 1:
 ```
 
 **Kernel validates (KERNEL_API.md: DAG rules):** `seam_id` ∈ proposed candidates; est_rounds
-range; leaf count bounds; resulting I/O edges → DAG (orphans/cycles → findings, not stall).
+range; leaf count within per-class config; resulting I/O edges → DAG (orphans/cycles → findings,
+not stall). **`what`/`why` are reference-checked** — the enum-first rule (§0) applied to the two
+free strings: any file path or symbol they name must appear in the injected candidate scope or
+the symbol DB, else the child is rejected as ungrounded. Behaviors stay free text (they are
+checked by `split_review`, which validates the reason against the evidence).
 Budget: ~600 tok at 15 children. **Split risk: none** (children are one-liners).
 
 **Where boundary files come from:** the injected `candidate_cuts` each carry a file scope
@@ -124,6 +128,15 @@ derived from the repo index's module map (`{seam_id, files, rationale}`). The le
 boundary = its seam's file scope; `write_spec.files_touched` narrows it; writes outside it
 are policy-blocked. The engine never has to guess which files a task touches — the index
 told it before the model was ever asked.
+
+<!-- DECISION: propose_cuts has two modes, chosen by task class (TASK_TAXONOMY pipeline
+routing): structural (module-map seams) when the location is known or irrelevant —
+feature/port/refactor/scaffold; evidence-seeded (failing symbol, stack frames, covering tests
+from the locate/reproduce artifact) when the location IS the unknown — bugfix/perf/crash.
+The single-mode version made the model invent the file to change from filenames alone, and
+since the child's `why` becomes the leaf's spec input, an invented cause propagated as ground
+truth into the spec, the ACs and the tests. Filename-only planning for a diagnostic task is a
+non-goal; for those classes `expand` runs after locate. -->
 
 ## 5. `split_review` — B2: fresh-context peer review of a split
 
@@ -141,7 +154,7 @@ class SplitReview(Envelope):
 **Kernel validates:** `target` resolves to a node in the reviewed subtree; ok/issues
 consistency. Budget: ~300 tok.
 
-## 6. `draft_acs` — A2: AC list + check kind per AC (kernel then validates the map)
+## 6. `draft_acs` — A2: AC list + check kind per AC (a gate definition, decided by `gate_decide`)
 
 ```python
 class DraftAC(Base):
@@ -151,12 +164,31 @@ class DraftAC(Base):
     check_hint: str | None         # test/assertion: command or test name hint; subjective: what to judge
 
 class DraftACs(Envelope):
-    acs: list[DraftAC]             # 1–10
+    acs: list[DraftAC]             # 0–10; EMPTY LIST = "this node has no map" — the explicit
+                                   # answer for an internal node with no cross-child behavior.
+                                   # A LEAF returning empty is invalid (leaf maps are mandatory).
 ```
+
+**Two triggers, one schema — the input set is what differs:**
+
+- **leaf** — after `spec_review` passes, on `{node, spec}`: the node's own checks, derived from
+the contract it just froze. Authoring ACs before the spec lets a plan one-liner define the gate,
+and both impl and tests then aim at an invented AC.
+- **internal node** — after its children are placed, on `{node, children[], seam scopes}`:
+integration ACs only — checks that span the children just placed, each resolving to a check a
+descendant already owns (a command or test id). A *view*, never a copy of leaf ACs, which is also
+why there is no repetition upward.
+
+**Decided, not self-approved:** the resulting map goes to `gate_decide` (§20) in fresh context
+before it is frozen — `weakens_gate` is precisely the subjective-inflation check
+(`check_kind: "subjective"` where a deterministic check is feasible), and `meaning_preserved`
+catches ACs that restate nothing in the spec. Authoring a gate is a gate-defining act, so
+proposer≠decider (DESIGN §4.8) covers it, not just later changes.
 
 **Kernel validates (KERNEL_API.md: AC map):** ids unique + pattern; every `check_kind !=
 "subjective"` resolves to ≥1 executable check later; subjective entries must carry
-`check_hint` (feeds the judge panel). Budget: ~500 tok at 10 ACs.
+`check_hint` (feeds the judge panel); **a leaf's map is non-empty; an internal node's entries
+each resolve to a descendant check or an existing command at close time.** Budget: ~500 tok at 10 ACs.
 
 ## 7. `write_spec` — E1–E3 merged: the professional spec artifact
 
@@ -168,9 +200,17 @@ class Interface(Base):
 
 class WriteSpec(Envelope):
     interfaces: list[Interface]        # 0–8 — LSP-checked against ground truth (distinct consumer)
-    behavior: str                      # ≤15 lines — semantics, invariants, types, error model (one consumer set)
+    behavior: str                      # ≤15 lines — semantics, invariants, types, error model —
+                                       # the SHARED CONTRACT: implementer AND test writer (see routing note)
+    implementation_notes: str          # ≤6 lines — where the change goes and why. IMPLEMENTER-ONLY
     files_touched: list[str]           # 0–10 paths — NARROWING of the leaf boundary; must ⊆ seam file scope
 ```
+<!-- DECISION: behaviour is routed to both sides — this is the firewall fix. The test writer
+was fed `interfaces` only, so any contract detail living in `behavior` (status codes, error
+model, defaults, edge cases) was invisible to it: tests asserted whatever the writer invented,
+and the failure_judge then blamed a side for a gap the spec never closed. The asymmetry that
+matters is on SOLUTIONS, not requirements: withhold the implementation (code) and the
+`implementation_notes` from the test writer; never withhold the contract from either side. -->
 <!-- DECISION: edge_cases dropped — enumerating concrete cases is test_plan's job (E3 merged into
 F1: same input, one judgment round — merge rule). types_schema + error_model folded into behavior:
 the composer routes them to the same consumers (implement, failure_judge), so one field. files_touched
@@ -197,6 +237,10 @@ class SpecReview(Envelope):
 **Kernel validates:** location resolves. Budget: ~350 tok.
 
 ## 9. `test_plan` — F1: concrete cases per AC, enumerating edge cases from the spec
+
+**Input is the whole contract:** `ac_test_map` + `interfaces` + `behavior`. The writer never
+receives the implementation, the diff, or the implementer's `implementation_notes` — the
+firewall withholds solutions, not requirements.
 
 (absorbed E3 — merge rule). Writer never sees implementation; written BEFORE implementation exists (TDD order).
 
@@ -394,6 +438,10 @@ class RunSummary(Envelope):
 summarizes ground truth. Budget: ~300 tok.
 
 ## 20. `gate_decide` — propose ≠ decide: validate the REASON, not the change
+
+Decides three proposal classes with one schema: AC/test/tree-structure **changes** (DESIGN
+§4.8), **initial AC maps** from `draft_acs` (§6 — authoring a gate is gate-defining), and
+memory/lesson promotions where a reason must be validated.
 
 ```python
 class GateDecide(Envelope):
