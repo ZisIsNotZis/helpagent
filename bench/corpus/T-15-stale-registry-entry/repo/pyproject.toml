@@ -1,0 +1,10 @@
+[project]
+name = "plugins"
+version = "0.1.0"
+description = "Plugin registry."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

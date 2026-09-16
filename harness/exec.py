@@ -15,6 +15,7 @@ milestone (DESIGN §4.6 "container, network policy"). What M2 guarantees:
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -95,6 +96,10 @@ async def exec(
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=str(wd),
+            # FP-6: stale __pycache__ false-PASS — a same-length edit (e.g. `is`→`==`)
+            # can reuse the previous source's cached .pyc, so pytest passes on broken
+            # code. Bytecode writing is disabled for every exec'd command.
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

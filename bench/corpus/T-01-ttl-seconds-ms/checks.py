@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -58,10 +59,11 @@ def snapshot(baseline: Path) -> int:
 
 def run_pytest() -> tuple[bool, str]:
     proc = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q"],
+        [sys.executable, "-B", "-m", "pytest", "-q"],
         cwd=REPO_DIR,
         capture_output=True,
         text=True,
+        env={"PYTHONDONTWRITEBYTECODE": "1", **os.environ},  # owner finding: stale __pycache__ false-PASS
     )
     tail = "\n".join((proc.stdout + proc.stderr).splitlines()[-8:])
     return proc.returncode == 0, tail
