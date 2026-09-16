@@ -131,7 +131,10 @@ def compose_prompt(
             "- Change as little as possible: fix what the step asks and keep everything "
             "else exactly as it is. Do not restyle, rename, or reformat unrelated code.\n"
             "- Do not change the public API: keep function and class names, signatures, "
-            "and module layout unchanged.")
+            "and module layout unchanged.\n"
+            "- \"status\" describes YOUR edit, never the test results: \"ok\" = you are "
+            "returning the complete new file as instructed, even if other tests still fail. "
+            "Do not set \"failed\" just because the tests currently fail.")
     parts.append(f"STEP: {step_type}")
     if role:
         parts.append(f"ROLE: {role}")

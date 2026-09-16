@@ -101,3 +101,11 @@ def test_content_steps_carry_fidelity_instruction_in_prompt():
     assert "Hard rules for the content field" in p and "module docstring" in p
     p2 = compose_prompt("task_card", {"request": "r"}, "q")
     assert "Hard rules for the content field" not in p2
+
+
+def test_content_steps_carry_status_semantics_rule():
+    """FAIL_PATTERN (T-02): the 4B reported the tests' state (failed) as its own
+    operation status, discarding a correct fix. The composer must define what
+    'status' means for content envelopes."""
+    p = compose_prompt("write_test", {"f": "x = 1"}, "q")
+    assert "never the test results" in p
