@@ -1,0 +1,10 @@
+[project]
+name = "jobrunner"
+version = "0.1.0"
+description = "Background job scheduling."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

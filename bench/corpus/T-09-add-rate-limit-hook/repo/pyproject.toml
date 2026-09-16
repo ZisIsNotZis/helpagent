@@ -1,0 +1,10 @@
+[project]
+name = "throttle"
+version = "0.1.0"
+description = "Per-key throttle with a configurable threshold."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
