@@ -1,0 +1,12 @@
+{
+ "task": "T-03-wrong-comparison",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-03-wrong-comparison-summary"
+ ]
+}

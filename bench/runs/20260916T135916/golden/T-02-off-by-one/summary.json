@@ -1,0 +1,12 @@
+{
+ "task": "T-02-off-by-one",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-02-off-by-one-summary"
+ ]
+}

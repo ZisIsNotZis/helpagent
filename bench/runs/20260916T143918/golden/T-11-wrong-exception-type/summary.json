@@ -1,0 +1,12 @@
+{
+ "task": "T-11-wrong-exception-type",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-11-wrong-exception-type-summary"
+ ]
+}

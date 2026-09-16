@@ -1,0 +1,169 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 44.2,
+  "prompt_tokens": 226,
+  "completion_tokens": 89
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "task_card"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "expand",
+  "fresh": false,
+  "cache_hit": 0.0342,
+  "prompt_tokens": 272,
+  "completion_tokens": 110
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "expand"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_spec",
+  "fresh": false,
+  "cache_hit": 0.0306,
+  "prompt_tokens": 303,
+  "completion_tokens": 215
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_spec"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 72.8,
+  "prompt_tokens": 369,
+  "completion_tokens": 178
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0314,
+  "prompt_tokens": 296,
+  "completion_tokens": 110
+ },
+ {
+  "kind": "validation_failed",
+  "text": "",
+  "step_type": "gate_decide",
+  "detail": "1 validation error for GateDecide\n  Value error, weakens_gate==True requires decision=='reject' (ENVELOPE_SCHEMAS §20) [type=value_error, input_value={'status': 'ok', 'comment...ective and functional.'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error"
+ },
+ {
+  "kind": "golden_step_retry",
+  "text": "",
+  "step_type": "gate_decide",
+  "attempt": 1,
+  "detail": "gate_decide: schema violation: Value error, weakens_gate==True requires decision=='reject' (ENVELOPE_SCHEMAS §20) — attempt erased, failure summary only"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0245,
+  "prompt_tokens": 377,
+  "completion_tokens": 95
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 0.0304,
+  "prompt_tokens": 305,
+  "completion_tokens": 122
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0356,
+  "prompt_tokens": 262,
+  "completion_tokens": 89
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 0.0184,
+  "prompt_tokens": 498,
+  "completion_tokens": 163
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "golden_test_skipped",
+  "text": "",
+  "detail": "file_path 'ac_test_map.py' outside repo"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1183.0,
+  "prompt_tokens": 1184,
+  "completion_tokens": 267
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "run_summary",
+  "fresh": false,
+  "cache_hit": 49.0,
+  "prompt_tokens": 250,
+  "completion_tokens": 99
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "run_summary"
+ }
+]

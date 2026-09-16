@@ -1,0 +1,16 @@
+{
+ "per_task": {
+  "T-01-ttl-seconds-ms": "3/3",
+  "T-02-off-by-one": "3/3",
+  "T-03-wrong-comparison": "3/3",
+  "T-04-missing-default": "3/3",
+  "T-05-mutable-default": "3/3",
+  "T-06-tz-naive-compare": "3/3",
+  "T-07-f-string-sql": "3/3",
+  "T-08-add-cache-invalidation": "3/3",
+  "T-09-add-rate-limit-hook": "3/3",
+  "T-10-port-dict-keys-view": "3/3",
+  "mini_repo": "1/3"
+ },
+ "overall": "31/33"
+}

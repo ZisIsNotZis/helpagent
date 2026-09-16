@@ -1,0 +1,12 @@
+{
+ "task": "T-08-add-cache-invalidation",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-08-add-cache-invalidation-summary"
+ ]
+}

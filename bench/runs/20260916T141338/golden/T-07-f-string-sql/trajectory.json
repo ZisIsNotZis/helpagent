@@ -1,0 +1,11 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [
+   "contacts/store.py"
+  ],
+  "diff": "diff --git a/contacts/store.py b/contacts/store.py\nindex b06d673..482e9eb 100644\n--- a/contacts/store.py\n+++ b/contacts/store.py\n@@ -13,9 +13,15 @@ def connect() -> sqlite3.Connection:\n \n \n def add_contact(conn: sqlite3.Connection, name: str, email: str) -> None:\n-    conn.execute(f\"INSERT INTO contacts (name, email) VALUES ('{name}', '{email}')\")\n+    conn.execute(\n+        \"INSERT INTO contacts (name, email) VALUES (?, ?)\",\n+        (name, email),\n+    )\n \n \n def find_email(conn: sqlite3.Connection, name: str) -> str | None:\n-    row = conn.execute(f\"SELECT email FROM contacts WHERE name = '{name}'\").fetchone()\n+    row = conn.execute(\n+        \"SELECT email FROM contacts WHERE name = ?\",\n+        (name,),\n+    ).fetchone()\n     return row[0] if row else None\n",
+  "outcome": "green"
+ }
+]

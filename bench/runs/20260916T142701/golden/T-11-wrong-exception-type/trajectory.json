@@ -1,0 +1,11 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [
+   "orders/service.py"
+  ],
+  "diff": "diff --git a/orders/service.py b/orders/service.py\nindex 53d5bbc..7046cf5 100644\n--- a/orders/service.py\n+++ b/orders/service.py\n@@ -14,5 +14,5 @@ def place_order(order: dict) -> str:\n     if not order.get(\"items\"):\n         raise OrderValidationError(\"an order needs at least one item\")\n     if len(order[\"items\"]) > MAX_ITEMS:\n-        raise ValueError(\"order exceeds the item limit\")\n-    return f\"OK-{order['id']}\"\n+        raise OrderValidationError(\"order exceeds the item limit\")\n+    return f\"OK-{order['id']}\"\n\\ No newline at end of file\n",
+  "outcome": "green"
+ }
+]

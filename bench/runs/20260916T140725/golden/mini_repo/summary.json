@@ -1,0 +1,12 @@
+{
+ "task": "mini_repo",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "mini_repo-summary"
+ ]
+}

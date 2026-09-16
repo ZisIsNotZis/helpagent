@@ -1,0 +1,11 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [
+   "access/gate.py"
+  ],
+  "diff": "diff --git a/access/gate.py b/access/gate.py\nindex 7522009..039db00 100644\n--- a/access/gate.py\n+++ b/access/gate.py\n@@ -17,4 +17,4 @@ _PUBLISH_ALLOWED = (Role.EDITOR, Role.ADMIN)\n \n def can_publish(author: Author) -> bool:\n     \"\"\"True when ``author``'s role is in the publishing whitelist.\"\"\"\n-    return any(author.role is r for r in _PUBLISH_ALLOWED)\n+    return any(author.role == r for r in _PUBLISH_ALLOWED)\n",
+  "outcome": "green"
+ }
+]

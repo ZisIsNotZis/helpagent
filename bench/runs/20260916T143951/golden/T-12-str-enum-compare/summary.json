@@ -1,0 +1,12 @@
+{
+ "task": "T-12-str-enum-compare",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-12-str-enum-compare-summary"
+ ]
+}

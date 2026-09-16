@@ -1,0 +1,12 @@
+{
+ "task": "T-07-f-string-sql",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-07-f-string-sql-summary"
+ ]
+}

@@ -1,0 +1,12 @@
+{
+ "task": "T-15-stale-registry-entry",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-15-stale-registry-entry-summary"
+ ]
+}
