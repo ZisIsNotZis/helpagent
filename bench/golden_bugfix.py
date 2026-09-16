@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 import shutil
 import sys
 from datetime import datetime, timezone
@@ -297,6 +298,18 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
         # red → rollback the attempt (erasure: the work tree forgets the failed text)
         target.write_bytes(before)
         last_excerpt = "; ".join(res.excerpts) if res.excerpts else f"pytest exit {res.exit}"
+        # FP-4 rule (rule-library style, DESIGN §4.5): NameError is deterministically
+        # diagnosable — grep the repo for the definition and inject the answer into the
+        # retry summary. A grep must not be left to the model.
+        for excerpt in res.excerpts:
+            m = re.search(r"NameError: name '(\w+)' is not defined", excerpt)
+            if m:
+                name = m.group(1)
+                for rel, text in files.items():
+                    if re.search(rf"^(?:class|def)\s+{name}\b", text, re.M):
+                        last_excerpt += (f"; NameError diagnosis: {name} is defined in {rel} "
+                                         "(its full source is in current_files) — add the import")
+                        break
         summary = f"attempt {attempt} left tests red ({res.exit}); rolled back"
         note("implement_red_rolled_back", attempt=attempt, file=env.file_path)
         trajectory.record(step_id=f"implement-{attempt}", node_id="implement", outcome="rolled-back")
