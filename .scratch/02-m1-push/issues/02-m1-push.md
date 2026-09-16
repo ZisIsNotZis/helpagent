@@ -53,3 +53,15 @@ treatment as pydantic/pytest). Nothing beyond the design's own stack.
 
 ## Deviations / decisions log
 - (will fill)
+
+## Failure-mode phase (owner directive: 已知失效模式优先,搞定后再扩余量) — DONE
+- Quota: session+agents switched to zai/glm-5.3-flash (inherited; no config change needed).
+- FP-2 status-confusion closed: composer status rule → T-02 first-attempt green (the
+  canonical fix had been sitting in 5 discarded candidates).
+- FP-3 'e.g' grounding false positive closed (whitelist) → T-07 green.
+- FP-4 cross-file import CLOSED (upgraded from mitigated): rule-library NameError
+  grep-diagnosis injected into the implement retry summary → mini_repo 3/3.
+- FP-6 stale-pycache false-PASS (found by corpus agent on T-12): exec env + -B backport
+  to all shipped checks.py. CLOSED.
+- Corpus 10 → 15 (T-11..T-15), full verification discipline, T-11..15 golden first-sweep 5/5.
+- Final N=3 sweep over 15 tasks: see bench/runs/n-sweep-*/summary.json (appended below).
