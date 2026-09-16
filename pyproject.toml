@@ -16,6 +16,9 @@ dependencies = [
 testpaths = ["tests/unit", "tests/contract"]
 pythonpath = ["."]
 addopts = "-q"
+markers = [
+    "slow: real-server integration tests (llama.cpp :8833); run with pytest tests/integration -m slow",
+]
 
 [[tool.uv.index]]
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"

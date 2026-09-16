@@ -28,36 +28,61 @@ def _broken_attempt_text() -> str:
     return code_with_syntax_error().body["content"]
 
 
-def test_retry_prompt_contains_failure_summary_not_failed_text():
+def test_broken_code_respawned_with_excerpt_not_failed_text():
+    """§4.7 + §2.4 interplay: a parse-broken write_test is respawned ONCE with the
+    bounded broken excerpt + ground truth — never the failed attempt's comment or
+    narrative; the ledger records repair_attempted/repair_ok."""
     reset_ledger_for_tests()
     fake = FakeModelRunner({"write_test": [
         code_with_syntax_error(),  # attempt 1: valid envelope, broken Python
-        EnvelopeSpec(body={  # attempt 2: clean
+        EnvelopeSpec(body={        # repair respawn: clean rewrite
             "status": "ok", "comment": "Rewrote the test file; parse is clean.",
             "file_path": "tests/test_auth.py",
             "content": "def test_expiry():\n    assert expires_at(3601) == 'expired'\n",
         })]})
     env1 = asyncio.run(llm_step(fake, "write_test", artifacts={"spec": GROUND_TRUTH},
                                 question="Write the test file for AC-1."))
-    # the check pipeline's parse tier catches the syntax error (simulated deterministically)
-    with pytest.raises(SyntaxError):
-        ast.parse(env1.content)
-    summary = FailureSummary(
-        step_type="write_test",
-        summary="write_test: content failed the Python parse (invalid syntax); rewrite the complete file.",
-        missing=[],
-    )
-    env2 = asyncio.run(llm_step(fake, "write_test", artifacts={"spec": GROUND_TRUTH},
+    assert ast.parse(env1.content)                      # repaired content parses
+    calls = fake.calls("write_test")
+    assert len(calls) == 2                              # outer + ONE repair respawn
+    p2 = render_prompt(calls[1])
+    assert "first parse error here" in p2               # broken excerpt injected (§4.7)
+    assert GROUND_TRUTH in p2                           # ground truth re-injected
+    assert "Wrote the test file." not in p2             # failed attempt's comment erased (§2.4a)
+    kinds = [e["kind"] for e in ledger_entries()]
+    assert "repair_attempted" in kinds and "repair_ok" in kinds
+    assert kinds.count("llm_invocation") == 2
+
+
+def test_after_repair_exhaustion_erasure_contract_holds():
+    """When repair also fails (§4.7 → SchemaViolation), the ordinary erasure path
+    takes over: the next retry sees the failure summary + ground truth, never the
+    failed attempts' text."""
+    reset_ledger_for_tests()
+    broken = code_with_syntax_error()
+    fake = FakeModelRunner({"write_test": [
+        broken,
+        broken,
+        EnvelopeSpec(body={"status": "ok", "comment": "clean now",
+                           "file_path": "tests/test_auth.py",
+                           "content": "def test_expiry():\n    assert expires_at(3601) == 'expired'\n"}),
+    ]})
+    with pytest.raises(SchemaViolation, match="still fails to parse"):
+        asyncio.run(llm_step(fake, "write_test", artifacts={"spec": GROUND_TRUTH},
+                             question="Write the test file for AC-1."))
+    kinds = [e["kind"] for e in ledger_entries()]
+    assert "repair_failed" in kinds and "repair_ok" not in kinds
+    summary = FailureSummary(step_type="write_test",
+                             summary="write_test: content failed the Python parse; rewrite the complete file.",
+                             missing=[])
+    env3 = asyncio.run(llm_step(fake, "write_test", artifacts={"spec": GROUND_TRUTH},
                                 question="Retry the test file write.", failure=summary))
-    assert env2.status == "ok"
-    prompt2 = render_prompt(fake.calls("write_test")[1])
-    assert "failed the Python parse" in prompt2        # honest failure summary present
-    assert GROUND_TRUTH in prompt2                      # ground truth re-injected
-    assert _broken_attempt_text() not in prompt2        # the failed attempt's text is ERASED
-    assert 'assert expires_at(61)' not in prompt2
-    # the failed attempt lives append-only in the ledger (never deleted, never injected)
-    invocation_steps = [e["step_type"] for e in ledger_entries() if e["kind"] == "llm_invocation"]
-    assert invocation_steps == ["write_test", "write_test"]
+    assert ast.parse(env3.content)
+    p3 = render_prompt(fake.calls("write_test")[2])
+    assert "failed the Python parse" in p3              # honest summary present
+    assert GROUND_TRUTH in p3
+    assert _broken_attempt_text() not in p3             # failed attempts' text erased
+    assert 'assert expires_at(61)' not in p3
 
 
 def test_retry_prompt_after_schema_violation_erases_raw_output():
