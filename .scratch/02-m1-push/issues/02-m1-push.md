@@ -4,11 +4,25 @@ Owner authorization: "我将全权授权给你这个项目的推进……自动�
 要么已经达成的阶段性目标，要么遇到重要决策需要我停下来做。" Interim: no user input.
 
 ## Stage goal (stop-and-report when reached)
-1. **M1** — real model runner (LlamaServerRunner, protocol parity with FakeModelRunner),
-   json_schema grammar per step type (sentinel translation aligned with §0 — K's risk note),
-   best-of-N (first-valid selection for M1), KV-cache hit tracking (timings.cache_n/prompt_n
-   → ledger), tree-sitter parse-on-arrival + bounded respawn with broken excerpt (DESIGN §4.7),
-   integration tests against live server :8833 (marked slow, outside the unit gate).
+1. **M1** — DONE (d8fe22f). LlamaServerRunner (protocol parity, json_schema anyOf of two
+   closed branches mirroring §0 — the prescribed fields-optional mapping was falsified by
+   integration evidence and replaced citing §0's own words), best-of-N (sequential,
+   KV-thrash rationale), TransportError ≠ SchemaViolation, tree-sitter repair (one bounded
+   respawn, structural via repair=False), integration tests vs live server (3 passed),
+   64 unit tests green.
+   **Owner-verification findings (beyond the agent's own evidence):**
+   - Agent's end-to-end demo (1/1) did NOT replicate under owner compositions: 0/3 —
+     model consistently strips docstring quotes re-emitting a file seen in artifacts
+     (temp 0.2 near-deterministic; all N candidates identical). best-of-N selection
+     used schema validity only → artifact-echo/fence candidates passed the grammar and
+     were selected, then repair-with-same-composition also failed. Two fixes:
+     (a) content steps prefer candidates that also PARSE (ledger: candidate_unparseable,
+     fallback to repair preserved); (b) composer carries the M0-proven hard-rules block
+     (byte-for-byte, module docstring named) for content steps. A/B on same model+file:
+     weak phrasing 0/4 → M0 wording green on first call, docstring bytes intact, no
+     repair needed. Prevention > repair. Lesson recorded: for a 4B, the composer IS
+     the quality lever (DESIGN §4.3 was right); prompt files must be colocated and
+     iterated via FAIL_PATTERNS (DESIGN §4.1).
 2. **Corpus ≥10** — DONE (a4dbb51): T-05..T-10 landed, 10 tasks total. Owner-session
    independent spot-verification: all 6 red (exit 1), T-06+T-09 solutions green in /tmp
    copies, corruption catch live (T-05, then restored), leak scan clean, T-01..T-04 untouched.
