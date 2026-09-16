@@ -1,0 +1,159 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 0.0373,
+  "prompt_tokens": 250,
+  "completion_tokens": 86
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "task_card"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "expand",
+  "fresh": false,
+  "cache_hit": 0.0344,
+  "prompt_tokens": 271,
+  "completion_tokens": 87
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "expand"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_spec",
+  "fresh": false,
+  "cache_hit": 0.0314,
+  "prompt_tokens": 296,
+  "completion_tokens": 140
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_spec"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 60.6,
+  "prompt_tokens": 308,
+  "completion_tokens": 116
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0377,
+  "prompt_tokens": 248,
+  "completion_tokens": 87
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 0.0243,
+  "prompt_tokens": 379,
+  "completion_tokens": 109
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "golden_test_skipped",
+  "text": "",
+  "detail": "file_path 'tests/test_webhook_plan.py' outside repo"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1161.0,
+  "prompt_tokens": 1162,
+  "completion_tokens": 301
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 1,
+  "file": "billing/plans.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1197.0,
+  "prompt_tokens": 1198,
+  "completion_tokens": 312
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 2,
+  "file": "billing/plans.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1197.0,
+  "prompt_tokens": 1198,
+  "completion_tokens": 312
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "run_summary",
+  "fresh": false,
+  "cache_hit": 0.0236,
+  "prompt_tokens": 390,
+  "completion_tokens": 91
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "run_summary"
+ }
+]

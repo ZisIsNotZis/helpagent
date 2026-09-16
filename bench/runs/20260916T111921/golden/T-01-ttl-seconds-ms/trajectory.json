@@ -1,0 +1,9 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [],
+  "diff": "",
+  "outcome": "rolled-back"
+ }
+]

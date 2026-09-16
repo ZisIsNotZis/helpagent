@@ -1,0 +1,153 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 45.6,
+  "prompt_tokens": 233,
+  "completion_tokens": 94
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "task_card"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "expand",
+  "fresh": false,
+  "cache_hit": 0.0326,
+  "prompt_tokens": 285,
+  "completion_tokens": 119
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "expand"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_spec",
+  "fresh": false,
+  "cache_hit": 0.0328,
+  "prompt_tokens": 283,
+  "completion_tokens": 92
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_spec"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 60.2,
+  "prompt_tokens": 306,
+  "completion_tokens": 107
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0388,
+  "prompt_tokens": 241,
+  "completion_tokens": 81
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 0.0259,
+  "prompt_tokens": 357,
+  "completion_tokens": 92
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "golden_test_skipped",
+  "text": "",
+  "detail": "file_path 'test_session_expiration.py' outside repo"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 0.0082,
+  "prompt_tokens": 1105,
+  "completion_tokens": 276
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 1,
+  "file": "auth/sessions.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 4.1555,
+  "prompt_tokens": 1227,
+  "completion_tokens": 78
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1226.0,
+  "prompt_tokens": 1227,
+  "completion_tokens": 76
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "run_summary",
+  "fresh": false,
+  "cache_hit": 0.0238,
+  "prompt_tokens": 387,
+  "completion_tokens": 105
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "run_summary"
+ }
+]

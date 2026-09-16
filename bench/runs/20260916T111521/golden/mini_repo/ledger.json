@@ -1,0 +1,165 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 36.0,
+  "prompt_tokens": 185,
+  "completion_tokens": 86
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "task_card"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "expand",
+  "fresh": false,
+  "cache_hit": 0.033,
+  "prompt_tokens": 282,
+  "completion_tokens": 117
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "expand"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_spec",
+  "fresh": false,
+  "cache_hit": 0.0279,
+  "prompt_tokens": 332,
+  "completion_tokens": 114
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_spec"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 49.0,
+  "prompt_tokens": 250,
+  "completion_tokens": 73
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0566,
+  "prompt_tokens": 168,
+  "completion_tokens": 83
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 0.0276,
+  "prompt_tokens": 335,
+  "completion_tokens": 199
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "golden_test_skipped",
+  "text": "",
+  "detail": "write_test returned failed"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 0.0108,
+  "prompt_tokens": 845,
+  "completion_tokens": 162
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 1,
+  "file": "minirepo/calc.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 5.7252,
+  "prompt_tokens": 881,
+  "completion_tokens": 141
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 2,
+  "file": "tests/test_calc.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 6.008,
+  "prompt_tokens": 876,
+  "completion_tokens": 162
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 3,
+  "file": "minirepo/calc.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "run_summary",
+  "fresh": false,
+  "cache_hit": 0.0212,
+  "prompt_tokens": 434,
+  "completion_tokens": 110
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "run_summary"
+ }
+]

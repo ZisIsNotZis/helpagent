@@ -1,0 +1,119 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 0.0433,
+  "prompt_tokens": 217,
+  "completion_tokens": 79
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "task_card"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "expand",
+  "fresh": false,
+  "cache_hit": 0.03,
+  "prompt_tokens": 309,
+  "completion_tokens": 102
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "expand"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_spec",
+  "fresh": false,
+  "cache_hit": 0.0291,
+  "prompt_tokens": 318,
+  "completion_tokens": 163
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_spec"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 60.0,
+  "prompt_tokens": 305,
+  "completion_tokens": 117
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0369,
+  "prompt_tokens": 253,
+  "completion_tokens": 100
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 0.0239,
+  "prompt_tokens": 385,
+  "completion_tokens": 140
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "golden_test_skipped",
+  "text": "",
+  "detail": "file_path 'tests/test_metrics_immediate_visibility.py' outside repo"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1304.0,
+  "prompt_tokens": 1305,
+  "completion_tokens": 291
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "run_summary",
+  "fresh": false,
+  "cache_hit": 0.037,
+  "prompt_tokens": 252,
+  "completion_tokens": 99
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "run_summary"
+ }
+]
