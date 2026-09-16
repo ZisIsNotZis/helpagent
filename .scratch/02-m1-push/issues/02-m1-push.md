@@ -9,7 +9,9 @@ Owner authorization: "我将全权授权给你这个项目的推进……自动�
    best-of-N (first-valid selection for M1), KV-cache hit tracking (timings.cache_n/prompt_n
    → ledger), tree-sitter parse-on-arrival + bounded respawn with broken excerpt (DESIGN §4.7),
    integration tests against live server :8833 (marked slow, outside the unit gate).
-2. **Corpus ≥10** — T-05..T-10, same format/verification discipline as T-01..T-04.
+2. **Corpus ≥10** — DONE (a4dbb51): T-05..T-10 landed, 10 tasks total. Owner-session
+   independent spot-verification: all 6 red (exit 1), T-06+T-09 solutions green in /tmp
+   copies, corruption catch live (T-05, then restored), leak scan clean, T-01..T-04 untouched.
 3. **M2 core** — artifact store + tree.attach (closes TEST_PLAN §3.1 producer-linkage +
    size-cap tests), trajectory per-step git snapshots (closes §3.8 user-edit-conflict test),
    boot_recover.
