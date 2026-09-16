@@ -104,6 +104,7 @@ def compose_prompt(
     question: str,
     fresh: bool = False,
     failure: FailureSummary | None = None,
+    role: str | None = None,
 ) -> str:
     """Byte-stable prefix + step suffix (DESIGN §4.3).
 
@@ -132,6 +133,8 @@ def compose_prompt(
             "- Do not change the public API: keep function and class names, signatures, "
             "and module layout unchanged.")
     parts.append(f"STEP: {step_type}")
+    if role:
+        parts.append(f"ROLE: {role}")
     if fresh:
         parts.append("SESSION: fresh reviewer — no author-context artifacts are injected; "
                      "judge only from the evidence stated in the question.")
@@ -172,6 +175,7 @@ async def llm_step(
     context: dict[str, Any] | None = None,
     best_of_n: int = 1,
     repair: bool = True,
+    role: str | None = None,
 ) -> Envelope:
     """One model invocation: compose → complete → validate → envelope.
 
@@ -198,7 +202,7 @@ async def llm_step(
     schema = schema_for_step(step_type)
     if step_type in CONTEXT_SENSITIVE_STEPS and context is None:
         note("validation_context_missing", step_type=step_type)
-    prompt = compose_prompt(step_type, artifacts, question, fresh=fresh, failure=failure)
+    prompt = compose_prompt(step_type, artifacts, question, fresh=fresh, failure=failure, role=role)
     request = LLMRequest(
         step_type=step_type,
         artifacts={k: str(v) for k, v in (artifacts or {}).items()},

@@ -13,6 +13,8 @@ from typing import Iterable, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from harness.artifacts import Artifact, ArtifactStore
+
 Status = Literal["pending", "in-progress", "done", "blocked", "stale", "needs-user"]
 
 #: Transition table enforced at commit (KERNEL_API §4.2). Same-status assignment is a
@@ -159,8 +161,46 @@ class TaskTree:
         self._nodes: dict[str, Node] = {}
         self._order: list[str] = []
         self._pending: dict[str, Status] = {}
+        self._producers: dict[str, str] = {}  # artifact_id -> producing node id
         self._counter = 0
+        self.artifacts = ArtifactStore()  # kernel-owned store; attach enforces linkage
         self.root_id = self._new_node(what=what, why=why, risk=risk, files=list(files or []))
+
+    # artifacts -------------------------------------------------------------------
+
+    def attach(self, node: NodeHandle | str, artifact: Artifact) -> ValidationFindings:
+        """Link a produced artifact to its producer (KERNEL_API §4.6): sets
+        ``produced_artifact_id``, appends the typed ArtifactRef to the node's outputs,
+        and enforces the single-producer rule — the same artifact_id attached to a
+        second node is a validation finding, never a silent overwrite. The artifact
+        schema (incl. producer linkage as a schema field) is validated by the store
+        boundary; content was secret-filtered there (DESIGN §4.2)."""
+        findings = ValidationFindings()
+        nid = node if isinstance(node, str) else node.id
+        self._node(nid)  # raises if unknown
+        existing = self._nodes[nid].produced_artifact_id
+        if existing is not None and existing != artifact.artifact_id:
+            findings.items.append(
+                Finding(kind="artifact-relink", node_id=nid,
+                        detail=f"node already produces {existing!r}; refusing relink to {artifact.artifact_id!r}")
+            )
+            return findings
+        prior = self._producers.get(artifact.artifact_id)
+        if prior is not None and prior != nid:
+            findings.items.append(
+                Finding(kind="duplicate-producer", node_id=nid,
+                        detail=f"artifact {artifact.artifact_id!r} already produced by {prior!r}")
+            )
+            return findings
+        if artifact.artifact_id not in self.artifacts:
+            self.artifacts.put(artifact.artifact_id, nid, artifact.kind, artifact.content)
+        if existing != artifact.artifact_id:
+            self._nodes[nid].produced_artifact_id = artifact.artifact_id
+            self._nodes[nid].output.append(
+                ArtifactRef(artifact_id=artifact.artifact_id, producer_id=nid)
+            )
+            self._producers[artifact.artifact_id] = nid
+        return findings
 
     # -- construction -------------------------------------------------------
 
@@ -517,8 +557,12 @@ class NodeHandle:
 
     @property
     def produced_artifact_id(self) -> str | None:
-        """Read-only field (KERNEL_API §4.2); set via tree.attach in later milestones."""
+        """Read-only field (KERNEL_API §4.2); set via :meth:`TaskTree.attach`."""
         return self._node.produced_artifact_id
+
+    def attach(self, artifact: Artifact) -> ValidationFindings:
+        """Handle-form of :meth:`TaskTree.attach` (KERNEL_API §4.6)."""
+        return self._tree.attach(self, artifact)
 
     @property
     def input(self) -> list[ArtifactRef]:

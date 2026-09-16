@@ -211,6 +211,10 @@ class ChildFill(BaseModel):
             return v
         allowed = _candidate_files(ctx) | set(ctx.get("known_symbols") or ())
         for tok in _FILE_TOKEN.findall(v or ""):
+            # abbreviations like "e.g" / "i.e" match the token shape but are prose,
+            # not file references (owner finding, T-07 false positive)
+            if tok.lower().rstrip(".") in {"e.g", "i.e", "etc", "vs", "fig", "no", "cf"}:
+                continue
             if tok not in allowed:
                 raise ValueError(
                     f"ungrounded reference {tok!r}: not in injected candidate scope or symbol DB "
