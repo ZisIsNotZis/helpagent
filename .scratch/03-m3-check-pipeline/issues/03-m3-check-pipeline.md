@@ -1,6 +1,6 @@
 # 03-m3-check-pipeline
 
-**Status:** claimed
+**Status:** done
 **Milestone:** DESIGN §8 M3 — Check pipeline (format/lint/type/parse, auto-fix ≤2 passes, rollback)
 **Contract:** KERNEL_API §3.4 `check_write`; DESIGN §4.5 ladder; TEST_PLAN §3.3 test matrix
 
@@ -71,3 +71,14 @@ WORKSPACE env-fact 2026-09-15 re-verified 2026-09-17: mirror works).
     (2 fix passes)` → `rule_diagnosis FP-4-nameerror-source → minirepo/errors.py`
     → retry `clean` → gate green. Rule library is now the FP-4 fix layer.
   - Full-corpus N=1 sweep launched (bg task b78987ff1) — parity evidence pending.
+
+- 2026-09-17 owner session (closure): full-corpus N=1 sweep THROUGH the M3 pipeline:
+  **15/16** (bench/runs/n-sweep-20260917T061549Z). Sole failure T-01 = pre-existing
+  flake, model-side (all 3 attempts `write_committed`, pytest red — no ladder
+  interference; resample 20260917T063255 confirms; class diagnosed → FP-7, ticket 04).
+  T-07 (the other baseline flake) passed 1/1. Walls 39–102 s/task incl. 2× mypy.
+  ACs: (1) §3.3 matrix green ✓ (2) unit gate 108/108 ✓ (3) mini_repo real-model gate
+  green + rule_diagnosis ledger evidence ✓ (4) corpus parity ✓ (T-01 variance
+  unchanged, no regression elsewhere) (5) docs current ✓ (DESIGN §2.7/§4.6,
+  TEST_PLAN paths, FAIL_PATTERNS FP-4 fix layer + FP-7 entry).
+  Status → done. New work: FP-7 → ticket 04 (needs-triage).
