@@ -1,0 +1,13 @@
+== golden bugfix: T-10-port-dict-keys-view ==
+[red] pytest exit=1
+[task_card] class=port goal='Ensure the restock picker returns the NONE sentinel when warehouse sto'
+[expand] leaf: 'Verify restock picker returns NONE sentinel when warehouse stock is em' est=1
+[spec] interfaces=[] files_touched=['.pytest_cache/.gitignore', '.pytest_cache/CACHEDIR.TAG', '.pytest_cache/README.md', '.pytest_cache/v/cache/lastfailed', '.pytest_cache/v/cache/nodeids', 'README.md', 'inventory/__init__.py', 'inventory/pick.py', 'pyproject.toml', 'tests/test_pick.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=True history=[{"attempt": 1, "file": "inventory/pick.py", "pytest_exit": 0, "verdict": "ok", "excerpts": ["..                                                                       [100%]", "2 passed in 0.01s"]}]
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=complete done='Fixed T-10-port-dict-keys-view in inventory/pick.py.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T102836/golden/T-10-port-dict-keys-view
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====

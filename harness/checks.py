@@ -126,8 +126,14 @@ async def _run_tool(cmd: list[str], workdir: Path) -> tuple[int, str]:
 
 
 async def _collect_lint(workdir: Path, path: str) -> list[CheckFinding]:
+    # FP-9: the rule set is PINNED to the correctness set (E9 syntax + F pyflakes).
+    # Ruff's evolving defaults grew style rules (DTZ007 flagged the CORRECT T-17 fix
+    # — naive datetimes by design) and redirected the model into breaking logic.
+    # The ladder serves the task contract, not tool opinion; widen only with
+    # evidence (FAIL_PATTERNS discipline).
     code, out = await _run_tool(
-        ["ruff", "check", "--no-cache", "--output-format", "concise", path], workdir
+        ["ruff", "check", "--no-cache", "--select", "E9,F", "--output-format", "concise", path],
+        workdir,
     )
     if code >= 2:
         note("lint_unavailable", detail=out[-160:])
@@ -181,7 +187,7 @@ async def _ruff_autofix(workdir: Path, path: str, pass_no: int) -> tuple[bool, l
         return False, await _collect_lint(workdir, path)
     if pass_no == 1:
         await _run_tool(["ruff", "format", "--no-cache", "--quiet", path], workdir)
-    await _run_tool(["ruff", "check", "--no-cache", "--fix", "--quiet", path], workdir)
+    await _run_tool(["ruff", "check", "--no-cache", "--fix", "--quiet", "--select", "E9,F", path], workdir)
     return True, await _collect_lint(workdir, path)
 
 

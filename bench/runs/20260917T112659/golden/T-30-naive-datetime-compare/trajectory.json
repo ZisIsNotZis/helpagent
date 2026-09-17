@@ -1,0 +1,11 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [
+   "tokens/tokens.py"
+  ],
+  "diff": "diff --git a/tokens/tokens.py b/tokens/tokens.py\nindex 21242a5..9790e14 100644\n--- a/tokens/tokens.py\n+++ b/tokens/tokens.py\n@@ -1,6 +1,6 @@\n \"\"\"One-time tokens with an expiry.\"\"\"\n \n-from datetime import datetime, timedelta\n+from datetime import datetime, timedelta, timezone\n \n TTL = timedelta(hours=1)\n \n@@ -11,4 +11,6 @@ def issue(now: datetime) -> dict:\n \n \n def is_expired(token: dict, at: datetime) -> bool:\n+    # Tolerate naive inputs by treating them as UTC.\n+    at = at if at.tzinfo is not None else at.replace(tzinfo=timezone.utc)\n     return at >= token[\"expires_at\"]\n",
+  "outcome": "green"
+ }
+]

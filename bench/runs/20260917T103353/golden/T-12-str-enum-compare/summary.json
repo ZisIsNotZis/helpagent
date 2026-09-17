@@ -1,0 +1,52 @@
+{
+ "task": "T-12-str-enum-compare",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "access/roles.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_gate.py::test_webhook_parsed_editor_may_publish",
+    "E       AssertionError: assert False is True"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "access/gate.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_gate.py::test_webhook_parsed_editor_may_publish",
+    "E       AssertionError: assert False is True"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "access/gate.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_gate.py::test_webhook_parsed_editor_may_publish",
+    "E       AssertionError: assert False is True"
+   ]
+  }
+ ],
+ "fix_summary": "attempt 3 left tests red (1); rolled back",
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED tests/test_gate.py::test_webhook_parsed_editor_may_publish",
+  "E       AssertionError: assert False is True",
+  "E        +  where False = can_publish(<access.gate.Author object at 0x7ede15354080>)"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-12-str-enum-compare-summary"
+ ]
+}

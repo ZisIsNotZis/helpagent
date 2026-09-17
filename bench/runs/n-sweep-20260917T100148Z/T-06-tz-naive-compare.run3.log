@@ -1,0 +1,13 @@
+== golden bugfix: T-06-tz-naive-compare ==
+[red] pytest exit=1
+[task_card] class=bugfix goal='Resolve the TypeError when the scheduler uses its default clock by ens'
+[expand] leaf: 'Resolve TypeError by ensuring all datetime operations in the scheduler' est=1
+[spec] interfaces=[] files_touched=['scheduler/jobs.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=True history=[{"attempt": 1, "file": "scheduler/jobs.py", "pytest_exit": 0, "verdict": "ok", "excerpts": ["..                                                                       [100%]", "2 passed in 0.02s"]}]
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=complete done='Applied the fix to scheduler/jobs.py and verified it passed tests.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T101831/golden/T-06-tz-naive-compare
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====

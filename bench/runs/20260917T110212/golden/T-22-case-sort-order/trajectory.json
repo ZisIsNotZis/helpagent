@@ -1,0 +1,11 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [
+   "roster/sort.py"
+  ],
+  "diff": "diff --git a/roster/sort.py b/roster/sort.py\nindex 5f4e00b..4d7b1d9 100644\n--- a/roster/sort.py\n+++ b/roster/sort.py\n@@ -3,4 +3,4 @@\n \n def sorted_names(names: list[str]) -> list[str]:\n     \"\"\"Alphabetical order, case-insensitive (see the staff handbook).\"\"\"\n-    return sorted(names)\n+    return sorted(names, key=lambda x: x.lower())\n",
+  "outcome": "green"
+ }
+]

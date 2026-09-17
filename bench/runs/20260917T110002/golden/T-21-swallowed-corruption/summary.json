@@ -1,0 +1,51 @@
+{
+ "task": "T-21-swallowed-corruption",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "storage/errors.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_store.py::test_corrupt_file_raises_storage_error",
+    "E       Failed: DID NOT RAISE StorageError"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "storage/errors.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_store.py::test_corrupt_file_raises_storage_error",
+    "E       Failed: DID NOT RAISE StorageError"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "storage/errors.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_store.py::test_corrupt_file_raises_storage_error",
+    "E       Failed: DID NOT RAISE StorageError"
+   ]
+  }
+ ],
+ "fix_summary": "attempt 3 left tests red (1); rolled back",
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED tests/test_store.py::test_corrupt_file_raises_storage_error",
+  "E       Failed: DID NOT RAISE StorageError"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-21-swallowed-corruption-summary"
+ ]
+}

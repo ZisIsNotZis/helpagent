@@ -57,6 +57,7 @@ from harness.artifacts import Artifact  # noqa: E402
 from harness.exec import ShapedResult  # noqa: E402
 from harness.exec import exec as k_exec  # noqa: E402
 from harness.checks import check_write, diagnose_test_output  # noqa: E402
+from harness.envelopes import file_tokens  # noqa: E402
 from harness.model import LlamaServerRunner  # noqa: E402
 from harness.trajectory import Trajectory, pause_leaf_on_conflict  # noqa: E402
 from harness.workdir import boot_recover, lock  # noqa: E402
@@ -166,14 +167,17 @@ def extract_symbols(files: dict[str, str]) -> set[str]:
     return syms
 
 
-def step_expand(model, card: Envelope, files: dict[str, str]) -> Envelope:
+def step_expand(model, card: Envelope, files: dict[str, str], request: str = "") -> Envelope:
     cuts = [{"seam_id": "seam-primary", "files": sorted(files), "rationale": "single-leaf corpus task; whole repo is the seam"}]
     node = {"what": card.goal, "why": "corpus task root"}
+    # FP-10: a file the REQUEST itself names (scaffold/create tasks) is grounded by
+    # definition — the request is the run's only input and the authority on intent
+    request_named = file_tokens(request) - set(files)
     return asyncio_run(llm_step(model, "expand",
         artifacts={"node": json.dumps(node), "candidate_cuts": json.dumps(cuts)},
         question="Fill in the child task along the proposed seam: what/why + leaf flag + est_rounds.",
         context={"candidate_seams": {c["seam_id"]: c["files"] for c in cuts},
-                 "grounding_files": set(files),
+                 "grounding_files": set(files) | request_named,
                  "known_symbols": sorted(extract_symbols(files))}))
 
 
@@ -398,7 +402,7 @@ def main() -> int:
         card = step_task_card(model, task["request"])
         print(f"[task_card] class={card.task_class} goal={card.goal[:70]!r}")
 
-        expand = step_expand(model, card, task["files"])
+        expand = step_expand(model, card, task["files"], request=task["request"])
         child = expand.children[0]
         print(f"[expand] leaf: {child.what[:70]!r} est={child.est_rounds}")
 

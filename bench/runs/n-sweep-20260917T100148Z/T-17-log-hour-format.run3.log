@@ -1,0 +1,28 @@
+== golden bugfix: T-17-log-hour-format ==
+[red] pytest exit=1
+[task_card] class=bugfix goal='Fix the log parser so afternoon event hours are correctly converted to'
+[expand] leaf: 'Fix the log parser so afternoon event hours are correctly converted to' est=1
+[spec] interfaces=['parse_log'] files_touched=['logparse/parser.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=False history=[{"attempt": 1, "file": "logparse/parser.py", "pytest_exit": 2, "verdict": "failed", "excerpts": ["E   NameError: name 'LogEvent' is not defined"]}, {"attempt": 2, "file": "logparse/parser.py", "pytest_exit": 2, "verdict
+[gate] ok=False notes=['pytest exit 1', 'FAILED tests/test_parser.py::test_afternoon_hour_is_parse', "E           ValueError: time data '2025-06-01 14:30:00' does not match format '%Y-%m-%d %I:%M:%S'"]
+[run_summary] outcome=complete done='Attempted to fix log parsing parser, but all three attempts failed.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T104938/golden/T-17-log-hour-format
+[result] FAIL (corpus pristine: True)
+
+===== STDERR =====
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(

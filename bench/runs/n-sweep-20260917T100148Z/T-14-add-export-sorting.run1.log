@@ -1,0 +1,13 @@
+== golden bugfix: T-14-add-export-sorting ==
+[red] pytest exit=1
+[task_card] class=feature goal='Make the exported report honor the requirement that customers are list'
+[expand] leaf: 'Sort exported report customers alphabetically ignoring case, prioritiz' est=1
+[spec] interfaces=[] files_touched=['.pytest_cache/.gitignore', '.pytest_cache/CACHEDIR.TAG', '.pytest_cache/README.md', '.pytest_cache/v/cache/lastfailed', '.pytest_cache/v/cache/nodeids', 'README.md', 'pyproject.toml', 'reporting/__init__.py', 'reporting/export.py', 'tests/test_export.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=True history=[{"attempt": 1, "file": "reporting/export.py", "pytest_exit": 0, "verdict": "ok", "excerpts": ["..                                                                       [100%]", "2 passed in 0.02s"]}]
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=complete done='Fixed reporting/export.py for T-14-add-export-sorting and verified via pytest (2'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T103901/golden/T-14-add-export-sorting
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====

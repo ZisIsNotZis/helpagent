@@ -1,0 +1,29 @@
+{
+ "task": "T-23-stack-is-empty",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "stack/stack.py",
+   "pytest_exit": 0,
+   "verdict": "ok",
+   "excerpts": [
+    "...                                                                      [100%]",
+    "3 passed in 0.02s"
+   ]
+  }
+ ],
+ "fix_summary": "stack/stack.py",
+ "gate_notes": [
+  "pytest green; untouched-files contract holds"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-23-stack-is-empty-summary"
+ ]
+}

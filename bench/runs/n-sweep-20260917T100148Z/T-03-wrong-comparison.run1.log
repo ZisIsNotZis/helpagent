@@ -1,0 +1,13 @@
+== golden bugfix: T-03-wrong-comparison ==
+[red] pytest exit=1
+[task_card] class=refactor goal='Make webhook-driven plan detection work for enterprise tier flipping w'
+[expand] leaf: 'Make webhook-driven plan detection work for enterprise tier flipping w' est=1
+[spec] interfaces=[] files_touched=['billing/plans.py', 'tests/test_plans.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=True history=[{"attempt": 1, "file": "billing/plans.py", "pytest_exit": 0, "verdict": "ok", "excerpts": ["...                                                                      [100%]", "3 passed in 0.02s"]}]
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=complete done='Corrected the comparison logic in billing/plans.py.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T100925/golden/T-03-wrong-comparison
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====

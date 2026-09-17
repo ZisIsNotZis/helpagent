@@ -1,0 +1,13 @@
+== golden bugfix: T-16-class-state-leak ==
+[red] pytest exit=1
+[task_card] class=bugfix goal="Resolve the issue where customers see each other's cart items, ensure "
+[expand] leaf: "Resolve issue where customers see each other's cart items, ensure bran" est=1
+[spec] interfaces=[] files_touched=['cart/__init__.py', 'cart/cart.py', 'pyproject.toml']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=True history=[{"attempt": 1, "file": "cart/cart.py", "pytest_exit": 1, "verdict": "failed", "excerpts": ["FAILED tests/test_cart.py::test_carts_are_independent", "E       AssertionError: assert ['sku-1'] == []"]}, {"attempt": 2, "fil
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=complete done='Fixed cart/cart.py to eliminate class state leakage.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T104447/golden/T-16-class-state-leak
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====

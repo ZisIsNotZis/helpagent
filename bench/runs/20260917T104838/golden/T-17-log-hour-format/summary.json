@@ -1,0 +1,39 @@
+{
+ "task": "T-17-log-hour-format",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "logparse/parser.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_parser.py::test_afternoon_hour_is_parse",
+    "E           ValueError: time data '2025-06-01 14:30:00' does not match format '%Y-%m-%d %I:%M:%S'"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "logparse/parser.py",
+   "pytest_exit": 0,
+   "verdict": "ok",
+   "excerpts": [
+    "..                                                                       [100%]",
+    "2 passed in 0.02s"
+   ]
+  }
+ ],
+ "fix_summary": "logparse/parser.py",
+ "gate_notes": [
+  "pytest green; untouched-files contract holds"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-17-log-hour-format-summary"
+ ]
+}

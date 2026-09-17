@@ -1,0 +1,13 @@
+== golden bugfix: T-04-missing-default ==
+[red] pytest exit=1
+[task_card] class=bugfix goal='Make optional settings actually optional in the mailer staging deploym'
+[expand] leaf: 'Make every mailer setting optional with sane defaults so test emails d' est=1
+[spec] interfaces=[] files_touched=['mailer/config.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=True history=[{"attempt": 1, "file": "mailer/config.py", "pytest_exit": 0, "verdict": "ok", "excerpts": ["..                                                                       [100%]", "2 passed in 0.02s"]}]
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=parked-needs-user done='Fixed mailer/config.py to resolve the missing default issue.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T101355/golden/T-04-missing-default
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====

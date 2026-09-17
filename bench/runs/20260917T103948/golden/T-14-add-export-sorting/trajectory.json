@@ -1,0 +1,11 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [
+   "reporting/export.py"
+  ],
+  "diff": "diff --git a/reporting/export.py b/reporting/export.py\nindex 148cd5e..15083f8 100644\n--- a/reporting/export.py\n+++ b/reporting/export.py\n@@ -1,9 +1,13 @@\n \"\"\"Row export for the customer report.\"\"\"\n \n \n+\n def export_rows(rows: list[dict]) -> list[tuple[str, str]]:\n     \"\"\"Export ``rows`` in the documented order: customer ascending, compared\n     case-insensitively; equal customers keep their submitted order (stable).\n     Each exported row is ``(customer, total formatted with two decimals)``.\n     \"\"\"\n-    return [(r[\"customer\"], f\"{r['total']:.2f}\") for r in rows]\n+    return [\n+        (r[\"customer\"], f\"{r['total']:.2f}\")\n+        for r in sorted(rows, key=lambda r: r[\"customer\"].lower())\n+    ]\n",
+  "outcome": "green"
+ }
+]

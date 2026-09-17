@@ -208,3 +208,20 @@ def test_diff_is_secret_filtered_at_the_boundary(tmp_path: Path):
     assert res.diff_redactions >= 1
     assert "hunter2" not in res.diff
     assert "[REDACTED]" in res.diff
+
+
+# ---------------------------------------------------------------- FP-9 pin
+
+
+def test_lint_stage_pins_correctness_rules_no_style_drift(tmp_path: Path):
+    """FP-9: the ladder's rule set is pinned to E9,F — a style-rule magnet file
+    (naive datetime, DTZ007 under ruff 0.16 defaults) must NOT escalate, while
+    real defects (F821 undefined name) still do. The correct T-17 fix was
+    flagged 5x by style rules and the model chased them into breaking logic
+    (sweep 20260917T100148Z)."""
+    naive = "import datetime\n\n\ndef parse(s):\n    return datetime.datetime.strptime(s, '%H:%M')\n"
+    res = _run(tmp_path, "mod.py", naive, config=_no_types())
+    assert not any(f.code == "DTZ007" for f in res.findings), res.findings
+    undefined = "def f():\n    return undefined_name\n"
+    res2 = _run(tmp_path, "mod2.py", undefined, config=_no_types())
+    assert any(f.code == "F821" for f in res2.findings)

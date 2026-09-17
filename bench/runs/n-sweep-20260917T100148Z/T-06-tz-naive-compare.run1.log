@@ -1,0 +1,13 @@
+== golden bugfix: T-06-tz-naive-compare ==
+[red] pytest exit=1
+[task_card] class=bugfix goal='Make the default-clock path in the job scheduler work without crashing'
+[expand] leaf: 'Make the default-clock path in the job scheduler work without crashing' est=1
+[spec] interfaces=[] files_touched=['scheduler/jobs.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=False history=[{"attempt": 1, "file": "scheduler/jobs.py", "pytest_exit": 2, "verdict": "failed", "excerpts": ["E   TypeError: 'tzinfo' is an invalid keyword argument for __new__()"]}, {"attempt": 2, "file": "scheduler/jobs.py", "pyte
+[gate] ok=False notes=['pytest exit 1', 'FAILED tests/test_jobs.py::test_due_check_works_with_the_default_clock', "E       TypeError: can't compare offset-naive and offset-aware datetimes"]
+[run_summary] outcome=complete done='Applied fixes to scheduler/jobs.py across 3 attempts, but all failed.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T101636/golden/T-06-tz-naive-compare
+[result] FAIL (corpus pristine: True)
+
+===== STDERR =====

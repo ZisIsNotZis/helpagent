@@ -1,0 +1,51 @@
+{
+ "task": "T-17-log-hour-format",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "logparse/parser.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_parser.py::test_afternoon_hour_is_parse",
+    "E           ValueError: time data '2025-06-01 14:30:00' does not match format '%Y-%m-%d %I:%M:%S'"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "logparse/parser.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_parser.py::test_afternoon_hour_is_parse",
+    "E           ValueError: time data '2025-06-01 14:30:00' does not match format '%Y-%m-%d %I:%M:%S'"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "logparse/parser.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_parser.py::test_afternoon_hour_is_parse",
+    "E           ValueError: time data '2025-06-01 14:30:00' does not match format '%Y-%m-%d %I:%M:%S'"
+   ]
+  }
+ ],
+ "fix_summary": "attempt 3 left tests red (1); rolled back",
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED tests/test_parser.py::test_afternoon_hour_is_parse",
+  "E           ValueError: time data '2025-06-01 14:30:00' does not match format '%Y-%m-%d %I:%M:%S'"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-17-log-hour-format-summary"
+ ]
+}

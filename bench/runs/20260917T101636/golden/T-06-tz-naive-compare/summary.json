@@ -1,0 +1,48 @@
+{
+ "task": "T-06-tz-naive-compare",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "scheduler/jobs.py",
+   "pytest_exit": 2,
+   "verdict": "failed",
+   "excerpts": [
+    "E   TypeError: 'tzinfo' is an invalid keyword argument for __new__()"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "scheduler/jobs.py",
+   "pytest_exit": 2,
+   "verdict": "failed",
+   "excerpts": [
+    "E   TypeError: 'tzinfo' is an invalid keyword argument for __new__()"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "scheduler/jobs.py",
+   "pytest_exit": 2,
+   "verdict": "failed",
+   "excerpts": [
+    "E   TypeError: 'tzinfo' is an invalid keyword argument for __new__()"
+   ]
+  }
+ ],
+ "fix_summary": "attempt 3 left tests red (2); rolled back",
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED tests/test_jobs.py::test_due_check_works_with_the_default_clock",
+  "E       TypeError: can't compare offset-naive and offset-aware datetimes"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-06-tz-naive-compare-summary"
+ ]
+}

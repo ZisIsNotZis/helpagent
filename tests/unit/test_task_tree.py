@@ -310,6 +310,47 @@ def test_ungrounded_child_reference_rejected():
     assert env.children[0].what.startswith("Add expires_at")
 
 
+def test_numeric_tokens_are_not_file_references():
+    """FP-10: '4.5' / '1.2.3' match the file-token shape but are values — the
+    grounding check must not reject a child for naming a number (T-20 false
+    positive, sweep 20260917T100148Z)."""
+    fake = FakeModelRunner({"expand": [EnvelopeSpec(body={
+        "status": "ok", "comment": "Proposed one child.",
+        "children": [{"seam_id": "seam-1",
+                      "what": "Make average return 4.5 for the [4, 5] case",
+                      "why": "Mean of 4 and 5 is 4.5, not the truncated 1.2", "leaf": True,
+                      "est_rounds": 2}]})]})
+    context = {"candidate_seams": {"seam-1": {"files": ["ratings/stats.py"],
+                                              "rationale": "stats seam"}},
+               "known_symbols": set()}
+    env = asyncio.run(llm_step(fake, "expand", artifacts={}, question="Fill child tasks.",
+                               context=context))
+    assert "4.5" in env.children[0].what
+
+
+def test_request_named_file_is_grounded():
+    """FP-10: a file the REQUEST names for creation (scaffold tasks) is grounded
+    by definition — the composer injects request-named tokens into the scope
+    (T-28 false positive, sweep 20260917T100148Z)."""
+    from harness.envelopes import file_tokens
+
+    assert file_tokens("create the module plugins/registry.py with register()") == {
+        "plugins/registry.py"}
+    fake = FakeModelRunner({"expand": [EnvelopeSpec(body={
+        "status": "ok", "comment": "Proposed one child.",
+        "children": [{"seam_id": "seam-1",
+                      "what": "Create plugins/registry.py with register/get/run",
+                      "why": "The request names this module as the deliverable", "leaf": True,
+                      "est_rounds": 2}]})]})
+    context = {"candidate_seams": {"seam-1": {"files": ["plugins/__init__.py"],
+                                              "rationale": "plugin pkg seam"}},
+               "grounding_files": {"plugins/__init__.py", "plugins/registry.py"},
+               "known_symbols": set()}
+    env = asyncio.run(llm_step(fake, "expand", artifacts={}, question="Fill child tasks.",
+                               context=context))
+    assert env.children[0].what.startswith("Create plugins")
+
+
 def test_insert_attempt_makes_a_sibling():
     t = TaskTree("root")
     first = t.insert_ticket(t.root, "Attempt 1: hypothesis A")

@@ -1,0 +1,11 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [
+   "utils/batch.py"
+  ],
+  "diff": "diff --git a/utils/batch.py b/utils/batch.py\nindex df63067..1aad04d 100644\n--- a/utils/batch.py\n+++ b/utils/batch.py\n@@ -6,4 +6,4 @@ most `size` items, in order, with the last chunk carrying the remainder.\n \n \n def chunked(seq, size: int):\n-    raise NotImplementedError\n+    return [seq[i : i + size] for i in range(0, len(seq), size)]\n",
+  "outcome": "green"
+ }
+]

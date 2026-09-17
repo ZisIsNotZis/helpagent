@@ -1,0 +1,13 @@
+== golden bugfix: T-30-naive-datetime-compare ==
+[red] pytest exit=1
+[task_card] class=bugfix goal='Make the expiry check tolerant of naive datetimes by treating them as '
+[expand] leaf: 'Make the expiry check tolerant of naive datetimes by treating them as ' est=1
+[spec] interfaces=[] files_touched=['tokens/tokens.py', 'tokens/__init__.py', 'tests/test_tokens.py', 'tests/__init__.py', 'pyproject.toml', 'README.md']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=True history=[{"attempt": 1, "file": "tokens/tokens.py", "pytest_exit": 0, "verdict": "ok", "excerpts": ["..                                                                       [100%]", "2 passed in 0.01s"]}]
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=complete done='Fixed the datetime comparison issue in tokens/tokens.py.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T112623/golden/T-30-naive-datetime-compare
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====

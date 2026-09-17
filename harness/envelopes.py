@@ -63,6 +63,12 @@ _TOPIC_TERM = re.compile(r"^[a-z0-9_-]+$")
 _FILE_TOKEN = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_./-]*\.[A-Za-z0-9_]+")
 
 
+def file_tokens(text: str) -> set[str]:
+    """Path-shaped tokens in free text (the grounding validator's own tokenizer,
+    exposed for composers: request-named files enter the grounding scope, FP-10)."""
+    return set(_FILE_TOKEN.findall(text or ""))
+
+
 def _candidate_files(ctx: dict) -> set[str]:
     """Union of injected candidate-cut file scopes (ENVELOPE_SCHEMAS §4: each cut
     carries ``{seam_id, files, rationale}``)."""
@@ -214,6 +220,10 @@ class ChildFill(BaseModel):
             # abbreviations like "e.g" / "i.e" match the token shape but are prose,
             # not file references (owner finding, T-07 false positive)
             if tok.lower().rstrip(".") in {"e.g", "i.e", "etc", "vs", "fig", "no", "cf"}:
+                continue
+            # numeric literals ("4.5", "1.2.3") match the token shape but are values,
+            # not file references (owner-run false positive, T-20 / FP-10)
+            if re.fullmatch(r"\d+(?:\.\d+)+", tok):
                 continue
             if tok not in allowed:
                 raise ValueError(

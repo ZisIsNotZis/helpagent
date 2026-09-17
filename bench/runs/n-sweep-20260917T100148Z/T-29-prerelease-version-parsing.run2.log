@@ -1,0 +1,32 @@
+== golden bugfix: T-29-prerelease-version-parsing ==
+[red] pytest exit=1
+[task_card] class=refactor goal='Fix the release tool parser to correctly handle prerelease tags (e.g.,'
+
+===== STDERR =====
+Traceback (most recent call last):
+  File "/home/z/vibe/helpagent/bench/golden_bugfix.py", line 495, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/z/vibe/helpagent/bench/golden_bugfix.py", line 401, in main
+    expand = step_expand(model, card, task["files"])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/z/vibe/helpagent/bench/golden_bugfix.py", line 172, in step_expand
+    return asyncio_run(llm_step(model, "expand",
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/z/vibe/helpagent/bench/golden_bugfix.py", line 85, in llm_step
+    raise last
+  File "/home/z/vibe/helpagent/bench/golden_bugfix.py", line 78, in llm_step
+    return asyncio.run(_llm_step_real(model, step_type, **kw))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 687, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/home/z/vibe/helpagent/harness/runner.py", line 303, in llm_step
+    raise SchemaViolation(failure_message or f"{step_type}: no candidates produced")
+harness.runner.SchemaViolation: expand: schema violation: Value error, ungrounded reference '1.2.3-beta.2': not in injected candidate scope or symbol DB (ENVELOPE_SCHEMAS §4) — attempt erased, failure summary only

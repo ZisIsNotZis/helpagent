@@ -1,0 +1,165 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 42.2,
+  "prompt_tokens": 216,
+  "completion_tokens": 3000,
+  "wall_model_s": 58.006
+ },
+ {
+  "kind": "validation_failed",
+  "text": "",
+  "step_type": "task_card",
+  "detail": "malformed JSON at offset 113"
+ },
+ {
+  "kind": "golden_step_retry",
+  "text": "",
+  "step_type": "task_card",
+  "attempt": 1,
+  "detail": "task_card: output was malformed JSON — attempt erased, failure summary only"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 0.0346,
+  "prompt_tokens": 269,
+  "completion_tokens": 84,
+  "wall_model_s": 2.14
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "task_card"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "expand",
+  "fresh": false,
+  "cache_hit": 0.0293,
+  "prompt_tokens": 316,
+  "completion_tokens": 113,
+  "wall_model_s": 1.864
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "expand"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_spec",
+  "fresh": false,
+  "cache_hit": 0.0227,
+  "prompt_tokens": 406,
+  "completion_tokens": 90,
+  "wall_model_s": 1.511
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_spec"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 62.4,
+  "prompt_tokens": 317,
+  "completion_tokens": 121,
+  "wall_model_s": 3.1
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0377,
+  "prompt_tokens": 248,
+  "completion_tokens": 106,
+  "wall_model_s": 3.622
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1.6957,
+  "prompt_tokens": 434,
+  "completion_tokens": 339,
+  "wall_model_s": 4.911
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "golden_test_skipped",
+  "text": "",
+  "detail": "'tests/test_export.py' already exists — never overwrite shipped tests"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 663.0,
+  "prompt_tokens": 664,
+  "completion_tokens": 241,
+  "wall_model_s": 4.287
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "auto_fixed",
+  "file": "reporting/export.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "reporting/export.py"
+  ]
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "run_summary",
+  "fresh": false,
+  "cache_hit": 0.0367,
+  "prompt_tokens": 254,
+  "completion_tokens": 105,
+  "wall_model_s": 2.626
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "run_summary"
+ }
+]
