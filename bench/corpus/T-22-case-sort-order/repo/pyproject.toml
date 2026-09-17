@@ -1,0 +1,10 @@
+[project]
+name = "22casesortorder"
+version = "0.1.0"
+description = "Roster sorting that puts capitals first."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

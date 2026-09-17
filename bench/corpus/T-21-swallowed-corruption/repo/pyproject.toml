@@ -1,0 +1,10 @@
+[project]
+name = "21swallowedcorruption"
+version = "0.1.0"
+description = "Settings loader that swallows file corruption."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

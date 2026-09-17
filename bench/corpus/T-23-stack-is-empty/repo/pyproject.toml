@@ -1,0 +1,10 @@
+[project]
+name = "23stackisempty"
+version = "0.1.0"
+description = "Stack class missing the documented is_empty()."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

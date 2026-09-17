@@ -1,0 +1,1 @@
+The dashboard team is waiting on the JSON report mode the API docs advertise (?format=json should return {"rows": [...]}) but the builder only ever emits the legacy text table. Please add the JSON mode; the text output must stay byte-for-byte identical.

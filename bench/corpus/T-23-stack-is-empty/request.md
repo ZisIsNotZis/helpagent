@@ -1,0 +1,1 @@
+Callers need to check whether a stack is empty without catching pop() exceptions — the class docs promise an is_empty() predicate but the method isn't there. Add it: True when the stack has no items, False otherwise. Don't change existing methods.

@@ -1,0 +1,1 @@
+A half-written settings file (disk filled up mid-write) made the service silently start with empty settings — we lost hours to a bug nobody could see. Corrupt state must raise our StorageError instead of being swallowed. Please fix the loader.
