@@ -1,0 +1,13 @@
+== golden bugfix: T-17-log-hour-format ==
+[red] pytest exit=1
+[task_card] class=bugfix goal='Fix the log parser so afternoon event hours are correctly converted to'
+[expand] leaf: 'Fix the log parser so afternoon event hours are correctly converted to' est=1
+[spec] interfaces=[] files_touched=['logparse/parser.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=True history=[{"attempt": 1, "file": "logparse/parser.py", "pytest_exit": 0, "verdict": "ok", "excerpts": ["..                                                                       [100%]", "2 passed in 0.02s"]}]
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=parked-needs-user done='Fixed log hour format in logparse/parser.py.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T114115/golden/T-17-log-hour-format
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====

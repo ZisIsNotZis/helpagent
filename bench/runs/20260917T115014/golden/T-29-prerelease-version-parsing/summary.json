@@ -1,0 +1,48 @@
+{
+ "task": "T-29-prerelease-version-parsing",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "verparse/parse.py",
+   "pytest_exit": 2,
+   "verdict": "failed",
+   "excerpts": [
+    "E   ImportError: cannot import name 'parse' from 'verparse.parse' (/home/z/vibe/helpagent/bench/runs/20260917T115014/golden/T-29-prerelease-version-parsing/work/verparse/parse.py)"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "verparse/parse.py",
+   "pytest_exit": 2,
+   "verdict": "failed",
+   "excerpts": [
+    "E   ImportError: cannot import name 'parse' from 'verparse.parse' (/home/z/vibe/helpagent/bench/runs/20260917T115014/golden/T-29-prerelease-version-parsing/work/verparse/parse.py)"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "verparse/parse.py",
+   "pytest_exit": 2,
+   "verdict": "failed",
+   "excerpts": [
+    "E   ImportError: cannot import name 'parse' from 'verparse.parse' (/home/z/vibe/helpagent/bench/runs/20260917T115014/golden/T-29-prerelease-version-parsing/work/verparse/parse.py)"
+   ]
+  }
+ ],
+ "fix_summary": "attempt 3 left tests red (2); rolled back",
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED tests/test_parse.py::test_prerelease_split",
+  "E       ValueError: too many values to unpack (expected 3)"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-29-prerelease-version-parsing-summary"
+ ]
+}

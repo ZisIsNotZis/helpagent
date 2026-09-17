@@ -1,0 +1,39 @@
+{
+ "task": "mini_repo",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "minirepo/calc.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_calc.py::test_divide_by_zero_raises_minirepo_error",
+    "E           NameError: name 'MinirepoError' is not defined"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "minirepo/calc.py",
+   "pytest_exit": 0,
+   "verdict": "ok",
+   "excerpts": [
+    ".                                                                        [100%]",
+    "1 passed in 0.04s"
+   ]
+  }
+ ],
+ "fix_summary": "minirepo/calc.py",
+ "gate_notes": [
+  "pytest green; untouched-files contract holds"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "mini_repo-summary"
+ ]
+}

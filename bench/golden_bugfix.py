@@ -203,9 +203,12 @@ def extract_constants(files: dict[str, str]) -> str:
     return "\n".join(lines[:24])
 
 
-def step_spec(model, leaf_what: str, files: dict[str, str], conventions: str) -> Envelope:
+def step_spec(model, leaf_what: str, files: dict[str, str], conventions: str,
+              request: str = "") -> Envelope:
     listing = "\n".join(f"- {rel}" for rel in sorted(files))
     constants = extract_constants(files)
+    # FP-10: request-named files (scaffold/create) are part of the writable boundary
+    boundary = sorted(set(files) | (file_tokens(request) - set(files)))
     return asyncio_run(llm_step(model, "write_spec",
         artifacts={"leaf": leaf_what, "conventions": conventions, "repo_files": listing,
                    "repo_constants": constants},
@@ -213,7 +216,7 @@ def step_spec(model, leaf_what: str, files: dict[str, str], conventions: str) ->
                  "files_touched. Fix where the misconfigured VALUE lives (constants/config), not "
                  "where the symptom shows: when the request says the value was moved into config, "
                  "files_touched MUST include that config module (FP-7 hard rule).",
-        context={"boundary_files": sorted(files)}))
+        context={"boundary_files": boundary}))
 
 
 def step_acs(model, leaf_what: str, spec: Envelope) -> tuple[Envelope, Envelope, int]:
@@ -279,7 +282,9 @@ def step_write_test(model, spec: Envelope, acs: Envelope, workdir: Path, files: 
 
 
 def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
-                   attempts: int, trajectory: Trajectory, request: str = "") -> tuple[bool, str, list[dict]]:
+                   attempts: int, trajectory: Trajectory, request: str = "",
+                   creatable: set[str] | None = None) -> tuple[bool, str, list[dict]]:
+    creatable = creatable or set()
     """Bounded implement loop. D-transport: edits ride the write_test content
     envelope (only content-emitting schema tonight); on red the target file is
     rolled back and the next attempt sees a one-line failure summary + failing
@@ -289,7 +294,7 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
     summary = "tests fail; fix the reported bug"
     for attempt in range(1, attempts + 1):
         # one candidate file per attempt: the spec's files_touched (boundary), else whole repo
-        boundary = [f for f in spec.files_touched if f in files] or sorted(files)
+        boundary = [f for f in spec.files_touched if f in files or f in creatable] or sorted(files)
         # rank: source before tests — the fix belongs in source; editing tests to pass
         # is a test-side ticket (router rule), never the implement move
         boundary = sorted(boundary, key=lambda f: ("test" in f.lower(), f))
@@ -298,25 +303,31 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
                 "interfaces": [i.model_dump() for i in spec.interfaces],
                 "behavior": spec.behavior,
                 "implementation_notes": spec.implementation_notes}),
-                "current_files": json.dumps({rel: files[rel] for rel in boundary}, ensure_ascii=False),
+                "current_files": json.dumps({rel: files[rel] for rel in boundary if rel in files}, ensure_ascii=False),
                 "bug_report": request,
                 "failing_test_output": last_excerpt},
-            question="Emit the complete new version of the ONE buggy file (file_path) so the failing "
-                     "test passes. Change as little as possible. If you reference a name defined "
-                     "elsewhere in the repository, add the needed import statement. "
-                     "Never edit test files to make them pass — fix the source.",
+            question=("Emit the complete content for the NEW file (file_path) so the failing "
+                      "tests pass. Include every symbol the tests import. "
+                      "Never edit test files to make them pass — create the source."
+                      if boundary and all(f in creatable for f in boundary) else
+                      "Emit the complete new version of the ONE buggy file (file_path) so the failing "
+                      "test passes. Change as little as possible. If you reference a name defined "
+                      "elsewhere in the repository, add the needed import statement. "
+                      "Never edit test files to make them pass — fix the source."),
             context={"ac_map": {}, "boundary_files": boundary},
-            role="whole-file source-edit engine: re-emit the complete new version of the target file",
+            role=("whole-file scaffold engine: emit the complete new file at file_path"
+                  if boundary and all(f in creatable for f in boundary) else
+                  "whole-file source-edit engine: re-emit the complete new version of the target file"),
             best_of_n=3))
         if env.status != "ok":
             history.append({"attempt": attempt, "outcome": f"envelope:{env.status}"})
             summary = f"implement returned status={env.status}: {env.unable_reason or env.comment}"
             continue
-        if env.file_path not in files:
+        if env.file_path not in files and env.file_path not in creatable:
             history.append({"attempt": attempt, "outcome": f"file_path-outside-repo:{env.file_path}"})
             continue
         target = workdir / env.file_path
-        before = target.read_bytes()
+        before = target.read_bytes() if target.exists() else None   # None = creation (FP-10 scaffold path)
         # M3: the write goes through the kernel check pipeline (DESIGN §4.5) —
         # format/autofix <=2 passes, tree-sitter parse, typecheck baseline, intent.
         cw = asyncio.run(check_write(workdir, env.file_path, env.content, intent="source"))
@@ -338,7 +349,10 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
             trajectory.record(step_id=f"implement-{attempt}", node_id="implement", outcome="green")
             return True, env.file_path, history
         # red → rollback the attempt (erasure: the work tree forgets the failed text)
-        target.write_bytes(before)
+        if before is None:
+            target.unlink()
+        else:
+            target.write_bytes(before)
         last_excerpt = "; ".join(res.excerpts) if res.excerpts else f"pytest exit {res.exit}"
         # FP-4 family now lives in the kernel rule library (DESIGN §4.5): cross-file
         # name resolution is a lookup — harness work, never left to the model.
@@ -410,7 +424,7 @@ def main() -> int:
         leaf = tree.insert_ticket(tree.root, child.what, why=child.why)
         leaf.status = "in-progress"
 
-        spec = step_spec(model, child.what, task["files"], task["conventions"])
+        spec = step_spec(model, child.what, task["files"], task["conventions"], request=task["request"])
         print(f"[spec] interfaces={[i.name for i in spec.interfaces]} files_touched={spec.files_touched}")
 
         acs, verdict, decides = step_acs(model, child.what, spec)
@@ -434,9 +448,10 @@ def main() -> int:
                     note("golden_test_dropped_side_test", file=str(golden_test.relative_to(workdir)))
                     print("[write_test] golden test red → dropped (side=test, M2 simplified router)")
 
+        creatable = file_tokens(task["request"]) - set(task["files"])
         fixed, fix_summary, history = step_implement(
             model, spec, workdir, task["files"], args.attempts, trajectory,
-            request=task["request"])
+            request=task["request"], creatable=creatable)
         if fixed:
             harness_written.add(fix_summary)
         print(f"[implement] fixed={fixed} history={json.dumps(history)[:220]}")
