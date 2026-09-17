@@ -82,3 +82,13 @@ WORKSPACE env-fact 2026-09-15 re-verified 2026-09-17: mirror works).
   unchanged, no regression elsewhere) (5) docs current ✓ (DESIGN §2.7/§4.6,
   TEST_PLAN paths, FAIL_PATTERNS FP-4 fix layer + FP-7 entry).
   Status → done. New work: FP-7 → ticket 04 (needs-triage).
+
+- 2026-09-17 owner session (M4 extension, same ticket umbrella): M4 core delivered
+  (commit e6cdbea) — `harness/tools.py` registry (pytest/ruff/mypy/git shapers,
+  generic fallback; `python -m X` dispatch form) + REAL bwrap sandbox for
+  model-provenance exec: ro base + tmpfs /etc,/home,/run,/var,/tmp (path-level
+  scoping — /etc hidden, not merely denied), rw workdir, venv re-bound, net+pid
+  namespaces denied, `--die-with-parent`; kernel invariant: model-provenance exec
+  NEVER runs unsandboxed (bwrap missing ⇒ policy_blocked). Shaping keys on the
+  model's argv, not the sandbox argv. 121/121 suite; T-02 real-model PASS through
+  the full stack. TEST_PLAN §3.2 path-scoping + network tests now real.
