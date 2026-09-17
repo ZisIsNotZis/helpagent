@@ -1,0 +1,11 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [
+   "fetcher/client.py"
+  ],
+  "diff": "diff --git a/fetcher/client.py b/fetcher/client.py\nindex 85c871e..71dbe31 100644\n--- a/fetcher/client.py\n+++ b/fetcher/client.py\n@@ -15,4 +15,10 @@ def fetch(send, url: str, *, sleep=time.sleep) -> str:\n     A transient response is retried per the documented backoff schedule; ``sleep``\n     is injectable so tests can observe the schedule without waiting.\n     \"\"\"\n-    return send(url)\n+    for attempt in range(len(DELAYS_S) + 1):\n+        response = send(url)\n+        if response != RETRY_MARKER:\n+            return response\n+        if attempt < len(DELAYS_S):\n+            sleep(DELAYS_S[attempt])\n+    return RETRY_MARKER\n",
+  "outcome": "green"
+ }
+]

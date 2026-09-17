@@ -1,0 +1,204 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 0.0452,
+  "prompt_tokens": 208,
+  "completion_tokens": 100
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "task_card"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "expand",
+  "fresh": false,
+  "cache_hit": 0.0279,
+  "prompt_tokens": 332,
+  "completion_tokens": 130
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "expand"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_spec",
+  "fresh": false,
+  "cache_hit": 0.0266,
+  "prompt_tokens": 347,
+  "completion_tokens": 144
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_spec"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 63.2,
+  "prompt_tokens": 321,
+  "completion_tokens": 110
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0386,
+  "prompt_tokens": 242,
+  "completion_tokens": 102
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 0.0221,
+  "prompt_tokens": 416,
+  "completion_tokens": 161
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "golden_test_skipped",
+  "text": "",
+  "detail": "'tests/test_store.py' already exists — never overwrite shipped tests"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1327.0,
+  "prompt_tokens": 1328,
+  "completion_tokens": 251
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "escalated",
+  "file": "contacts/store.py",
+  "n_findings": 1,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "contacts/store.py"
+  ]
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 1,
+  "file": "contacts/store.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1348.0,
+  "prompt_tokens": 1349,
+  "completion_tokens": 274
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "escalated",
+  "file": "contacts/store.py",
+  "n_findings": 1,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "contacts/store.py"
+  ]
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 2,
+  "file": "contacts/store.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1348.0,
+  "prompt_tokens": 1349,
+  "completion_tokens": 278
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "clean",
+  "file": "contacts/store.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "contacts/store.py"
+  ]
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "run_summary",
+  "fresh": false,
+  "cache_hit": 0.0248,
+  "prompt_tokens": 372,
+  "completion_tokens": 78
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "run_summary"
+ }
+]

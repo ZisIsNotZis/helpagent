@@ -1,0 +1,11 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [
+   "throttle/limiter.py"
+  ],
+  "diff": "diff --git a/throttle/limiter.py b/throttle/limiter.py\nindex 2576114..22722c7 100644\n--- a/throttle/limiter.py\n+++ b/throttle/limiter.py\n@@ -14,6 +14,7 @@ class Limiter:\n         self.on_limit = on_limit\n         self._counts: dict[str, int] = {}\n         self._blocked: set[str] = set()\n+        self._limit_fired: set[str] = set()\n \n     def hit(self, key: str) -> bool:\n         \"\"\"Record one hit for ``key``; True when the hit is allowed.\"\"\"\n@@ -21,4 +22,7 @@ class Limiter:\n         self._counts[key] = count\n         if count > self.threshold:\n             self._blocked.add(key)\n+            if key not in self._limit_fired and self.on_limit is not None:\n+                self.on_limit(key)\n+                self._limit_fired.add(key)\n         return count <= self.threshold\n",
+  "outcome": "green"
+ }
+]
