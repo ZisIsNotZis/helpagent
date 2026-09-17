@@ -33,7 +33,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import re
 import shutil
 import sys
 from datetime import datetime, timezone
@@ -57,6 +56,7 @@ from harness import (  # noqa: E402
 from harness.artifacts import Artifact  # noqa: E402
 from harness.exec import ShapedResult  # noqa: E402
 from harness.exec import exec as k_exec  # noqa: E402
+from harness.checks import check_write, diagnose_test_output  # noqa: E402
 from harness.model import LlamaServerRunner  # noqa: E402
 from harness.trajectory import Trajectory, pause_leaf_on_conflict  # noqa: E402
 from harness.workdir import boot_recover, lock  # noqa: E402
@@ -243,10 +243,14 @@ def step_write_test(model, spec: Envelope, acs: Envelope, workdir: Path, files: 
         # never overwrite a shipped one (overwriting = gate-easing, DESIGN §4.8)
         note("golden_test_skipped", detail=f"{env.file_path!r} already exists — never overwrite shipped tests")
         return None
-    p = workdir / env.file_path
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(env.content)
-    return p
+    # M3: the golden test file write also rides the check pipeline (intent=test)
+    cw = asyncio.run(check_write(workdir, env.file_path, env.content, intent="test"))
+    if not cw.ok:
+        note("golden_test_skipped",
+             detail=f"check_write rolled back: "
+                    f"{cw.findings[0].message[:80] if cw.findings else cw.verdict}")
+        return None
+    return workdir / env.file_path
 
 
 def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
@@ -288,7 +292,20 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
             continue
         target = workdir / env.file_path
         before = target.read_bytes()
-        target.write_text(env.content)
+        # M3: the write goes through the kernel check pipeline (DESIGN §4.5) —
+        # format/autofix <=2 passes, tree-sitter parse, typecheck baseline, intent.
+        cw = asyncio.run(check_write(workdir, env.file_path, env.content, intent="source"))
+        if not cw.ok:
+            history.append({"attempt": attempt, "outcome": f"check-rolled-back:{cw.verdict}",
+                            "findings": [f.message[:80] for f in cw.findings[:2]]})
+            last_excerpt = "; ".join(f"{f.code}: {f.message}" for f in cw.findings[:2]) or cw.verdict
+            note("implement_check_rolled_back", attempt=attempt, file=env.file_path)
+            trajectory.record(step_id=f"implement-{attempt}", node_id="implement",
+                              outcome="rolled-back")
+            summary = f"attempt {attempt} failed the check ladder ({cw.verdict}); rolled back"
+            continue
+        if cw.findings:
+            last_excerpt = "; ".join(f"{f.code}: {f.message}" for f in cw.findings[:3])
         res = run_pytest(workdir)
         history.append({"attempt": attempt, "file": env.file_path, "pytest_exit": res.exit,
                         "verdict": res.verdict, "excerpts": res.excerpts[:2]})
@@ -298,18 +315,11 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
         # red → rollback the attempt (erasure: the work tree forgets the failed text)
         target.write_bytes(before)
         last_excerpt = "; ".join(res.excerpts) if res.excerpts else f"pytest exit {res.exit}"
-        # FP-4 rule (rule-library style, DESIGN §4.5): NameError is deterministically
-        # diagnosable — grep the repo for the definition and inject the answer into the
-        # retry summary. A grep must not be left to the model.
-        for excerpt in res.excerpts:
-            m = re.search(r"NameError: name '(\w+)' is not defined", excerpt)
-            if m:
-                name = m.group(1)
-                for rel, text in files.items():
-                    if re.search(rf"^(?:class|def)\s+{name}\b", text, re.M):
-                        last_excerpt += (f"; NameError diagnosis: {name} is defined in {rel} "
-                                         "(its full source is in current_files) — add the import")
-                        break
+        # FP-4 family now lives in the kernel rule library (DESIGN §4.5): cross-file
+        # name resolution is a lookup — harness work, never left to the model.
+        for rf in diagnose_test_output(res.excerpts, files):
+            last_excerpt += f"; {rf.message}"
+            note("rule_diagnosis", rule=rf.code, file=rf.path)
         summary = f"attempt {attempt} left tests red ({res.exit}); rolled back"
         note("implement_red_rolled_back", attempt=attempt, file=env.file_path)
         trajectory.record(step_id=f"implement-{attempt}", node_id="implement", outcome="rolled-back")

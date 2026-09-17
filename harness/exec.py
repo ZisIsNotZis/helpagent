@@ -20,6 +20,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from harness.runner import note
+
 #: Commands a model-provenance call may run (per-script config in the full design;
 #: one kernel-default set for M2). Everything else ⇒ policy-blocked.
 DEFAULT_ALLOWLIST = frozenset({"pytest", "python", "python3", "ruff"})
@@ -84,6 +86,9 @@ async def exec(
     wd = Path(workdir)
     cmd = [str(c) for c in cmd]
     if provenance == "model" and (not cmd or Path(cmd[0]).name not in allowlist):
+        # first-class shaped result (DESIGN §4.6) — and a first-class STATS counter
+        # (2026-09-17 owner alignment: policy_blocked is tracked, never silent)
+        note("policy_blocked", command=cmd[0] if cmd else "")
         return ShapedResult(
             command=cmd,
             exit=None,
