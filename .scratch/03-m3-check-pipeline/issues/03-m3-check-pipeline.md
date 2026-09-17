@@ -53,3 +53,21 @@ WORKSPACE env-fact 2026-09-15 re-verified 2026-09-17: mirror works).
 
 - 2026-09-17 owner session: ticket opened; doc-sync audit done (DESIGN/KERNEL_API/
   TEST_PLAN vs harness/ implementation); deps added; implementation started.
+
+- 2026-09-17 owner session (cont.): M3 implemented + wired + committed (396e816).
+  - `harness/checks.py`: check_write ladder, survivor rule (pass-0 inventory +
+    re-appearance detector ⇒ tool_fight FAIL_PATTERN note), byte-restore rollback,
+    intent tier-1, secret-filtered diff; mypy baseline filter = finding-level
+    (pre-write project run diffed against post-write; 2× mypy cost accepted as the
+    price of sound scoping — DECISION recorded in module docstring).
+  - Tests: 17 new (tests/unit/test_checks.py) — TEST_PLAN §3.3 matrix + rules +
+    intent + secret filter. Full suite 108/108 green.
+  - `harness/exec.py`: policy_blocked ledger counter (early stats counters per
+    2026-09-17 owner alignment).
+  - Golden wired: implement + write_test writes ride check_write (intent
+    source/test); inline FP-4 NameError grep REPLACED by kernel rule library
+    (diagnose_test_output → note rule_diagnosis).
+  - Real-model smoke mini_repo: PASS; ledger shows `check_verdict escalated
+    (2 fix passes)` → `rule_diagnosis FP-4-nameerror-source → minirepo/errors.py`
+    → retry `clean` → gate green. Rule library is now the FP-4 fix layer.
+  - Full-corpus N=1 sweep launched (bg task b78987ff1) — parity evidence pending.
