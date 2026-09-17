@@ -174,6 +174,7 @@ Hooks around every model-implication execution, scoped as follows.
 - **Whole-file edits, never diffs** (aider finding): give current file(s within the task's declared boundary) + change description, get complete new file(s); harness computes the diff. **Prompt/output split ~5k/3k within the 8k window** (llama.cpp shares one n_ctx); file-size threshold below which whole-file edit is forbidden, derived from the 3k output ceiling — measured precisely in benchmark (§9).
 - Post-generation parse with tree-sitter immediately; trivial syntax errors auto-repaired, otherwise step respawned with only the broken excerpt.
 - **Best-of-N at decision points:** sample 3–5, deterministic checker selects. Retries with more ground-truth injection are the escalation path (no bigger model).
+- **Tolerant at the parameter layer, strict at the logic layer (owner policy, 2026-09-17):** intent-legible small errors — wrong argument names, enum near-misses, arity-within-reason — are normalized deterministically by the kernel before validation (a small evidence-gated alias registry; every normalization fires a `tolerance_fired` ledger counter — frequent fire on one field is a composer-bug signal, same reading as info-miss). Semantic/logic errors are NOT correctable: the kernel never guesses intent past the parameter layer — erasure + retry governs (§2.4).
 
 ### 4.8 Task Tree & User Piloting
 

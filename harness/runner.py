@@ -16,6 +16,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from harness.envelopes import JUDGE_STEP_PREFIX, SCHEMAS, Envelope
+from harness.normalize import normalize_payload
 
 # Step types whose envelope validators consume a validation context (ENVELOPE_SCHEMAS
 # §4/§6/§7/§9/§10: seam candidates + grounding, node_kind, boundary subset, ac_id ∈ map).
@@ -251,6 +252,12 @@ async def llm_step(
                 continue
         else:
             payload = out
+        # parameter-layer tolerance (DESIGN §4.7, owner policy 2026-09-17):
+        # deterministic near-miss normalization BEFORE validation; every fire is a
+        # first-class counter (frequent fire on one field = composer-bug signal)
+        payload, tolerance_notes = normalize_payload(payload)
+        for tn in tolerance_notes:
+            note("tolerance_fired", step_type=step_type, **tn)
         try:
             envelope = schema.model_validate(payload, context=context)
             if (
