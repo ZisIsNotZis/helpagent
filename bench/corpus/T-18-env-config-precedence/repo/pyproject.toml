@@ -1,0 +1,10 @@
+[project]
+name = "18envconfigprecedence"
+version = "0.1.0"
+description = "Config lookup with inverted env/default precedence."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

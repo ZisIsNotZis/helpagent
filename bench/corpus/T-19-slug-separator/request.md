@@ -1,0 +1,1 @@
+Every URL on the site still has underscores in it instead of hyphens — the SEO audit flagged the whole sitemap. Our slugs are supposed to be kebab-case. Please make the slug generator produce hyphenated slugs.

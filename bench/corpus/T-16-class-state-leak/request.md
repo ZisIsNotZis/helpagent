@@ -1,0 +1,1 @@
+Customers are seeing each other's items: whatever one browser adds to its cart shows up in every other cart, and brand-new carts are not empty either. It started feeling like all carts share one list. Carts must be independent per customer; don't change how callers create a Cart.

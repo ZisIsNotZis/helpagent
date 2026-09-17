@@ -1,0 +1,1 @@
+Ops set APP_TIMEOUT=5 in the deploy env but the service still times out at 30s. The runbook says environment variables always override the built-in defaults, and it used to. Settings lookups need to honor the runbook precedence again.

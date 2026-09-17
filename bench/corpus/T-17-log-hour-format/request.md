@@ -1,0 +1,1 @@
+Our log indexer has been filing every afternoon event under the morning: a 14:30 boot shows up as 02:30. Morning lines look fine, afternoon lines are all shifted by twelve hours. The service logs in 24-hour time. Fix the parser so afternoon hours come out right; don't touch the line format itself.
