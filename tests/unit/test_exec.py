@@ -57,3 +57,56 @@ def test_transport_error_is_shaped_not_raised(tmp_path: Path):
 
 def test_strip_ansi_direct():
     assert strip_ansi("\x1b[1;32mok\x1b[0m") == "ok"
+
+
+# ---------------------------------------------------------------- M4 sandbox
+
+
+def test_path_scoping_blocks_by_path_not_argv0(tmp_path: Path):
+    """TEST_PLAN §3.2: the sandbox denies by PATH, not by argv[0] — /etc is hidden
+    (tmpfs over the ro base), so an allowlisted python cannot read host secrets,
+    and the failure is a shaped result, never an exception."""
+    res = _run(["python3", "-c", "open('/etc/passwd').read()"], tmp_path, provenance="model")
+    assert not res.ok and res.verdict == "failed"
+    assert "root:" not in (res.stdout_tail + res.stderr_tail)   # content never leaked
+
+
+def test_network_denied_inside_sandbox(tmp_path: Path):
+    """DESIGN §4.6 network policy: even an ALLOWLISTED command cannot reach the
+    network inside the sandbox (defense in depth beyond the allowlist)."""
+    res = _run(["python3", "-c",
+                "import socket; socket.create_connection(('1.1.1.1', 80), timeout=2)"],
+               tmp_path, provenance="model")
+    assert not res.ok and res.verdict == "failed"
+
+
+def test_writes_outside_workdir_are_read_only(tmp_path: Path):
+    res = _run(["python3", "-c", "open('/usr/evil-marker', 'w').write('x')"],
+               tmp_path, provenance="model")
+    assert not res.ok and res.verdict == "failed"
+    assert not Path("/usr/evil-marker").exists()
+
+
+def test_workdir_stays_writable_inside_sandbox(tmp_path: Path):
+    res = _run(["python3", "-c", "open('made_by_model.py', 'w').write('ok')"],
+               tmp_path, provenance="model")
+    assert res.ok and (tmp_path / "made_by_model.py").read_text() == "ok"
+
+
+def test_sandbox_unavailable_is_policy_blocked_never_unsandboxed(tmp_path: Path, monkeypatch):
+    """Kernel invariant: a model-provenance command NEVER runs unsandboxed. If
+    bwrap is missing, the outcome is a policy-blocked shaped result."""
+    import harness.exec as ex
+
+    monkeypatch.setattr(ex, "_find_bwrap", lambda: None)
+    res = _run(["python3", "-c", "print('should never run')"], tmp_path, provenance="model")
+    assert res.policy_blocked is True and res.exit is None
+    assert "sandbox" in res.excerpts[0]
+
+
+def test_registry_shaping_reaches_exec_results(tmp_path: Path):
+    (tmp_path / "t_a.py").write_text("def test_a():\n    assert 1 == 2\n")
+    res = _run(["python3", "-m", "pytest", "-q", "t_a.py"], tmp_path, provenance="model")
+    assert res.n_failures == 1
+    assert res.suggested_next_action.startswith("run pytest -x")
+    assert any("test_a" in e for e in res.excerpts)
