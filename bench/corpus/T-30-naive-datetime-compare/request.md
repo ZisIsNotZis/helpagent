@@ -1,0 +1,1 @@
+After the ops migration some callers hand us naive datetimes (no timezone) and the token check blows up comparing them against our tz-aware expiries. The service is tz-aware UTC everywhere. Make the expiry check tolerant of naive inputs by treating them as UTC; don't change issue().

@@ -1,0 +1,10 @@
+[project]
+name = "29prereleaseversionparsing"
+version = "0.1.0"
+description = "Version parser crashes on prerelease tags."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

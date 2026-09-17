@@ -1,0 +1,1 @@
+The release tool mis-parses prerelease tags: 1.2.3-beta.2 comes back with the whole '2.3-beta.2' lumped into the minor field, so version comparisons are garbage. Versions are major.minor.patch with an optional -prerelease. Please fix the parser.
