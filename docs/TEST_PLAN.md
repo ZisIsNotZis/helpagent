@@ -32,14 +32,14 @@ to make that possible.
 
 ## 2. The FAKE MODEL LAYER — the single most important test asset
 
-A deterministic scripted model runner standing in for `harness/model/runner.py`. Every kernel invariant
+A deterministic scripted model runner standing in for `harness/model.py` (real transport: LlamaServerRunner); implemented fake: `harness/fake_model.py`. Every kernel invariant
 (schema validation, budget, erasure, governance review, judge panels) is exercised by feeding it canned
 envelopes — including deliberately malformed ones.
 
 ### Interface (mirrors the real runner's)
 
 ```python
-# tests/fakes/model.py
+# harness/fake_model.py
 class FakeModelRunner:
     """Implements the same protocol as model.Runner: async complete(request) -> Envelope.
     The kernel's llm() primitive calls it identically; scripts cannot tell the difference."""
@@ -150,7 +150,7 @@ Format: name — arrange/act/assert — [fake | pure].
   [pure + tmp git repo]
 - `test_clean_workdir_is_not_touched` — clean repo → no reset, no ledger entry. [pure]
 - `test_second_instance_in_same_workdir_is_refused` — hold `k.lock(workdir)`; second `lock()` raises
-  `InstanceLocked` immediately (no blocking wait). [pure]
+  `WorkdirLocked` immediately (no blocking wait). [pure]
 - `test_lock_released_on_crash` — holder process killed; next `lock()` succeeds (lockfile with pid
   liveness check). [pure]
 
@@ -279,7 +279,7 @@ Contract extras (not scenarios, per-pair):
   by re-execution from the tree's last committed step; final state identical to uncrashed run
   (artifact hashes). Asserts the ENGINE_SCRIPT "wire middle state" assumption. [fake, subprocess]
 - `test_two_instance_lock_refuses_second_run` — scenario 1 running; launch second → exits with
-  `InstanceLocked`, first run unaffected. [fake, subprocess]
+  `WorkdirLocked`, first run unaffected. [fake, subprocess]
 - `test_secret_filter_at_store_boundary` — table-driven: API key pattern, private key header, AWS
   creds, `password=` in tool output/diff/transcript → persistence refused/redacted; benign `password`
   policy text passes (no over-blocking). Assert the filter runs for **raw tool output and diffs**, not

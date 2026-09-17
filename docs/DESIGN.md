@@ -40,6 +40,7 @@
 4. **Errors are unlearnable, not correctable.** Erasure means exactly three things (the architecture dissolved conversation-erasure: every invocation is a fresh session): (a) the composer never injects failed-round content — a retry sees an honest failure summary + ground truth, never the failed attempt's text; (b) failed attempts live append-only in the ledger/trajectory (never deleted — they are stats and evidence); (c) failed work-tree mutations are rolled back via harness git before retry. The model's file-view never diverges from disk.
 5. **Everything is an artifact.** Files, check results, decisions, learnings — typed, bounded, on disk, resumable. Artifact content passes a **secret filter at the store boundary** (diffs, transcripts, and tool output can contain secrets; the review-phase scan is not the gate).
 6. **No feature without a number.** Every autonomous-path subsystem must move the benchmark score by a minimum delta with confidence interval (from N repeated runs — run-to-run sampling noise from best-of-N is real) or be deleted. Piloting UX (B4/B6) is user-judged, exempt from this rule.
+7. **Reliability gates cost (owner decision, 2026-09-17):** correctness is the precondition of every comparison — cost metrics only count after correctness holds. A cheaper-but-wrong variant never wins; a feature that breaks correctness is dead regardless of what it saves.
 7. **Prefix stability.** Byte-stable prefix = scaffold + **static standing knowledge only** (project conventions, canonical commands, prompt files). All dynamic knowledge — rule-library hits, memory matches, gotchas, help answers — is **suffix injection**. No promotion/demotion of memories ever mutates the prefix.
 
 ---
@@ -165,6 +166,7 @@ Hooks around every model-implication execution, scoped as follows.
 - Rare tools: generic fallback shaper (nonzero exit → stderr tail + first error-pattern match; zero exit → head 20 lines or diff summary; always ANSI-stripped, byte-capped, deduped).
 - Raw output always archived to an artifact (through the secret filter); "show more" is a help query, not a rerun.
 - `policy-blocked` denials (allowlist, network, filesystem scope) are distinct shaped results routed to an allowlist request — never burned as diagnose-pipeline probe failures.
+- **No free-form read tool.** The model never reads the filesystem directly: file content enters as composer-injected artifacts (§4.3), and everything else is a structured probe through `exec()` — sandboxed, shaped, archived. Reasons, in priority order (2026-09-17 alignment): (1) context-budget discipline — a read result is uncontrolled context injection into the ≤8k window; (2) A/B comparability — uncontrolled reads destroy run-to-run cost/quality accounting; (3) anti-cheat, which is owned structurally by role seams and withholding (§4.8), not by the sandbox alone. A genuine out-of-scope need routes to the allowlist request (config line, logged); recurring friction is the info-miss counter telling the composer to inject — never sandbox widening by default.
 
 ### 4.7 Model Interface
 
