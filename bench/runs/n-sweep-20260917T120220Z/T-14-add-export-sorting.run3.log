@@ -1,0 +1,34 @@
+== golden bugfix: T-14-add-export-sorting ==
+[red] pytest exit=1
+[task_card] class=feature goal='Make the exported report honor the requirement that customers appear i'
+[expand] leaf: 'Sort customers alphabetically ignoring case, with case-differing entri' est=1
+[spec] interfaces=[] files_touched=['.pytest_cache/.gitignore', '.pytest_cache/CACHEDIR.TAG', '.pytest_cache/README.md', '.pytest_cache/v/cache/lastfailed', '.pytest_cache/v/cache/nodeids', 'README.md', 'pyproject.toml', 'reporting/__init__.py', 'reporting/export.py', 'tests/test_export.py']
+
+===== STDERR =====
+Traceback (most recent call last):
+  File "/home/z/vibe/helpagent/bench/golden_bugfix.py", line 514, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/z/vibe/helpagent/bench/golden_bugfix.py", line 430, in main
+    acs, verdict, decides = step_acs(model, child.what, spec)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/z/vibe/helpagent/bench/golden_bugfix.py", line 246, in step_acs
+    acs = asyncio_run(llm_step(model, "draft_acs",
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/z/vibe/helpagent/bench/golden_bugfix.py", line 86, in llm_step
+    raise last
+  File "/home/z/vibe/helpagent/bench/golden_bugfix.py", line 79, in llm_step
+    return asyncio.run(_llm_step_real(model, step_type, **kw))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 687, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/home/z/vibe/helpagent/harness/runner.py", line 303, in llm_step
+    raise SchemaViolation(failure_message or f"{step_type}: no candidates produced")
+harness.runner.SchemaViolation: draft_acs: schema violation: Value error, duplicate ac_id entries (§6 ids unique): ['AC-001'] — attempt erased, failure summary only

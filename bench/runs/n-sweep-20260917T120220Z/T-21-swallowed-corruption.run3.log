@@ -1,0 +1,13 @@
+== golden bugfix: T-21-swallowed-corruption ==
+[red] pytest exit=1
+[task_card] class=bugfix goal='Fix the settings loader so that a half-written, corrupt settings file '
+[expand] leaf: 'Fix the settings loader so that a half-written, corrupt settings file ' est=1
+[spec] interfaces=['load_settings'] files_touched=['storage/store.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=False history=[{"attempt": 1, "file": "storage/store.py", "pytest_exit": 2, "verdict": "failed", "excerpts": ["E   ImportError: cannot import name 'load' from 'storage.store' (/home/z/vibe/helpagent/bench/runs/20260917T125359/golden/T
+[gate] ok=False notes=['pytest exit 1', 'FAILED tests/test_store.py::test_corrupt_file_raises_storage_error', 'E       Failed: DID NOT RAISE StorageError']
+[run_summary] outcome=complete done='Tried 3 attempts on storage/store.py, all failed with ImportError.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T125359/golden/T-21-swallowed-corruption
+[result] FAIL (corpus pristine: True)
+
+===== STDERR =====

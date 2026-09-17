@@ -1,0 +1,13 @@
+== golden bugfix: T-27-snakecase-ingest ==
+[red] pytest exit=1
+[task_card] class=port goal="Port the normalize step to handle the upstream API's new snake_case co"
+[expand] leaf: "Port normalize step to handle upstream API's new snake_case contract, " est=1
+[spec] interfaces=[] files_touched=['ingest/records.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=False history=[{"attempt": 1, "file": "ingest/records.py", "pytest_exit": 1, "verdict": "failed", "excerpts": ["FAILED tests/test_records.py::test_camel_to_snake", "FAILED tests/test_records.py::test_snake_keys_pass_through"]}, {"atte
+[gate] ok=False notes=['pytest exit 1', 'FAILED tests/test_records.py::test_camel_to_snake', 'FAILED tests/test_records.py::test_unknown_keys_dropped', "E       AssertionError: assert {'firstName': 'Ada'} == {'first_name': 'Ada'}"]
+[run_summary] outcome=complete done='Attempted fixes to ingest/records.py (attempts 1-3) with tests remaining red.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T131133/golden/T-27-snakecase-ingest
+[result] FAIL (corpus pristine: True)
+
+===== STDERR =====

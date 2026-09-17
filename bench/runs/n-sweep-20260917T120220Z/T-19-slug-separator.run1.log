@@ -1,0 +1,13 @@
+== golden bugfix: T-19-slug-separator ==
+[red] pytest exit=1
+[task_card] class=scaffold goal='Make the slug generator produce hyphenated (kebab-case) slugs instead '
+[expand] leaf: 'Make the slug generator produce hyphenated (kebab-case) slugs instead ' est=1
+[spec] interfaces=[] files_touched=['textkit/slug.py', 'textkit/__init__.py', 'tests/test_slug.py', 'pyproject.toml', 'README.md', 'tests/__init__.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=True history=[{"attempt": 1, "file": "textkit/slug.py", "pytest_exit": 0, "verdict": "ok", "excerpts": ["..                                                                       [100%]", "2 passed in 0.01s"]}]
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=parked-needs-user done='Fixed slug separator in textkit/slug.py.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T124750/golden/T-19-slug-separator
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====

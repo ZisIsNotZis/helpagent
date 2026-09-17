@@ -1,0 +1,51 @@
+{
+ "task": "T-24-json-report-flag",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "report/builder.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_builder.py::test_json_mode_returns_document",
+    "E               TypeError: the JSON object must be str, bytes or bytearray, not dict"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "report/builder.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_builder.py::test_json_mode_returns_document",
+    "E               TypeError: the JSON object must be str, bytes or bytearray, not dict"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "report/builder.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_builder.py::test_json_mode_returns_document",
+    "E               TypeError: the JSON object must be str, bytes or bytearray, not dict"
+   ]
+  }
+ ],
+ "fix_summary": "attempt 3 left tests red (1); rolled back",
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED tests/test_builder.py::test_json_mode_returns_document",
+  "E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-24-json-report-flag-summary"
+ ]
+}

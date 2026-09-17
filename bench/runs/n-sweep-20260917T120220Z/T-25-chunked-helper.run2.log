@@ -1,0 +1,26 @@
+== golden bugfix: T-25-chunked-helper ==
+[red] pytest exit=1
+[task_card] class=bugfix goal='Create a shared chunked(seq, size) helper in utils/batch.py to resolve'
+[expand] leaf: 'Create a shared chunked(seq, size) helper in utils/batch.py to resolve' est=1
+[spec] interfaces=['chunked'] files_touched=['utils/batch.py', 'utils/__init__.py']
+[acs] 1 ACs, gate_decide=reject after 2 round(s)
+[acs] map findings: [Finding(kind='invalid-ac-entry', node_id='N-2', detail="1 validation error for ACEntry\ncheck_kind\n  Input should be 'test', 'script-assertion' or 'subjective' [type=literal_error, input_value=REQUIRED, input_type=_Missing]\n    For further information visit https://errors.pydantic.dev/2.13/v/literal_error"), Finding(kind='empty-leaf-map', node_id='N-2', detail='leaf AC map is mandatory (DESIGN §4.8); empty map only valid for internal nodes')]
+[implement] fixed=True history=[{"attempt": 1, "file": "utils/batch.py", "pytest_exit": 2, "verdict": "failed", "excerpts": ["E   NameError: name 'Sequence' is not defined"]}, {"attempt": 2, "file": "utils/batch.py", "pytest_exit": 0, "verdict": "ok",
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=parked-needs-user done='Fixed utils/batch.py and passed all tests.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T130447/golden/T-25-chunked-helper
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(

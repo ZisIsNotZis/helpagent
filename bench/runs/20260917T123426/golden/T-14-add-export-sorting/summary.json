@@ -1,0 +1,39 @@
+{
+ "task": "T-14-add-export-sorting",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "reporting/export.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_export.py::test_rows_are_customer_ordered_case_insensitive_and_stable",
+    "FAILED tests/test_export.py::test_totals_are_formatted_with_two_decimals"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "reporting/export.py",
+   "pytest_exit": 0,
+   "verdict": "ok",
+   "excerpts": [
+    "..                                                                       [100%]",
+    "2 passed in 0.01s"
+   ]
+  }
+ ],
+ "fix_summary": "reporting/export.py",
+ "gate_notes": [
+  "pytest green; untouched-files contract holds"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-14-add-export-sorting-summary"
+ ]
+}

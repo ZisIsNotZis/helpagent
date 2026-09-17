@@ -1,0 +1,18 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [],
+  "diff": "",
+  "outcome": "rolled-back"
+ },
+ {
+  "step_id": "implement-2",
+  "node_id": "implement",
+  "files_changed": [
+   "verparse/parse.py"
+  ],
+  "diff": "diff --git a/verparse/parse.py b/verparse/parse.py\nindex 6c0af99..ef92fc6 100644\n--- a/verparse/parse.py\n+++ b/verparse/parse.py\n@@ -2,6 +2,20 @@\n \n \n def parse(version: str) -> dict:\n+    if \"-\" in version:\n+        main, pre = version.split(\"-\", 1)\n+        parts = main.split(\".\")\n+        major_s, minor_s, patch_s = parts\n+        return {\n+            \"major\": int(major_s),\n+            \"minor\": int(minor_s),\n+            \"patch\": int(patch_s),\n+            \"pre\": pre,\n+        }\n     major_s, minor_s, patch_s = version.split(\".\")\n-    return {\"major\": int(major_s), \"minor\": int(minor_s),\n-            \"patch\": int(patch_s), \"pre\": \"\"}\n+    return {\n+        \"major\": int(major_s),\n+        \"minor\": int(minor_s),\n+        \"patch\": int(patch_s),\n+        \"pre\": \"\",\n+    }\n",
+  "outcome": "green"
+ }
+]

@@ -1,0 +1,195 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 41.6,
+  "prompt_tokens": 213,
+  "completion_tokens": 85,
+  "wall_model_s": 3.681
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "task_card"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "expand",
+  "fresh": false,
+  "cache_hit": 0.0333,
+  "prompt_tokens": 279,
+  "completion_tokens": 111,
+  "wall_model_s": 2.826
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "expand"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_spec",
+  "fresh": false,
+  "cache_hit": 0.028,
+  "prompt_tokens": 330,
+  "completion_tokens": 230,
+  "wall_model_s": 4.523
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_spec"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 73.6,
+  "prompt_tokens": 373,
+  "completion_tokens": 118,
+  "wall_model_s": 2.286
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0383,
+  "prompt_tokens": 244,
+  "completion_tokens": 99,
+  "wall_model_s": 4.475
+ },
+ {
+  "kind": "validation_failed",
+  "text": "",
+  "step_type": "gate_decide",
+  "detail": "1 validation error for GateDecide\n  Value error, weakens_gate==True requires decision=='reject' (ENVELOPE_SCHEMAS §20) [type=value_error, input_value={'status': 'ok', 'comment...e specified statement.'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error"
+ },
+ {
+  "kind": "golden_step_retry",
+  "text": "",
+  "step_type": "gate_decide",
+  "attempt": 1,
+  "detail": "gate_decide: schema violation: Value error, weakens_gate==True requires decision=='reject' (ENVELOPE_SCHEMAS §20) — attempt erased, failure summary only"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0285,
+  "prompt_tokens": 325,
+  "completion_tokens": 101,
+  "wall_model_s": 4.175
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 0.0293,
+  "prompt_tokens": 316,
+  "completion_tokens": 102,
+  "wall_model_s": 2.158
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0385,
+  "prompt_tokens": 243,
+  "completion_tokens": 86,
+  "wall_model_s": 3.121
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1.2465,
+  "prompt_tokens": 483,
+  "completion_tokens": 237,
+  "wall_model_s": 3.452
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "golden_test_skipped",
+  "text": "",
+  "detail": "file_path 'ac_test_map_test.py' outside repo"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1122.0,
+  "prompt_tokens": 1123,
+  "completion_tokens": 197,
+  "wall_model_s": 4.73
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "clean",
+  "file": "tokens/tokens.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "tokens/tokens.py"
+  ]
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "run_summary",
+  "fresh": false,
+  "cache_hit": 0.0369,
+  "prompt_tokens": 253,
+  "completion_tokens": 101,
+  "wall_model_s": 3.207
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "run_summary"
+ }
+]

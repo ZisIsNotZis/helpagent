@@ -1,0 +1,13 @@
+== golden bugfix: T-06-tz-naive-compare ==
+[red] pytest exit=1
+[task_card] class=bugfix goal='Make the default-clock path in the job scheduler work without crashing'
+[expand] leaf: 'Make the default-clock path in the job scheduler work without crashing' est=1
+[spec] interfaces=[] files_touched=['.pytest_cache/.gitignore', '.pytest_cache/CACHEDIR.TAG', '.pytest_cache/README.md', '.pytest_cache/v/cache/lastfailed', '.pytest_cache/v/cache/nodeids', 'README.md', 'pyproject.toml', 'scheduler/__init__.py', 'scheduler/jobs.py', 'tests/test_jobs.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=True history=[{"attempt": 1, "file": "scheduler/jobs.py", "pytest_exit": 0, "verdict": "ok", "excerpts": ["..                                                                       [100%]", "2 passed in 0.01s"]}]
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=complete done='Fixed scheduler/jobs.py and verified via pytest (exit 0, 2 passed).'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T121805/golden/T-06-tz-naive-compare
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====

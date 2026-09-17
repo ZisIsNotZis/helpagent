@@ -1,0 +1,49 @@
+{
+ "task": "T-12-str-enum-compare",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "access/gate.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_gate.py::test_webhook_parsed_editor_may_publish",
+    "E       AssertionError: assert False is True"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "access/gate.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_gate.py::test_webhook_parsed_editor_may_publish",
+    "E       AssertionError: assert False is True"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "access/gate.py",
+   "pytest_exit": 0,
+   "verdict": "ok",
+   "excerpts": [
+    "...                                                                      [100%]",
+    "3 passed in 0.04s"
+   ]
+  }
+ ],
+ "fix_summary": "access/gate.py",
+ "gate_notes": [
+  "pytest green; untouched-files contract holds"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-12-str-enum-compare-summary"
+ ]
+}

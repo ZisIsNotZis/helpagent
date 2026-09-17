@@ -1,0 +1,38 @@
+{
+ "task": "T-29-prerelease-version-parsing",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "verparse/parse.py",
+   "pytest_exit": 2,
+   "verdict": "failed",
+   "excerpts": [
+    "E   ImportError: cannot import name 'parse' from 'verparse.parse' (/home/z/vibe/helpagent/bench/runs/20260917T132836/golden/T-29-prerelease-version-parsing/work/verparse/parse.py)"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "verparse/parse.py",
+   "pytest_exit": 0,
+   "verdict": "ok",
+   "excerpts": [
+    "..                                                                       [100%]",
+    "2 passed in 0.01s"
+   ]
+  }
+ ],
+ "fix_summary": "verparse/parse.py",
+ "gate_notes": [
+  "pytest green; untouched-files contract holds"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-29-prerelease-version-parsing-summary"
+ ]
+}

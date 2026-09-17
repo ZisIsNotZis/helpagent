@@ -1,0 +1,18 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [],
+  "diff": "",
+  "outcome": "rolled-back"
+ },
+ {
+  "step_id": "implement-2",
+  "node_id": "implement",
+  "files_changed": [
+   "billing/plans.py"
+  ],
+  "diff": "diff --git a/billing/plans.py b/billing/plans.py\nindex 5d5da3d..5d761e9 100644\n--- a/billing/plans.py\n+++ b/billing/plans.py\n@@ -18,7 +18,7 @@ def parse_webhook(payload: str) -> dict:\n \n def is_enterprise(plan: str) -> bool:\n     \"\"\"True when ``plan`` is the enterprise plan.\"\"\"\n-    return plan is PLAN_ENTERPRISE\n+    return plan == PLAN_ENTERPRISE\n \n \n def is_known(plan: str) -> bool:\n",
+  "outcome": "green"
+ }
+]

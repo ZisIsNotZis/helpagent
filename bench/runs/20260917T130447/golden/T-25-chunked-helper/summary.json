@@ -1,0 +1,38 @@
+{
+ "task": "T-25-chunked-helper",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "utils/batch.py",
+   "pytest_exit": 2,
+   "verdict": "failed",
+   "excerpts": [
+    "E   NameError: name 'Sequence' is not defined"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "utils/batch.py",
+   "pytest_exit": 0,
+   "verdict": "ok",
+   "excerpts": [
+    "...                                                                      [100%]",
+    "3 passed in 0.02s"
+   ]
+  }
+ ],
+ "fix_summary": "utils/batch.py",
+ "gate_notes": [
+  "pytest green; untouched-files contract holds"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-25-chunked-helper-summary"
+ ]
+}

@@ -1,0 +1,13 @@
+== golden bugfix: T-07-f-string-sql ==
+[red] pytest exit=1
+[task_card] class=bugfix goal='Make the address book store handle any contact name containing an apos'
+[expand] leaf: 'Make the address book store handle any contact name containing an apos' est=1
+[spec] interfaces=[] files_touched=['contacts/store.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=False history=[{"attempt": 1, "file": "contacts/store.py", "pytest_exit": 2, "verdict": "failed", "excerpts": ["E   ImportError: cannot import name 'sql_escape_string' from 'sqlite3' (/usr/lib/python3.12/sqlite3/__init__.py)"]}, {"att
+[gate] ok=False notes=['pytest exit 1', 'FAILED tests/test_store.py::test_name_with_apostrophe_round_trips', 'E       sqlite3.OperationalError: near "Brien": syntax error']
+[run_summary] outcome=complete done='Attempted fixes in contacts/store.py across 3 attempts.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T121938/golden/T-07-f-string-sql
+[result] FAIL (corpus pristine: True)
+
+===== STDERR =====

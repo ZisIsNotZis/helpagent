@@ -1,0 +1,11 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [
+   "textkit/slug.py"
+  ],
+  "diff": "diff --git a/textkit/slug.py b/textkit/slug.py\nindex 4559724..55a0afa 100644\n--- a/textkit/slug.py\n+++ b/textkit/slug.py\n@@ -2,4 +2,4 @@\n \n \n def slugify(text: str) -> str:\n-    return \"_\".join(text.lower().split())\n+    return \"-\".join(text.lower().split())\n",
+  "outcome": "green"
+ }
+]

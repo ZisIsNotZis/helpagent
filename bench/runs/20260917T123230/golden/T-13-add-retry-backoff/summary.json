@@ -1,0 +1,52 @@
+{
+ "task": "T-13-add-retry-backoff",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "fetcher/client.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_client.py::test_transient_responses_are_retried_with_backoff",
+    "E           TypeError: 'NoneType' object cannot be interpreted as an integer"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "fetcher/client.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_client.py::test_transient_responses_are_retried_with_backoff",
+    "E       assert [] == [1, 2]"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "fetcher/client.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_client.py::test_transient_responses_are_retried_with_backoff",
+    "E           TypeError: list.append() takes exactly one argument (2 given)"
+   ]
+  }
+ ],
+ "fix_summary": "attempt 3 left tests red (1); rolled back",
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED tests/test_client.py::test_transient_responses_are_retried_with_backoff",
+  "E       AssertionError: assert '<transient>' == 'payload'",
+  "E         - payload"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-13-add-retry-backoff-summary"
+ ]
+}

@@ -1,0 +1,49 @@
+{
+ "task": "T-07-f-string-sql",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "contacts/store.py",
+   "pytest_exit": 2,
+   "verdict": "failed",
+   "excerpts": [
+    "E   ImportError: cannot import name 'sql_escape_string' from 'sqlite3' (/usr/lib/python3.12/sqlite3/__init__.py)"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "contacts/store.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_store.py::test_name_with_apostrophe_round_trips",
+    "E       sqlite3.OperationalError: near \"Brien\": syntax error"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "contacts/store.py",
+   "pytest_exit": 2,
+   "verdict": "failed",
+   "excerpts": [
+    "E   ImportError: cannot import name 'sql_escape_string' from 'sqlite3' (/usr/lib/python3.12/sqlite3/__init__.py)"
+   ]
+  }
+ ],
+ "fix_summary": "attempt 3 left tests red (2); rolled back",
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED tests/test_store.py::test_name_with_apostrophe_round_trips",
+  "E       sqlite3.OperationalError: near \"Brien\": syntax error"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-07-f-string-sql-summary"
+ ]
+}

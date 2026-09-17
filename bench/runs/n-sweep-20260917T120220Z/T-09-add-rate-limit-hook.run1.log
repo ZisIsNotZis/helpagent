@@ -1,0 +1,13 @@
+== golden bugfix: T-09-add-rate-limit-hook ==
+[red] pytest exit=1
+[task_card] class=port goal='Trigger a pager exactly once when a client first crosses the throttlin'
+[expand] leaf: 'Trigger a pager exactly once when a client first crosses the throttlin' est=1
+[spec] interfaces=[] files_touched=['.pytest_cache/.gitignore', '.pytest_cache/CACHEDIR.TAG', '.pytest_cache/README.md', '.pytest_cache/v/cache/lastfailed', '.pytest_cache/v/cache/nodeids', 'README.md', 'pyproject.toml', 'tests/test_limiter.py', 'throttle/__init__.py', 'throttle/limiter.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=True history=[{"attempt": 1, "file": "throttle/limiter.py", "pytest_exit": 0, "verdict": "ok", "excerpts": ["...                                                                      [100%]", "3 passed in 0.01s"]}]
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=complete done='Added rate limit hook to throttle/limiter.py.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T122401/golden/T-09-add-rate-limit-hook
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====

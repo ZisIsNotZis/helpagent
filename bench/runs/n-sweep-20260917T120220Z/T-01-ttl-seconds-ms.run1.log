@@ -1,0 +1,13 @@
+== golden bugfix: T-01-ttl-seconds-ms ==
+[red] pytest exit=1
+[task_card] class=scaffold goal='Fix the session expiration issue so sessions live for a full hour inst'
+[expand] leaf: 'Fix the session expiration issue so sessions live for a full hour inst' est=2
+[spec] interfaces=['SESSION_TTL_SECONDS'] files_touched=['auth/config.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=True history=[{"attempt": 1, "file": "auth/config.py", "pytest_exit": 0, "verdict": "ok", "excerpts": ["..                                                                       [100%]", "2 passed in 0.02s"]}]
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=complete done='Fixed auth/config.py and verified via pytest (exit 0, 2 passed).'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T120613/golden/T-01-ttl-seconds-ms
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====

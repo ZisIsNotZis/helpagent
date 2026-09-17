@@ -1,0 +1,13 @@
+== golden bugfix: T-11-wrong-exception-type ==
+[red] pytest exit=1
+[task_card] class=refactor goal='Ensure oversized orders raise the same domain error as other validatio'
+[expand] leaf: 'Ensure oversized orders raise the same domain error as other validatio' est=1
+[spec] interfaces=[] files_touched=['.pytest_cache/.gitignore', '.pytest_cache/CACHEDIR.TAG', '.pytest_cache/README.md', '.pytest_cache/v/cache/lastfailed', '.pytest_cache/v/cache/nodeids', 'README.md', 'orders/__init__.py', 'orders/errors.py', 'orders/service.py', 'pyproject.toml']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=True history=[{"attempt": 1, "file": "orders/service.py", "pytest_exit": 0, "verdict": "ok", "excerpts": ["..                                                                       [100%]", "2 passed in 0.02s"]}]
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=complete done='Corrected the exception type in orders/service.py.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T122748/golden/T-11-wrong-exception-type
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====

@@ -1,0 +1,13 @@
+== golden bugfix: T-26-plan-dataclass-port ==
+[red] pytest exit=2
+[task_card] class=port goal='Port the build plan from plain dicts to real dataclass objects while m'
+[expand] leaf: 'Port the build plan from plain dicts to real dataclass objects while m' est=2
+[spec] interfaces=['BuildPlan'] files_touched=['plan/__init__.py', 'plan/model.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=False history=[{"attempt": 1, "file": "plan/model.py", "pytest_exit": 2, "verdict": "failed", "excerpts": ["E   ImportError: cannot import name 'Plan' from 'plan.model' (/home/z/vibe/helpagent/bench/runs/20260917T130949/golden/T-26-pl
+[gate] ok=False notes=['pytest exit 2', "E   ImportError: cannot import name 'Plan' from 'plan.model' (/home/z/vibe/helpagent/bench/runs/20260917T130949/golden/T-26-plan-dataclass-port/work/plan/model.py)"]
+[run_summary] outcome=complete done='Attempted to port the plan dataclass in plan/model.py across 3 failed iterations'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T130949/golden/T-26-plan-dataclass-port
+[result] FAIL (corpus pristine: True)
+
+===== STDERR =====

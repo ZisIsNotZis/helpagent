@@ -1,0 +1,13 @@
+== golden bugfix: T-08-add-cache-invalidation ==
+[red] pytest exit=1
+[task_card] class=bugfix goal='Ensure that any write to the metrics registry is immediately visible t'
+[expand] leaf: 'Ensure that any write to the metrics registry is immediately visible t' est=1
+[spec] interfaces=[] files_touched=['.pytest_cache/.gitignore', '.pytest_cache/CACHEDIR.TAG', '.pytest_cache/README.md', '.pytest_cache/v/cache/lastfailed', '.pytest_cache/v/cache/nodeids', 'README.md', 'metrics/__init__.py', 'metrics/registry.py', 'pyproject.toml', 'tests/test_registry.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=True history=[{"attempt": 1, "file": "metrics/registry.py", "pytest_exit": 0, "verdict": "ok", "excerpts": ["..                                                                       [100%]", "2 passed in 0.02s"]}]
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=complete done='Applied fix to metrics/registry.py and passed all tests.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T122253/golden/T-08-add-cache-invalidation
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====

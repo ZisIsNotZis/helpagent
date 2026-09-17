@@ -1,0 +1,18 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [],
+  "diff": "",
+  "outcome": "rolled-back"
+ },
+ {
+  "step_id": "implement-2",
+  "node_id": "implement",
+  "files_changed": [
+   "utils/batch.py"
+  ],
+  "diff": "diff --git a/utils/batch.py b/utils/batch.py\nindex df63067..a2a235c 100644\n--- a/utils/batch.py\n+++ b/utils/batch.py\n@@ -4,6 +4,8 @@ Three call sites need chunked(): feed a sequence and a size, get lists of at\n most `size` items, in order, with the last chunk carrying the remainder.\n \"\"\"\n \n+from typing import Any, List, Sequence\n \n-def chunked(seq, size: int):\n-    raise NotImplementedError\n+\n+def chunked(seq: Sequence[Any], size: int) -> List[List[Any]]:\n+    return [list(seq[i : i + size]) for i in range(0, len(seq), size)]\n",
+  "outcome": "green"
+ }
+]

@@ -1,0 +1,17 @@
+== golden bugfix: T-26-plan-dataclass-port ==
+[red] pytest exit=2
+[task_card] class=port goal='Port the build plan to a real dataclass while maintaining dict-style a'
+[expand] leaf: 'Implement Plan as a dataclass with attribute access while preserving d' est=2
+[spec] interfaces=['Plan'] files_touched=['plan/__init__.py', 'plan/model.py']
+[acs] 3 ACs, gate_decide=reject after 2 round(s)
+[acs] map findings: [Finding(kind='invalid-ac-entry', node_id='N-2', detail="2 validation errors for ACEntry\nstatement\n  Input should be a valid string [type=string_type, input_value=REQUIRED, input_type=_Missing]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type\ncheck_kind\n  Input should be 'test', 'script-assertion' or 'subjective' [type=literal_error, input_value=REQUIRED, input_type=_Missing]\n    For further information visit https://errors.pydantic.dev/2.13/v/literal_error"), Finding(kind='invalid-ac-entry', node_id='N-2', detail="2 validation errors for ACEntry\nstatement\n  Input should be a valid string [type=string_type, input_value=REQUIRED, input_type=_Missing]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type\ncheck_kind\n  Input should be 'test', 'script-assertion' or 'subjective' [type=literal_error, input_value=REQUIRED, input_type=_Missing]\n    For further information visit https://errors.pydantic.dev/2.13/v/literal_error"), Finding(kind='invalid-ac-entry', node_id='N-2', detail="2 validation errors for ACEntry\nstatement\n  Input should be a valid string [type=string_type, input_value=REQUIRED, input_type=_Missing]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type\ncheck_kind\n  Input should be 'test', 'script-assertion' or 'subjective' [type=literal_error, input_value=REQUIRED, input_type=_Missing]\n    For further information visit https://errors.pydantic.dev/2.13/v/literal_error"), Finding(kind='empty-leaf-map', node_id='N-2', detail='leaf AC map is mandatory (DESIGN §4.8); empty map only valid for internal nodes')]
+[implement] fixed=False history=[{"attempt": 1, "file": "plan/model.py", "pytest_exit": 1, "verdict": "failed", "excerpts": ["FAILED tests/test_model.py::test_plan_is_a_dataclass_with_attributes", "E       AssertionError: assert False"]}, {"attempt": 2
+[gate] ok=False notes=['pytest exit 2', "E   ImportError: cannot import name 'Plan' from 'plan.model' (/home/z/vibe/helpagent/bench/runs/20260917T130808/golden/T-26-plan-dataclass-port/work/plan/model.py)"]
+[run_summary] outcome=complete done='Attempted to port the plan dataclass in plan/model.py across three iterations.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T130808/golden/T-26-plan-dataclass-port
+[result] FAIL (corpus pristine: True)
+
+===== STDERR =====
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='statement', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(

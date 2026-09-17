@@ -35,3 +35,12 @@
 
 - 2026-09-17 owner session: batches 1-3 landed (5ed9ea3, then corpus commits);
   M5 capstone N=3 sweep launched on the frozen tree.
+
+- 2026-09-17 owner session (closure): first N=3 (100148Z, with FP-9/FP-10 defects)
+  = 64/93 [0.588, 0.773], multiplier 8.3; three zero-call infra crashes diagnosed
+  (grounding/style-rule false positives) -> FP-9/FP-10 closed (d31ac30).
+  FINAL N=3 (120220Z, fixed tree): **69/93 (74.2%) [0.645, 0.82]**, multiplier 8.4
+  calls/PASS, zero crashes. Directly-fixed tasks all 3/3 (T-06/T-12/T-17/T-20).
+  Aggregate delta not CI-separated (overlap) — within-task movement is the signal;
+  frontier cluster (T-18/24/26/27/28 at 0/3, model-content side) feeds M9
+  skeleton/guided experiments (ticket 05 family). M5 = delivered.

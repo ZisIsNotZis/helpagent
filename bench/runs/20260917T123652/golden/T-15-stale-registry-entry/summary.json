@@ -1,0 +1,29 @@
+{
+ "task": "T-15-stale-registry-entry",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "plugins/registry.py",
+   "pytest_exit": 0,
+   "verdict": "ok",
+   "excerpts": [
+    "...                                                                      [100%]",
+    "3 passed in 0.01s"
+   ]
+  }
+ ],
+ "fix_summary": "plugins/registry.py",
+ "gate_notes": [
+  "pytest green; untouched-files contract holds"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-15-stale-registry-entry-summary"
+ ]
+}

@@ -1,0 +1,39 @@
+{
+ "task": "T-05-mutable-default",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "tagger/notes.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_notes.py::test_tags_attach_to_their_note",
+    "FAILED tests/test_notes.py::test_notes_do_not_share_tags"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "tagger/notes.py",
+   "pytest_exit": 0,
+   "verdict": "ok",
+   "excerpts": [
+    "..                                                                       [100%]",
+    "2 passed in 0.01s"
+   ]
+  }
+ ],
+ "fix_summary": "tagger/notes.py",
+ "gate_notes": [
+  "pytest green; untouched-files contract holds"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-05-mutable-default-summary"
+ ]
+}

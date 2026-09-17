@@ -1,0 +1,52 @@
+{
+ "task": "T-30-naive-datetime-compare",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "tokens/tokens.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_tokens.py::test_naive_expired_input",
+    "E       AssertionError: assert False"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "tokens/tokens.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_tokens.py::test_naive_input_treated_as_utc_not_expired",
+    "FAILED tests/test_tokens.py::test_naive_expired_input"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "tokens/tokens.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_tokens.py::test_naive_input_treated_as_utc_not_expired",
+    "FAILED tests/test_tokens.py::test_naive_expired_input"
+   ]
+  }
+ ],
+ "fix_summary": "attempt 3 left tests red (1); rolled back",
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED tests/test_tokens.py::test_naive_input_treated_as_utc_not_expired",
+  "FAILED tests/test_tokens.py::test_naive_expired_input",
+  "E       TypeError: can't compare offset-naive and offset-aware datetimes"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-30-naive-datetime-compare-summary"
+ ]
+}

@@ -1,0 +1,22 @@
+== golden bugfix: T-12-str-enum-compare ==
+[red] pytest exit=1
+[task_card] class=refactor goal='Resolve the issue where webhook-triggered publishes are rejected with '
+[expand] leaf: 'Resolve the issue where webhook-triggered publishes are rejected with ' est=1
+[spec] interfaces=['check_role'] files_touched=['access/roles.py', 'access/gate.py', 'tests/test_gate.py', 'pyproject.toml']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=True history=[{"attempt": 1, "file": "access/gate.py", "pytest_exit": 0, "verdict": "ok", "excerpts": ["...                                                                      [100%]", "3 passed in 0.02s"]}]
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=complete done='Fixed access/gate.py and verified with pytest.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T123035/golden/T-12-str-enum-compare
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(

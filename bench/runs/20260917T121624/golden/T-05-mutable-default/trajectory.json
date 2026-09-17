@@ -1,0 +1,18 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [],
+  "diff": "",
+  "outcome": "rolled-back"
+ },
+ {
+  "step_id": "implement-2",
+  "node_id": "implement",
+  "files_changed": [
+   "tagger/notes.py"
+  ],
+  "diff": "diff --git a/tagger/notes.py b/tagger/notes.py\nindex 28e0000..a88f282 100644\n--- a/tagger/notes.py\n+++ b/tagger/notes.py\n@@ -7,6 +7,7 @@ def add_tag(note: dict, tag: str, tags: list[str] = []) -> list[str]:\n     Notes are independent: tags attached to one note never appear on another.\n     An explicit ``tags`` list may be supplied to share one list deliberately.\n     \"\"\"\n+    tags = list(tags)\n     tags.append(tag)\n     note[\"tags\"] = tags\n     return tags\n",
+  "outcome": "green"
+ }
+]

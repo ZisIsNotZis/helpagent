@@ -1,0 +1,13 @@
+== golden bugfix: T-29-prerelease-version-parsing ==
+[red] pytest exit=1
+[task_card] class=bugfix goal="Fix the release tool's parser to correctly handle prerelease tags (e.g"
+[expand] leaf: "Fix the release tool's parser to correctly handle prerelease tags (e.g" est=1
+[spec] interfaces=['parse_version'] files_touched=['verparse/parse.py', 'verparse/__init__.py', 'tests/test_parse.py', 'tests/__init__.py', 'pyproject.toml', 'README.md']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=False history=[{"attempt": 1, "file": "verparse/parse.py", "pytest_exit": 2, "verdict": "failed", "excerpts": ["E   ImportError: cannot import name 'parse' from 'verparse.parse' (/home/z/vibe/helpagent/bench/runs/20260917T132609/golde
+[gate] ok=False notes=['pytest exit 1', 'FAILED tests/test_parse.py::test_prerelease_split', 'E       ValueError: too many values to unpack (expected 3)']
+[run_summary] outcome=complete done='3 attempts executed on verparse/parse.py, all failing with ImportError.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260917T132609/golden/T-29-prerelease-version-parsing
+[result] FAIL (corpus pristine: True)
+
+===== STDERR =====

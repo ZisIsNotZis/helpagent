@@ -1,0 +1,18 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [],
+  "diff": "",
+  "outcome": "rolled-back"
+ },
+ {
+  "step_id": "implement-2",
+  "node_id": "implement",
+  "files_changed": [
+   "verparse/parse.py"
+  ],
+  "diff": "diff --git a/verparse/parse.py b/verparse/parse.py\nindex 6c0af99..49d0a64 100644\n--- a/verparse/parse.py\n+++ b/verparse/parse.py\n@@ -1,7 +1,14 @@\n \"\"\"Parse version strings like \"1.2.3\" or \"1.2.3-beta.2\".\"\"\"\n \n \n+\n def parse(version: str) -> dict:\n-    major_s, minor_s, patch_s = version.split(\".\")\n-    return {\"major\": int(major_s), \"minor\": int(minor_s),\n-            \"patch\": int(patch_s), \"pre\": \"\"}\n+    parts = version.split(\"-\")\n+    base_parts = parts[0].split(\".\")\n+    pre_parts = parts[1].split(\".\") if len(parts) > 1 else []\n+    return {\n+        \"major\": int(base_parts[0]),\n+        \"minor\": int(base_parts[1]),\n+        \"patch\": int(base_parts[2]),\n+        \"pre\": \".\".join(pre_parts),\n+    }\n",
+  "outcome": "green"
+ }
+]
