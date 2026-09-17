@@ -1,0 +1,21 @@
+{
+ "per_task": {
+  "T-01-ttl-seconds-ms": "1/1",
+  "T-02-off-by-one": "1/1",
+  "T-03-wrong-comparison": "1/1",
+  "T-04-missing-default": "1/1",
+  "T-05-mutable-default": "1/1",
+  "T-06-tz-naive-compare": "1/1",
+  "T-07-f-string-sql": "1/1",
+  "T-08-add-cache-invalidation": "1/1",
+  "T-09-add-rate-limit-hook": "1/1",
+  "T-10-port-dict-keys-view": "1/1",
+  "T-11-wrong-exception-type": "0/1",
+  "T-12-str-enum-compare": "0/1",
+  "T-13-add-retry-backoff": "0/1",
+  "T-14-add-export-sorting": "0/1",
+  "T-15-stale-registry-entry": "1/1",
+  "mini_repo": "1/1"
+ },
+ "overall": "12/16"
+}

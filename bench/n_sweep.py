@@ -28,13 +28,18 @@ def tasks() -> list[Path]:
     return out
 
 
-def run_once(task: Path, workdir: Path) -> dict:
+def run_once(task: Path, workdir: Path, run_idx: int) -> dict:
     cmd = [sys.executable, str(ROOT / "bench" / "golden_bugfix.py"), "--task", str(task)]
     t0 = time.monotonic()
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
     wall = round(time.monotonic() - t0, 1)
     m = re.search(r"\[result\] (PASS|FAIL)", r.stdout)
     result = m.group(1) if m else "CRASH"
+    # keep the golden stdout/stderr: the failed-attempt excerpts live ONLY here
+    # (erasure wipes the work tree; the ledger holds no content) — without this
+    # log, every FAIL is undiagnosable after the fact
+    (workdir / f"{task.name}.run{run_idx}.log").write_text(
+        r.stdout + "\n===== STDERR =====\n" + r.stderr)
     return {"result": result, "wall_s": wall, "exit": r.returncode}
 
 
@@ -72,7 +77,7 @@ def main() -> int:
             if (task.name, run_idx) in done:
                 print(f"[skip] {task.name} #{run_idx}", flush=True)
                 continue
-            rec = {"task": task.name, "run_idx": run_idx, **run_once(task, out_dir)}
+            rec = {"task": task.name, "run_idx": run_idx, **run_once(task, out_dir, run_idx)}
             with results_path.open("a") as f:
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
             print(f"[run] {task.name} #{run_idx}: {rec['result']} ({rec['wall_s']}s)", flush=True)

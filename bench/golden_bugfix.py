@@ -183,11 +183,32 @@ def jdump(obj) -> str:
     return json.dumps(obj, ensure_ascii=False, default=lambda o: "")
 
 
+def extract_constants(files: dict[str, str]) -> str:
+    """Module-level constant assignments across the repo (FP-7, ticket 04): the
+    spec step must SEE the layer where configured values live, not only the
+    symbols where symptoms show. Deterministic harness lookup (DESIGN §2.1 —
+    never the model's job), bounded listing."""
+    import re as _re
+
+    lines: list[str] = []
+    for rel in sorted(files):
+        if not rel.endswith(".py"):
+            continue
+        for m in _re.finditer(r"^([A-Z][A-Z0-9_]{2,})\s*=\s*([^#\n]+)", files[rel], _re.M):
+            lines.append(f"- {rel}: {m.group(1)} = {m.group(2).strip()[:40]}")
+    return "\n".join(lines[:24])
+
+
 def step_spec(model, leaf_what: str, files: dict[str, str], conventions: str) -> Envelope:
     listing = "\n".join(f"- {rel}" for rel in sorted(files))
+    constants = extract_constants(files)
     return asyncio_run(llm_step(model, "write_spec",
-        artifacts={"leaf": leaf_what, "conventions": conventions, "repo_files": listing},
-        question="Write the spec: interfaces, types, behavior contract, error model, edge cases, files_touched.",
+        artifacts={"leaf": leaf_what, "conventions": conventions, "repo_files": listing,
+                   "repo_constants": constants},
+        question="Write the spec: interfaces, types, behavior contract, error model, edge cases, "
+                 "files_touched. Fix where the misconfigured VALUE lives (constants/config), not "
+                 "where the symptom shows: when the request says the value was moved into config, "
+                 "files_touched MUST include that config module (FP-7 hard rule).",
         context={"boundary_files": sorted(files)}))
 
 
@@ -448,7 +469,9 @@ def main() -> int:
     (runs_dir / "ledger.json").write_text(ledger_dump)
     (runs_dir / "summary.json").write_text(json.dumps({
         "task": task["task_id"], "fixed": fixed, "gate_ok": gate_ok,
-        "green": green, "decisions": {"transport": "write_test envelope (D-transport)"},
+        "green": green, "history": history,
+        "fix_summary": fix_summary,
+        "decisions": {"transport": "write_test envelope (D-transport)"},
         "artifacts": sorted(tree.artifacts._artifacts),  # noqa: SLF001
     }, indent=1, ensure_ascii=False))
     (runs_dir / "trajectory.json").write_text(trajectory.to_json())

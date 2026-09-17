@@ -1,0 +1,9 @@
+{
+ "per_task": {
+  "T-11-wrong-exception-type": "1/1",
+  "T-12-str-enum-compare": "1/1",
+  "T-13-add-retry-backoff": "0/1",
+  "T-14-add-export-sorting": "1/1"
+ },
+ "overall": "3/4"
+}

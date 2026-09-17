@@ -1,6 +1,6 @@
 # 04-fp7-symptom-layer-anchoring
 
-**Status:** needs-triage
+**Status:** done
 **Pattern:** FAIL_PATTERNS FP-7 — symptom-layer anchoring (T-01-ttl-seconds-ms)
 **Evidence:** runs `bench/runs/20260917T061713/golden/T-01-ttl-seconds-ms` (sweep,
 3 red attempts) and `bench/runs/20260917T063255/golden/T-01-ttl-seconds-ms`
@@ -40,3 +40,8 @@ corpus N=1 before calling it closed.
 - 2026-09-17 owner session: pattern diagnosed from the M3-sweep T-01 failure +
   resample; M3 exonerated (all attempts `write_committed`, pytest red — model-side).
   Ticket parked at needs-triage; M3 closure takes priority in this session.
+
+- 2026-09-17 owner session (closure): fix = extract_constants surfacing + spec hard
+  rule. T-01 PASS first attempt with fix in auth/config.py (run 20260917T065248);
+  held through full-corpus sweep 20260917T065457Z (T-01 1/1). FP-7 → CLOSED in
+  FAIL_PATTERNS. Discovery during closure: T-13 failures → separate FP-8, ticket 05.

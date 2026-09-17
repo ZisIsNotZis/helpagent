@@ -1,0 +1,12 @@
+{
+ "task": "T-14-add-export-sorting",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-14-add-export-sorting-summary"
+ ]
+}

@@ -1,0 +1,45 @@
+{
+ "task": "T-13-add-retry-backoff",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "fetcher/client.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "E           TypeError: 'NoneType' object cannot be interpreted as an integer",
+    "fetcher/client.py:20: TypeError"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "fetcher/client.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "E       AssertionError: assert None == 'body'",
+    "tests/test_client.py:11: AssertionError"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "fetcher/client.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "E           TypeError: 'NoneType' object cannot be interpreted as an integer",
+    "fetcher/client.py:20: TypeError"
+   ]
+  }
+ ],
+ "fix_summary": "attempt 3 left tests red (1); rolled back",
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-13-add-retry-backoff-summary"
+ ]
+}

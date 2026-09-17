@@ -1,0 +1,12 @@
+{
+ "task": "T-13-add-retry-backoff",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-13-add-retry-backoff-summary"
+ ]
+}
