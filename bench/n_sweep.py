@@ -35,12 +35,14 @@ def run_once(task: Path, workdir: Path, run_idx: int) -> dict:
     wall = round(time.monotonic() - t0, 1)
     m = re.search(r"\[result\] (PASS|FAIL)", r.stdout)
     result = m.group(1) if m else "CRASH"
+    m_dir = re.search(r"\[persist\] (\S+)", r.stdout)
+    runs_dir = m_dir.group(1) if m_dir else ""
     # keep the golden stdout/stderr: the failed-attempt excerpts live ONLY here
     # (erasure wipes the work tree; the ledger holds no content) — without this
     # log, every FAIL is undiagnosable after the fact
     (workdir / f"{task.name}.run{run_idx}.log").write_text(
         r.stdout + "\n===== STDERR =====\n" + r.stderr)
-    return {"result": result, "wall_s": wall, "exit": r.returncode}
+    return {"result": result, "wall_s": wall, "exit": r.returncode, "runs_dir": runs_dir}
 
 
 def main() -> int:

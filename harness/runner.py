@@ -220,18 +220,27 @@ async def llm_step(
     async def _candidates() -> Any:
         """Real runners expose complete_n (batch); scripted fakes are fetched lazily
         so a valid first candidate costs one call. DECISION: asymmetry is safe — the
-        selection rule (first valid) is identical on both sides."""
+        selection rule (first valid) is identical on both sides. Yields
+        (output, wall_model_s): the model wall time is per-call, tool/infra wall
+        is the run remainder (DESIGN §1 goal 6 dual-lane cost accounting)."""
+        import time as _time
+
         if best_of_n > 1 and hasattr(model, "complete_n"):
-            for out in await model.complete_n(request, best_of_n):
-                yield out
+            t0 = _time.perf_counter()
+            outs = await model.complete_n(request, best_of_n)
+            wall = _time.perf_counter() - t0
+            for out in outs:
+                yield out, wall / max(1, len(outs))
         else:
             for _ in range(best_of_n):
-                yield await model.complete(request)
+                t0 = _time.perf_counter()
+                out = await model.complete(request)
+                yield out, _time.perf_counter() - t0
 
     envelope: Envelope | None = None
     fallback: Envelope | None = None   # last schema-valid candidate whose content failed parse
     failure_message: str | None = None
-    async for out in _candidates():
+    async for out, wall_model_s in _candidates():
         metrics = getattr(model, "last_metrics", None)
         note(
             "llm_invocation",
@@ -240,6 +249,7 @@ async def llm_step(
             cache_hit=(metrics or {}).get("cache_hit"),
             prompt_tokens=(metrics or {}).get("prompt_tokens"),
             completion_tokens=(metrics or {}).get("completion_tokens"),
+            wall_model_s=round(wall_model_s, 3),
         )
         if isinstance(out, str):
             try:

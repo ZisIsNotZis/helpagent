@@ -470,7 +470,8 @@ def main() -> int:
     (runs_dir / "summary.json").write_text(json.dumps({
         "task": task["task_id"], "fixed": fixed, "gate_ok": gate_ok,
         "green": green, "history": history,
-        "fix_summary": fix_summary,
+        "fix_summary": fix_summary, "gate_notes": gate_notes,
+        "attempts_cap": args.attempts,
         "decisions": {"transport": "write_test envelope (D-transport)"},
         "artifacts": sorted(tree.artifacts._artifacts),  # noqa: SLF001
     }, indent=1, ensure_ascii=False))
