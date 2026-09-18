@@ -54,6 +54,8 @@ def main() -> int:
     ap.add_argument("--only", default="", help="comma list of task dir names to (re)run")
     ap.add_argument("--golden-args", default="",
                     help="extra args passed through to golden_bugfix.py (script-variant A/B)")
+    ap.add_argument("--corpus", default=str(CORPUS),
+                    help="task tree (default: bench/corpus); pass bench/anchor for anchors")
     args = ap.parse_args()
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -61,7 +63,9 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     results_path = out_dir / "results.jsonl"
 
-    all_tasks = tasks()
+    corpus_path = Path(args.corpus)
+    all_tasks = [MINI] + sorted(p for p in corpus_path.iterdir()
+                                if p.is_dir() and (p.name.startswith("T-") or p.name.startswith("A-")))
     if args.tasks != "all":
         want = set(args.tasks.split(","))
         all_tasks = [t for t in all_tasks if t.name in want]

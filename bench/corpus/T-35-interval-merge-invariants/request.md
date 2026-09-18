@@ -1,0 +1,1 @@
+The scheduler's interval merge is broken: overlapping spans stay separate and the output isn't merged properly. Contract (module docstring): half-open [start, end), sorted non-overlapping result, TOUCHING intervals merge into one, empty spans dropped, input may be unsorted. Please implement it to the contract.

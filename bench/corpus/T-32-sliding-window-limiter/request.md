@@ -1,0 +1,1 @@
+Our API limiter lets everything through - someone rewrote it and now it never rejects, even during bursts. The contract: at most `limit` calls inside any sliding window of `window_s` seconds; a REJECTED call must not consume budget; old calls (older than window_s ago) stop counting. The clock is injected, no sleeping. Please restore the contract.

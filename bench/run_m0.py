@@ -496,7 +496,14 @@ def run_task(task_dir: Path, run_dir: Path, ledger: Ledger) -> dict:
     }
 
 
-def main() -> int:
+def main(argv=None) -> int:
+    import argparse as _argparse
+    _ap = _argparse.ArgumentParser()
+    _ap.add_argument("--corpus", default=str(CORPUS_DIR),
+                     help="task tree to run (default: bench/corpus)")
+    _args = _ap.parse_args(argv)
+    global CORPUS_DIR_PATH
+    CORPUS_DIR_PATH = Path(_args.corpus)
     t0 = time.perf_counter()
     ensure_server()
 
@@ -509,7 +516,8 @@ def main() -> int:
     (run_dir / "tasks").mkdir(parents=True)
     ledger = Ledger(run_dir / "ledger.csv")
 
-    tasks = sorted(p for p in CORPUS_DIR.iterdir() if p.is_dir() and p.name.startswith("T-"))
+    corpus_path = Path(CORPUS_DIR_PATH if "CORPUS_DIR_PATH" in globals() else CORPUS_DIR)
+    tasks = sorted(p for p in corpus_path.iterdir() if p.is_dir() and p.name.startswith(("T-", "A-")))
     print(f"[run] {len(tasks)} tasks -> {run_dir}")
 
     results = [run_task(t, run_dir, ledger) for t in tasks]
