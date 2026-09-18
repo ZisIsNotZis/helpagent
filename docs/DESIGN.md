@@ -143,6 +143,16 @@ Builds every invocation: `byte-stable prefix + step-specific suffix`. With no to
 
 ### 4.4 Knowledge Service
 
+<!-- OWNER DECISION 2026-09-17: injection-first, demote the help dispatcher. A small model
+cannot be relied on to self-initiate lookups (it forgets the channel exists), and free-form
+reading pollutes the composed context. The service's primary surface is therefore the
+COMPOSER: ground truth (signatures, examples, gotchas, rule hits) is injected into the step
+input automatically, before the model ever speaks. The help dispatcher survives only as a
+measured fallback behind the §9.3 escape-hatch counters — never a pillar. Every injection
+fix to date (FP-4 diagnosis, FP-7 constants, FP-10 request tokens) already worked this way. -->
+
+### 4.4 Knowledge Service
+
 One module, one storage format; five query surfaces:
 
 - **Symbol DB:** signatures, docstrings, usage examples — from LSP (multilspy)/pydoc/tldr/man + repo index. Query keys: symbol mention, about-to-call, free-form help.
