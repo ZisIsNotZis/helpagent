@@ -39,7 +39,7 @@ def test_envelope_rejects_missing_self_summary():
 def test_unable_alternative_is_in_every_envelope_schema():
     """Iterate the per-leaf-type schema library; assert each has a discriminant
     accepting `unable: reason` — and that the unable alternative actually parses."""
-    assert len(SCHEMAS) == 22
+    assert len(SCHEMAS) == 23
     for step_type, model in SCHEMAS.items():
         assert issubclass(model, Envelope), step_type
         values = get_args(model.model_fields["status"].annotation)
@@ -52,6 +52,7 @@ def test_unable_alternative_is_in_every_envelope_schema():
 
 
 VALID_PAYLOADS = {
+    "fix_plan": {"steps": ["locate the env lookup", "return env before default", "keep default types"]},
     "task_card": {"task_class": "bugfix", "goal": "Fix session expiry."},
     "find_ambiguities": {"items": []},
     "revise_task_card": {"changed": ["goal"],
@@ -299,3 +300,24 @@ def test_check_kind_enum_closed():
     entry = DraftAC.model_validate({"ac_id": "AC-1", "statement": "s", "check_kind": "script-assertion",
                                     "check_hint": "assert sessions.expire()"})
     assert entry.check_kind == "script-assertion"
+
+
+def test_fix_plan_schema_round_trip_and_bounds():
+    """fix_plan (ticket 05 A/B): registry resolves; 2-8 steps enforced; unable
+    alternative available like every envelope."""
+    from harness.envelopes import SCHEMAS
+    from pydantic import ValidationError
+
+    assert SCHEMAS["fix_plan"].__name__ == "FixPlan"
+    ok = SCHEMAS["fix_plan"].model_validate({
+        "status": "ok", "comment": "3 steps",
+        "steps": ["add env lookup first", "return default after", "keep types"]})
+    assert ok.steps[0].startswith("add env")
+    with pytest.raises(ValidationError):
+        SCHEMAS["fix_plan"].model_validate({"status": "ok", "comment": "1 step", "steps": ["only"]})
+    with pytest.raises(ValidationError):
+        SCHEMAS["fix_plan"].model_validate({
+            "status": "ok", "comment": "9 steps", "steps": [f"s{i}" for i in range(9)]})
+    un = SCHEMAS["fix_plan"].model_validate(
+        {"status": "unable", "comment": "c", "unable_reason": "unclear contract"})
+    assert un.status == "unable"

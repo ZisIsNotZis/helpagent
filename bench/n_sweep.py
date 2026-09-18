@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -28,8 +29,9 @@ def tasks() -> list[Path]:
     return out
 
 
-def run_once(task: Path, workdir: Path, run_idx: int) -> dict:
+def run_once(task: Path, workdir: Path, run_idx: int, golden_args: str = "") -> dict:
     cmd = [sys.executable, str(ROOT / "bench" / "golden_bugfix.py"), "--task", str(task)]
+    cmd += shlex.split(golden_args)
     t0 = time.monotonic()
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
     wall = round(time.monotonic() - t0, 1)
@@ -50,6 +52,8 @@ def main() -> int:
     ap.add_argument("--n", type=int, default=3)
     ap.add_argument("--tasks", default="all")
     ap.add_argument("--only", default="", help="comma list of task dir names to (re)run")
+    ap.add_argument("--golden-args", default="",
+                    help="extra args passed through to golden_bugfix.py (script-variant A/B)")
     args = ap.parse_args()
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -79,7 +83,8 @@ def main() -> int:
             if (task.name, run_idx) in done:
                 print(f"[skip] {task.name} #{run_idx}", flush=True)
                 continue
-            rec = {"task": task.name, "run_idx": run_idx, **run_once(task, out_dir, run_idx)}
+            rec = {"task": task.name, "run_idx": run_idx,
+                   **run_once(task, out_dir, run_idx, args.golden_args)}
             with results_path.open("a") as f:
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
             print(f"[run] {task.name} #{run_idx}: {rec['result']} ({rec['wall_s']}s)", flush=True)

@@ -708,8 +708,18 @@ class ProposeGrowth(Envelope):
 # the runner's wildcard prefix to the generic JudgeAspect entry.
 # ---------------------------------------------------------------------------
 
+class FixPlan(Envelope):
+    """Guided decomposition for implement (DESIGN §2.2 owner-approved variant,
+    ticket 05 A/B): before emitting a fix, the model lists 2-8 ordered steps.
+    The harness feeds the plan back into the implement call - the STRUCTURE of
+    the thinking is harness-decomposed, the filling stays with the model."""
+
+    steps: list[str] = req(min_length=2, max_length=8)
+
+
 SCHEMAS: dict[str, type[Envelope]] = {
     "task_card": TaskCard,  # §1
+    "fix_plan": FixPlan,  # §2.2 guided implement (ticket 05 A/B)
     "find_ambiguities": FindAmbiguities,  # §2
     "revise_task_card": ReviseTaskCard,  # §3
     "expand": Expand,  # §4

@@ -62,6 +62,9 @@ from harness.model import LlamaServerRunner  # noqa: E402
 from harness.trajectory import Trajectory, pause_leaf_on_conflict  # noqa: E402
 from harness.workdir import boot_recover, lock  # noqa: E402
 
+GUIDED_IMPLEMENT = False
+
+
 def asyncio_run(x):
     return x  # identity: llm_step below is wrapped with the step-retry and runs synchronously
 
@@ -292,12 +295,24 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
     history: list[dict] = []
     last_excerpt = "no failing output captured"
     summary = "tests fail; fix the reported bug"
+    guided = bool(globals().get("GUIDED_IMPLEMENT"))
     for attempt in range(1, attempts + 1):
         # one candidate file per attempt: the spec's files_touched (boundary), else whole repo
         boundary = [f for f in spec.files_touched if f in files or f in creatable] or sorted(files)
         # rank: source before tests — the fix belongs in source; editing tests to pass
         # is a test-side ticket (router rule), never the implement move
         boundary = sorted(boundary, key=lambda f: ("test" in f.lower(), f))
+        # guided decomposition (DESIGN §2.2, ticket 05 A/B): enumerate the fix
+        # steps FIRST, then emit under the plan — the thinking structure is
+        # harness-decomposed, the filling stays with the model
+        plan_text = ""
+        if guided:
+            plan_env = asyncio_run(llm_step(model, "fix_plan",
+                artifacts={"bug_report": request, "failing_test_output": last_excerpt},
+                question="List 3-8 ordered steps to fix this bug in the target file. "
+                         "One short line per step: what to change and why."))
+            plan_text = "; ".join(plan_env.steps) if plan_env.status == "ok" else ""
+            note("fix_plan", attempt=attempt, steps=plan_env.steps if plan_env.status == "ok" else [])
         env = asyncio_run(llm_step(model, "write_test",
             artifacts={"spec_contract": jdump({
                 "interfaces": [i.model_dump() for i in spec.interfaces],
@@ -306,7 +321,8 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
                 "current_files": json.dumps({rel: files[rel] for rel in boundary if rel in files}, ensure_ascii=False),
                 "bug_report": request,
                 "failing_test_output": last_excerpt},
-            question=("Emit the complete content for the NEW file (file_path) so the failing "
+            question=(("Follow this plan step by step: " + plan_text + ".\n") if plan_text else "") +
+                      ("Emit the complete content for the NEW file (file_path) so the failing "
                       "tests pass. Include every symbol the tests import. "
                       "Never edit test files to make them pass — create the source."
                       if boundary and all(f in creatable for f in boundary) else
@@ -388,7 +404,11 @@ def main() -> int:
     ap.add_argument("--attempts", type=int, default=3)
     ap.add_argument("--server", default=SERVER)
     ap.add_argument("--skip-golden-test", action="store_true")
+    ap.add_argument("--guided-implement", action="store_true",
+                    help="A/B (ticket 05): fix_plan enumerate step before each implement emit")
     args = ap.parse_args()
+    global GUIDED_IMPLEMENT
+    GUIDED_IMPLEMENT = args.guided_implement
 
     task_dir = Path(args.task)
     task = load_task(task_dir)
