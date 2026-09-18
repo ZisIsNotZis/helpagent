@@ -1,0 +1,52 @@
+{
+ "task": "A-02-protein-translation",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "protein_translation.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED protein_translation_test.py::ProteinTranslationTest::test_cysteine_rna_sequence_1",
+    "FAILED protein_translation_test.py::ProteinTranslationTest::test_cysteine_rna_sequence_2"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "protein_translation.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED protein_translation_test.py::ProteinTranslationTest::test_cysteine_rna_sequence_1",
+    "FAILED protein_translation_test.py::ProteinTranslationTest::test_cysteine_rna_sequence_2"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "protein_translation.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED protein_translation_test.py::ProteinTranslationTest::test_cysteine_rna_sequence_1",
+    "FAILED protein_translation_test.py::ProteinTranslationTest::test_cysteine_rna_sequence_2"
+   ]
+  }
+ ],
+ "fix_summary": "attempt 3 left tests red (1); rolled back",
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED protein_translation_test.py::ProteinTranslationTest::test_cysteine_rna_sequence_1",
+  "FAILED protein_translation_test.py::ProteinTranslationTest::test_cysteine_rna_sequence_2",
+  "FAILED protein_translation_test.py::ProteinTranslationTest::test_leucine_rna_sequence_1"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "A-02-protein-translation-summary"
+ ]
+}

@@ -1,0 +1,15 @@
+{
+ "per_task": {
+  "A-02-protein-translation": "2/3",
+  "A-03-book-store": "0/3",
+  "T-26-plan-dataclass-port": "2/3",
+  "T-27-snakecase-ingest": "0/3",
+  "T-31-parameter-threading": "0/3"
+ },
+ "overall": "4/15",
+ "closing_gear_histogram": {
+  "2": 1,
+  "1": 2,
+  "0": 1
+ }
+}

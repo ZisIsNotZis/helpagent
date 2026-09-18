@@ -58,3 +58,14 @@
   flow machinery NOT justified per-task-class on small fixes — reserved for
   escalation; self-written corpus useful but biased single-file — anchors now
   calibrate the floor.
+
+- 2026-09-18 owner session (M6 slice A/B): injection-first knowledge pack
+  (signatures/callers/constants via harness/knowledge.py, --knowledge) on the
+  frontier family: 4/15 vs 3/15 baseline — NO movement. KILLED as default.
+  Honest diagnosis: our corpus repos are TINY — current_files already injects
+  every file, so the pack was redundant by construction. The pack's value
+  thesis needs repos too big for full-file injection; revisit when the corpus
+  or real usage outgrows that regime. Benchmark limitation recorded: the
+  single-file corpus cannot measure composer value.
+  Cosmetic bug noted: tiered gear2 wall_s shows 0.0 (timer scope) — fix with
+  the next tiered change.

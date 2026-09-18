@@ -1,0 +1,44 @@
+{
+ "task": "T-31-parameter-threading",
+ "gear": 0,
+ "fixed": false,
+ "gate_ok": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "api/transport.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_chain.py::test_client_threads_timeout",
+    "FAILED tests/test_chain.py::test_service_threads_timeout"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "api/transport.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_chain.py::test_client_threads_timeout",
+    "FAILED tests/test_chain.py::test_service_threads_timeout"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "api/transport.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_chain.py::test_client_threads_timeout",
+    "FAILED tests/test_chain.py::test_service_threads_timeout"
+   ]
+  }
+ ],
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED tests/test_chain.py::test_transport_accepts_timeout",
+  "FAILED tests/test_chain.py::test_client_threads_timeout",
+  "FAILED tests/test_chain.py::test_service_threads_timeout"
+ ]
+}

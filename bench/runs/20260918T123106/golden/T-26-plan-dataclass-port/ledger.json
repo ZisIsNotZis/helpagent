@@ -1,0 +1,237 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 42.4,
+  "prompt_tokens": 217,
+  "completion_tokens": 103,
+  "wall_model_s": 7.246
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "task_card"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "expand",
+  "fresh": false,
+  "cache_hit": 0.0319,
+  "prompt_tokens": 291,
+  "completion_tokens": 107,
+  "wall_model_s": 6.729
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "expand"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_spec",
+  "fresh": false,
+  "cache_hit": 0.0319,
+  "prompt_tokens": 291,
+  "completion_tokens": 138,
+  "wall_model_s": 9.249
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_spec"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 61.2,
+  "prompt_tokens": 311,
+  "completion_tokens": 111,
+  "wall_model_s": 6.002
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0381,
+  "prompt_tokens": 245,
+  "completion_tokens": 87,
+  "wall_model_s": 3.361
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 0.3283,
+  "prompt_tokens": 437,
+  "completion_tokens": 3000,
+  "wall_model_s": 98.33
+ },
+ {
+  "kind": "validation_failed",
+  "text": "",
+  "step_type": "write_test",
+  "detail": "malformed JSON at offset 120"
+ },
+ {
+  "kind": "golden_step_retry",
+  "text": "",
+  "step_type": "write_test",
+  "attempt": 1,
+  "detail": "write_test: output was malformed JSON — attempt erased, failure summary only"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 0.2794,
+  "prompt_tokens": 490,
+  "completion_tokens": 132,
+  "wall_model_s": 2.038
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "golden_test_skipped",
+  "text": "",
+  "detail": "file_path 'tests/test_plan.py' outside repo"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 689.0,
+  "prompt_tokens": 690,
+  "completion_tokens": 255,
+  "wall_model_s": 11.948
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "escalated",
+  "file": "plan/model.py",
+  "n_findings": 3,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "plan/model.py"
+  ]
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 1,
+  "file": "plan/model.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 720.0,
+  "prompt_tokens": 721,
+  "completion_tokens": 241,
+  "wall_model_s": 10.802
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "auto_fixed",
+  "file": "plan/model.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "plan/model.py"
+  ]
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 2,
+  "file": "plan/model.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 739.0,
+  "prompt_tokens": 740,
+  "completion_tokens": 217,
+  "wall_model_s": 10.894
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "auto_fixed",
+  "file": "plan/model.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "plan/model.py"
+  ]
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "run_summary",
+  "fresh": false,
+  "cache_hit": 0.0238,
+  "prompt_tokens": 387,
+  "completion_tokens": 103,
+  "wall_model_s": 6.785
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "run_summary"
+ }
+]
