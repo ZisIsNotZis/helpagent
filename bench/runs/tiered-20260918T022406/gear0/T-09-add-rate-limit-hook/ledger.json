@@ -1,0 +1,32 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1603.0,
+  "prompt_tokens": 1604,
+  "completion_tokens": 365,
+  "wall_model_s": 3.063
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "clean",
+  "file": "throttle/limiter.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "throttle/limiter.py"
+  ]
+ }
+]

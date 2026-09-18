@@ -1,0 +1,220 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 0.0393,
+  "prompt_tokens": 238,
+  "completion_tokens": 114,
+  "wall_model_s": 2.49
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "task_card"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "expand",
+  "fresh": false,
+  "cache_hit": 0.0277,
+  "prompt_tokens": 334,
+  "completion_tokens": 138,
+  "wall_model_s": 2.397
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "expand"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_spec",
+  "fresh": false,
+  "cache_hit": 0.0274,
+  "prompt_tokens": 338,
+  "completion_tokens": 285,
+  "wall_model_s": 5.195
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_spec"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 88.2,
+  "prompt_tokens": 446,
+  "completion_tokens": 115,
+  "wall_model_s": 2.741
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0246,
+  "prompt_tokens": 375,
+  "completion_tokens": 93,
+  "wall_model_s": 2.653
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 0.5538,
+  "prompt_tokens": 679,
+  "completion_tokens": 399,
+  "wall_model_s": 6.799
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "golden_test_skipped",
+  "text": "",
+  "detail": "file_path 'tests/test_ac_map.py' outside repo"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1046.0,
+  "prompt_tokens": 1047,
+  "completion_tokens": 137,
+  "wall_model_s": 2.457
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "escalated",
+  "file": "api/transport.py",
+  "n_findings": 4,
+  "fix_passes": 2
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "api/transport.py"
+  ]
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 1,
+  "file": "api/transport.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1123.0,
+  "prompt_tokens": 1124,
+  "completion_tokens": 148,
+  "wall_model_s": 2.46
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "escalated",
+  "file": "api/transport.py",
+  "n_findings": 1,
+  "fix_passes": 2
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "api/transport.py"
+  ]
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 2,
+  "file": "api/transport.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1123.0,
+  "prompt_tokens": 1124,
+  "completion_tokens": 139,
+  "wall_model_s": 2.367
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "escalated",
+  "file": "api/transport.py",
+  "n_findings": 1,
+  "fix_passes": 2
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "api/transport.py"
+  ]
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 3,
+  "file": "api/transport.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "run_summary",
+  "fresh": false,
+  "cache_hit": 0.0236,
+  "prompt_tokens": 390,
+  "completion_tokens": 100,
+  "wall_model_s": 2.214
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "run_summary"
+ }
+]

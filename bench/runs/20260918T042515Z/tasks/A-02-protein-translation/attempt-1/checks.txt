@@ -1,0 +1,181 @@
+== envelope application ==
+status=ok file_path=protein_translation.py bytes=844 sha256=d1bb314dc031909db9b76bf86563bdb312d3044f69bd870468796cf320881313
+
+== pytest (after write, exit=1) ==
+..............FFF.FFFFF...                                               [100%]
+=================================== FAILURES ===================================
+____________ ProteinTranslationTest.test_stop_codon_rna_sequence_1 _____________
+
+self = <protein_translation_test.ProteinTranslationTest testMethod=test_stop_codon_rna_sequence_1>
+
+    def test_stop_codon_rna_sequence_1(self):
+        value = "UAA"
+        expected = []
+>       self.assertEqual(proteins(value), expected)
+E       AssertionError: Lists differ: ['STOP'] != []
+E       
+E       First list contains 1 additional elements.
+E       First extra element 0:
+E       'STOP'
+E       
+E       - ['STOP']
+E       + []
+
+protein_translation_test.py:86: AssertionError
+____________ ProteinTranslationTest.test_stop_codon_rna_sequence_2 _____________
+
+self = <protein_translation_test.ProteinTranslationTest testMethod=test_stop_codon_rna_sequence_2>
+
+    def test_stop_codon_rna_sequence_2(self):
+        value = "UAG"
+        expected = []
+>       self.assertEqual(proteins(value), expected)
+E       AssertionError: Lists differ: ['STOP'] != []
+E       
+E       First list contains 1 additional elements.
+E       First extra element 0:
+E       'STOP'
+E       
+E       - ['STOP']
+E       + []
+
+protein_translation_test.py:91: AssertionError
+____________ ProteinTranslationTest.test_stop_codon_rna_sequence_3 _____________
+
+self = <protein_translation_test.ProteinTranslationTest testMethod=test_stop_codon_rna_sequence_3>
+
+    def test_stop_codon_rna_sequence_3(self):
+        value = "UGA"
+        expected = []
+>       self.assertEqual(proteins(value), expected)
+E       AssertionError: Lists differ: ['STOP'] != []
+E       
+E       First list contains 1 additional elements.
+E       First extra element 0:
+E       'STOP'
+E       
+E       - ['STOP']
+E       + []
+
+protein_translation_test.py:96: AssertionError
+_ ProteinTranslationTest.test_translation_stops_if_stop_codon_at_beginning_of_sequence _
+
+self = <protein_translation_test.ProteinTranslationTest testMethod=test_translation_stops_if_stop_codon_at_beginning_of_sequence>
+
+    def test_translation_stops_if_stop_codon_at_beginning_of_sequence(self):
+        value = "UAGUGG"
+        expected = []
+>       self.assertEqual(proteins(value), expected)
+E       AssertionError: Lists differ: ['STOP', 'Tryptophan'] != []
+E       
+E       First list contains 2 additional elements.
+E       First extra element 0:
+E       'STOP'
+E       
+E       - ['STOP', 'Tryptophan']
+E       + []
+
+protein_translation_test.py:116: AssertionError
+_ ProteinTranslationTest.test_translation_stops_if_stop_codon_at_end_of_three_codon_sequence _
+
+self = <protein_translation_test.ProteinTranslationTest testMethod=test_translation_stops_if_stop_codon_at_end_of_three_codon_sequence>
+
+    def test_translation_stops_if_stop_codon_at_end_of_three_codon_sequence(self):
+        value = "AUGUUUUAA"
+        expected = ["Methionine", "Phenylalanine"]
+>       self.assertEqual(proteins(value), expected)
+E       AssertionError: Lists differ: ['Methionine', 'Phenylalanine', 'STOP'] != ['Methionine', 'Phenylalanine']
+E       
+E       First list contains 1 additional elements.
+E       First extra element 2:
+E       'STOP'
+E       
+E       - ['Methionine', 'Phenylalanine', 'STOP']
+E       ?                               --------
+E       
+E       + ['Methionine', 'Phenylalanine']
+
+protein_translation_test.py:126: AssertionError
+_ ProteinTranslationTest.test_translation_stops_if_stop_codon_at_end_of_two_codon_sequence _
+
+self = <protein_translation_test.ProteinTranslationTest testMethod=test_translation_stops_if_stop_codon_at_end_of_two_codon_sequence>
+
+    def test_translation_stops_if_stop_codon_at_end_of_two_codon_sequence(self):
+        value = "UGGUAG"
+        expected = ["Tryptophan"]
+>       self.assertEqual(proteins(value), expected)
+E       AssertionError: Lists differ: ['Tryptophan', 'STOP'] != ['Tryptophan']
+E       
+E       First list contains 1 additional elements.
+E       First extra element 1:
+E       'STOP'
+E       
+E       - ['Tryptophan', 'STOP']
+E       ?              --------
+E       
+E       + ['Tryptophan']
+
+protein_translation_test.py:121: AssertionError
+_ ProteinTranslationTest.test_translation_stops_if_stop_codon_in_middle_of_six_codon_sequence _
+
+self = <protein_translation_test.ProteinTranslationTest testMethod=test_translation_stops_if_stop_codon_in_middle_of_six_codon_sequence>
+
+    def test_translation_stops_if_stop_codon_in_middle_of_six_codon_sequence(self):
+        value = "UGGUGUUAUUAAUGGUUU"
+        expected = ["Tryptophan", "Cysteine", "Tyrosine"]
+>       self.assertEqual(proteins(value), expected)
+E       AssertionError: Lists differ: ['Tryptophan', 'Cysteine', 'Tyrosine', 'STOP', 'Tryptophan', 'Phenylalanine'] != ['Tryptophan', 'Cysteine', 'Tyrosine']
+E       
+E       First list contains 3 additional elements.
+E       First extra element 3:
+E       'STOP'
+E       
+E       - ['Tryptophan', 'Cysteine', 'Tyrosine', 'STOP', 'Tryptophan', 'Phenylalanine']
+E       + ['Tryptophan', 'Cysteine', 'Tyrosine']
+
+protein_translation_test.py:136: AssertionError
+_ ProteinTranslationTest.test_translation_stops_if_stop_codon_in_middle_of_three_codon_sequence _
+
+self = <protein_translation_test.ProteinTranslationTest testMethod=test_translation_stops_if_stop_codon_in_middle_of_three_codon_sequence>
+
+    def test_translation_stops_if_stop_codon_in_middle_of_three_codon_sequence(self):
+        value = "UGGUAGUGG"
+        expected = ["Tryptophan"]
+>       self.assertEqual(proteins(value), expected)
+E       AssertionError: Lists differ: ['Tryptophan', 'STOP', 'Tryptophan'] != ['Tryptophan']
+E       
+E       First list contains 2 additional elements.
+E       First extra element 1:
+E       'STOP'
+E       
+E       - ['Tryptophan', 'STOP', 'Tryptophan']
+E       + ['Tryptophan']
+
+protein_translation_test.py:131: AssertionError
+=========================== short test summary info ============================
+FAILED protein_translation_test.py::ProteinTranslationTest::test_stop_codon_rna_sequence_1
+FAILED protein_translation_test.py::ProteinTranslationTest::test_stop_codon_rna_sequence_2
+FAILED protein_translation_test.py::ProteinTranslationTest::test_stop_codon_rna_sequence_3
+FAILED protein_translation_test.py::ProteinTranslationTest::test_translation_stops_if_stop_codon_at_beginning_of_sequence
+FAILED protein_translation_test.py::ProteinTranslationTest::test_translation_stops_if_stop_codon_at_end_of_three_codon_sequence
+FAILED protein_translation_test.py::ProteinTranslationTest::test_translation_stops_if_stop_codon_at_end_of_two_codon_sequence
+FAILED protein_translation_test.py::ProteinTranslationTest::test_translation_stops_if_stop_codon_in_middle_of_six_codon_sequence
+FAILED protein_translation_test.py::ProteinTranslationTest::test_translation_stops_if_stop_codon_in_middle_of_three_codon_sequence
+8 failed, 18 passed in 0.07s
+
+== checks.py verify (exit=1) ==
+== checks: A-02-protein-translation ==
+[tests]    FAIL (python -m pytest in repo/)
+           FAILED protein_translation_test.py::ProteinTranslationTest::test_stop_codon_rna_sequence_2
+           FAILED protein_translation_test.py::ProteinTranslationTest::test_stop_codon_rna_sequence_3
+           FAILED protein_translation_test.py::ProteinTranslationTest::test_translation_stops_if_stop_codon_at_beginning_of_sequence
+           FAILED protein_translation_test.py::ProteinTranslationTest::test_translation_stops_if_stop_codon_at_end_of_three_codon_sequence
+           FAILED protein_translation_test.py::ProteinTranslationTest::test_translation_stops_if_stop_codon_at_end_of_two_codon_sequence
+           FAILED protein_translation_test.py::ProteinTranslationTest::test_translation_stops_if_stop_codon_in_middle_of_six_codon_sequence
+           FAILED protein_translation_test.py::ProteinTranslationTest::test_translation_stops_if_stop_codon_in_middle_of_three_codon_sequence
+           8 failed, 18 passed in 0.06s
+[contract] OK (2 untouched paths byte-identical)
+result: FAIL
+
+== rollback ==
+file restored to original bytes

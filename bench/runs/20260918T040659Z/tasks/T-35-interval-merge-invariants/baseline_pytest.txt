@@ -1,0 +1,51 @@
+.FFF.F                                                                   [100%]
+=================================== FAILURES ===================================
+____________________________ test_overlapping_merge ____________________________
+
+    def test_overlapping_merge():
+>       assert merge([(1, 4), (2, 6)]) == [(1, 6)]
+E       assert [(1, 4), (2, 6)] == [(1, 6)]
+E         
+E         At index 0 diff: (1, 4) != (1, 6)
+E         Left contains one more item: (2, 6)
+E         Use -v to get more diff
+
+tests/test_merge.py:11: AssertionError
+_____________________________ test_touching_merge ______________________________
+
+    def test_touching_merge():
+>       assert merge([(1, 3), (3, 5)]) == [(1, 5)]
+E       assert [(1, 3), (3, 5)] == [(1, 5)]
+E         
+E         At index 0 diff: (1, 3) != (1, 5)
+E         Left contains one more item: (3, 5)
+E         Use -v to get more diff
+
+tests/test_merge.py:15: AssertionError
+_________________________ test_empty_intervals_dropped _________________________
+
+    def test_empty_intervals_dropped():
+>       assert merge([(2, 2), (1, 3)]) == [(1, 3)]
+E       assert [(1, 3), (2, 2)] == [(1, 3)]
+E         
+E         Left contains one more item: (2, 2)
+E         Use -v to get more diff
+
+tests/test_merge.py:19: AssertionError
+____________________________ test_chain_of_touching ____________________________
+
+    def test_chain_of_touching():
+>       assert merge([(0, 1), (1, 2), (2, 3), (5, 6)]) == [(0, 3), (5, 6)]
+E       assert [(0, 1), (1, ...2, 3), (5, 6)] == [(0, 3), (5, 6)]
+E         
+E         At index 0 diff: (0, 1) != (0, 3)
+E         Left contains 2 more items, first extra item: (2, 3)
+E         Use -v to get more diff
+
+tests/test_merge.py:27: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_merge.py::test_overlapping_merge - assert [(1, 4), (2, 6)] ...
+FAILED tests/test_merge.py::test_touching_merge - assert [(1, 3), (3, 5)] == ...
+FAILED tests/test_merge.py::test_empty_intervals_dropped - assert [(1, 3), (2...
+FAILED tests/test_merge.py::test_chain_of_touching - assert [(0, 1), (1, ...2...
+4 failed, 2 passed in 0.03s

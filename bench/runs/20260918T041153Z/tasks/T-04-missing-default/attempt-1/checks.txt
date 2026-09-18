@@ -1,0 +1,13 @@
+== envelope application ==
+status=ok file_path=mailer/config.py bytes=700 sha256=41580e6efd490e79e2f2824e839561902362cb4a73d3b3cc4175ea17aa5e1f3a
+
+== pytest (after write, exit=0) ==
+..                                                                       [100%]
+2 passed in 0.01s
+
+== checks.py verify (exit=0) ==
+== checks: T-04-missing-default ==
+[tests]    OK (python -m pytest in repo/)
+[contract] OK (4 untouched paths byte-identical)
+result: PASS
+

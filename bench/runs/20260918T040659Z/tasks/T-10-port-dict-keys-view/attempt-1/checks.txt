@@ -1,0 +1,13 @@
+== envelope application ==
+status=ok file_path=inventory/pick.py bytes=315 sha256=61e589f30d93574180812be7656d41040656df0a85dd5c9b8249498bf17b6ea1
+
+== pytest (after write, exit=0) ==
+..                                                                       [100%]
+2 passed in 0.01s
+
+== checks.py verify (exit=0) ==
+== checks: T-10-port-dict-keys-view ==
+[tests]    OK (python -m pytest in repo/)
+[contract] OK (4 untouched paths byte-identical)
+result: PASS
+

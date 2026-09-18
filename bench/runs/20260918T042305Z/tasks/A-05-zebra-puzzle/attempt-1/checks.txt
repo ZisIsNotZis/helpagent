@@ -1,0 +1,13 @@
+== envelope application ==
+status=ok file_path=zebra_puzzle.py bytes=183 sha256=960e39f9c3f60b1a6606ef5de978c9bbf6e707ff17f47cb5a9082b9a7755bfd4
+
+== pytest (after write, exit=0) ==
+..                                                                       [100%]
+2 passed in 0.01s
+
+== checks.py verify (exit=0) ==
+== checks: A-05-zebra-puzzle ==
+[tests]    OK (python -m pytest in repo/)
+[contract] OK (2 untouched paths byte-identical)
+result: PASS
+

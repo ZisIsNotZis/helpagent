@@ -1,0 +1,31 @@
+{
+ "task": "T-33-serializer-contract",
+ "gear": 0,
+ "fixed": true,
+ "gate_ok": true,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "serialize/json_ser.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_contract.py::test_load_refuses_foreign_bytes[PickleSerializer]",
+    "E       _pickle.UnpicklingError: invalid load key, 'n'."
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "serialize/pickle_ser.py",
+   "pytest_exit": 0,
+   "verdict": "ok",
+   "excerpts": [
+    "......                                                                   [100%]",
+    "6 passed in 0.03s"
+   ]
+  }
+ ],
+ "gate_notes": [
+  "pytest green; untouched-files contract holds"
+ ]
+}

@@ -1,0 +1,91 @@
+== envelope application ==
+status=ok file_path=spans/merge.py bytes=872 sha256=ba9ece70783007ceaecf2d07cc637e8a19b8fadfad995aadb7af6a16e2207cbd
+
+== pytest (after write, exit=1) ==
+FFFFFF                                                                   [100%]
+=================================== FAILURES ===================================
+______________________ test_unsorted_input_sorted_output _______________________
+
+    def test_unsorted_input_sorted_output():
+>       assert merge([(5, 9), (1, 3)]) == [(1, 3), (5, 9)]
+E       assert [[1, 3], [5, 9]] == [(1, 3), (5, 9)]
+E         
+E         At index 0 diff: [1, 3] != (1, 3)
+E         Use -v to get more diff
+
+tests/test_merge.py:7: AssertionError
+____________________________ test_overlapping_merge ____________________________
+
+    def test_overlapping_merge():
+>       assert merge([(1, 4), (2, 6)]) == [(1, 6)]
+E       assert [[1, 6]] == [(1, 6)]
+E         
+E         At index 0 diff: [1, 6] != (1, 6)
+E         Use -v to get more diff
+
+tests/test_merge.py:11: AssertionError
+_____________________________ test_touching_merge ______________________________
+
+    def test_touching_merge():
+>       assert merge([(1, 3), (3, 5)]) == [(1, 5)]
+E       assert [[1, 5]] == [(1, 5)]
+E         
+E         At index 0 diff: [1, 5] != (1, 5)
+E         Use -v to get more diff
+
+tests/test_merge.py:15: AssertionError
+_________________________ test_empty_intervals_dropped _________________________
+
+    def test_empty_intervals_dropped():
+>       assert merge([(2, 2), (1, 3)]) == [(1, 3)]
+E       assert [[1, 3]] == [(1, 3)]
+E         
+E         At index 0 diff: [1, 3] != (1, 3)
+E         Use -v to get more diff
+
+tests/test_merge.py:19: AssertionError
+______________________________ test_gap_preserved ______________________________
+
+    def test_gap_preserved():
+>       assert merge([(1, 2), (4, 6)]) == [(1, 2), (4, 6)]
+E       assert [[1, 2], [4, 6]] == [(1, 2), (4, 6)]
+E         
+E         At index 0 diff: [1, 2] != (1, 2)
+E         Use -v to get more diff
+
+tests/test_merge.py:23: AssertionError
+____________________________ test_chain_of_touching ____________________________
+
+    def test_chain_of_touching():
+>       assert merge([(0, 1), (1, 2), (2, 3), (5, 6)]) == [(0, 3), (5, 6)]
+E       assert [[0, 3], [5, 6]] == [(0, 3), (5, 6)]
+E         
+E         At index 0 diff: [0, 3] != (0, 3)
+E         Use -v to get more diff
+
+tests/test_merge.py:27: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_merge.py::test_unsorted_input_sorted_output - assert [[1, 3...
+FAILED tests/test_merge.py::test_overlapping_merge - assert [[1, 6]] == [(1, 6)]
+FAILED tests/test_merge.py::test_touching_merge - assert [[1, 5]] == [(1, 5)]
+FAILED tests/test_merge.py::test_empty_intervals_dropped - assert [[1, 3]] ==...
+FAILED tests/test_merge.py::test_gap_preserved - assert [[1, 2], [4, 6]] == [...
+FAILED tests/test_merge.py::test_chain_of_touching - assert [[0, 3], [5, 6]] ...
+6 failed in 0.03s
+
+== checks.py verify (exit=1) ==
+== checks: T-35-interval-merge-invariants ==
+[tests]    FAIL (python -m pytest in repo/)
+           =========================== short test summary info ============================
+           FAILED tests/test_merge.py::test_unsorted_input_sorted_output - assert [[1, 3...
+           FAILED tests/test_merge.py::test_overlapping_merge - assert [[1, 6]] == [(1, 6)]
+           FAILED tests/test_merge.py::test_touching_merge - assert [[1, 5]] == [(1, 5)]
+           FAILED tests/test_merge.py::test_empty_intervals_dropped - assert [[1, 3]] ==...
+           FAILED tests/test_merge.py::test_gap_preserved - assert [[1, 2], [4, 6]] == [...
+           FAILED tests/test_merge.py::test_chain_of_touching - assert [[0, 3], [5, 6]] ...
+           6 failed in 0.03s
+[contract] OK (5 untouched paths byte-identical)
+result: FAIL
+
+== rollback ==
+file restored to original bytes

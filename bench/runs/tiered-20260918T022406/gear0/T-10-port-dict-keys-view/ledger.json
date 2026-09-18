@@ -1,0 +1,32 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1200.0,
+  "prompt_tokens": 1201,
+  "completion_tokens": 152,
+  "wall_model_s": 1.27
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "clean",
+  "file": "inventory/pick.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "inventory/pick.py"
+  ]
+ }
+]

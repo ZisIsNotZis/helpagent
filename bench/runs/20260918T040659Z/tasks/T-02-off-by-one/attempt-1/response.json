@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"status\": \"ok\", \"comment\": \"Fixed the off-by-one bug in catalog/pagination.py by correcting the end index calculation to use start + per_page instead of start + per_page - 1, so each page slices exactly per_page items.\", \"file_path\": \"catalog/pagination.py\", \"content\": \"\\\"\\\"\\\"Pagination helpers for the catalog listing.\\\"\\\"\\\"\\n\\n\\ndef paginate(items: list, page: int, per_page: int) -> list:\\n    \\\"\\\"\\\"Return the items shown on ``page`` (1-based) with ``per_page`` items per page.\\\"\\\"\\\"\\n    if page < 1:\\n        raise ValueError(\\\"page is 1-based\\\")\\n    if per_page < 1:\\n        raise ValueError(\\\"per_page must be positive\\\")\\n    start = (page - 1) * per_page\\n    end = start + per_page\\n    return items[start:end]\\n\\n\\ndef total_pages(item_count: int, per_page: int) -> int:\\n    \\\"\\\"\\\"Number of pages needed for ``item_count`` items.\\\"\\\"\\\"\\n    if per_page < 1:\\n        raise ValueError(\\\"per_page must be positive\\\")\\n    return -(-item_count // per_page)\\n\"}"
+      }
+    }
+  ],
+  "created": 1789704430,
+  "model": "/home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf",
+  "system_fingerprint": "b4294-16378d93f9",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 286,
+    "prompt_tokens": 1405,
+    "total_tokens": 1691,
+    "prompt_tokens_details": {
+      "cached_tokens": 318
+    }
+  },
+  "id": "chatcmpl-XwrbFSy0rvoztWwkPQZazhYEq4MAr5Qt",
+  "timings": {
+    "cache_n": 318,
+    "prompt_n": 1087,
+    "prompt_ms": 239.265,
+    "prompt_per_token_ms": 0.22011499540018398,
+    "prompt_per_second": 4543.079848703321,
+    "predicted_n": 286,
+    "predicted_ms": 6517.208,
+    "predicted_per_token_ms": 22.867396491228067,
+    "predicted_per_second": 43.730382703759034
+  }
+}

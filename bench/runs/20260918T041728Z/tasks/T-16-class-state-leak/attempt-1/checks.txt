@@ -1,0 +1,62 @@
+== envelope application ==
+status=ok file_path=cart/cart.py bytes=235 sha256=8476ff51156dcc4ab54e88997740b28d21c8bee0c916fc01e6d8ba569d087517
+
+== pytest (after write, exit=1) ==
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+__________________________ test_new_cart_starts_empty __________________________
+
+    def test_new_cart_starts_empty():
+>       assert Cart().contents() == []
+               ^^^^^^^^^^^^^^^^^
+
+tests/test_cart.py:7: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <cart.cart.Cart object at 0x7cca818cc470>
+
+    def contents(self) -> list[str]:
+>       return list(self.items)
+                    ^^^^^^^^^^
+E       AttributeError: 'Cart' object has no attribute 'items'
+
+cart/cart.py:11: AttributeError
+__________________________ test_carts_are_independent __________________________
+
+    def test_carts_are_independent():
+        a = Cart()
+        b = Cart()
+>       a.add("sku-1")
+
+tests/test_cart.py:13: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <cart.cart.Cart object at 0x7cca818cd100>, sku = 'sku-1'
+
+    def add(self, sku: str) -> None:
+>       self.items.append(sku)
+        ^^^^^^^^^^
+E       AttributeError: 'Cart' object has no attribute 'items'
+
+cart/cart.py:8: AttributeError
+=========================== short test summary info ============================
+FAILED tests/test_cart.py::test_new_cart_starts_empty - AttributeError: 'Cart...
+FAILED tests/test_cart.py::test_carts_are_independent - AttributeError: 'Cart...
+2 failed in 0.02s
+
+== checks.py verify (exit=1) ==
+== checks: T-16-class-state-leak ==
+[tests]    FAIL (python -m pytest in repo/)
+                   ^^^^^^^^^^
+           E       AttributeError: 'Cart' object has no attribute 'items'
+           
+           cart/cart.py:8: AttributeError
+           =========================== short test summary info ============================
+           FAILED tests/test_cart.py::test_new_cart_starts_empty - AttributeError: 'Cart...
+           FAILED tests/test_cart.py::test_carts_are_independent - AttributeError: 'Cart...
+           2 failed in 0.02s
+[contract] OK (5 untouched paths byte-identical)
+result: FAIL
+
+== rollback ==
+file restored to original bytes

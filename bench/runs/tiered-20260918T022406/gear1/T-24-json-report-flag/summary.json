@@ -1,0 +1,21 @@
+{
+ "task": "T-24-json-report-flag",
+ "gear": 1,
+ "fixed": true,
+ "gate_ok": true,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "report/builder.py",
+   "pytest_exit": 0,
+   "verdict": "ok",
+   "excerpts": [
+    "..                                                                       [100%]",
+    "2 passed in 0.02s"
+   ]
+  }
+ ],
+ "gate_notes": [
+  "pytest green; untouched-files contract holds"
+ ]
+}

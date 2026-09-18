@@ -1,0 +1,44 @@
+== envelope application ==
+status=ok file_path=report/builder.py bytes=453 sha256=1e00bc86c64d4aa26de5aa762165fc341f5eae69bc11b2646fd5f625c3257dfe
+
+== pytest (after write, exit=1) ==
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+_______________________ test_json_mode_returns_document ________________________
+
+    def test_json_mode_returns_document():
+>       doc = json.loads(build_report([["a", 1], ["b", 2]], as_json=True))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_builder.py:14: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rows = [['a', 1], ['b', 2]], as_json = True
+
+    def build_report(rows: list[list], as_json: bool = False) -> str:
+        if as_json:
+>           return json.dumps({"rows": rows}, separators=(",", ":"))
+                   ^^^^
+E           NameError: name 'json' is not defined. Did you forget to import 'json'
+
+report/builder.py:10: NameError
+=========================== short test summary info ============================
+FAILED tests/test_builder.py::test_json_mode_returns_document - NameError: na...
+1 failed, 1 passed in 0.02s
+
+== checks.py verify (exit=1) ==
+== checks: T-24-json-report-flag ==
+[tests]    FAIL (python -m pytest in repo/)
+           >           return json.dumps({"rows": rows}, separators=(",", ":"))
+                              ^^^^
+           E           NameError: name 'json' is not defined. Did you forget to import 'json'
+           
+           report/builder.py:10: NameError
+           =========================== short test summary info ============================
+           FAILED tests/test_builder.py::test_json_mode_returns_document - NameError: na...
+           1 failed, 1 passed in 0.02s
+[contract] OK (5 untouched paths byte-identical)
+result: FAIL
+
+== rollback ==
+file restored to original bytes

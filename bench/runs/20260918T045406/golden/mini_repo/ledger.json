@@ -1,0 +1,184 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 36.0,
+  "prompt_tokens": 185,
+  "completion_tokens": 94,
+  "wall_model_s": 2.702
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "task_card"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "expand",
+  "fresh": false,
+  "cache_hit": 0.032,
+  "prompt_tokens": 290,
+  "completion_tokens": 114,
+  "wall_model_s": 2.736
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "expand"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_spec",
+  "fresh": false,
+  "cache_hit": 0.0236,
+  "prompt_tokens": 390,
+  "completion_tokens": 150,
+  "wall_model_s": 3.8
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_spec"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 63.4,
+  "prompt_tokens": 322,
+  "completion_tokens": 103,
+  "wall_model_s": 2.25
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 46.0,
+  "prompt_tokens": 235,
+  "completion_tokens": 86,
+  "wall_model_s": 2.471
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 0.022,
+  "prompt_tokens": 419,
+  "completion_tokens": 113,
+  "wall_model_s": 3.098
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "golden_test_skipped",
+  "text": "",
+  "detail": "'tests/test_calc.py' already exists — never overwrite shipped tests"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1006.0,
+  "prompt_tokens": 1007,
+  "completion_tokens": 166,
+  "wall_model_s": 4.079
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "escalated",
+  "file": "minirepo/calc.py",
+  "n_findings": 2,
+  "fix_passes": 2
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "minirepo/calc.py"
+  ]
+ },
+ {
+  "kind": "rule_diagnosis",
+  "text": "",
+  "rule": "FP-4-nameerror-source",
+  "file": "minirepo/errors.py"
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 1,
+  "file": "minirepo/calc.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1064.0,
+  "prompt_tokens": 1065,
+  "completion_tokens": 179,
+  "wall_model_s": 4.29
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "clean",
+  "file": "minirepo/calc.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "minirepo/calc.py"
+  ]
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "run_summary",
+  "fresh": false,
+  "cache_hit": 64.4,
+  "prompt_tokens": 327,
+  "completion_tokens": 89,
+  "wall_model_s": 2.341
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "run_summary"
+ }
+]

@@ -1,0 +1,51 @@
+{
+ "task": "T-32-sliding-window-limiter",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "limiter/window.py",
+   "pytest_exit": 2,
+   "verdict": "failed",
+   "excerpts": [
+    "E   NameError: name 'Callable' is not defined"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "limiter/window.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_window.py::test_burst_within_limit_passes",
+    "FAILED tests/test_window.py::test_limit_exceeded_in_window"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "limiter/window.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_window.py::test_burst_within_limit_passes",
+    "FAILED tests/test_window.py::test_limit_exceeded_in_window"
+   ]
+  }
+ ],
+ "fix_summary": "attempt 3 left tests red (1); rolled back",
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED tests/test_window.py::test_limit_exceeded_in_window",
+  "FAILED tests/test_window.py::test_window_slides_forward",
+  "FAILED tests/test_window.py::test_rejected_calls_do_not_consume_budget"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-32-sliding-window-limiter-summary"
+ ]
+}

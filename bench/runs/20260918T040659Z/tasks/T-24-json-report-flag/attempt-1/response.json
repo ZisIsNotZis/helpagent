@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"status\": \"ok\", \"comment\": \"Fixed build_report to return a JSON document ({\\\"rows\\\": [...]}) when as_json=True, while keeping the legacy text output byte-for-byte identical for as_json=False.\", \"file_path\": \"report/builder.py\", \"content\": \"\\\"\\\"\\\"Builds the daily report.\\n\\nThe HTTP API accepts ?format=json and must return a JSON document:\\n{\\\"rows\\\": [[...], ...]} - everything else keeps the legacy tabular text.\\n\\\"\\\"\\\"\\n\\n\\ndef build_report(rows: list[list], as_json: bool = False) -> str:\\n    if as_json:\\n        return json.dumps({\\\"rows\\\": rows})\\n    lines = [\\\"DAILY REPORT\\\"]\\n    for row in rows:\\n        lines.append(\\\" | \\\".join(str(c) for c in row))\\n    return \\\"\\\\n\\\".join(lines)\\n\"\n}"
+      }
+    }
+  ],
+  "created": 1789704565,
+  "model": "/home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf",
+  "system_fingerprint": "b4294-16378d93f9",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 207,
+    "prompt_tokens": 1436,
+    "total_tokens": 1643,
+    "prompt_tokens_details": {
+      "cached_tokens": 318
+    }
+  },
+  "id": "chatcmpl-ZKi0sn5sjY7jvkZciADffpdbEzISDSJM",
+  "timings": {
+    "cache_n": 318,
+    "prompt_n": 1118,
+    "prompt_ms": 238.957,
+    "prompt_per_token_ms": 0.21373613595706617,
+    "prompt_per_second": 4678.666036148764,
+    "predicted_n": 207,
+    "predicted_ms": 4129.822,
+    "predicted_per_token_ms": 20.047679611650487,
+    "predicted_per_second": 49.881084463204466
+  }
+}

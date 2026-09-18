@@ -1,0 +1,53 @@
+{
+  "model": "spark-x2.5-4b",
+  "temperature": 0.2,
+  "max_tokens": 3000,
+  "stream": false,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "whole_file_edit",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unable"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "comment",
+          "file_path",
+          "content"
+        ]
+      }
+    }
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise whole-file coding-edit engine working on a small Python repository.\n\nYou receive: a bug report, the complete current contents of every file in the repository, and the failing test output. You return exactly ONE JSON object:\n\n{\"status\": \"ok\" or \"unable\", \"comment\": \"1-2 sentences: what the bug is and what you changed (or why you cannot fix it)\", \"file_path\": \"path of the ONE file you rewrite, exactly as shown in the repository listing\", \"content\": \"the COMPLETE new content of that file\"}\n\nHard rules:\n- \"content\" REPLACES the whole file byte-for-byte. Include every line of the file: module docstring, imports, and all. Never truncate, never write \"...\" or placeholders, never wrap the content in markdown fences.\n- Change as little as possible: fix the reported bug and keep everything else exactly as it is. Do not restyle, rename, or reformat unrelated code.\n- Do not change the public API: keep function and class names, signatures, and module layout unchanged.\n- \"file_path\" must exactly match one of the repository file paths shown to you (relative to the repo root).\n- If you are not confident you can fix the bug, set \"status\" to \"unable\", explain in \"comment\", and make \"file_path\" and \"content\" empty strings.\nOutput raw JSON only."
+    },
+    {
+      "role": "user",
+      "content": "## Bug report (verbatim, from the user)\nWe need configurable timeouts end to end: the transport currently hard-codes a 1s deadline and every caller inherits it. Add a `timeout` parameter (default 1.0) to the transport's send(), thread it through the client's fetch(), and make sure BOTH call sites (the service sync and the bulk exporter) can pass their own timeout down. Existing callers without the argument must keep working.\n\n## Repository files (complete current contents)\n### README.md\n```\n# api/exporter\n\nTimeouts are caller-configurable end to end.\n\n```\n\n### api/__init__.py\n```python\n\n```\n\n### api/client.py\n```python\n\"\"\"Public API client.\"\"\"\n\nfrom api.transport import send\n\n\ndef fetch(url: str, payload: str = \"\") -> str:\n    return send(url, payload)\n\n```\n\n### api/service.py\n```python\n\"\"\"Service layer caller.\"\"\"\n\nfrom api.client import fetch\n\n\ndef sync_record(record_id: str) -> str:\n    return fetch(f\"/records/{record_id}\", payload=\"sync\")\n\n```\n\n### api/transport.py\n```python\n\"\"\"HTTP transport (stubbed).\"\"\"\n\n\ndef send(url: str, payload: str) -> str:\n    \"\"\"Send the payload; returns the body. Raises TimeoutError when the\n    (hard-coded) deadline of 1s is exceeded.\"\"\"\n    DEADLINE = 1.0\n    return f\"200:{url}:{payload}\"\n\n```\n\n### exporter/__init__.py\n```python\n\n```\n\n### exporter/bulk.py\n```python\n\"\"\"Bulk exporter - the other fetch caller.\"\"\"\n\nfrom api.client import fetch\n\n\ndef export_all(ids: list) -> list:\n    return [fetch(f\"/export/{i}\") for i in ids]\n\n```\n\n### pyproject.toml\n```\n[project]\nname = \"31parameterthreading\"\nversion = \"0.1.0\"\ndescription = \"Thread a timeout parameter through a three-file call chain.\"\nrequires-python = \">=3.10\"\ndependencies = [\"pytest\"]\n\n[tool.pytest.ini_options]\npythonpath = [\".\"]\ntestpaths = [\"tests\"]\n\n```\n\n### tests/__init__.py\n```python\n\n```\n\n### tests/test_chain.py\n```python\n\"\"\"The timeout parameter must be threaded through every layer.\"\"\"\n\nimport pytest\n\nfrom api import client, transport\nfrom api.service import sync_record\nfrom exporter.bulk import export_all\n\n\ndef test_transport_accepts_timeout():\n    assert transport.send(\"/u\", \"p\", timeout=2.5) == \"200:/u:p\"\n\n\ndef test_client_threads_timeout(monkeypatch):\n    seen = {}\n    def fake_send(url, payload, timeout=1.0):\n        seen[\"timeout\"] = timeout\n        return \"ok\"\n    monkeypatch.setattr(\"api.client.send\", fake_send)\n    client.fetch(\"/u\", timeout=7.5)\n    assert seen[\"timeout\"] == 7.5\n\n\ndef test_service_threads_timeout(monkeypatch):\n    seen = {}\n    def fake_fetch(url, payload=\"\", timeout=1.0):\n        seen[\"timeout\"] = timeout\n        return \"ok\"\n    monkeypatch.setattr(\"api.service.fetch\", fake_fetch)\n    sync_record(\"r1\", timeout=9.0)\n    assert seen[\"timeout\"] == 9.0\n\n\ndef test_exporter_threads_timeout(monkeypatch):\n    seen = []\n    def fake_fetch(url, payload=\"\", timeout=1.0):\n        seen.append(timeout)\n        return \"ok\"\n    monkeypatch.setattr(\"exporter.bulk.fetch\", fake_fetch)\n    export_all([\"a\", \"b\"], timeout=4.0)\n    assert seen == [4.0, 4.0]\n\n```\n\n## Failing test output (`python -m pytest` run inside the repository)\n```\n            return \"ok\"\n        monkeypatch.setattr(\"api.client.send\", fake_send)\n>       client.fetch(\"/u\", timeout=7.5)\nE       TypeError: fetch() got an unexpected keyword argument 'timeout'\n\ntests/test_chain.py:20: TypeError\n_________________________ test_service_threads_timeout _________________________\n\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74c52421bcb0>\n\n    def test_service_threads_timeout(monkeypatch):\n        seen = {}\n        def fake_fetch(url, payload=\"\", timeout=1.0):\n            seen[\"timeout\"] = timeout\n            return \"ok\"\n        monkeypatch.setattr(\"api.service.fetch\", fake_fetch)\n>       sync_record(\"r1\", timeout=9.0)\nE       TypeError: sync_record() got an unexpected keyword argument 'timeout'\n\ntests/test_chain.py:30: TypeError\n________________________ test_exporter_threads_timeout _________________________\n\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74c52421a900>\n\n    def test_exporter_threads_timeout(monkeypatch):\n        seen = []\n        def fake_fetch(url, payload=\"\", timeout=1.0):\n            seen.append(timeout)\n            return \"ok\"\n        monkeypatch.setattr(\"exporter.bulk.fetch\", fake_fetch)\n>       export_all([\"a\", \"b\"], timeout=4.0)\nE       TypeError: export_all() got an unexpected keyword argument 'timeout'\n\ntests/test_chain.py:40: TypeError\n=========================== short test summary info ============================\nFAILED tests/test_chain.py::test_transport_accepts_timeout - TypeError: send(...\nFAILED tests/test_chain.py::test_client_threads_timeout - TypeError: fetch() ...\nFAILED tests/test_chain.py::test_service_threads_timeout - TypeError: sync_re...\nFAILED tests/test_chain.py::test_exporter_threads_timeout - TypeError: export...\n4 failed in 0.04s\n\n```\n\nFix the bug by rewriting exactly one repository file. Respond with the JSON object now."
+    }
+  ]
+}

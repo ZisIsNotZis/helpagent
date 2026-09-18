@@ -1,0 +1,53 @@
+{
+  "model": "spark-x2.5-4b",
+  "temperature": 0.2,
+  "max_tokens": 3000,
+  "stream": false,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "whole_file_edit",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unable"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "comment",
+          "file_path",
+          "content"
+        ]
+      }
+    }
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise whole-file coding-edit engine working on a small Python repository.\n\nYou receive: a bug report, the complete current contents of every file in the repository, and the failing test output. You return exactly ONE JSON object:\n\n{\"status\": \"ok\" or \"unable\", \"comment\": \"1-2 sentences: what the bug is and what you changed (or why you cannot fix it)\", \"file_path\": \"path of the ONE file you rewrite, exactly as shown in the repository listing\", \"content\": \"the COMPLETE new content of that file\"}\n\nHard rules:\n- \"content\" REPLACES the whole file byte-for-byte. Include every line of the file: module docstring, imports, and all. Never truncate, never write \"...\" or placeholders, never wrap the content in markdown fences.\n- Change as little as possible: fix the reported bug and keep everything else exactly as it is. Do not restyle, rename, or reformat unrelated code.\n- Do not change the public API: keep function and class names, signatures, and module layout unchanged.\n- \"file_path\" must exactly match one of the repository file paths shown to you (relative to the repo root).\n- If you are not confident you can fix the bug, set \"status\" to \"unable\", explain in \"comment\", and make \"file_path\" and \"content\" empty strings.\nOutput raw JSON only."
+    },
+    {
+      "role": "user",
+      "content": "## Bug report (verbatim, from the user)\nThe restock picker crashes with IndexError whenever the warehouse stock is empty —\nhappens on every fresh install, before the first delivery is scanned. The docs say it\nshould return the NONE sentinel when there's nothing stocked. Everything else about\npicking works.\n\n## Repository files (complete current contents)\n### README.md\n```\n# inventory — restock planning\n\n`next_bin` picks the first bin in the stock map, or the sentinel \"NONE\" when nothing\nis stocked yet (fresh install).\n\nRun the tests: `python -m pytest`\n\n```\n\n### inventory/__init__.py\n```python\n\n```\n\n### inventory/pick.py\n```python\n\"\"\"Restock planning for the warehouse.\"\"\"\n\n\ndef next_bin(stock: dict[str, int]) -> str:\n    \"\"\"The bin to restock next: the first bin in the stock map.\n\n    Returns the sentinel ``\"NONE\"`` when nothing is stocked yet (fresh install).\n    \"\"\"\n    return list(stock.keys())[0]\n\n```\n\n### pyproject.toml\n```\n[project]\nname = \"inventory\"\nversion = \"0.1.0\"\ndescription = \"Restock planning for the warehouse.\"\nrequires-python = \">=3.10\"\ndependencies = [\"pytest\"]\n\n[tool.pytest.ini_options]\npythonpath = [\".\"]\ntestpaths = [\"tests\"]\n\n```\n\n### tests/test_pick.py\n```python\n\"\"\"Tests for restock picking.\"\"\"\n\nfrom inventory.pick import next_bin\n\n\ndef test_first_bin_is_picked():\n    assert next_bin({\"BIN-3\": 4, \"BIN-1\": 9}) == \"BIN-3\"\n\n\ndef test_empty_stock_returns_sentinel():\n    assert next_bin({}) == \"NONE\"\n\n```\n\n## Failing test output (`python -m pytest` run inside the repository)\n```\n.F                                                                       [100%]\n=================================== FAILURES ===================================\n______________________ test_empty_stock_returns_sentinel _______________________\n\n    def test_empty_stock_returns_sentinel():\n>       assert next_bin({}) == \"NONE\"\n               ^^^^^^^^^^^^\n\ntests/test_pick.py:11: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nstock = {}\n\n    def next_bin(stock: dict[str, int]) -> str:\n        \"\"\"The bin to restock next: the first bin in the stock map.\n    \n        Returns the sentinel ``\"NONE\"`` when nothing is stocked yet (fresh install).\n        \"\"\"\n>       return list(stock.keys())[0]\n               ^^^^^^^^^^^^^^^^^^^^^\nE       IndexError: list index out of range\n\ninventory/pick.py:9: IndexError\n=========================== short test summary info ============================\nFAILED tests/test_pick.py::test_empty_stock_returns_sentinel - IndexError: li...\n1 failed, 1 passed in 0.02s\n\n```\n\nFix the bug by rewriting exactly one repository file. Respond with the JSON object now."
+    }
+  ]
+}

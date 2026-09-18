@@ -1,0 +1,11 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [
+   "spans/merge.py"
+  ],
+  "diff": "diff --git a/spans/merge.py b/spans/merge.py\nindex 258d39e..913f038 100644\n--- a/spans/merge.py\n+++ b/spans/merge.py\n@@ -6,4 +6,19 @@ Contract: result is sorted, non-overlapping, and TOUCHING intervals merge\n \n \n def merge(intervals: list) -> list:\n-    return sorted(intervals)\n+    if not intervals:\n+        return []\n+\n+    intervals = sorted(intervals)\n+    merged = []\n+    current_start, current_end = intervals[0]\n+\n+    for start, end in intervals[1:]:\n+        if start > current_end:\n+            merged.append((current_start, current_end))\n+            current_start, current_end = start, end\n+        else:\n+            current_end = max(current_end, end)\n+\n+    merged.append((current_start, current_end))\n+    return merged\n",
+  "outcome": "green"
+ }
+]

@@ -1,0 +1,13 @@
+== envelope application ==
+status=ok file_path=metrics/registry.py bytes=616 sha256=538c636d5ec01bb3e20cb5ed0bc6588506cb7957e1d48f1aa99f8550d178f5dd
+
+== pytest (after write, exit=0) ==
+..                                                                       [100%]
+2 passed in 0.01s
+
+== checks.py verify (exit=0) ==
+== checks: T-08-add-cache-invalidation ==
+[tests]    OK (python -m pytest in repo/)
+[contract] OK (4 untouched paths byte-identical)
+result: PASS
+

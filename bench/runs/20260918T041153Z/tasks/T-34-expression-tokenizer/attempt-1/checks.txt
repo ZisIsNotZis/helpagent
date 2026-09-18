@@ -1,0 +1,59 @@
+== envelope application ==
+status=ok file_path=tok/lexer.py bytes=1866 sha256=3d2e44d80a2ba4dd54076208fa6fb3bc833ac47b4e1938be167e6f10c25af44e
+
+== pytest (after write, exit=1) ==
+.FF.F                                                                    [100%]
+=================================== FAILURES ===================================
+_________________________ test_identifiers_and_parens __________________________
+
+    def test_identifiers_and_parens():
+>       assert tokenize("(n)*3") == [("lparen", "("), ("ident", "n"), ("rparen", ")"), ("op", "*"), ("int", "3")]
+E       AssertionError: assert [('op', '('),... ('int', '3')] == [('lparen', '... ('int', '3')]
+E         
+E         At index 0 diff: ('op', '(') != ('lparen', '(')
+E         Use -v to get more diff
+
+tests/test_lexer.py:13: AssertionError
+________________________ test_string_with_escaped_quote ________________________
+
+    def test_string_with_escaped_quote():
+>       assert tokenize("'it''s'") == [("str", "it's")]
+E       assert [('str', "'it''s")] == [('str', "it's")]
+E         
+E         At index 0 diff: ('str', "'it''s") != ('str', "it's")
+E         Use -v to get more diff
+
+tests/test_lexer.py:17: AssertionError
+__________________________ test_illegal_char_position __________________________
+
+    def test_illegal_char_position():
+        with pytest.raises(LexError) as e:
+            tokenize("1 ? 2")
+>       assert e.value.offset == 2
+E       AssertionError: assert 1 == 2
+E        +  where 1 = LexError('illegal character at 1').offset
+E        +    where LexError('illegal character at 1') = <ExceptionInfo LexError('illegal character at 1') tblen=2>.value
+
+tests/test_lexer.py:29: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_lexer.py::test_identifiers_and_parens - AssertionError: ass...
+FAILED tests/test_lexer.py::test_string_with_escaped_quote - assert [('str', ...
+FAILED tests/test_lexer.py::test_illegal_char_position - AssertionError: asse...
+3 failed, 2 passed in 0.03s
+
+== checks.py verify (exit=1) ==
+== checks: T-34-expression-tokenizer ==
+[tests]    FAIL (python -m pytest in repo/)
+           E        +    where LexError('illegal character at 1') = <ExceptionInfo LexError('illegal character at 1') tblen=2>.value
+           
+           tests/test_lexer.py:29: AssertionError
+           =========================== short test summary info ============================
+           FAILED tests/test_lexer.py::test_identifiers_and_parens - AssertionError: ass...
+           FAILED tests/test_lexer.py::test_string_with_escaped_quote - assert [('str', ...
+           FAILED tests/test_lexer.py::test_illegal_char_position - AssertionError: asse...
+           3 failed, 2 passed in 0.02s
+[contract] OK (5 untouched paths byte-identical)
+result: FAIL
+
+== rollback ==
+file restored to original bytes

@@ -1,0 +1,231 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 0.0159,
+  "prompt_tokens": 574,
+  "completion_tokens": 110,
+  "wall_model_s": 3.097
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "task_card"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "expand",
+  "fresh": false,
+  "cache_hit": 0.0558,
+  "prompt_tokens": 284,
+  "completion_tokens": 136,
+  "wall_model_s": 3.408
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "expand"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_spec",
+  "fresh": false,
+  "cache_hit": 0.0323,
+  "prompt_tokens": 288,
+  "completion_tokens": 125,
+  "wall_model_s": 3.081
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_spec"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 67.6,
+  "prompt_tokens": 343,
+  "completion_tokens": 87,
+  "wall_model_s": 2.34
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0385,
+  "prompt_tokens": 243,
+  "completion_tokens": 103,
+  "wall_model_s": 3.28
+ },
+ {
+  "kind": "validation_failed",
+  "text": "",
+  "step_type": "gate_decide",
+  "detail": "1 validation error for GateDecide\n  Value error, weakens_gate==True requires decision=='reject' (ENVELOPE_SCHEMAS §20) [type=value_error, input_value={'status': 'ok', 'comment...erministic test check.'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error"
+ },
+ {
+  "kind": "golden_step_retry",
+  "text": "",
+  "step_type": "gate_decide",
+  "attempt": 1,
+  "detail": "gate_decide: schema violation: Value error, weakens_gate==True requires decision=='reject' (ENVELOPE_SCHEMAS §20) — attempt erased, failure summary only"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0286,
+  "prompt_tokens": 324,
+  "completion_tokens": 115,
+  "wall_model_s": 3.287
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 0.0309,
+  "prompt_tokens": 300,
+  "completion_tokens": 211,
+  "wall_model_s": 5.318
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0283,
+  "prompt_tokens": 327,
+  "completion_tokens": 90,
+  "wall_model_s": 3.0
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 0.0177,
+  "prompt_tokens": 517,
+  "completion_tokens": 403,
+  "wall_model_s": 9.628
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "golden_test_skipped",
+  "text": "",
+  "detail": "file_path 'test_ac_map.py' outside repo"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1035.0,
+  "prompt_tokens": 1036,
+  "completion_tokens": 81,
+  "wall_model_s": 2.129
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "clean",
+  "file": "zebra_puzzle.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "zebra_puzzle.py"
+  ]
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 1,
+  "file": "zebra_puzzle.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1085.0,
+  "prompt_tokens": 1086,
+  "completion_tokens": 88,
+  "wall_model_s": 2.019
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "clean",
+  "file": "zebra_puzzle.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "zebra_puzzle.py"
+  ]
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "run_summary",
+  "fresh": false,
+  "cache_hit": 0.0271,
+  "prompt_tokens": 341,
+  "completion_tokens": 96,
+  "wall_model_s": 2.845
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "run_summary"
+ }
+]

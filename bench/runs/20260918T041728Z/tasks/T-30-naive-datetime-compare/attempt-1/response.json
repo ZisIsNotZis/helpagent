@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"status\": \"ok\", \"comment\": \"Fixed is_expired() to normalize naive datetimes to UTC before comparison, preserving the tz-aware UTC expiry and keeping issue() unchanged.\", \"file_path\": \"tokens/tokens.py\", \"content\": \"\\\"\\\"\\\"One-time tokens with an expiry.\\\"\\\"\\\"\\n\\nfrom datetime import datetime, timedelta, timezone\\n\\nTTL = timedelta(hours=1)\\n\\n\\ndef issue(now: datetime) -> dict:\\n    \\\"\\\"\\\"Issue a token expiring TTL after `now` (tz-aware UTC everywhere).\\\"\\\"\\\"\\n    return {\\\"expires_at\\\": now + TTL}\\n\\n\\ndef is_expired(token: dict, at: datetime) -> bool:\\n    \\\"\\\"\\\"Check if `at` is past the token expiry, treating naive inputs as UTC.\\\"\\\"\\\"\\n    if at.tzinfo is None:\\n        at = at.replace(tzinfo=timezone.utc)\\n    return at >= token[\\\"expires_at\\\"]\\n\"}"
+      }
+    }
+  ],
+  "created": 1789705311,
+  "model": "/home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf",
+  "system_fingerprint": "b4294-16378d93f9",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 235,
+    "prompt_tokens": 1586,
+    "total_tokens": 1821,
+    "prompt_tokens_details": {
+      "cached_tokens": 318
+    }
+  },
+  "id": "chatcmpl-45pQrLTOupRF7lGgABz6zlEMlhd25PVR",
+  "timings": {
+    "cache_n": 318,
+    "prompt_n": 1268,
+    "prompt_ms": 281.457,
+    "prompt_per_token_ms": 0.2219692429022082,
+    "prompt_per_second": 4505.1286697435135,
+    "predicted_n": 235,
+    "predicted_ms": 5885.653,
+    "predicted_per_token_ms": 25.15236324786325,
+    "predicted_per_second": 39.75769553522778
+  }
+}

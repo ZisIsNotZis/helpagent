@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"status\": \"ok\", \"comment\": \"Fixed merge() to sort input, drop empty spans, and merge overlapping/touching half-open intervals into a single sorted non-overlapping result.\", \"file_path\": \"spans/merge.py\", \"content\": \"\\\"\\\"\\\"Merge half-open intervals [start, end).\\n\\nContract: result is sorted, non-overlapping, and TOUCHING intervals merge\\n([1,3) + [3,5) become [1,5)). Empty intervals (start == end) are dropped.\\n\\\"\\\"\\\"\\n\\n\\ndef merge(intervals: list) -> list:\\n    if not intervals:\\n        return []\\n\\n    # Drop empty spans and sort by start, then end.\\n    intervals = [(start, end) for start, end in intervals if start < end]\\n    intervals.sort(key=lambda interval: (interval[0], interval[1]))\\n\\n    merged = []\\n    current_start, current_end = intervals[0]\\n\\n    for start, end in intervals[1:]:\\n        # Half-open [start, end): touching (end == start) merges.\\n        if start <= current_end:\\n            current_end = max(current_end, end)\\n        else:\\n            merged.append((current_start, current_end))\\n            current_start, current_end = start, end\\n\\n    merged.append((current_start, current_end))\\n    return merged\\n\"}"
+      }
+    }
+  ],
+  "created": 1789705385,
+  "model": "/home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf",
+  "system_fingerprint": "b4294-16378d93f9",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 314,
+    "prompt_tokens": 1569,
+    "total_tokens": 1883,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    }
+  },
+  "id": "chatcmpl-Tw9YXX7Le2oAbw9dRtfzhAP2wILSG3hd",
+  "timings": {
+    "cache_n": 0,
+    "prompt_n": 1569,
+    "prompt_ms": 278.424,
+    "prompt_per_token_ms": 0.177453154875717,
+    "prompt_per_second": 5635.290061201621,
+    "predicted_n": 314,
+    "predicted_ms": 7998.521,
+    "predicted_per_token_ms": 25.55438019169329,
+    "predicted_per_second": 39.132234571866476
+  }
+}

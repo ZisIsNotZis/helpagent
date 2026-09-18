@@ -1,0 +1,50 @@
+{
+ "task": "T-35-interval-merge-invariants",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "spans/merge.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_merge.py::test_unsorted_input_sorted_output",
+    "FAILED tests/test_merge.py::test_overlapping_merge"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "spans/merge.py",
+   "pytest_exit": 2,
+   "verdict": "failed",
+   "excerpts": [
+    "E   NameError: name 'Interval' is not defined"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "spans/merge.py",
+   "pytest_exit": 2,
+   "verdict": "failed",
+   "excerpts": [
+    "E   ImportError: cannot import name 'merge' from 'spans.merge' (/home/z/vibe/helpagent/bench/runs/20260918T045014/golden/T-35-interval-merge-invariants/work/spans/merge.py)"
+   ]
+  }
+ ],
+ "fix_summary": "attempt 3 left tests red (2); rolled back",
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED tests/test_merge.py::test_overlapping_merge",
+  "FAILED tests/test_merge.py::test_touching_merge",
+  "FAILED tests/test_merge.py::test_empty_intervals_dropped"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-35-interval-merge-invariants-summary"
+ ]
+}

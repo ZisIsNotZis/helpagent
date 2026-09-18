@@ -1,0 +1,41 @@
+== envelope application ==
+status=ok file_path=tagger/notes.py bytes=429 sha256=2574c6028ccaec35b7c9944d447269b05fb2b7d13c72d06fdd7a666a5ec689f0
+
+== pytest (after write, exit=1) ==
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+_________________________ test_notes_do_not_share_tags _________________________
+
+    def test_notes_do_not_share_tags():
+        first = {"title": "groceries"}
+        second = {"title": "workout"}
+        add_tag(first, "errand")
+        add_tag(second, "gym")
+>       assert second["tags"] == ["gym"]
+E       AssertionError: assert ['errand', 'errand', 'gym'] == ['gym']
+E         
+E         At index 0 diff: 'errand' != 'gym'
+E         Left contains 2 more items, first extra item: 'errand'
+E         Use -v to get more diff
+
+tests/test_notes.py:17: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_notes.py::test_notes_do_not_share_tags - AssertionError: as...
+1 failed, 1 passed in 0.02s
+
+== checks.py verify (exit=1) ==
+== checks: T-05-mutable-default ==
+[tests]    FAIL (python -m pytest in repo/)
+           E         At index 0 diff: 'errand' != 'gym'
+           E         Left contains 2 more items, first extra item: 'errand'
+           E         Use -v to get more diff
+           
+           tests/test_notes.py:17: AssertionError
+           =========================== short test summary info ============================
+           FAILED tests/test_notes.py::test_notes_do_not_share_tags - AssertionError: as...
+           1 failed, 1 passed in 0.02s
+[contract] OK (4 untouched paths byte-identical)
+result: FAIL
+
+== rollback ==
+file restored to original bytes

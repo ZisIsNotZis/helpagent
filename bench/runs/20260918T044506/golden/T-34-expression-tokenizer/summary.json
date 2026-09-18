@@ -1,0 +1,52 @@
+{
+ "task": "T-34-expression-tokenizer",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "tok/lexer.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_lexer.py::test_identifiers_and_parens",
+    "E       AssertionError: assert [('op', '('),... ('int', '3')] == [('lparen', '... ('int', '3')]"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "tok/lexer.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_lexer.py::test_identifiers_and_parens",
+    "FAILED tests/test_lexer.py::test_string_with_escaped_quote"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "tok/lexer.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_lexer.py::test_identifiers_and_parens",
+    "FAILED tests/test_lexer.py::test_string_with_escaped_quote"
+   ]
+  }
+ ],
+ "fix_summary": "attempt 3 left tests red (1); rolled back",
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED tests/test_lexer.py::test_simple_expression",
+  "FAILED tests/test_lexer.py::test_identifiers_and_parens",
+  "FAILED tests/test_lexer.py::test_string_with_escaped_quote"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-34-expression-tokenizer-summary"
+ ]
+}

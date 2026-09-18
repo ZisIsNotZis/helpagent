@@ -1,0 +1,53 @@
+{
+  "model": "spark-x2.5-4b",
+  "temperature": 0.2,
+  "max_tokens": 3000,
+  "stream": false,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "whole_file_edit",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unable"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "comment",
+          "file_path",
+          "content"
+        ]
+      }
+    }
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise whole-file coding-edit engine working on a small Python repository.\n\nYou receive: a bug report, the complete current contents of every file in the repository, and the failing test output. You return exactly ONE JSON object:\n\n{\"status\": \"ok\" or \"unable\", \"comment\": \"1-2 sentences: what the bug is and what you changed (or why you cannot fix it)\", \"file_path\": \"path of the ONE file you rewrite, exactly as shown in the repository listing\", \"content\": \"the COMPLETE new content of that file\"}\n\nHard rules:\n- \"content\" REPLACES the whole file byte-for-byte. Include every line of the file: module docstring, imports, and all. Never truncate, never write \"...\" or placeholders, never wrap the content in markdown fences.\n- Change as little as possible: fix the reported bug and keep everything else exactly as it is. Do not restyle, rename, or reformat unrelated code.\n- Do not change the public API: keep function and class names, signatures, and module layout unchanged.\n- \"file_path\" must exactly match one of the repository file paths shown to you (relative to the repo root).\n- If you are not confident you can fix the bug, set \"status\" to \"unable\", explain in \"comment\", and make \"file_path\" and \"content\" empty strings.\nOutput raw JSON only."
+    },
+    {
+      "role": "user",
+      "content": "## Bug report (verbatim, from the user)\n<!-- ANCHOR TASK — source: exercism/python@1f6aab8667bf653b10cc3799f94352fcdb749db6 (MIT), exercises/practice/zebra-puzzle; tests auto-generated from exercism/problem-specifications canonical data. Tier: very-hard. -->\n\n# Instructions\n\nYour task is to solve the Zebra Puzzle to find the answer to these two questions:\n\n- Which of the residents drinks water?\n- Who owns the zebra?\n\n## Puzzle\n\nThe following 15 statements are all known to be true:\n\n1. There are five houses.\n2. The Englishman lives in the red house.\n3. The Spaniard owns the dog.\n4. The person in the green house drinks coffee.\n5. The Ukrainian drinks tea.\n6. The green house is immediately to the right of the ivory house.\n7. The snail owner likes to go dancing.\n8. The person in the yellow house is a painter.\n9. The person in the middle house drinks milk.\n10. The Norwegian lives in the first house.\n11. The person who enjoys reading lives in the house next to the person with the fox.\n12. The painter's house is next to the house with the horse.\n13. The person who plays football drinks orange juice.\n14. The Japanese person plays chess.\n15. The Norwegian lives next to the blue house.\n\nAdditionally, each of the five houses is painted a different color, and their inhabitants are of different national extractions, own different pets, drink different beverages and engage in different hobbies.\n\n~~~~exercism/note\nThere are 24 billion (5!⁵ = 24,883,200,000) possible solutions, so try ruling out as many solutions as possible.\n~~~~\n\n## Repository files (complete current contents)\n### pyproject.toml\n```\n[project]\nname = \"zebra_puzzle\"\nversion = \"0.1.0\"\ndescription = \"Exercism anchor task: zebra-puzzle.\"\nrequires-python = \">=3.10\"\ndependencies = [\"pytest\"]\n\n[tool.pytest.ini_options]\npythonpath = [\".\"]\n\n```\n\n### zebra_puzzle.py\n```python\ndef drinks_water():\n    pass\n\n\ndef owns_zebra():\n    pass\n\n```\n\n### zebra_puzzle_test.py\n```python\n# These tests are auto-generated with test data from:\n# https://github.com/exercism/problem-specifications/tree/main/exercises/zebra-puzzle/canonical-data.json\n# File last updated on 2023-07-19\n\nimport unittest\n\nfrom zebra_puzzle import (\n    drinks_water,\n    owns_zebra,\n)\n\n\nclass ZebraPuzzleTest(unittest.TestCase):\n    def test_resident_who_drinks_water(self):\n        self.assertEqual(drinks_water(), \"Norwegian\")\n\n    def test_resident_who_owns_zebra(self):\n        self.assertEqual(owns_zebra(), \"Japanese\")\n\n```\n\n## Failing test output (`python -m pytest` run inside the repository)\n```\nFF                                                                       [100%]\n=================================== FAILURES ===================================\n________________ ZebraPuzzleTest.test_resident_who_drinks_water ________________\n\nself = <zebra_puzzle_test.ZebraPuzzleTest testMethod=test_resident_who_drinks_water>\n\n    def test_resident_who_drinks_water(self):\n>       self.assertEqual(drinks_water(), \"Norwegian\")\nE       AssertionError: None != 'Norwegian'\n\nzebra_puzzle_test.py:15: AssertionError\n_________________ ZebraPuzzleTest.test_resident_who_owns_zebra _________________\n\nself = <zebra_puzzle_test.ZebraPuzzleTest testMethod=test_resident_who_owns_zebra>\n\n    def test_resident_who_owns_zebra(self):\n>       self.assertEqual(owns_zebra(), \"Japanese\")\nE       AssertionError: None != 'Japanese'\n\nzebra_puzzle_test.py:18: AssertionError\n=========================== short test summary info ============================\nFAILED zebra_puzzle_test.py::ZebraPuzzleTest::test_resident_who_drinks_water\nFAILED zebra_puzzle_test.py::ZebraPuzzleTest::test_resident_who_owns_zebra - ...\n2 failed in 0.02s\n\n```\n\nFix the bug by rewriting exactly one repository file. Respond with the JSON object now."
+    }
+  ]
+}

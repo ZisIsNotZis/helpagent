@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "length",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"status\": \"ok\", \"comment\": \"Fixed spans/merge.py: replaced the broken merge() that only sorted input with a correct half-open interval merger that drops empty spans, merges overlapping/touching intervals, and returns sorted non-overlapping results.\", \"file_path\": \"spans/merge.py\", \"content\": \"\\\"\\\"\\\"Merge half-open intervals [start, end).\\n\\nContract: result is sorted, non-overlapping, and TOUCHING intervals merge\\n([1,3) + [3,5) become [1,5)). Empty intervals (start == end) are dropped.\\n\\\"\\\"\\\"\\n\\n\\ndef merge(inter"
+      }
+    }
+  ],
+  "created": 1789704709,
+  "model": "/home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf",
+  "system_fingerprint": "b4294-16378d93f9",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 141,
+    "prompt_tokens": 8051,
+    "total_tokens": 8192,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    }
+  },
+  "id": "chatcmpl-tqpXkxGy0JScDEx7KX6fIWKWHyjXDHWj",
+  "timings": {
+    "cache_n": 0,
+    "prompt_n": 8051,
+    "prompt_ms": 555.272,
+    "prompt_per_token_ms": 0.06896932058129425,
+    "prompt_per_second": 14499.200391880015,
+    "predicted_n": 141,
+    "predicted_ms": 966.588,
+    "predicted_per_token_ms": 6.9041999999999994,
+    "predicted_per_second": 144.83937313519306
+  }
+}

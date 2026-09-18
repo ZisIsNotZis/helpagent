@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"status\": \"ok\", \"comment\": \"Rewrote plan/model.py to define a Plan dataclass with legacy dict-style access via __getitem__ and __setitem__, while keeping make_plan and finish unchanged so existing dict-style callers continue to work.\", \"file_path\": \"plan/model.py\", \"content\": \"\\\"\\\"\\\"The build plan record.\\n\\nPort note: this module moves the plan off ad-hoc dicts onto a Plan\\ndataclass. The public surface (make_plan, plan[\\\"name\\\"]-style access)\\nmust keep working for existing callers during the migration.\\n\\\"\\\"\\\"\\n\\nfrom __future__ import annotations\\n\\nfrom dataclasses import dataclass, field\\n\\n\\n@dataclass\\nclass Plan:\\n    name: str\\n    steps: list[str] = field(default_factory=list)\\n    done: bool = False\\n\\n    def __getitem__(self, key: str) -> object:\\n        return getattr(self, key)\\n\\n    def __setitem__(self, key: str, value: object) -> None:\\n        setattr(self, key, value)\\n\\n\\ndef make_plan(name: str, steps: list[str]) -> Plan:\\n    return Plan(name=name, steps=list(steps))\\n\\n\\ndef finish(plan: Plan) -> Plan:\\n    plan.done = True\\n    return plan\\n\"\n}"
+      }
+    }
+  ],
+  "created": 1789704589,
+  "model": "/home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf",
+  "system_fingerprint": "b4294-16378d93f9",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 307,
+    "prompt_tokens": 1243,
+    "total_tokens": 1550,
+    "prompt_tokens_details": {
+      "cached_tokens": 318
+    }
+  },
+  "id": "chatcmpl-4tyt1HitL6kgflIPwFo2z0UK10tmtd3f",
+  "timings": {
+    "cache_n": 318,
+    "prompt_n": 925,
+    "prompt_ms": 192.569,
+    "prompt_per_token_ms": 0.2081827027027027,
+    "prompt_per_second": 4803.473040832118,
+    "predicted_n": 307,
+    "predicted_ms": 6231.934,
+    "predicted_per_token_ms": 20.365797385620915,
+    "predicted_per_second": 49.10193208079546
+  }
+}

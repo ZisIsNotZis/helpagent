@@ -1,0 +1,14 @@
+== golden bugfix: A-05-zebra-puzzle ==
+[red] pytest exit=1
+[task_card] class=scaffold goal='Solve the Zebra Puzzle to identify which resident drinks water and who'
+[expand] leaf: 'Solve the Zebra Puzzle to identify which resident drinks water and who' est=1
+[spec] interfaces=[] files_touched=['pyproject.toml', 'zebra_puzzle.py']
+[acs] 3 ACs, gate_decide=accept after 2 round(s)
+[acs] map findings: [Finding(kind='invalid-ac-entry', node_id='N-2', detail="1 validation error for ACEntry\ncheck_kind\n  Input should be 'test', 'script-assertion' or 'subjective' [type=literal_error, input_value=REQUIRED, input_type=_Missing]\n    For further information visit https://errors.pydantic.dev/2.13/v/literal_error"), Finding(kind='invalid-ac-entry', node_id='N-2', detail="1 validation error for ACEntry\ncheck_kind\n  Input should be 'test', 'script-assertion' or 'subjective' [type=literal_error, input_value=REQUIRED, input_type=_Missing]\n    For further information visit https://errors.pydantic.dev/2.13/v/literal_error"), Finding(kind='invalid-ac-entry', node_id='N-2', detail="1 validation error for ACEntry\ncheck_kind\n  Input should be 'test', 'script-assertion' or 'subjective' [type=literal_error, input_value=REQUIRED, input_type=_Missing]\n    For further information visit https://errors.pydantic.dev/2.13/v/literal_error"), Finding(kind='empty-leaf-map', node_id='N-2', detail='leaf AC map is mandatory (DESIGN §4.8); empty map only valid for internal nodes')]
+[implement] fixed=True history=[{"attempt": 1, "file": "zebra_puzzle.py", "pytest_exit": 1, "verdict": "failed", "excerpts": ["FAILED zebra_puzzle_test.py::ZebraPuzzleTest::test_resident_who_drinks_water", "E       AssertionError: 'Ukrainian' != 'Norw
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=parked-needs-user done='Fixed zebra_puzzle.py and passed all tests.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260918T051535/golden/A-05-zebra-puzzle
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====

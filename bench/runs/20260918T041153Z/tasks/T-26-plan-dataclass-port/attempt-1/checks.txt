@@ -1,0 +1,13 @@
+== envelope application ==
+status=ok file_path=plan/model.py bytes=731 sha256=b5682b8b0089d90bd98c09a569c843d988e2d717942f0ae8171462635f62c2b1
+
+== pytest (after write, exit=0) ==
+..                                                                       [100%]
+2 passed in 0.01s
+
+== checks.py verify (exit=0) ==
+== checks: T-26-plan-dataclass-port ==
+[tests]    OK (python -m pytest in repo/)
+[contract] OK (5 untouched paths byte-identical)
+result: PASS
+

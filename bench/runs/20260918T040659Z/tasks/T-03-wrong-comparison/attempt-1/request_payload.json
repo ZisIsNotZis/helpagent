@@ -1,0 +1,53 @@
+{
+  "model": "spark-x2.5-4b",
+  "temperature": 0.2,
+  "max_tokens": 3000,
+  "stream": false,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "whole_file_edit",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unable"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "comment",
+          "file_path",
+          "content"
+        ]
+      }
+    }
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise whole-file coding-edit engine working on a small Python repository.\n\nYou receive: a bug report, the complete current contents of every file in the repository, and the failing test output. You return exactly ONE JSON object:\n\n{\"status\": \"ok\" or \"unable\", \"comment\": \"1-2 sentences: what the bug is and what you changed (or why you cannot fix it)\", \"file_path\": \"path of the ONE file you rewrite, exactly as shown in the repository listing\", \"content\": \"the COMPLETE new content of that file\"}\n\nHard rules:\n- \"content\" REPLACES the whole file byte-for-byte. Include every line of the file: module docstring, imports, and all. Never truncate, never write \"...\" or placeholders, never wrap the content in markdown fences.\n- Change as little as possible: fix the reported bug and keep everything else exactly as it is. Do not restyle, rename, or reformat unrelated code.\n- Do not change the public API: keep function and class names, signatures, and module layout unchanged.\n- \"file_path\" must exactly match one of the repository file paths shown to you (relative to the repo root).\n- If you are not confident you can fix the bug, set \"status\" to \"unable\", explain in \"comment\", and make \"file_path\" and \"content\" empty strings.\nOutput raw JSON only."
+    },
+    {
+      "role": "user",
+      "content": "## Bug report (verbatim, from the user)\nCustomers are supposed to be flipped to the enterprise tier automatically when the\nbilling webhook comes in, but it never triggers for real webhooks — the enterprise\nbranch just doesn't fire. The weird part: when I paste the same plan value into a\nshell and check it by hand, it matches fine. I think something is wrong with how we\ncompare the plan string, maybe some identity-vs-equality thing? Not sure. Please make\nwebhook-driven plan detection work.\n\n## Repository files (complete current contents)\n### README.md\n```\n# billing-webhooks\n\nPlan detection for billing webhook events. Webhook payloads are flat\n`key=value&key=value` strings; plan values arrive exactly as the billing provider\nsends them (whitespace and case are normalized downstream before comparison).\n\nRun the tests: `python -m pytest`\n\n```\n\n### billing/__init__.py\n```python\n\"\"\"Plan detection for billing webhook events.\"\"\"\n\n```\n\n### billing/plans.py\n```python\n\"\"\"Known plans and plan predicates.\"\"\"\n\nPLAN_FREE = \"free\"\nPLAN_PRO = \"pro\"\nPLAN_ENTERPRISE = \"enterprise\"\n\nKNOWN_PLANS = (PLAN_FREE, PLAN_PRO, PLAN_ENTERPRISE)\n\n\ndef parse_webhook(payload: str) -> dict:\n    \"\"\"Parse a flat ``key=value&key=value`` webhook payload into a dict.\"\"\"\n    out: dict[str, str] = {}\n    for field in payload.split(\"&\"):\n        key, _, value = field.partition(\"=\")\n        out[key] = value.strip().lower()\n    return out\n\n\ndef is_enterprise(plan: str) -> bool:\n    \"\"\"True when ``plan`` is the enterprise plan.\"\"\"\n    return plan is PLAN_ENTERPRISE\n\n\ndef is_known(plan: str) -> bool:\n    \"\"\"True when ``plan`` is one of the known plans.\"\"\"\n    return plan in KNOWN_PLANS\n\n```\n\n### pyproject.toml\n```\n[project]\nname = \"billing-webhooks\"\nversion = \"0.1.0\"\ndescription = \"Plan detection for billing webhook events.\"\nrequires-python = \">=3.10\"\ndependencies = [\"pytest\"]\n\n[tool.pytest.ini_options]\npythonpath = [\".\"]\ntestpaths = [\"tests\"]\n\n```\n\n### tests/test_plans.py\n```python\n\"\"\"Tests for billing.plans.\"\"\"\n\nfrom billing.plans import is_enterprise, is_known, parse_webhook\n\n\ndef test_enterprise_detected_from_webhook_payload():\n    payload = parse_webhook(\"plan=Enterprise&seats=40\")\n    assert is_enterprise(payload[\"plan\"]) is True\n\n\ndef test_non_enterprise_plans_are_rejected():\n    assert is_enterprise(\"pro\") is False\n    assert is_enterprise(\"free\") is False\n\n\ndef test_known_plan_from_webhook_payload():\n    payload = parse_webhook(\"plan=PRO\")\n    assert is_known(payload[\"plan\"]) is True\n\n```\n\n## Failing test output (`python -m pytest` run inside the repository)\n```\nF..                                                                      [100%]\n=================================== FAILURES ===================================\n________________ test_enterprise_detected_from_webhook_payload _________________\n\n    def test_enterprise_detected_from_webhook_payload():\n        payload = parse_webhook(\"plan=Enterprise&seats=40\")\n>       assert is_enterprise(payload[\"plan\"]) is True\nE       AssertionError: assert False is True\nE        +  where False = is_enterprise('enterprise')\n\ntests/test_plans.py:8: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_plans.py::test_enterprise_detected_from_webhook_payload - A...\n1 failed, 2 passed in 0.03s\n\n```\n\nFix the bug by rewriting exactly one repository file. Respond with the JSON object now."
+    }
+  ]
+}

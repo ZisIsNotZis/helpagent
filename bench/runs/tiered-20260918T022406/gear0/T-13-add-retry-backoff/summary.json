@@ -1,0 +1,21 @@
+{
+ "task": "T-13-add-retry-backoff",
+ "gear": 0,
+ "fixed": true,
+ "gate_ok": true,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "fetcher/client.py",
+   "pytest_exit": 0,
+   "verdict": "ok",
+   "excerpts": [
+    "..                                                                       [100%]",
+    "2 passed in 0.02s"
+   ]
+  }
+ ],
+ "gate_notes": [
+  "pytest green; untouched-files contract holds"
+ ]
+}

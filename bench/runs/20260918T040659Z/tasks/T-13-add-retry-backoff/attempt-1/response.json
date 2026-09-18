@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"status\": \"ok\", \"comment\": \"Implemented the retry logic in fetcher/client.py: transient responses are now retried per the documented backoff schedule (DELAYS_S) before giving up, and the sleep function is used to enforce the schedule, allowing tests to verify without real waiting.\", \"file_path\": \"fetcher/client.py\", \"content\": \"\\\"\\\"\\\"Fetch shim for the download endpoint.\\\"\\\"\\\"\\n\\nimport time\\n\\n# Documented backoff schedule: delay before retry attempt 1, then attempt 2.\\nDELAYS_S = (1, 2)\\n\\n# The backend flags a transient hiccup with this marker in the response body.\\nRETRY_MARKER = \\\"<transient>\\\"\\n\\n\\ndef fetch(send, url: str, *, sleep=time.sleep) -> str:\\n    \\\"\\\"\\\"Fetch ``url`` through ``send``.\\n\\n    A transient response is retried per the documented backoff schedule; ``sleep``\\n    is injectable so tests can observe the schedule without waiting.\\n    \\\"\\\"\\\"\\n    for attempt in range(len(DELAYS_S) + 1):\\n        response = send(url)\\n        if response != RETRY_MARKER:\\n            return response\\n        if attempt < len(DELAYS_S):\\n            sleep(DELAYS_S[attempt])\\n    return RETRY_MARKER\\n\"\n}"
+      }
+    }
+  ],
+  "created": 1789704506,
+  "model": "/home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf",
+  "system_fingerprint": "b4294-16378d93f9",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 313,
+    "prompt_tokens": 1390,
+    "total_tokens": 1703,
+    "prompt_tokens_details": {
+      "cached_tokens": 318
+    }
+  },
+  "id": "chatcmpl-NoiHGqtNw3kQmg4t42pM9QbuZUoODMKb",
+  "timings": {
+    "cache_n": 318,
+    "prompt_n": 1072,
+    "prompt_ms": 226.032,
+    "prompt_per_token_ms": 0.2108507462686567,
+    "prompt_per_second": 4742.6913003468535,
+    "predicted_n": 313,
+    "predicted_ms": 7103.618,
+    "predicted_per_token_ms": 22.76800641025641,
+    "predicted_per_second": 43.92128067697333
+  }
+}

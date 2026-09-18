@@ -1,0 +1,34 @@
+{
+ "task": "A-04-connect",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "outcome": "envelope:unable"
+  },
+  {
+   "attempt": 2,
+   "outcome": "envelope:unable"
+  },
+  {
+   "attempt": 3,
+   "outcome": "envelope:unable"
+  }
+ ],
+ "fix_summary": "implement returned status=unable: No failing test output was provided to determine the required fix.",
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED connect_test.py::ConnectTest::test_an_empty_board_has_no_winner",
+  "FAILED connect_test.py::ConnectTest::test_illegal_diagonal_does_not_make_a_winner",
+  "FAILED connect_test.py::ConnectTest::test_nobody_wins_crossing_adjacent_angles"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "A-04-connect-summary"
+ ]
+}

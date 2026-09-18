@@ -90,7 +90,15 @@ def run_tiered(task_dir: Path, runs_dir: Path, model, gear_override: int | None)
     start_gear = gear_override if gear_override is not None else 0
     last = None
     for gear in range(start_gear, 3):
-        row = run_gear(gear, task_dir, runs_dir, model)
+        try:
+            row = run_gear(gear, task_dir, runs_dir, model)
+        except Exception as exc:
+            # a gear that blows up (e.g. repair respawn exhausted) is a gear
+            # FAILURE — the ladder escalates; one bad step must not kill the run
+            import traceback
+            traceback.print_exc()
+            row = {"task": task_dir.name, "gear": gear, "result": "FAIL",
+                   "wall_s": 0.0, "error": str(exc)[:120]}
         last = row
         print(f"  [gear {gear}] {row['task']}: {row['result']} ({row['wall_s']}s)", flush=True)
         if row["result"] == "PASS":

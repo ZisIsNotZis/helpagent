@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"status\": \"ok\", \"comment\": \"Fixed the session TTL bug by correcting SESSION_TTL_SECONDS from 60 to 3600 in auth/config.py, so sessions expire after one hour as documented.\", \"file_path\": \"auth/config.py\", \"content\": \"\\\"\\\"\\\"Service-wide settings for the session layer.\\\"\\\"\\\"\\n\\n# Session lifetime, in seconds.\\nSESSION_TTL_SECONDS = 3600\\n\"}"
+      }
+    }
+  ],
+  "created": 1789704716,
+  "model": "/home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf",
+  "system_fingerprint": "b4294-16378d93f9",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 101,
+    "prompt_tokens": 1449,
+    "total_tokens": 1550,
+    "prompt_tokens_details": {
+      "cached_tokens": 318
+    }
+  },
+  "id": "chatcmpl-luo0FFxAJYXK2r8WcaJWjUUgWSZk0Usq",
+  "timings": {
+    "cache_n": 318,
+    "prompt_n": 1131,
+    "prompt_ms": 266.069,
+    "prompt_per_token_ms": 0.23525110521662249,
+    "prompt_per_second": 4250.77705407244,
+    "predicted_n": 101,
+    "predicted_ms": 2560.55,
+    "predicted_per_token_ms": 25.605500000000003,
+    "predicted_per_second": 39.05410946866884
+  }
+}

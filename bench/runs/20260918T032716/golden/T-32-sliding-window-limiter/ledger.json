@@ -1,0 +1,296 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 44.4,
+  "prompt_tokens": 227,
+  "completion_tokens": 100,
+  "wall_model_s": 2.419
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "task_card"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "expand",
+  "fresh": false,
+  "cache_hit": 0.0317,
+  "prompt_tokens": 293,
+  "completion_tokens": 106,
+  "wall_model_s": 1.9
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "expand"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_spec",
+  "fresh": false,
+  "cache_hit": 0.0283,
+  "prompt_tokens": 327,
+  "completion_tokens": 119,
+  "wall_model_s": 2.135
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_spec"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 64.6,
+  "prompt_tokens": 328,
+  "completion_tokens": 145,
+  "wall_model_s": 2.176
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.036,
+  "prompt_tokens": 259,
+  "completion_tokens": 89,
+  "wall_model_s": 2.224
+ },
+ {
+  "kind": "validation_failed",
+  "text": "",
+  "step_type": "gate_decide",
+  "detail": "1 validation error for GateDecide\n  Value error, weakens_gate==True requires decision=='reject' (ENVELOPE_SCHEMAS §20) [type=value_error, input_value={'status': 'ok', 'comment... a specific test case.'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error"
+ },
+ {
+  "kind": "golden_step_retry",
+  "text": "",
+  "step_type": "gate_decide",
+  "attempt": 1,
+  "detail": "gate_decide: schema violation: Value error, weakens_gate==True requires decision=='reject' (ENVELOPE_SCHEMAS §20) — attempt erased, failure summary only"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0272,
+  "prompt_tokens": 340,
+  "completion_tokens": 115,
+  "wall_model_s": 2.677
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 0.0342,
+  "prompt_tokens": 272,
+  "completion_tokens": 223,
+  "wall_model_s": 4.025
+ },
+ {
+  "kind": "validation_failed",
+  "text": "",
+  "step_type": "draft_acs",
+  "detail": "1 validation error for DraftACs\n  Value error, duplicate ac_id entries (§6 ids unique): [REQUIRED] [type=value_error, input_value={'status': 'ok', 'comment...cond sliding window.\"}]}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error"
+ },
+ {
+  "kind": "golden_step_retry",
+  "text": "",
+  "step_type": "draft_acs",
+  "attempt": 1,
+  "detail": "draft_acs: schema violation: Value error, duplicate ac_id entries (§6 ids unique): [REQUIRED] — attempt erased, failure summary only"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 0.0269,
+  "prompt_tokens": 343,
+  "completion_tokens": 116,
+  "wall_model_s": 2.004
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0364,
+  "prompt_tokens": 256,
+  "completion_tokens": 103,
+  "wall_model_s": 2.731
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1.1791,
+  "prompt_tokens": 438,
+  "completion_tokens": 413,
+  "wall_model_s": 6.653
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "golden_test_skipped",
+  "text": "",
+  "detail": "file_path 'ac_test.py' outside repo"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1227.0,
+  "prompt_tokens": 1228,
+  "completion_tokens": 218,
+  "wall_model_s": 3.667
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "clean",
+  "file": "limiter/window.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "limiter/window.py"
+  ]
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 1,
+  "file": "limiter/window.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1291.0,
+  "prompt_tokens": 1292,
+  "completion_tokens": 216,
+  "wall_model_s": 3.576
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "clean",
+  "file": "limiter/window.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "limiter/window.py"
+  ]
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 2,
+  "file": "limiter/window.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1293.0,
+  "prompt_tokens": 1294,
+  "completion_tokens": 216,
+  "wall_model_s": 3.93
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "clean",
+  "file": "limiter/window.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "limiter/window.py"
+  ]
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 3,
+  "file": "limiter/window.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "run_summary",
+  "fresh": false,
+  "cache_hit": 75.4,
+  "prompt_tokens": 382,
+  "completion_tokens": 83,
+  "wall_model_s": 1.912
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "run_summary"
+ }
+]

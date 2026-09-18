@@ -1,0 +1,53 @@
+{
+  "model": "spark-x2.5-4b",
+  "temperature": 0.2,
+  "max_tokens": 3000,
+  "stream": false,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "whole_file_edit",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unable"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "comment",
+          "file_path",
+          "content"
+        ]
+      }
+    }
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise whole-file coding-edit engine working on a small Python repository.\n\nYou receive: a bug report, the complete current contents of every file in the repository, and the failing test output. You return exactly ONE JSON object:\n\n{\"status\": \"ok\" or \"unable\", \"comment\": \"1-2 sentences: what the bug is and what you changed (or why you cannot fix it)\", \"file_path\": \"path of the ONE file you rewrite, exactly as shown in the repository listing\", \"content\": \"the COMPLETE new content of that file\"}\n\nHard rules:\n- \"content\" REPLACES the whole file byte-for-byte. Include every line of the file: module docstring, imports, and all. Never truncate, never write \"...\" or placeholders, never wrap the content in markdown fences.\n- Change as little as possible: fix the reported bug and keep everything else exactly as it is. Do not restyle, rename, or reformat unrelated code.\n- Do not change the public API: keep function and class names, signatures, and module layout unchanged.\n- \"file_path\" must exactly match one of the repository file paths shown to you (relative to the repo root).\n- If you are not confident you can fix the bug, set \"status\" to \"unable\", explain in \"comment\", and make \"file_path\" and \"content\" empty strings.\nOutput raw JSON only."
+    },
+    {
+      "role": "user",
+      "content": "## Bug report (verbatim, from the user)\nOur API limiter lets everything through - someone rewrote it and now it never rejects, even during bursts. The contract: at most `limit` calls inside any sliding window of `window_s` seconds; a REJECTED call must not consume budget; old calls (older than window_s ago) stop counting. The clock is injected, no sleeping. Please restore the contract.\n\n## Repository files (complete current contents)\n### README.md\n```\n# limiter\n\nSliding-window limiter: `limit` calls per `window_s`, injected clock.\n\n```\n\n### limiter/__init__.py\n```python\n\n```\n\n### limiter/window.py\n```python\n\"\"\"Sliding-window rate limiter.\n\nContract: at most `limit` calls inside ANY window of `window_s` seconds.\n`now` is injected (seconds, monotonic) so tests never sleep.\n\"\"\"\n\n\nclass SlidingWindowLimiter:\n    def __init__(self, limit: int, window_s: float):\n        self.limit = limit\n        self.window_s = window_s\n        self.calls: list[float] = []\n\n    def allow(self, now: float) -> bool:\n        self.calls.append(now)\n        return True\n\n```\n\n### pyproject.toml\n```\n[project]\nname = \"32slidingwindowlimiter\"\nversion = \"0.1.0\"\ndescription = \"Sliding-window rate limiter with injected clock.\"\nrequires-python = \">=3.10\"\ndependencies = [\"pytest\"]\n\n[tool.pytest.ini_options]\npythonpath = [\".\"]\ntestpaths = [\"tests\"]\n\n```\n\n### tests/__init__.py\n```python\n\n```\n\n### tests/test_window.py\n```python\n\"\"\"Sliding-window contract tests.\"\"\"\n\nfrom limiter.window import SlidingWindowLimiter\n\n\ndef test_burst_within_limit_passes():\n    lim = SlidingWindowLimiter(limit=3, window_s=10)\n    assert [lim.allow(t) for t in (0, 1, 2)] == [True, True, True]\n\n\ndef test_limit_exceeded_in_window():\n    lim = SlidingWindowLimiter(limit=3, window_s=10)\n    assert [lim.allow(t) for t in (0, 1, 2, 3)] == [True, True, True, False]\n\n\ndef test_window_slides_forward():\n    lim = SlidingWindowLimiter(limit=3, window_s=10)\n    assert [lim.allow(t) for t in (0, 1, 2)] == [True, True, True]\n    assert lim.allow(10.5) is True   # t=0 left the window\n    assert lim.allow(11.0) is True   # t=1 left the window\n    assert lim.allow(11.1) is False  # 2,10.5,11.0 still within 10s\n\n\ndef test_rejected_calls_do_not_consume_budget():\n    lim = SlidingWindowLimiter(limit=2, window_s=10)\n    assert lim.allow(0) is True and lim.allow(1) is True\n    assert lim.allow(2) is False     # rejected\n    assert lim.allow(2.5) is False   # still 2 calls inside the window\n\n```\n\n## Failing test output (`python -m pytest` run inside the repository)\n```\n    def test_limit_exceeded_in_window():\n        lim = SlidingWindowLimiter(limit=3, window_s=10)\n>       assert [lim.allow(t) for t in (0, 1, 2, 3)] == [True, True, True, False]\nE       assert [True, True, True, True] == [True, True, True, False]\nE         \nE         At index 3 diff: True != False\nE         Use -v to get more diff\n\ntests/test_window.py:13: AssertionError\n__________________________ test_window_slides_forward __________________________\n\n    def test_window_slides_forward():\n        lim = SlidingWindowLimiter(limit=3, window_s=10)\n        assert [lim.allow(t) for t in (0, 1, 2)] == [True, True, True]\n        assert lim.allow(10.5) is True   # t=0 left the window\n        assert lim.allow(11.0) is True   # t=1 left the window\n>       assert lim.allow(11.1) is False  # 2,10.5,11.0 still within 10s\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE       assert True is False\nE        +  where True = allow(11.1)\nE        +    where allow = <limiter.window.SlidingWindowLimiter object at 0x7fc9a2471130>.allow\n\ntests/test_window.py:21: AssertionError\n__________________ test_rejected_calls_do_not_consume_budget ___________________\n\n    def test_rejected_calls_do_not_consume_budget():\n        lim = SlidingWindowLimiter(limit=2, window_s=10)\n        assert lim.allow(0) is True and lim.allow(1) is True\n>       assert lim.allow(2) is False     # rejected\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE       assert True is False\nE        +  where True = allow(2)\nE        +    where allow = <limiter.window.SlidingWindowLimiter object at 0x7fc9a2472750>.allow\n\ntests/test_window.py:27: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_window.py::test_limit_exceeded_in_window - assert [True, Tr...\nFAILED tests/test_window.py::test_window_slides_forward - assert True is False\nFAILED tests/test_window.py::test_rejected_calls_do_not_consume_budget - asse...\n3 failed, 1 passed in 0.03s\n\n```\n\nFix the bug by rewriting exactly one repository file. Respond with the JSON object now."
+    }
+  ]
+}

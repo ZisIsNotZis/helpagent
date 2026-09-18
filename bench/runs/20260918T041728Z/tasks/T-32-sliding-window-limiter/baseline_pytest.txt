@@ -1,0 +1,44 @@
+.FFF                                                                     [100%]
+=================================== FAILURES ===================================
+________________________ test_limit_exceeded_in_window _________________________
+
+    def test_limit_exceeded_in_window():
+        lim = SlidingWindowLimiter(limit=3, window_s=10)
+>       assert [lim.allow(t) for t in (0, 1, 2, 3)] == [True, True, True, False]
+E       assert [True, True, True, True] == [True, True, True, False]
+E         
+E         At index 3 diff: True != False
+E         Use -v to get more diff
+
+tests/test_window.py:13: AssertionError
+__________________________ test_window_slides_forward __________________________
+
+    def test_window_slides_forward():
+        lim = SlidingWindowLimiter(limit=3, window_s=10)
+        assert [lim.allow(t) for t in (0, 1, 2)] == [True, True, True]
+        assert lim.allow(10.5) is True   # t=0 left the window
+        assert lim.allow(11.0) is True   # t=1 left the window
+>       assert lim.allow(11.1) is False  # 2,10.5,11.0 still within 10s
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       assert True is False
+E        +  where True = allow(11.1)
+E        +    where allow = <limiter.window.SlidingWindowLimiter object at 0x7fc9a2471130>.allow
+
+tests/test_window.py:21: AssertionError
+__________________ test_rejected_calls_do_not_consume_budget ___________________
+
+    def test_rejected_calls_do_not_consume_budget():
+        lim = SlidingWindowLimiter(limit=2, window_s=10)
+        assert lim.allow(0) is True and lim.allow(1) is True
+>       assert lim.allow(2) is False     # rejected
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       assert True is False
+E        +  where True = allow(2)
+E        +    where allow = <limiter.window.SlidingWindowLimiter object at 0x7fc9a2472750>.allow
+
+tests/test_window.py:27: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_window.py::test_limit_exceeded_in_window - assert [True, Tr...
+FAILED tests/test_window.py::test_window_slides_forward - assert True is False
+FAILED tests/test_window.py::test_rejected_calls_do_not_consume_budget - asse...
+3 failed, 1 passed in 0.03s

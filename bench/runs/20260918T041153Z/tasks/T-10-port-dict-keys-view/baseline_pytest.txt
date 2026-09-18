@@ -1,0 +1,26 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+______________________ test_empty_stock_returns_sentinel _______________________
+
+    def test_empty_stock_returns_sentinel():
+>       assert next_bin({}) == "NONE"
+               ^^^^^^^^^^^^
+
+tests/test_pick.py:11: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+stock = {}
+
+    def next_bin(stock: dict[str, int]) -> str:
+        """The bin to restock next: the first bin in the stock map.
+    
+        Returns the sentinel ``"NONE"`` when nothing is stocked yet (fresh install).
+        """
+>       return list(stock.keys())[0]
+               ^^^^^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+inventory/pick.py:9: IndexError
+=========================== short test summary info ============================
+FAILED tests/test_pick.py::test_empty_stock_returns_sentinel - IndexError: li...
+1 failed, 1 passed in 0.02s

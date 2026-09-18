@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"status\": \"ok\", \"comment\": \"Fixed the identity-vs-equality bug in is_enterprise by using the equality operator (==) instead of the identity operator (is) when comparing the plan string to the enterprise plan constant.\", \"file_path\": \"billing/plans.py\", \"content\": \"\\\"\\\"\\\"Known plans and plan predicates.\\\"\\\"\\\"\\n\\nPLAN_FREE = \\\"free\\\"\\nPLAN_PRO = \\\"pro\\\"\\nPLAN_ENTERPRISE = \\\"enterprise\\\"\\n\\nKNOWN_PLANS = (PLAN_FREE, PLAN_PRO, PLAN_ENTERPRISE)\\n\\n\\ndef parse_webhook(payload: str) -> dict:\\n    \\\"\\\"\\\"Parse a flat ``key=value&key=value`` webhook payload into a dict.\\\"\\\"\\\"\\n    out: dict[str, str] = {}\\n    for field in payload.split(\\\"&\\\"):\\n        key, _, value = field.partition(\\\"=\\\")\\n        out[key] = value.strip().lower()\\n    return out\\n\\n\\ndef is_enterprise(plan: str) -> bool:\\n    \\\"\\\"\\\"True when ``plan`` is the enterprise plan.\\\"\\\"\\\"\\n    return plan == PLAN_ENTERPRISE\\n\\n\\ndef is_known(plan: str) -> bool:\\n    \\\"\\\"\\\"True when ``plan`` is one of the known plans.\\\"\\\"\\\"\\n    return plan in KNOWN_PLANS\\n\"}"
+      }
+    }
+  ],
+  "created": 1789705068,
+  "model": "/home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf",
+  "system_fingerprint": "b4294-16378d93f9",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 328,
+    "prompt_tokens": 1261,
+    "total_tokens": 1589,
+    "prompt_tokens_details": {
+      "cached_tokens": 318
+    }
+  },
+  "id": "chatcmpl-q32PhfbZrFUGmnshSKSYbt48LBgXdisL",
+  "timings": {
+    "cache_n": 318,
+    "prompt_n": 943,
+    "prompt_ms": 203.349,
+    "prompt_per_token_ms": 0.21564050901378579,
+    "prompt_per_second": 4637.347614200217,
+    "predicted_n": 328,
+    "predicted_ms": 7958.6,
+    "predicted_per_token_ms": 24.338226299694192,
+    "predicted_per_second": 41.08762847737039
+  }
+}

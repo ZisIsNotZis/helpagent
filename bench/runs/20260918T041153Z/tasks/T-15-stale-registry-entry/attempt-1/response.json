@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"status\": \"ok\", \"comment\": \"Fixed the PluginRegistry.unregister method to delete the plugin from the _plugins dictionary, ensuring removed plugins are unfindable by lookup.\", \"file_path\": \"plugins/registry.py\", \"content\": \"\\\"\\\"\\\"Plugin registry: register, unregister, lookup.\\\"\\\"\\\"\\n\\n\\nclass PluginRegistry:\\n    \\\"\\\"\\\"Name-addressable plugin store.\\n\\n    ``unregister`` must fully remove a plugin: a removed plugin never keeps\\n    answering lookups.\\n    \\\"\\\"\\\"\\n\\n    def __init__(self) -> None:\\n        self._plugins: dict[str, object] = {}\\n        self._meta: dict[str, str] = {}\\n\\n    def register(self, name: str, plugin: object, *, version: str = \\\"0.0.0\\\") -> None:\\n        self._plugins[name] = plugin\\n        self._meta[name] = version\\n\\n    def unregister(self, name: str) -> None:\\n        if name in self._meta:\\n            del self._meta[name]\\n            del self._plugins[name]\\n\\n    def lookup(self, name: str) -> object | None:\\n        \\\"\\\"\\\"The plugin registered under ``name``, or ``None`` when absent.\\\"\\\"\\\"\\n        return self._plugins.get(name)\\n\"}"
+      }
+    }
+  ],
+  "created": 1789704825,
+  "model": "/home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf",
+  "system_fingerprint": "b4294-16378d93f9",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 299,
+    "prompt_tokens": 1269,
+    "total_tokens": 1568,
+    "prompt_tokens_details": {
+      "cached_tokens": 318
+    }
+  },
+  "id": "chatcmpl-cENZbNrEw8GNs1Q1CTKdY7RsdnhgT6bs",
+  "timings": {
+    "cache_n": 318,
+    "prompt_n": 951,
+    "prompt_ms": 209.418,
+    "prompt_per_token_ms": 0.22020820189274448,
+    "prompt_per_second": 4541.156920608543,
+    "predicted_n": 299,
+    "predicted_ms": 7467.098,
+    "predicted_per_token_ms": 25.057375838926173,
+    "predicted_per_second": 39.90840886245232
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "model": "spark-x2.5-4b",
+  "temperature": 0.2,
+  "max_tokens": 3000,
+  "stream": false,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "whole_file_edit",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unable"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "comment",
+          "file_path",
+          "content"
+        ]
+      }
+    }
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise whole-file coding-edit engine working on a small Python repository.\n\nYou receive: a bug report, the complete current contents of every file in the repository, and the failing test output. You return exactly ONE JSON object:\n\n{\"status\": \"ok\" or \"unable\", \"comment\": \"1-2 sentences: what the bug is and what you changed (or why you cannot fix it)\", \"file_path\": \"path of the ONE file you rewrite, exactly as shown in the repository listing\", \"content\": \"the COMPLETE new content of that file\"}\n\nHard rules:\n- \"content\" REPLACES the whole file byte-for-byte. Include every line of the file: module docstring, imports, and all. Never truncate, never write \"...\" or placeholders, never wrap the content in markdown fences.\n- Change as little as possible: fix the reported bug and keep everything else exactly as it is. Do not restyle, rename, or reformat unrelated code.\n- Do not change the public API: keep function and class names, signatures, and module layout unchanged.\n- \"file_path\" must exactly match one of the repository file paths shown to you (relative to the repo root).\n- If you are not confident you can fix the bug, set \"status\" to \"unable\", explain in \"comment\", and make \"file_path\" and \"content\" empty strings.\nOutput raw JSON only."
+    },
+    {
+      "role": "user",
+      "content": "## Bug report (verbatim, from the user)\nCallers need to check whether a stack is empty without catching pop() exceptions — the class docs promise an is_empty() predicate but the method isn't there. Add it: True when the stack has no items, False otherwise. Don't change existing methods.\n\n## Repository files (complete current contents)\n### README.md\n```\n# stack\n\nMinimal LIFO stack: push, pop, peek, is_empty.\n\n```\n\n### pyproject.toml\n```\n[project]\nname = \"23stackisempty\"\nversion = \"0.1.0\"\ndescription = \"Stack class missing the documented is_empty().\"\nrequires-python = \">=3.10\"\ndependencies = [\"pytest\"]\n\n[tool.pytest.ini_options]\npythonpath = [\".\"]\ntestpaths = [\"tests\"]\n\n```\n\n### stack/__init__.py\n```python\n\n```\n\n### stack/stack.py\n```python\n\"\"\"A minimal LIFO stack.\"\"\"\n\n\nclass Stack:\n    def __init__(self) -> None:\n        self._items: list = []\n\n    def push(self, item) -> None:\n        self._items.append(item)\n\n    def pop(self):\n        return self._items.pop()\n\n    def peek(self):\n        return self._items[-1]\n\n```\n\n### tests/__init__.py\n```python\n\n```\n\n### tests/test_stack.py\n```python\n\"\"\"The docs promise is_empty() alongside push/pop/peek.\"\"\"\n\nfrom stack.stack import Stack\n\n\ndef test_empty_on_construction():\n    assert Stack().is_empty() is True\n\n\ndef test_not_empty_after_push():\n    s = Stack()\n    s.push(1)\n    assert s.is_empty() is False\n\n\ndef test_empty_again_after_pop():\n    s = Stack()\n    s.push(1)\n    s.pop()\n    assert s.is_empty() is True\n\n```\n\n## Failing test output (`python -m pytest` run inside the repository)\n```\nFFF                                                                      [100%]\n=================================== FAILURES ===================================\n__________________________ test_empty_on_construction __________________________\n\n    def test_empty_on_construction():\n>       assert Stack().is_empty() is True\n               ^^^^^^^^^^^^^^^^\nE       AttributeError: 'Stack' object has no attribute 'is_empty'\n\ntests/test_stack.py:7: AttributeError\n__________________________ test_not_empty_after_push ___________________________\n\n    def test_not_empty_after_push():\n        s = Stack()\n        s.push(1)\n>       assert s.is_empty() is False\n               ^^^^^^^^^^\nE       AttributeError: 'Stack' object has no attribute 'is_empty'\n\ntests/test_stack.py:13: AttributeError\n__________________________ test_empty_again_after_pop __________________________\n\n    def test_empty_again_after_pop():\n        s = Stack()\n        s.push(1)\n        s.pop()\n>       assert s.is_empty() is True\n               ^^^^^^^^^^\nE       AttributeError: 'Stack' object has no attribute 'is_empty'\n\ntests/test_stack.py:20: AttributeError\n=========================== short test summary info ============================\nFAILED tests/test_stack.py::test_empty_on_construction - AttributeError: 'Sta...\nFAILED tests/test_stack.py::test_not_empty_after_push - AttributeError: 'Stac...\nFAILED tests/test_stack.py::test_empty_again_after_pop - AttributeError: 'Sta...\n3 failed in 0.03s\n\n```\n\nFix the bug by rewriting exactly one repository file. Respond with the JSON object now."
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+FFFFF                                                                    [100%]
+=================================== FAILURES ===================================
+____________________________ test_simple_expression ____________________________
+
+    def test_simple_expression():
+>       assert tokenize("1+2") == [("int", "1"), ("op", "+"), ("int", "2")]
+E       AssertionError: assert [] == [('int', '1')... ('int', '2')]
+E         
+E         Right contains 3 more items, first extra item: ('int', '1')
+E         Use -v to get more diff
+
+tests/test_lexer.py:9: AssertionError
+_________________________ test_identifiers_and_parens __________________________
+
+    def test_identifiers_and_parens():
+>       assert tokenize("(n)*3") == [("lparen", "("), ("ident", "n"), ("rparen", ")"), ("op", "*"), ("int", "3")]
+E       AssertionError: assert [] == [('lparen', '... ('int', '3')]
+E         
+E         Right contains 5 more items, first extra item: ('lparen', '(')
+E         Use -v to get more diff
+
+tests/test_lexer.py:13: AssertionError
+________________________ test_string_with_escaped_quote ________________________
+
+    def test_string_with_escaped_quote():
+>       assert tokenize("'it''s'") == [("str", "it's")]
+E       assert [] == [('str', "it's")]
+E         
+E         Right contains one more item: ('str', "it's")
+E         Use -v to get more diff
+
+tests/test_lexer.py:17: AssertionError
+______________________ test_unterminated_string_position _______________________
+
+    def test_unterminated_string_position():
+>       with pytest.raises(LexError) as e:
+E       Failed: DID NOT RAISE LexError
+
+tests/test_lexer.py:21: Failed
+__________________________ test_illegal_char_position __________________________
+
+    def test_illegal_char_position():
+>       with pytest.raises(LexError) as e:
+E       Failed: DID NOT RAISE LexError
+
+tests/test_lexer.py:27: Failed
+=========================== short test summary info ============================
+FAILED tests/test_lexer.py::test_simple_expression - AssertionError: assert [...
+FAILED tests/test_lexer.py::test_identifiers_and_parens - AssertionError: ass...
+FAILED tests/test_lexer.py::test_string_with_escaped_quote - assert [] == [('...
+FAILED tests/test_lexer.py::test_unterminated_string_position - Failed: DID N...
+FAILED tests/test_lexer.py::test_illegal_char_position - Failed: DID NOT RAIS...
+5 failed in 0.04s

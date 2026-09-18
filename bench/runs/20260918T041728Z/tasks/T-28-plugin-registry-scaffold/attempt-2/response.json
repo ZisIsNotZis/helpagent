@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"status\": \"ok\", \"comment\": \"Created plugins/registry.py implementing the registry contract: register rejects duplicate names with ValueError, get raises KeyError for unknown names, and run invokes the registered callable with the given arguments.\", \"file_path\": \"plugins/registry.py\", \"content\": \"\\\"\\\"\\\"Plugin registry module.\\\"\\\"\\\"\\n\\n\\nclass Registry:\\n    \\\"\\\"\\\"Registry for plugin callables.\\\"\\\"\\\"\\n\\n    def __init__(self):\\n        self._plugins = {}\\n\\n    def register(self, name, fn):\\n        \\\"\\\"\\\"Register a callable under a name. Raises ValueError if duplicate.\\\"\\\"\\\"\\n        if name in self._plugins:\\n            raise ValueError(f\\\"Plugin name '{name}' is already registered\\\")\\n        self._plugins[name] = fn\\n\\n    def get(self, name):\\n        \\\"\\\"\\\"Return the callable registered under name. Raises KeyError if unknown.\\\"\\\"\\\"\\n        return self._plugins[name]\\n\\n    def run(self, name, *args):\\n        \\\"\\\"\\\"Run the callable registered under name with the given arguments.\\\"\\\"\\\"\\n        fn = self.get(name)\\n        return fn(*args)\\n\\n\\nregistry = Registry()\\n\\n\\n__all__ = [\\\"registry\\\"]\\n\"}"
+      }
+    }
+  ],
+  "created": 1789705280,
+  "model": "/home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf",
+  "system_fingerprint": "b4294-16378d93f9",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 299,
+    "prompt_tokens": 5885,
+    "total_tokens": 6184,
+    "prompt_tokens_details": {
+      "cached_tokens": 318
+    }
+  },
+  "id": "chatcmpl-KSdLa7JNzsgYMck2XSBTYug9aHmOfip4",
+  "timings": {
+    "cache_n": 318,
+    "prompt_n": 5567,
+    "prompt_ms": 887.768,
+    "prompt_per_token_ms": 0.15946973235135622,
+    "prompt_per_second": 6270.78245667787,
+    "predicted_n": 299,
+    "predicted_ms": 7817.953,
+    "predicted_per_token_ms": 26.234741610738258,
+    "predicted_per_second": 38.11739466839977
+  }
+}

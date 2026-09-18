@@ -1,0 +1,13 @@
+== envelope application ==
+status=ok file_path=limiter/window.py bytes=719 sha256=ea5fa6ec3a1a022e9e842aa9e8f776118e5e1ca457b9171266f5cfa7bc980eb3
+
+== pytest (after write, exit=0) ==
+....                                                                     [100%]
+4 passed in 0.01s
+
+== checks.py verify (exit=0) ==
+== checks: T-32-sliding-window-limiter ==
+[tests]    OK (python -m pytest in repo/)
+[contract] OK (5 untouched paths byte-identical)
+result: PASS
+

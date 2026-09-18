@@ -1,0 +1,201 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 0.0439,
+  "prompt_tokens": 214,
+  "completion_tokens": 3000,
+  "wall_model_s": 53.067
+ },
+ {
+  "kind": "validation_failed",
+  "text": "",
+  "step_type": "task_card",
+  "detail": "malformed JSON at offset 142"
+ },
+ {
+  "kind": "golden_step_retry",
+  "text": "",
+  "step_type": "task_card",
+  "attempt": 1,
+  "detail": "task_card: output was malformed JSON — attempt erased, failure summary only"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 0.0349,
+  "prompt_tokens": 267,
+  "completion_tokens": 81,
+  "wall_model_s": 1.915
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "task_card"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "expand",
+  "fresh": false,
+  "cache_hit": 0.0342,
+  "prompt_tokens": 272,
+  "completion_tokens": 117,
+  "wall_model_s": 2.195
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "expand"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_spec",
+  "fresh": false,
+  "cache_hit": 0.0308,
+  "prompt_tokens": 301,
+  "completion_tokens": 293,
+  "wall_model_s": 5.588
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_spec"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 83.2,
+  "prompt_tokens": 421,
+  "completion_tokens": 177,
+  "wall_model_s": 3.088
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0281,
+  "prompt_tokens": 329,
+  "completion_tokens": 86,
+  "wall_model_s": 2.387
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 0.6472,
+  "prompt_tokens": 621,
+  "completion_tokens": 210,
+  "wall_model_s": 3.559
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "golden_test_skipped",
+  "text": "",
+  "detail": "file_path 'tests/test_registry.py' outside repo"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 993.0,
+  "prompt_tokens": 994,
+  "completion_tokens": 50,
+  "wall_model_s": 0.962
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 993.0,
+  "prompt_tokens": 994,
+  "completion_tokens": 50,
+  "wall_model_s": 2.213
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 993.0,
+  "prompt_tokens": 994,
+  "completion_tokens": 47,
+  "wall_model_s": 3.486
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "clean",
+  "file": "plugins/registry.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "plugins/registry.py"
+  ]
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 3,
+  "file": "plugins/registry.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "run_summary",
+  "fresh": false,
+  "cache_hit": 0.0306,
+  "prompt_tokens": 303,
+  "completion_tokens": 106,
+  "wall_model_s": 2.437
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "run_summary"
+ }
+]

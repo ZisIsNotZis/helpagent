@@ -1,0 +1,272 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 0.9052,
+  "prompt_tokens": 884,
+  "completion_tokens": 127,
+  "wall_model_s": 3.552
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "task_card"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "expand",
+  "fresh": false,
+  "cache_hit": 0.0314,
+  "prompt_tokens": 296,
+  "completion_tokens": 151,
+  "wall_model_s": 3.705
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "expand"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_spec",
+  "fresh": false,
+  "cache_hit": 0.0306,
+  "prompt_tokens": 303,
+  "completion_tokens": 183,
+  "wall_model_s": 4.532
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_spec"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 78.2,
+  "prompt_tokens": 396,
+  "completion_tokens": 90,
+  "wall_model_s": 1.875
+ },
+ {
+  "kind": "validation_failed",
+  "text": "",
+  "step_type": "draft_acs",
+  "detail": "1 validation error for DraftACs\nacs\n  Value error, a leaf's AC map is mandatory; empty list is only valid for internal nodes (ENVELOPE_SCHEMAS §6) [type=value_error, input_value=[], input_type=list]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 78.2,
+  "prompt_tokens": 396,
+  "completion_tokens": 90,
+  "wall_model_s": 1.875
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0366,
+  "prompt_tokens": 255,
+  "completion_tokens": 99,
+  "wall_model_s": 2.864
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 0.0272,
+  "prompt_tokens": 340,
+  "completion_tokens": 87,
+  "wall_model_s": 2.429
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0413,
+  "prompt_tokens": 227,
+  "completion_tokens": 42,
+  "wall_model_s": 1.25
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 0.0204,
+  "prompt_tokens": 451,
+  "completion_tokens": 192,
+  "wall_model_s": 4.728
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "golden_test_skipped",
+  "text": "",
+  "detail": "file_path 'test_ac_map.py' outside repo"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 2754.0,
+  "prompt_tokens": 2755,
+  "completion_tokens": 481,
+  "wall_model_s": 11.709
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "auto_fixed",
+  "file": "book_store.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "book_store.py"
+  ]
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 1,
+  "file": "book_store.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 2889.0,
+  "prompt_tokens": 2890,
+  "completion_tokens": 400,
+  "wall_model_s": 14.385
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "escalated",
+  "file": "book_store.py",
+  "n_findings": 1,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "book_store.py"
+  ]
+ },
+ {
+  "kind": "rule_diagnosis",
+  "text": "",
+  "rule": "FP-4-import-external",
+  "file": ""
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 2,
+  "file": "book_store.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 2828.0,
+  "prompt_tokens": 2829,
+  "completion_tokens": 658,
+  "wall_model_s": 14.351
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "clean",
+  "file": "book_store.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "book_store.py"
+  ]
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 3,
+  "file": "book_store.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "run_summary",
+  "fresh": false,
+  "cache_hit": 0.0183,
+  "prompt_tokens": 502,
+  "completion_tokens": 97,
+  "wall_model_s": 2.888
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "run_summary"
+ }
+]

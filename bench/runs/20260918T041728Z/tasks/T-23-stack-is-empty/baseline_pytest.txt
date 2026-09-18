@@ -1,0 +1,36 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+__________________________ test_empty_on_construction __________________________
+
+    def test_empty_on_construction():
+>       assert Stack().is_empty() is True
+               ^^^^^^^^^^^^^^^^
+E       AttributeError: 'Stack' object has no attribute 'is_empty'
+
+tests/test_stack.py:7: AttributeError
+__________________________ test_not_empty_after_push ___________________________
+
+    def test_not_empty_after_push():
+        s = Stack()
+        s.push(1)
+>       assert s.is_empty() is False
+               ^^^^^^^^^^
+E       AttributeError: 'Stack' object has no attribute 'is_empty'
+
+tests/test_stack.py:13: AttributeError
+__________________________ test_empty_again_after_pop __________________________
+
+    def test_empty_again_after_pop():
+        s = Stack()
+        s.push(1)
+        s.pop()
+>       assert s.is_empty() is True
+               ^^^^^^^^^^
+E       AttributeError: 'Stack' object has no attribute 'is_empty'
+
+tests/test_stack.py:20: AttributeError
+=========================== short test summary info ============================
+FAILED tests/test_stack.py::test_empty_on_construction - AttributeError: 'Sta...
+FAILED tests/test_stack.py::test_not_empty_after_push - AttributeError: 'Stac...
+FAILED tests/test_stack.py::test_empty_again_after_pop - AttributeError: 'Sta...
+3 failed in 0.03s

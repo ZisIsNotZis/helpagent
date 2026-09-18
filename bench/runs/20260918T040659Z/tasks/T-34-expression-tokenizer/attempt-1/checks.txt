@@ -1,0 +1,59 @@
+== envelope application ==
+status=ok file_path=tok/lexer.py bytes=1663 sha256=1e9957613ce45592fb765f22627911f76b1afd63b9579bf4bf15d01b457148d6
+
+== pytest (after write, exit=1) ==
+.FFF.                                                                    [100%]
+=================================== FAILURES ===================================
+_________________________ test_identifiers_and_parens __________________________
+
+    def test_identifiers_and_parens():
+>       assert tokenize("(n)*3") == [("lparen", "("), ("ident", "n"), ("rparen", ")"), ("op", "*"), ("int", "3")]
+E       AssertionError: assert [('op', '('),... ('int', '3')] == [('lparen', '... ('int', '3')]
+E         
+E         At index 0 diff: ('op', '(') != ('lparen', '(')
+E         Use -v to get more diff
+
+tests/test_lexer.py:13: AssertionError
+________________________ test_string_with_escaped_quote ________________________
+
+    def test_string_with_escaped_quote():
+>       assert tokenize("'it''s'") == [("str", "it's")]
+E       assert [('str', "'it''s")] == [('str', "it's")]
+E         
+E         At index 0 diff: ('str', "'it''s") != ('str', "it's")
+E         Use -v to get more diff
+
+tests/test_lexer.py:17: AssertionError
+______________________ test_unterminated_string_position _______________________
+
+    def test_unterminated_string_position():
+        with pytest.raises(LexError) as e:
+            tokenize("ab+'x")
+>       assert e.value.offset == 3
+E       AssertionError: assert 4 == 3
+E        +  where 4 = LexError('unterminated string at 4').offset
+E        +    where LexError('unterminated string at 4') = <ExceptionInfo LexError('unterminated string at 4') tblen=2>.value
+
+tests/test_lexer.py:23: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_lexer.py::test_identifiers_and_parens - AssertionError: ass...
+FAILED tests/test_lexer.py::test_string_with_escaped_quote - assert [('str', ...
+FAILED tests/test_lexer.py::test_unterminated_string_position - AssertionErro...
+3 failed, 2 passed in 0.03s
+
+== checks.py verify (exit=1) ==
+== checks: T-34-expression-tokenizer ==
+[tests]    FAIL (python -m pytest in repo/)
+           E        +    where LexError('unterminated string at 4') = <ExceptionInfo LexError('unterminated string at 4') tblen=2>.value
+           
+           tests/test_lexer.py:23: AssertionError
+           =========================== short test summary info ============================
+           FAILED tests/test_lexer.py::test_identifiers_and_parens - AssertionError: ass...
+           FAILED tests/test_lexer.py::test_string_with_escaped_quote - assert [('str', ...
+           FAILED tests/test_lexer.py::test_unterminated_string_position - AssertionErro...
+           3 failed, 2 passed in 0.02s
+[contract] OK (5 untouched paths byte-identical)
+result: FAIL
+
+== rollback ==
+file restored to original bytes

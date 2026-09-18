@@ -1,0 +1,1120 @@
+{
+  "run_id": "20260918T041153Z",
+  "utc": "2026-09-18T04:17:28.009239+00:00",
+  "milestone": "M0 — bare llm() whole-file-edit baseline",
+  "base_url": "http://127.0.0.1:8833",
+  "model": "spark-x2.5-4b",
+  "params": {
+    "temperature": 0.2,
+    "max_tokens": 3000,
+    "chat_template_kwargs": {
+      "enable_thinking": false
+    },
+    "response_format": "json_schema whole-file-edit envelope",
+    "max_attempts": 3
+  },
+  "tasks_fixed": "27/35",
+  "totals": {
+    "model_calls": 51,
+    "prompt_tokens": 99421,
+    "completion_tokens": 10169,
+    "total_tokens": 109590,
+    "model_wall_s": 272.026,
+    "harness_wall_s": 59.449,
+    "wall_s": 331.475,
+    "run_wall_s": 334.527
+  },
+  "anomaly_counts": {
+    "schema_violation_file_path": 3,
+    "http_400": 18,
+    "http_error": 6
+  },
+  "tasks": [
+    {
+      "task": "T-01-ttl-seconds-ms",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1449,
+      "completion_tokens": 101,
+      "cached_tokens": 318,
+      "model_wall_s": 3.087,
+      "harness_wall_s": 0.722,
+      "wall_s": 3.809,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "auth/config.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-02-off-by-one",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1405,
+      "completion_tokens": 296,
+      "cached_tokens": 318,
+      "model_wall_s": 7.484,
+      "harness_wall_s": 0.772,
+      "wall_s": 8.256,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "catalog/pagination.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-03-wrong-comparison",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1261,
+      "completion_tokens": 330,
+      "cached_tokens": 318,
+      "model_wall_s": 8.552,
+      "harness_wall_s": 0.756,
+      "wall_s": 9.308,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "billing/plans.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-04-missing-default",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1361,
+      "completion_tokens": 299,
+      "cached_tokens": 318,
+      "model_wall_s": 7.929,
+      "harness_wall_s": 0.746,
+      "wall_s": 8.675,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "mailer/config.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-05-mutable-default",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1143,
+      "completion_tokens": 198,
+      "cached_tokens": 318,
+      "model_wall_s": 4.924,
+      "harness_wall_s": 0.727,
+      "wall_s": 5.651,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "tagger/notes.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-06-tz-naive-compare",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1550,
+      "completion_tokens": 246,
+      "cached_tokens": 318,
+      "model_wall_s": 6.692,
+      "harness_wall_s": 0.771,
+      "wall_s": 7.463,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "scheduler/jobs.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-07-f-string-sql",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1259,
+      "completion_tokens": 296,
+      "cached_tokens": 318,
+      "model_wall_s": 7.69,
+      "harness_wall_s": 0.744,
+      "wall_s": 8.435,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "contacts/store.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-08-add-cache-invalidation",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1201,
+      "completion_tokens": 306,
+      "cached_tokens": 318,
+      "model_wall_s": 7.581,
+      "harness_wall_s": 0.734,
+      "wall_s": 8.315,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "metrics/registry.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-09-add-rate-limit-hook",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1358,
+      "completion_tokens": 368,
+      "cached_tokens": 318,
+      "model_wall_s": 9.553,
+      "harness_wall_s": 0.768,
+      "wall_s": 10.321,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "throttle/limiter.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-10-port-dict-keys-view",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1096,
+      "completion_tokens": 169,
+      "cached_tokens": 318,
+      "model_wall_s": 4.01,
+      "harness_wall_s": 0.732,
+      "wall_s": 4.743,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "inventory/pick.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-11-wrong-exception-type",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1336,
+      "completion_tokens": 219,
+      "cached_tokens": 318,
+      "model_wall_s": 5.872,
+      "harness_wall_s": 0.74,
+      "wall_s": 6.612,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "orders/service.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-12-str-enum-compare",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1292,
+      "completion_tokens": 249,
+      "cached_tokens": 318,
+      "model_wall_s": 6.328,
+      "harness_wall_s": 0.736,
+      "wall_s": 7.064,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "access/gate.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-13-add-retry-backoff",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1390,
+      "completion_tokens": 313,
+      "cached_tokens": 318,
+      "model_wall_s": 8.459,
+      "harness_wall_s": 0.735,
+      "wall_s": 9.194,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "fetcher/client.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-14-add-export-sorting",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1231,
+      "completion_tokens": 206,
+      "cached_tokens": 318,
+      "model_wall_s": 5.33,
+      "harness_wall_s": 0.735,
+      "wall_s": 6.065,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "reporting/export.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-15-stale-registry-entry",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1269,
+      "completion_tokens": 299,
+      "cached_tokens": 318,
+      "model_wall_s": 7.801,
+      "harness_wall_s": 0.774,
+      "wall_s": 8.575,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "plugins/registry.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-16-class-state-leak",
+      "pass": false,
+      "attempts_used": 3,
+      "model_calls": 3,
+      "prompt_tokens": 11910,
+      "completion_tokens": 377,
+      "cached_tokens": 5498,
+      "model_wall_s": 10.876,
+      "harness_wall_s": 1.853,
+      "wall_s": 12.729,
+      "unable_attempts": 1,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "fail",
+          "envelope_status": "ok",
+          "file_path": "cart/cart.py",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": []
+        },
+        {
+          "attempt": 2,
+          "outcome": "fail",
+          "envelope_status": "unable",
+          "file_path": "",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": []
+        },
+        {
+          "attempt": 3,
+          "outcome": "fail",
+          "envelope_status": "ok",
+          "file_path": "cart/cart.py",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-17-log-hour-format",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1452,
+      "completion_tokens": 233,
+      "cached_tokens": 318,
+      "model_wall_s": 6.129,
+      "harness_wall_s": 0.758,
+      "wall_s": 6.887,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "logparse/parser.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-18-env-config-precedence",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1096,
+      "completion_tokens": 217,
+      "cached_tokens": 318,
+      "model_wall_s": 5.235,
+      "harness_wall_s": 0.758,
+      "wall_s": 5.993,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "conf/settings.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-19-slug-separator",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1009,
+      "completion_tokens": 110,
+      "cached_tokens": 318,
+      "model_wall_s": 2.726,
+      "harness_wall_s": 0.75,
+      "wall_s": 3.476,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "textkit/slug.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-20-average-truncation",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1007,
+      "completion_tokens": 126,
+      "cached_tokens": 318,
+      "model_wall_s": 3.103,
+      "harness_wall_s": 0.757,
+      "wall_s": 3.86,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "ratings/stats.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-21-swallowed-corruption",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1041,
+      "completion_tokens": 142,
+      "cached_tokens": 318,
+      "model_wall_s": 3.647,
+      "harness_wall_s": 0.8,
+      "wall_s": 4.447,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "storage/store.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-22-case-sort-order",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1080,
+      "completion_tokens": 134,
+      "cached_tokens": 318,
+      "model_wall_s": 3.305,
+      "harness_wall_s": 0.775,
+      "wall_s": 4.08,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "roster/sort.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-23-stack-is-empty",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1164,
+      "completion_tokens": 177,
+      "cached_tokens": 318,
+      "model_wall_s": 4.513,
+      "harness_wall_s": 0.767,
+      "wall_s": 5.279,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "stack/stack.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-24-json-report-flag",
+      "pass": false,
+      "attempts_used": 3,
+      "model_calls": 3,
+      "prompt_tokens": 12322,
+      "completion_tokens": 625,
+      "cached_tokens": 5113,
+      "model_wall_s": 17.881,
+      "harness_wall_s": 1.749,
+      "wall_s": 19.63,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "fail",
+          "envelope_status": "ok",
+          "file_path": "report/builder.py",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": []
+        },
+        {
+          "attempt": 2,
+          "outcome": "fail",
+          "envelope_status": "ok",
+          "file_path": "report/builder.py",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": []
+        },
+        {
+          "attempt": 3,
+          "outcome": "fail",
+          "envelope_status": "ok",
+          "file_path": "report/builder.py",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-25-chunked-helper",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1274,
+      "completion_tokens": 199,
+      "cached_tokens": 318,
+      "model_wall_s": 5.039,
+      "harness_wall_s": 0.73,
+      "wall_s": 5.769,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "utils/batch.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-26-plan-dataclass-port",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1243,
+      "completion_tokens": 298,
+      "cached_tokens": 318,
+      "model_wall_s": 7.272,
+      "harness_wall_s": 0.843,
+      "wall_s": 8.114,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "plan/model.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-27-snakecase-ingest",
+      "pass": false,
+      "attempts_used": 3,
+      "model_calls": 3,
+      "prompt_tokens": 12094,
+      "completion_tokens": 514,
+      "cached_tokens": 5609,
+      "model_wall_s": 13.82,
+      "harness_wall_s": 1.842,
+      "wall_s": 15.662,
+      "unable_attempts": 1,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "fail",
+          "envelope_status": "ok",
+          "file_path": "ingest/records.py",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": []
+        },
+        {
+          "attempt": 2,
+          "outcome": "fail",
+          "envelope_status": "unable",
+          "file_path": "",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": []
+        },
+        {
+          "attempt": 3,
+          "outcome": "fail",
+          "envelope_status": "ok",
+          "file_path": "ingest/records.py",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-28-plugin-registry-scaffold",
+      "pass": false,
+      "attempts_used": 3,
+      "model_calls": 3,
+      "prompt_tokens": 12901,
+      "completion_tokens": 852,
+      "cached_tokens": 6104,
+      "model_wall_s": 23.435,
+      "harness_wall_s": 2.277,
+      "wall_s": 25.712,
+      "unable_attempts": 0,
+      "anomalies": [
+        "schema_violation_file_path",
+        "schema_violation_file_path",
+        "schema_violation_file_path"
+      ],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "fail",
+          "envelope_status": "ok",
+          "file_path": "",
+          "pytest_exit": 2,
+          "verify_exit": 1,
+          "anomalies": [
+            "schema_violation_file_path"
+          ]
+        },
+        {
+          "attempt": 2,
+          "outcome": "fail",
+          "envelope_status": "ok",
+          "file_path": "",
+          "pytest_exit": 2,
+          "verify_exit": 1,
+          "anomalies": [
+            "schema_violation_file_path"
+          ]
+        },
+        {
+          "attempt": 3,
+          "outcome": "fail",
+          "envelope_status": "ok",
+          "file_path": "",
+          "pytest_exit": 2,
+          "verify_exit": 1,
+          "anomalies": [
+            "schema_violation_file_path"
+          ]
+        }
+      ]
+    },
+    {
+      "task": "T-29-prerelease-version-parsing",
+      "pass": false,
+      "attempts_used": 3,
+      "model_calls": 3,
+      "prompt_tokens": 10436,
+      "completion_tokens": 519,
+      "cached_tokens": 3985,
+      "model_wall_s": 14.549,
+      "harness_wall_s": 1.788,
+      "wall_s": 16.338,
+      "unable_attempts": 1,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "fail",
+          "envelope_status": "ok",
+          "file_path": "verparse/parse.py",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": []
+        },
+        {
+          "attempt": 2,
+          "outcome": "fail",
+          "envelope_status": "ok",
+          "file_path": "verparse/parse.py",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": []
+        },
+        {
+          "attempt": 3,
+          "outcome": "fail",
+          "envelope_status": "unable",
+          "file_path": "",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-30-naive-datetime-compare",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1586,
+      "completion_tokens": 235,
+      "cached_tokens": 318,
+      "model_wall_s": 6.521,
+      "harness_wall_s": 0.728,
+      "wall_s": 7.248,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "tokens/tokens.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-31-parameter-threading",
+      "pass": false,
+      "attempts_used": 3,
+      "model_calls": 3,
+      "prompt_tokens": 1754,
+      "completion_tokens": 172,
+      "cached_tokens": 318,
+      "model_wall_s": 5.674,
+      "harness_wall_s": 9.787,
+      "wall_s": 15.461,
+      "unable_attempts": 0,
+      "anomalies": [
+        "http_400:{\"error\":{\"code\":400,\"message\":\"request (9082 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9082,\"n_ctx\":8192}}",
+        "http_400:{\"error\":{\"code\":400,\"message\":\"request (9082 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9082,\"n_ctx\":8192}}",
+        "http_400:{\"error\":{\"code\":400,\"message\":\"request (9082 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9082,\"n_ctx\":8192}}",
+        "http_error",
+        "http_400:{\"error\":{\"code\":400,\"message\":\"request (9064 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9064,\"n_ctx\":8192}}",
+        "http_400:{\"error\":{\"code\":400,\"message\":\"request (9064 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9064,\"n_ctx\":8192}}",
+        "http_400:{\"error\":{\"code\":400,\"message\":\"request (9064 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9064,\"n_ctx\":8192}}",
+        "http_error"
+      ],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "fail",
+          "envelope_status": "ok",
+          "file_path": "api/transport.py",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": []
+        },
+        {
+          "attempt": 2,
+          "outcome": "fail",
+          "envelope_status": "",
+          "file_path": "",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": [
+            "http_400:{\"error\":{\"code\":400,\"message\":\"request (9082 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9082,\"n_ctx\":8192}}",
+            "http_400:{\"error\":{\"code\":400,\"message\":\"request (9082 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9082,\"n_ctx\":8192}}",
+            "http_400:{\"error\":{\"code\":400,\"message\":\"request (9082 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9082,\"n_ctx\":8192}}",
+            "http_error"
+          ]
+        },
+        {
+          "attempt": 3,
+          "outcome": "fail",
+          "envelope_status": "",
+          "file_path": "",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": [
+            "http_400:{\"error\":{\"code\":400,\"message\":\"request (9064 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9064,\"n_ctx\":8192}}",
+            "http_400:{\"error\":{\"code\":400,\"message\":\"request (9064 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9064,\"n_ctx\":8192}}",
+            "http_400:{\"error\":{\"code\":400,\"message\":\"request (9064 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9064,\"n_ctx\":8192}}",
+            "http_error"
+          ]
+        }
+      ]
+    },
+    {
+      "task": "T-32-sliding-window-limiter",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1798,
+      "completion_tokens": 287,
+      "cached_tokens": 318,
+      "model_wall_s": 7.646,
+      "harness_wall_s": 0.765,
+      "wall_s": 8.411,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "limiter/window.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    },
+    {
+      "task": "T-33-serializer-contract",
+      "pass": false,
+      "attempts_used": 3,
+      "model_calls": 3,
+      "prompt_tokens": 1553,
+      "completion_tokens": 199,
+      "cached_tokens": 318,
+      "model_wall_s": 6.219,
+      "harness_wall_s": 9.836,
+      "wall_s": 16.055,
+      "unable_attempts": 0,
+      "anomalies": [
+        "http_400:{\"error\":{\"code\":400,\"message\":\"request (9312 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9312,\"n_ctx\":8192}}",
+        "http_400:{\"error\":{\"code\":400,\"message\":\"request (9312 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9312,\"n_ctx\":8192}}",
+        "http_400:{\"error\":{\"code\":400,\"message\":\"request (9312 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9312,\"n_ctx\":8192}}",
+        "http_error",
+        "http_400:{\"error\":{\"code\":400,\"message\":\"request (9304 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9304,\"n_ctx\":8192}}",
+        "http_400:{\"error\":{\"code\":400,\"message\":\"request (9304 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9304,\"n_ctx\":8192}}",
+        "http_400:{\"error\":{\"code\":400,\"message\":\"request (9304 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9304,\"n_ctx\":8192}}",
+        "http_error"
+      ],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "fail",
+          "envelope_status": "ok",
+          "file_path": "serialize/pickle_ser.py",
+          "pytest_exit": 0,
+          "verify_exit": 1,
+          "anomalies": []
+        },
+        {
+          "attempt": 2,
+          "outcome": "fail",
+          "envelope_status": "",
+          "file_path": "",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": [
+            "http_400:{\"error\":{\"code\":400,\"message\":\"request (9312 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9312,\"n_ctx\":8192}}",
+            "http_400:{\"error\":{\"code\":400,\"message\":\"request (9312 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9312,\"n_ctx\":8192}}",
+            "http_400:{\"error\":{\"code\":400,\"message\":\"request (9312 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9312,\"n_ctx\":8192}}",
+            "http_error"
+          ]
+        },
+        {
+          "attempt": 3,
+          "outcome": "fail",
+          "envelope_status": "",
+          "file_path": "",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": [
+            "http_400:{\"error\":{\"code\":400,\"message\":\"request (9304 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9304,\"n_ctx\":8192}}",
+            "http_400:{\"error\":{\"code\":400,\"message\":\"request (9304 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9304,\"n_ctx\":8192}}",
+            "http_400:{\"error\":{\"code\":400,\"message\":\"request (9304 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":9304,\"n_ctx\":8192}}",
+            "http_error"
+          ]
+        }
+      ]
+    },
+    {
+      "task": "T-34-expression-tokenizer",
+      "pass": false,
+      "attempts_used": 3,
+      "model_calls": 3,
+      "prompt_tokens": 1531,
+      "completion_tokens": 609,
+      "cached_tokens": 318,
+      "model_wall_s": 16.593,
+      "harness_wall_s": 9.905,
+      "wall_s": 26.497,
+      "unable_attempts": 0,
+      "anomalies": [
+        "http_400:{\"error\":{\"code\":400,\"message\":\"request (8200 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":8200,\"n_ctx\":8192}}",
+        "http_400:{\"error\":{\"code\":400,\"message\":\"request (8200 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":8200,\"n_ctx\":8192}}",
+        "http_400:{\"error\":{\"code\":400,\"message\":\"request (8200 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":8200,\"n_ctx\":8192}}",
+        "http_error",
+        "http_400:{\"error\":{\"code\":400,\"message\":\"request (8192 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":8192,\"n_ctx\":8192}}",
+        "http_400:{\"error\":{\"code\":400,\"message\":\"request (8192 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":8192,\"n_ctx\":8192}}",
+        "http_400:{\"error\":{\"code\":400,\"message\":\"request (8192 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":8192,\"n_ctx\":8192}}",
+        "http_error"
+      ],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "fail",
+          "envelope_status": "ok",
+          "file_path": "tok/lexer.py",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": []
+        },
+        {
+          "attempt": 2,
+          "outcome": "fail",
+          "envelope_status": "",
+          "file_path": "",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": [
+            "http_400:{\"error\":{\"code\":400,\"message\":\"request (8200 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":8200,\"n_ctx\":8192}}",
+            "http_400:{\"error\":{\"code\":400,\"message\":\"request (8200 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":8200,\"n_ctx\":8192}}",
+            "http_400:{\"error\":{\"code\":400,\"message\":\"request (8200 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":8200,\"n_ctx\":8192}}",
+            "http_error"
+          ]
+        },
+        {
+          "attempt": 3,
+          "outcome": "fail",
+          "envelope_status": "",
+          "file_path": "",
+          "pytest_exit": 1,
+          "verify_exit": 1,
+          "anomalies": [
+            "http_400:{\"error\":{\"code\":400,\"message\":\"request (8192 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":8192,\"n_ctx\":8192}}",
+            "http_400:{\"error\":{\"code\":400,\"message\":\"request (8192 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":8192,\"n_ctx\":8192}}",
+            "http_400:{\"error\":{\"code\":400,\"message\":\"request (8192 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":8192,\"n_ctx\":8192}}",
+            "http_error"
+          ]
+        }
+      ]
+    },
+    {
+      "task": "T-35-interval-merge-invariants",
+      "pass": true,
+      "attempts_used": 1,
+      "model_calls": 1,
+      "prompt_tokens": 1569,
+      "completion_tokens": 249,
+      "cached_tokens": 0,
+      "model_wall_s": 6.551,
+      "harness_wall_s": 0.789,
+      "wall_s": 7.34,
+      "unable_attempts": 0,
+      "anomalies": [],
+      "outcome_per_attempt": [
+        {
+          "attempt": 1,
+          "outcome": "pass",
+          "envelope_status": "ok",
+          "file_path": "spans/merge.py",
+          "pytest_exit": 0,
+          "verify_exit": 0,
+          "anomalies": []
+        }
+      ]
+    }
+  ]
+}

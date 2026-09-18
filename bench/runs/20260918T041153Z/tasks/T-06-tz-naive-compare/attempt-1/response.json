@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"status\": \"ok\", \"comment\": \"Fixed the default clock path in scheduler/jobs.py by replacing the deprecated datetime.utcnow() with timezone-aware datetime.now(timezone.utc), ensuring all datetimes are UTC-aware for comparison.\", \"file_path\": \"scheduler/jobs.py\", \"content\": \"\\\"\\\"\\\"Background job scheduling.\\n\\nAll timestamps in this module are timezone-aware UTC.\\n\\\"\\\"\\\"\\n\\nfrom datetime import datetime, timedelta, timezone\\n\\nRUN_INTERVAL = timedelta(minutes=15)\\n\\n\\ndef next_run(after: datetime) -> datetime:\\n    \\\"\\\"\\\"Next run strictly after ``after``.\\\"\\\"\\\"\\n    return after + RUN_INTERVAL\\n\\n\\ndef is_due(job: dict, now: datetime | None = None) -> bool:\\n    \\\"\\\"\\\"True when ``job``'s next_run has passed at ``now`` (UTC now by default).\\\"\\\"\\\"\\n    now = now or datetime.now(timezone.utc)\\n    return job[\\\"next_run\\\"] <= now\\n\"\n}"
+      }
+    }
+  ],
+  "created": 1789704756,
+  "model": "/home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf",
+  "system_fingerprint": "b4294-16378d93f9",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 246,
+    "prompt_tokens": 1550,
+    "total_tokens": 1796,
+    "prompt_tokens_details": {
+      "cached_tokens": 318
+    }
+  },
+  "id": "chatcmpl-kVdJrKnDAIl8V0GVmJ9FvkO6XkWtiAPv",
+  "timings": {
+    "cache_n": 318,
+    "prompt_n": 1232,
+    "prompt_ms": 257.089,
+    "prompt_per_token_ms": 0.20867613636363636,
+    "prompt_per_second": 4792.11479293163,
+    "predicted_n": 246,
+    "predicted_ms": 6299.899,
+    "predicted_per_token_ms": 25.713873469387757,
+    "predicted_per_second": 38.88951235567427
+  }
+}

@@ -1,0 +1,279 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 0.0452,
+  "prompt_tokens": 208,
+  "completion_tokens": 81,
+  "wall_model_s": 2.173
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "task_card"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "expand",
+  "fresh": false,
+  "cache_hit": 0.0332,
+  "prompt_tokens": 280,
+  "completion_tokens": 103,
+  "wall_model_s": 1.677
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "expand"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_spec",
+  "fresh": false,
+  "cache_hit": 0.0311,
+  "prompt_tokens": 298,
+  "completion_tokens": 136,
+  "wall_model_s": 2.581
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_spec"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 63.8,
+  "prompt_tokens": 324,
+  "completion_tokens": 111,
+  "wall_model_s": 1.721
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0375,
+  "prompt_tokens": 249,
+  "completion_tokens": 103,
+  "wall_model_s": 3.164
+ },
+ {
+  "kind": "validation_failed",
+  "text": "",
+  "step_type": "gate_decide",
+  "detail": "1 validation error for GateDecide\n  Value error, weakens_gate==True requires decision=='reject' (ENVELOPE_SCHEMAS §20) [type=value_error, input_value={'status': 'ok', 'comment...ecified functionality.'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error"
+ },
+ {
+  "kind": "golden_step_retry",
+  "text": "",
+  "step_type": "gate_decide",
+  "attempt": 1,
+  "detail": "gate_decide: schema violation: Value error, weakens_gate==True requires decision=='reject' (ENVELOPE_SCHEMAS §20) — attempt erased, failure summary only"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.028,
+  "prompt_tokens": 330,
+  "completion_tokens": 101,
+  "wall_model_s": 2.525
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 0.036,
+  "prompt_tokens": 259,
+  "completion_tokens": 113,
+  "wall_model_s": 2.242
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0366,
+  "prompt_tokens": 255,
+  "completion_tokens": 116,
+  "wall_model_s": 2.56
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1.181,
+  "prompt_tokens": 458,
+  "completion_tokens": 386,
+  "wall_model_s": 5.927
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "golden_test_skipped",
+  "text": "",
+  "detail": "file_path 'test_ac_map.py' outside repo"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 621.0,
+  "prompt_tokens": 622,
+  "completion_tokens": 258,
+  "wall_model_s": 4.647
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "escalated",
+  "file": "ingest/records.py",
+  "n_findings": 2,
+  "fix_passes": 2
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "ingest/records.py"
+  ]
+ },
+ {
+  "kind": "rule_diagnosis",
+  "text": "",
+  "rule": "FP-4-nameerror-unresolved",
+  "file": ""
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 1,
+  "file": "ingest/records.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 702.0,
+  "prompt_tokens": 703,
+  "completion_tokens": 202,
+  "wall_model_s": 3.337
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "auto_fixed",
+  "file": "ingest/records.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "ingest/records.py"
+  ]
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 2,
+  "file": "ingest/records.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 684.0,
+  "prompt_tokens": 685,
+  "completion_tokens": 210,
+  "wall_model_s": 3.925
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "auto_fixed",
+  "file": "ingest/records.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "ingest/records.py"
+  ]
+ },
+ {
+  "kind": "implement_red_rolled_back",
+  "text": "",
+  "attempt": 3,
+  "file": "ingest/records.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "run_summary",
+  "fresh": false,
+  "cache_hit": 0.0221,
+  "prompt_tokens": 417,
+  "completion_tokens": 90,
+  "wall_model_s": 1.762
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "run_summary"
+ }
+]

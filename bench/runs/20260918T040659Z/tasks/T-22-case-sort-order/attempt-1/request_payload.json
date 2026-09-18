@@ -1,0 +1,53 @@
+{
+  "model": "spark-x2.5-4b",
+  "temperature": 0.2,
+  "max_tokens": 3000,
+  "stream": false,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "whole_file_edit",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unable"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "comment",
+          "file_path",
+          "content"
+        ]
+      }
+    }
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise whole-file coding-edit engine working on a small Python repository.\n\nYou receive: a bug report, the complete current contents of every file in the repository, and the failing test output. You return exactly ONE JSON object:\n\n{\"status\": \"ok\" or \"unable\", \"comment\": \"1-2 sentences: what the bug is and what you changed (or why you cannot fix it)\", \"file_path\": \"path of the ONE file you rewrite, exactly as shown in the repository listing\", \"content\": \"the COMPLETE new content of that file\"}\n\nHard rules:\n- \"content\" REPLACES the whole file byte-for-byte. Include every line of the file: module docstring, imports, and all. Never truncate, never write \"...\" or placeholders, never wrap the content in markdown fences.\n- Change as little as possible: fix the reported bug and keep everything else exactly as it is. Do not restyle, rename, or reformat unrelated code.\n- Do not change the public API: keep function and class names, signatures, and module layout unchanged.\n- \"file_path\" must exactly match one of the repository file paths shown to you (relative to the repo root).\n- If you are not confident you can fix the bug, set \"status\" to \"unable\", explain in \"comment\", and make \"file_path\" and \"content\" empty strings.\nOutput raw JSON only."
+    },
+    {
+      "role": "user",
+      "content": "## Bug report (verbatim, from the user)\nThe staff roster lists 'Zoe' before 'alice' on the website — caps names all jump to the front. The handbook says the roster is alphabetical, case-insensitive. Please fix the ordering.\n\n## Repository files (complete current contents)\n### README.md\n```\n# roster\n\nStaff roster display. Alphabetical, case-insensitive.\n\n```\n\n### pyproject.toml\n```\n[project]\nname = \"22casesortorder\"\nversion = \"0.1.0\"\ndescription = \"Roster sorting that puts capitals first.\"\nrequires-python = \">=3.10\"\ndependencies = [\"pytest\"]\n\n[tool.pytest.ini_options]\npythonpath = [\".\"]\ntestpaths = [\"tests\"]\n\n```\n\n### roster/__init__.py\n```python\n\n```\n\n### roster/sort.py\n```python\n\"\"\"Roster display helpers.\"\"\"\n\n\ndef sorted_names(names: list[str]) -> list[str]:\n    \"\"\"Alphabetical order, case-insensitive (see the staff handbook).\"\"\"\n    return sorted(names)\n\n```\n\n### tests/__init__.py\n```python\n\n```\n\n### tests/test_sort.py\n```python\n\"\"\"Sorting tests (handbook: case-insensitive alphabetical).\"\"\"\n\nfrom roster.sort import sorted_names\n\n\ndef test_mixed_case_order():\n    assert sorted_names([\"alice\", \"Zoe\", \"Bob\"]) == [\"alice\", \"Bob\", \"Zoe\"]\n\n\ndef test_stability_for_same_name():\n    assert sorted_names([\"amy\", \"AMY\"]) == [\"amy\", \"AMY\"]\n\n```\n\n## Failing test output (`python -m pytest` run inside the repository)\n```\nFF                                                                       [100%]\n=================================== FAILURES ===================================\n____________________________ test_mixed_case_order _____________________________\n\n    def test_mixed_case_order():\n>       assert sorted_names([\"alice\", \"Zoe\", \"Bob\"]) == [\"alice\", \"Bob\", \"Zoe\"]\nE       AssertionError: assert ['Bob', 'Zoe', 'alice'] == ['alice', 'Bob', 'Zoe']\nE         \nE         At index 0 diff: 'Bob' != 'alice'\nE         Use -v to get more diff\n\ntests/test_sort.py:7: AssertionError\n_________________________ test_stability_for_same_name _________________________\n\n    def test_stability_for_same_name():\n>       assert sorted_names([\"amy\", \"AMY\"]) == [\"amy\", \"AMY\"]\nE       AssertionError: assert ['AMY', 'amy'] == ['amy', 'AMY']\nE         \nE         At index 0 diff: 'AMY' != 'amy'\nE         Use -v to get more diff\n\ntests/test_sort.py:11: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_sort.py::test_mixed_case_order - AssertionError: assert ['B...\nFAILED tests/test_sort.py::test_stability_for_same_name - AssertionError: ass...\n2 failed in 0.02s\n\n```\n\nFix the bug by rewriting exactly one repository file. Respond with the JSON object now."
+    }
+  ]
+}

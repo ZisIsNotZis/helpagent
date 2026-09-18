@@ -1,0 +1,53 @@
+task_id,attempt,model_calls,prompt_tokens,completion_tokens,cached_tokens,model_wall_s,harness_wall_s,finish_reason,envelope_status,file_path,pytest_exit,verify_exit,contract_ok,outcome,anomalies
+T-01-ttl-seconds-ms,1,1,1449,101,318,2.918,0.503,stop,ok,auth/config.py,0,0,True,pass,
+T-02-off-by-one,1,1,1405,284,318,7.349,0.488,stop,ok,catalog/pagination.py,0,0,True,pass,
+T-03-wrong-comparison,1,1,1261,328,318,8.338,0.47,stop,ok,billing/plans.py,0,0,True,pass,
+T-04-missing-default,1,1,1361,299,318,7.779,0.474,stop,ok,mailer/config.py,0,0,True,pass,
+T-05-mutable-default,1,1,1143,204,318,4.926,0.471,stop,ok,tagger/notes.py,1,1,True,fail,
+T-05-mutable-default,2,1,3999,102,318,3.343,0.481,stop,unable,,1,1,True,fail,
+T-05-mutable-default,3,1,3983,206,3654,5.449,0.453,stop,ok,tagger/notes.py,0,0,True,pass,
+T-06-tz-naive-compare,1,1,1550,256,318,6.944,0.482,stop,ok,scheduler/jobs.py,0,0,True,pass,
+T-07-f-string-sql,1,1,1261,299,318,7.681,0.46,stop,ok,contacts/store.py,0,0,True,pass,
+T-08-add-cache-invalidation,1,1,1201,250,318,6.4,0.466,stop,ok,metrics/registry.py,0,0,True,pass,
+T-09-add-rate-limit-hook,1,1,1358,389,318,10.078,0.456,stop,ok,throttle/limiter.py,0,0,True,pass,
+T-10-port-dict-keys-view,1,1,1096,169,318,4.045,0.468,stop,ok,inventory/pick.py,0,0,True,pass,
+T-11-wrong-exception-type,1,1,1336,216,318,5.549,0.451,stop,ok,orders/service.py,0,0,True,pass,
+T-12-str-enum-compare,1,1,1294,248,318,6.433,0.465,stop,ok,access/gate.py,0,0,True,pass,
+T-13-add-retry-backoff,1,1,1390,307,318,8.058,0.485,stop,ok,fetcher/client.py,0,0,True,pass,
+T-14-add-export-sorting,1,1,1231,205,318,5.261,0.437,stop,ok,reporting/export.py,0,0,True,pass,
+T-15-stale-registry-entry,1,1,1271,300,318,7.633,0.495,stop,ok,plugins/registry.py,0,0,True,pass,
+T-16-class-state-leak,1,1,984,126,318,3.2,0.503,stop,ok,cart/cart.py,1,1,True,fail,
+T-16-class-state-leak,2,1,5468,231,0,7.138,0.514,stop,unable,,1,1,True,fail,
+T-16-class-state-leak,3,1,5456,153,5164,4.13,0.486,stop,ok,cart/cart.py,0,0,True,pass,
+T-17-log-hour-format,1,1,1452,219,318,6.133,0.488,stop,ok,logparse/parser.py,0,0,True,pass,
+T-18-env-config-precedence,1,1,1096,198,318,4.686,0.502,stop,ok,conf/settings.py,0,0,True,pass,
+T-19-slug-separator,1,1,1009,105,318,2.569,0.478,stop,ok,textkit/slug.py,0,0,True,pass,
+T-20-average-truncation,1,1,1007,129,318,3.253,0.469,stop,ok,ratings/stats.py,0,0,True,pass,
+T-21-swallowed-corruption,1,1,1041,149,318,3.699,0.502,stop,ok,storage/store.py,0,0,True,pass,
+T-22-case-sort-order,1,1,1080,135,318,3.306,0.485,stop,ok,roster/sort.py,0,0,True,pass,
+T-23-stack-is-empty,1,1,1164,177,318,4.482,0.485,stop,ok,stack/stack.py,0,0,True,pass,
+T-24-json-report-flag,1,1,1435,206,318,5.461,0.492,stop,ok,report/builder.py,1,1,True,fail,
+T-24-json-report-flag,2,1,5444,211,318,6.431,0.481,stop,ok,report/builder.py,0,0,True,pass,
+T-25-chunked-helper,1,1,1274,217,318,5.408,0.473,stop,ok,utils/batch.py,0,0,True,pass,
+T-26-plan-dataclass-port,1,1,1243,243,318,5.967,0.462,stop,ok,plan/model.py,0,0,True,pass,
+T-27-snakecase-ingest,1,1,1200,290,318,7.227,0.511,stop,ok,ingest/records.py,1,1,True,fail,
+T-27-snakecase-ingest,2,1,5456,93,318,3.409,0.491,stop,unable,,1,1,True,fail,
+T-27-snakecase-ingest,3,1,5440,291,4974,7.666,0.494,stop,ok,ingest/records.py,1,1,True,fail,
+T-28-plugin-registry-scaffold,1,1,1131,203,318,5.16,0.647,stop,ok,,2,1,True,fail,schema_violation_file_path
+T-28-plugin-registry-scaffold,2,1,5885,299,318,8.869,0.633,stop,ok,,2,1,True,fail,schema_violation_file_path
+T-28-plugin-registry-scaffold,3,1,5885,217,5468,5.866,0.691,stop,ok,,2,1,True,fail,schema_violation_file_path
+T-29-prerelease-version-parsing,1,1,1122,205,318,5.218,0.508,stop,ok,verparse/parse.py,1,1,True,fail,
+T-29-prerelease-version-parsing,2,1,4657,119,318,4.069,0.501,stop,unable,,1,1,True,fail,
+T-29-prerelease-version-parsing,3,1,4641,198,4277,5.565,0.476,stop,ok,verparse/parse.py,0,0,True,pass,
+T-30-naive-datetime-compare,1,1,1586,235,318,6.396,0.488,stop,ok,tokens/tokens.py,0,0,True,pass,
+T-31-parameter-threading,1,1,1755,174,318,4.894,0.51,stop,ok,api/transport.py,1,1,True,fail,
+T-31-parameter-threading,2,1,0,0,0,0.403,4.522,,,,1,1,True,fail,"http_400:{""error"":{""code"":400,""message"":""request (9082 tokens) exceeds the available context size (8192 tokens), try increasing it"",""type"":""exceed_context_size_error"",""n_prompt_tokens"":9082,""n_ctx"":8192}};http_400:{""error"":{""code"":400,""message"":""request (9082 tokens) exceeds the available context size (8192 tokens), try increasing it"",""type"":""exceed_context_size_error"",""n_prompt_tokens"":9082,""n_ctx"":8192}};http_400:{""error"":{""code"":400,""message"":""request (9082 tokens) exceeds the available context size (8192 tokens), try increasing it"",""type"":""exceed_context_size_error"",""n_prompt_tokens"":9082,""n_ctx"":8192}};http_error"
+T-31-parameter-threading,3,1,0,0,0,0.47,4.519,,,,1,1,True,fail,"http_400:{""error"":{""code"":400,""message"":""request (9072 tokens) exceeds the available context size (8192 tokens), try increasing it"",""type"":""exceed_context_size_error"",""n_prompt_tokens"":9072,""n_ctx"":8192}};http_400:{""error"":{""code"":400,""message"":""request (9072 tokens) exceeds the available context size (8192 tokens), try increasing it"",""type"":""exceed_context_size_error"",""n_prompt_tokens"":9072,""n_ctx"":8192}};http_400:{""error"":{""code"":400,""message"":""request (9072 tokens) exceeds the available context size (8192 tokens), try increasing it"",""type"":""exceed_context_size_error"",""n_prompt_tokens"":9072,""n_ctx"":8192}};http_error"
+T-32-sliding-window-limiter,1,1,1797,274,318,7.219,0.497,stop,ok,limiter/window.py,0,0,True,pass,
+T-33-serializer-contract,1,1,1551,187,318,4.988,0.497,stop,ok,serialize/pickle_ser.py,0,1,False,fail,
+T-33-serializer-contract,2,1,0,0,0,0.444,4.503,,,,1,1,True,fail,"http_400:{""error"":{""code"":400,""message"":""request (9312 tokens) exceeds the available context size (8192 tokens), try increasing it"",""type"":""exceed_context_size_error"",""n_prompt_tokens"":9312,""n_ctx"":8192}};http_400:{""error"":{""code"":400,""message"":""request (9312 tokens) exceeds the available context size (8192 tokens), try increasing it"",""type"":""exceed_context_size_error"",""n_prompt_tokens"":9312,""n_ctx"":8192}};http_400:{""error"":{""code"":400,""message"":""request (9312 tokens) exceeds the available context size (8192 tokens), try increasing it"",""type"":""exceed_context_size_error"",""n_prompt_tokens"":9312,""n_ctx"":8192}};http_error"
+T-33-serializer-contract,3,1,0,0,0,0.367,4.502,,,,1,1,True,fail,"http_400:{""error"":{""code"":400,""message"":""request (9308 tokens) exceeds the available context size (8192 tokens), try increasing it"",""type"":""exceed_context_size_error"",""n_prompt_tokens"":9308,""n_ctx"":8192}};http_400:{""error"":{""code"":400,""message"":""request (9308 tokens) exceeds the available context size (8192 tokens), try increasing it"",""type"":""exceed_context_size_error"",""n_prompt_tokens"":9308,""n_ctx"":8192}};http_400:{""error"":{""code"":400,""message"":""request (9308 tokens) exceeds the available context size (8192 tokens), try increasing it"",""type"":""exceed_context_size_error"",""n_prompt_tokens"":9308,""n_ctx"":8192}};http_error"
+T-34-expression-tokenizer,1,1,1531,564,318,14.371,0.521,stop,ok,tok/lexer.py,1,1,True,fail,
+T-34-expression-tokenizer,2,1,0,0,0,0.244,4.518,,,,1,1,True,fail,"http_400:{""error"":{""code"":400,""message"":""request (8200 tokens) exceeds the available context size (8192 tokens), try increasing it"",""type"":""exceed_context_size_error"",""n_prompt_tokens"":8200,""n_ctx"":8192}};http_400:{""error"":{""code"":400,""message"":""request (8200 tokens) exceeds the available context size (8192 tokens), try increasing it"",""type"":""exceed_context_size_error"",""n_prompt_tokens"":8200,""n_ctx"":8192}};http_400:{""error"":{""code"":400,""message"":""request (8200 tokens) exceeds the available context size (8192 tokens), try increasing it"",""type"":""exceed_context_size_error"",""n_prompt_tokens"":8200,""n_ctx"":8192}};http_error"
+T-34-expression-tokenizer,3,1,0,0,0,0.129,4.493,,,,1,1,True,fail,"http_400:{""error"":{""code"":400,""message"":""request (8192 tokens) exceeds the available context size (8192 tokens), try increasing it"",""type"":""exceed_context_size_error"",""n_prompt_tokens"":8192,""n_ctx"":8192}};http_400:{""error"":{""code"":400,""message"":""request (8192 tokens) exceeds the available context size (8192 tokens), try increasing it"",""type"":""exceed_context_size_error"",""n_prompt_tokens"":8192,""n_ctx"":8192}};http_400:{""error"":{""code"":400,""message"":""request (8192 tokens) exceeds the available context size (8192 tokens), try increasing it"",""type"":""exceed_context_size_error"",""n_prompt_tokens"":8192,""n_ctx"":8192}};http_error"
+T-35-interval-merge-invariants,1,1,1569,314,0,8.319,0.478,stop,ok,spans/merge.py,0,0,True,pass,

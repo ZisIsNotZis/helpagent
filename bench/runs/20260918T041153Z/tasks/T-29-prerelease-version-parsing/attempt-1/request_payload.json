@@ -1,0 +1,53 @@
+{
+  "model": "spark-x2.5-4b",
+  "temperature": 0.2,
+  "max_tokens": 3000,
+  "stream": false,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "whole_file_edit",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unable"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "comment",
+          "file_path",
+          "content"
+        ]
+      }
+    }
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise whole-file coding-edit engine working on a small Python repository.\n\nYou receive: a bug report, the complete current contents of every file in the repository, and the failing test output. You return exactly ONE JSON object:\n\n{\"status\": \"ok\" or \"unable\", \"comment\": \"1-2 sentences: what the bug is and what you changed (or why you cannot fix it)\", \"file_path\": \"path of the ONE file you rewrite, exactly as shown in the repository listing\", \"content\": \"the COMPLETE new content of that file\"}\n\nHard rules:\n- \"content\" REPLACES the whole file byte-for-byte. Include every line of the file: module docstring, imports, and all. Never truncate, never write \"...\" or placeholders, never wrap the content in markdown fences.\n- Change as little as possible: fix the reported bug and keep everything else exactly as it is. Do not restyle, rename, or reformat unrelated code.\n- Do not change the public API: keep function and class names, signatures, and module layout unchanged.\n- \"file_path\" must exactly match one of the repository file paths shown to you (relative to the repo root).\n- If you are not confident you can fix the bug, set \"status\" to \"unable\", explain in \"comment\", and make \"file_path\" and \"content\" empty strings.\nOutput raw JSON only."
+    },
+    {
+      "role": "user",
+      "content": "## Bug report (verbatim, from the user)\nThe release tool mis-parses prerelease tags: 1.2.3-beta.2 comes back with the whole '2.3-beta.2' lumped into the minor field, so version comparisons are garbage. Versions are major.minor.patch with an optional -prerelease. Please fix the parser.\n\n## Repository files (complete current contents)\n### README.md\n```\n# verparse\n\nVersion strings: major.minor.patch[-prerelease].\n\n```\n\n### pyproject.toml\n```\n[project]\nname = \"29prereleaseversionparsing\"\nversion = \"0.1.0\"\ndescription = \"Version parser crashes on prerelease tags.\"\nrequires-python = \">=3.10\"\ndependencies = [\"pytest\"]\n\n[tool.pytest.ini_options]\npythonpath = [\".\"]\ntestpaths = [\"tests\"]\n\n```\n\n### tests/__init__.py\n```python\n\n```\n\n### tests/test_parse.py\n```python\n\"\"\"Version parsing tests.\"\"\"\n\nfrom verparse.parse import parse\n\n\ndef test_plain_triple():\n    assert parse(\"1.2.3\") == {\"major\": 1, \"minor\": 2, \"patch\": 3, \"pre\": \"\"}\n\n\ndef test_prerelease_split():\n    assert parse(\"1.2.3-beta.2\") == {\"major\": 1, \"minor\": 2, \"patch\": 3, \"pre\": \"beta.2\"}\n\n```\n\n### verparse/__init__.py\n```python\n\n```\n\n### verparse/parse.py\n```python\n\"\"\"Parse version strings like \"1.2.3\" or \"1.2.3-beta.2\".\"\"\"\n\n\ndef parse(version: str) -> dict:\n    major_s, minor_s, patch_s = version.split(\".\")\n    return {\"major\": int(major_s), \"minor\": int(minor_s),\n            \"patch\": int(patch_s), \"pre\": \"\"}\n\n```\n\n## Failing test output (`python -m pytest` run inside the repository)\n```\n.F                                                                       [100%]\n=================================== FAILURES ===================================\n____________________________ test_prerelease_split _____________________________\n\n    def test_prerelease_split():\n>       assert parse(\"1.2.3-beta.2\") == {\"major\": 1, \"minor\": 2, \"patch\": 3, \"pre\": \"beta.2\"}\n               ^^^^^^^^^^^^^^^^^^^^^\n\ntests/test_parse.py:11: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nversion = '1.2.3-beta.2'\n\n    def parse(version: str) -> dict:\n>       major_s, minor_s, patch_s = version.split(\".\")\n        ^^^^^^^^^^^^^^^^^^^^^^^^^\nE       ValueError: too many values to unpack (expected 3)\n\nverparse/parse.py:5: ValueError\n=========================== short test summary info ============================\nFAILED tests/test_parse.py::test_prerelease_split - ValueError: too many valu...\n1 failed, 1 passed in 0.03s\n\n```\n\nFix the bug by rewriting exactly one repository file. Respond with the JSON object now."
+    }
+  ]
+}

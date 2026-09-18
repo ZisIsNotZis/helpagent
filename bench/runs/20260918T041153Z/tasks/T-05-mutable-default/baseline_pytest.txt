@@ -1,0 +1,20 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+_________________________ test_notes_do_not_share_tags _________________________
+
+    def test_notes_do_not_share_tags():
+        first = {"title": "groceries"}
+        second = {"title": "workout"}
+        add_tag(first, "errand")
+        add_tag(second, "gym")
+>       assert second["tags"] == ["gym"]
+E       AssertionError: assert ['errand', 'errand', 'gym'] == ['gym']
+E         
+E         At index 0 diff: 'errand' != 'gym'
+E         Left contains 2 more items, first extra item: 'errand'
+E         Use -v to get more diff
+
+tests/test_notes.py:17: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_notes.py::test_notes_do_not_share_tags - AssertionError: as...
+1 failed, 1 passed in 0.02s
