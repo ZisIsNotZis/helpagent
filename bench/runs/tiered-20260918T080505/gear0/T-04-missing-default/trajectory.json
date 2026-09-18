@@ -1,0 +1,11 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [
+   "mailer/config.py"
+  ],
+  "diff": "diff --git a/mailer/config.py b/mailer/config.py\nindex a61d134..459b213 100644\n--- a/mailer/config.py\n+++ b/mailer/config.py\n@@ -23,5 +23,5 @@ def load(raw: dict) -> MailerConfig:\n     return MailerConfig(\n         host=raw[\"host\"],\n         timeout_s=raw.get(\"timeout_s\", DEFAULT_TIMEOUT_S),\n-        retries=raw[\"retries\"],\n+        retries=raw.get(\"retries\", DEFAULT_RETRIES),\n     )\n",
+  "outcome": "green"
+ }
+]

@@ -1,0 +1,21 @@
+{
+ "task": "T-01-ttl-seconds-ms",
+ "gear": 0,
+ "fixed": true,
+ "gate_ok": true,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "auth/config.py",
+   "pytest_exit": 0,
+   "verdict": "ok",
+   "excerpts": [
+    "..                                                                       [100%]",
+    "2 passed in 0.01s"
+   ]
+  }
+ ],
+ "gate_notes": [
+  "pytest green; untouched-files contract holds"
+ ]
+}

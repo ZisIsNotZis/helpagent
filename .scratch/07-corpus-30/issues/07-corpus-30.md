@@ -44,3 +44,17 @@
   Aggregate delta not CI-separated (overlap) — within-task movement is the signal;
   frontier cluster (T-18/24/26/27/28 at 0/3, model-content side) feeds M9
   skeleton/guided experiments (ticket 05 family). M5 = delivered.
+
+- 2026-09-18 owner session (§8.1 verdict): TIERED FLOW VALIDATED on 35 tasks x3
+  (tiered-20260918T080505, 120/120 runs clean):
+  - orig 30: **84/90 (93.3%)** — beats bare 85.6% AND full-pipeline 73.3%
+  - hard 5: 6/15 (40%) vs golden 26.7%
+  - anchor 5 (exercism official): **7/15 (46.7%)** vs bare 33.3%, golden 13.3%
+  - closing gears: 92x gear0 / 3x gear1 / 2x gear2; gear0/1 runs mean 1.3 calls
+  - floor confirmed: bare drops 79%->33% on external tasks; persistent-failure
+    family = multi-file (T-31), control-flow (T-32/34, T-13), algorithmic
+    (book-store/connect, zebra) — M9 guided/skeleton targets
+  Component verdicts: kernel safety nets EARNED (free + real points); heavy
+  flow machinery NOT justified per-task-class on small fixes — reserved for
+  escalation; self-written corpus useful but biased single-file — anchors now
+  calibrate the floor.

@@ -1,0 +1,11 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [
+   "protein_translation.py"
+  ],
+  "diff": "diff --git a/protein_translation.py b/protein_translation.py\nindex d3ce2ec..b58bc4a 100644\n--- a/protein_translation.py\n+++ b/protein_translation.py\n@@ -1,2 +1,34 @@\n def proteins(strand):\n-    pass\n+    codon_to_aa = {\n+        \"AUG\": \"Methionine\",\n+        \"UUU\": \"Phenylalanine\",\n+        \"UUC\": \"Phenylalanine\",\n+        \"UUA\": \"Leucine\",\n+        \"UUG\": \"Leucine\",\n+        \"UCU\": \"Serine\",\n+        \"UCC\": \"Serine\",\n+        \"UCA\": \"Serine\",\n+        \"UCG\": \"Serine\",\n+        \"UAU\": \"Tyrosine\",\n+        \"UAC\": \"Tyrosine\",\n+        \"UGU\": \"Cysteine\",\n+        \"UGC\": \"Cysteine\",\n+        \"UGG\": \"Tryptophan\",\n+        \"UAA\": \"STOP\",\n+        \"UAG\": \"STOP\",\n+        \"UGA\": \"STOP\",\n+    }\n+\n+    protein = []\n+    i = 0\n+\n+    while i < len(strand) - 2:\n+        codon = strand[i : i + 3]\n+        if codon in codon_to_aa:\n+            aa = codon_to_aa[codon]\n+            if aa == \"STOP\":\n+                break\n+            protein.append(aa)\n+        i += 3\n+\n+    return protein\n",
+  "outcome": "green"
+ }
+]

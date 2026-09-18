@@ -1,0 +1,44 @@
+{
+ "task": "A-01-word-count",
+ "gear": 0,
+ "fixed": false,
+ "gate_ok": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "word_count.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED word_count_test.py::WordCountTest::test_alternating_word_separators_not_detected_as_a_word",
+    "FAILED word_count_test.py::WordCountTest::test_multiple_apostrophes_ignored"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "word_count.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED word_count_test.py::WordCountTest::test_alternating_word_separators_not_detected_as_a_word",
+    "FAILED word_count_test.py::WordCountTest::test_multiple_apostrophes_ignored"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "word_count.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED word_count_test.py::WordCountTest::test_alternating_word_separators_not_detected_as_a_word",
+    "FAILED word_count_test.py::WordCountTest::test_multiple_apostrophes_ignored"
+   ]
+  }
+ ],
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED word_count_test.py::WordCountTest::test_alternating_word_separators_not_detected_as_a_word",
+  "FAILED word_count_test.py::WordCountTest::test_count_one_of_each_word",
+  "FAILED word_count_test.py::WordCountTest::test_count_one_word"
+ ]
+}

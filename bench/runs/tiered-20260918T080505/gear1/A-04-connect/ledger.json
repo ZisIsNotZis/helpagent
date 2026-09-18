@@ -1,0 +1,47 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1248.5,
+  "prompt_tokens": 2499,
+  "completion_tokens": 54,
+  "wall_model_s": 0.743
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1248.5,
+  "prompt_tokens": 2499,
+  "completion_tokens": 60,
+  "wall_model_s": 0.523
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1248.5,
+  "prompt_tokens": 2499,
+  "completion_tokens": 59,
+  "wall_model_s": 0.985
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ }
+]
