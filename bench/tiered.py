@@ -111,9 +111,12 @@ def main() -> int:
     ap.add_argument("--n", type=int, default=3)
     ap.add_argument("--tasks", default="all")
     ap.add_argument("--gear", type=int, default=None, help="force a gear (override)")
+    ap.add_argument("--knowledge", action="store_true",
+                    help="M6: inject the knowledge pack into implement (gear 0/1)")
     ap.add_argument("--server", default=SERVER)
     args = ap.parse_args()
 
+    gb.KNOWLEDGE = args.knowledge
     model = load_model(args.server)
     tasks = sorted(p for p in (ROOT / "bench" / "corpus").iterdir()
                    if p.is_dir() and (p.name.startswith("T-") or p.name.startswith("A-")))

@@ -58,11 +58,13 @@ from harness.exec import ShapedResult  # noqa: E402
 from harness.exec import exec as k_exec  # noqa: E402
 from harness.checks import check_write, diagnose_test_output  # noqa: E402
 from harness.envelopes import file_tokens  # noqa: E402
+from harness.knowledge import build_knowledge  # noqa: E402
 from harness.model import LlamaServerRunner  # noqa: E402
 from harness.trajectory import Trajectory, pause_leaf_on_conflict  # noqa: E402
 from harness.workdir import boot_recover, lock  # noqa: E402
 
 GUIDED_IMPLEMENT = False
+KNOWLEDGE = False
 
 
 def asyncio_run(x):
@@ -319,6 +321,7 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
                 "behavior": spec.behavior,
                 "implementation_notes": spec.implementation_notes}),
                 "current_files": json.dumps({rel: files[rel] for rel in boundary if rel in files}, ensure_ascii=False),
+                **({"repo_knowledge": build_knowledge(files, boundary)} if globals().get("KNOWLEDGE") else {}),
                 "bug_report": request,
                 "failing_test_output": last_excerpt},
             question=(("Follow this plan step by step: " + plan_text + ".\n") if plan_text else "") +
@@ -406,9 +409,13 @@ def main() -> int:
     ap.add_argument("--skip-golden-test", action="store_true")
     ap.add_argument("--guided-implement", action="store_true",
                     help="A/B (ticket 05): fix_plan enumerate step before each implement emit")
+    ap.add_argument("--knowledge", action="store_true",
+                    help="M6: inject the knowledge pack (signatures/callers/constants) into implement")
     args = ap.parse_args()
     global GUIDED_IMPLEMENT
     GUIDED_IMPLEMENT = args.guided_implement
+    global KNOWLEDGE
+    KNOWLEDGE = args.knowledge
 
     task_dir = Path(args.task)
     task = load_task(task_dir)
