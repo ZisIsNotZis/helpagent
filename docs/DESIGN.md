@@ -263,6 +263,32 @@ docs/            # design, taxonomy, ADRs, fail patterns
 
 ---
 
+## 8.1 Flow tiering (owner decision 2026-09-18 — the §9.10 verdict executed)
+
+The M5 verdict (77/90 bare vs 66/90 pipeline at 1.4 vs 8-10 calls/task) triggered
+§9.10's clause: overhead was the suspect and it is guilty on small tasks. The
+response is FLOW TIERING, not deletion:
+
+- **Difficulty is discovered, not predicted.** No 4B difficulty self-assessment
+  (FP-5 shows the model cannot even classify task class stably) and no mandatory
+  human pre-labeling (does not scale to real requests). The ladder starts at the
+  cheapest gear and escalates on failure — a task that the cheap gear solves WAS
+  easy; one that burns the ladder was hard. Manual gear override stays available
+  as the autonomy dial (§4.8).
+- **Gears (engine scripts, one kernel, shared safety nets):**
+  - **Gear 0 — direct**: 1 whole-file-edit attempt set (≤3) + kernel protections
+    (check_write ladder, sandbox, untouched contract — all deterministic, no model
+    calls, effectively free).
+  - **Gear 1 — guided**: Gear 0 + fix_plan enumeration before each emit (§2.2;
+    earned +29pp on the failure family at +1 call/attempt).
+  - **Gear 2 — full**: the golden flow (spec → AC map → implement loop). Reserved
+    for tasks the cheap gears cannot close; its machinery must pay for itself per
+    task class from here on.
+- **Benchmark floor calibration:** the 30-task corpus is largely single-file and
+  pipeline-adjacent — it measures the working band, not the floor. A harder tier
+  (multi-file, control-flow-restructuring, cross-module contracts) and, where the
+  network permits, a small public anchor slice (§6) probe the actual limit.
+
 ## 9. Open questions
 
 1. **Step size calibration:** what artifact-token size maximizes 4B success per invocation? Tune against corpus.
