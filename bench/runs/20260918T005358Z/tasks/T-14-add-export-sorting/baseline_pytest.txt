@@ -1,0 +1,16 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+__________ test_rows_are_customer_ordered_case_insensitive_and_stable __________
+
+    def test_rows_are_customer_ordered_case_insensitive_and_stable():
+        out = export_rows(ROWS)
+>       assert [r[0] for r in out] == ["Acme", "ACME corp", "acme corp", "Borealis", "northwind"]
+E       AssertionError: assert ['northwind',...', 'Borealis'] == ['Acme', 'ACM..., 'northwind']
+E         
+E         At index 0 diff: 'northwind' != 'Acme'
+E         Use -v to get more diff
+
+tests/test_export.py:17: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_export.py::test_rows_are_customer_ordered_case_insensitive_and_stable
+1 failed, 1 passed in 0.04s

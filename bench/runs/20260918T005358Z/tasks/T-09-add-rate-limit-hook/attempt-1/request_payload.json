@@ -1,0 +1,53 @@
+{
+  "model": "spark-x2.5-4b",
+  "temperature": 0.2,
+  "max_tokens": 3000,
+  "stream": false,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "whole_file_edit",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unable"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "comment",
+          "file_path",
+          "content"
+        ]
+      }
+    }
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise whole-file coding-edit engine working on a small Python repository.\n\nYou receive: a bug report, the complete current contents of every file in the repository, and the failing test output. You return exactly ONE JSON object:\n\n{\"status\": \"ok\" or \"unable\", \"comment\": \"1-2 sentences: what the bug is and what you changed (or why you cannot fix it)\", \"file_path\": \"path of the ONE file you rewrite, exactly as shown in the repository listing\", \"content\": \"the COMPLETE new content of that file\"}\n\nHard rules:\n- \"content\" REPLACES the whole file byte-for-byte. Include every line of the file: module docstring, imports, and all. Never truncate, never write \"...\" or placeholders, never wrap the content in markdown fences.\n- Change as little as possible: fix the reported bug and keep everything else exactly as it is. Do not restyle, rename, or reformat unrelated code.\n- Do not change the public API: keep function and class names, signatures, and module layout unchanged.\n- \"file_path\" must exactly match one of the repository file paths shown to you (relative to the repo root).\n- If you are not confident you can fix the bug, set \"status\" to \"unable\", explain in \"comment\", and make \"file_path\" and \"content\" empty strings.\nOutput raw JSON only."
+    },
+    {
+      "role": "user",
+      "content": "## Bug report (verbatim, from the user)\nOps wants to get paged when a client starts getting throttled. The limiter already\naccepts an on_limit callback — please make it fire exactly once when a key first\ncrosses the threshold. Repeated blocked hits must not re-fire it, and if no callback\nis registered nothing should change. Our pager can't handle one alert per request.\n\n## Repository files (complete current contents)\n### README.md\n```\n# throttle — per-key limiter\n\nAllows up to ``threshold`` hits per key, then blocks. ``on_limit`` is an optional\ncallback invoked as ``on_limit(key)``: it fires once per key, when the key first\ncrosses the threshold; later blocked hits do not re-fire it. ``None`` disables it.\n\nRun the tests: `python -m pytest`\n\n```\n\n### pyproject.toml\n```\n[project]\nname = \"throttle\"\nversion = \"0.1.0\"\ndescription = \"Per-key throttle with a configurable threshold.\"\nrequires-python = \">=3.10\"\ndependencies = [\"pytest\"]\n\n[tool.pytest.ini_options]\npythonpath = [\".\"]\ntestpaths = [\"tests\"]\n\n```\n\n### tests/test_limiter.py\n```python\n\"\"\"Tests for the throttle.\"\"\"\n\nfrom throttle.limiter import Limiter\n\n\ndef test_allows_up_to_threshold_then_blocks():\n    limiter = Limiter(threshold=2)\n    assert limiter.hit(\"k\") is True\n    assert limiter.hit(\"k\") is True\n    assert limiter.hit(\"k\") is False\n    assert limiter.hit(\"k\") is False\n\n\ndef test_on_limit_fires_once_per_crossing():\n    fired: list[str] = []\n    limiter = Limiter(threshold=2, on_limit=fired.append)\n    for _ in range(5):\n        limiter.hit(\"k\")\n    assert fired == [\"k\"]\n\n\ndef test_works_without_a_callback():\n    limiter = Limiter(threshold=1)\n    assert limiter.hit(\"k\") is True\n    assert limiter.hit(\"k\") is False\n\n```\n\n### throttle/__init__.py\n```python\n\n```\n\n### throttle/limiter.py\n```python\n\"\"\"Per-key throttle with a configurable threshold.\"\"\"\n\n\nclass Limiter:\n    \"\"\"Allows up to ``threshold`` hits per key, then blocks.\n\n    ``on_limit`` is an optional callback invoked as ``on_limit(key)`` — callers use\n    it for paging/alerting. It fires once per key, when the key first crosses the\n    threshold; later blocked hits do not re-fire it. ``None`` disables it.\n    \"\"\"\n\n    def __init__(self, threshold: int, on_limit=None) -> None:\n        self.threshold = threshold\n        self.on_limit = on_limit\n        self._counts: dict[str, int] = {}\n        self._blocked: set[str] = set()\n\n    def hit(self, key: str) -> bool:\n        \"\"\"Record one hit for ``key``; True when the hit is allowed.\"\"\"\n        count = self._counts.get(key, 0) + 1\n        self._counts[key] = count\n        if count > self.threshold:\n            self._blocked.add(key)\n        return count <= self.threshold\n\n```\n\n## Failing test output (`python -m pytest` run inside the repository)\n```\n.F.                                                                      [100%]\n=================================== FAILURES ===================================\n____________________ test_on_limit_fires_once_per_crossing _____________________\n\n    def test_on_limit_fires_once_per_crossing():\n        fired: list[str] = []\n        limiter = Limiter(threshold=2, on_limit=fired.append)\n        for _ in range(5):\n            limiter.hit(\"k\")\n>       assert fired == [\"k\"]\nE       AssertionError: assert [] == ['k']\nE         \nE         Right contains one more item: 'k'\nE         Use -v to get more diff\n\ntests/test_limiter.py:19: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_limiter.py::test_on_limit_fires_once_per_crossing - Asserti...\n1 failed, 2 passed in 0.05s\n\n```\n\nFix the bug by rewriting exactly one repository file. Respond with the JSON object now."
+    }
+  ]
+}

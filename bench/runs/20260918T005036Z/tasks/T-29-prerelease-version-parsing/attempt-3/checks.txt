@@ -1,0 +1,13 @@
+== envelope application ==
+status=ok file_path=verparse/parse.py bytes=328 sha256=cf87222c6d76584e489677530f8387b2977f723a54583ba7adc44dc19338629f
+
+== pytest (after write, exit=0) ==
+..                                                                       [100%]
+2 passed in 0.02s
+
+== checks.py verify (exit=0) ==
+== checks: T-29-prerelease-version-parsing ==
+[tests]    OK (python -m pytest in repo/)
+[contract] OK (5 untouched paths byte-identical)
+result: PASS
+

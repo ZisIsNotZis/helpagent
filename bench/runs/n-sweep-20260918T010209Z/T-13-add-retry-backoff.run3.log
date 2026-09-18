@@ -1,0 +1,28 @@
+== golden bugfix: T-13-add-retry-backoff ==
+[red] pytest exit=1
+[task_card] class=refactor goal="Update the client to handle the backend's transient marker by implemen"
+[expand] leaf: "Update the client to handle the backend's transient marker by implemen" est=1
+[spec] interfaces=['fetch'] files_touched=['fetcher/client.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=False history=[{"attempt": 1, "file": "fetcher/client.py", "pytest_exit": 1, "verdict": "failed", "excerpts": ["FAILED tests/test_client.py::test_transient_responses_are_retried_with_backoff", "E           TypeError: list.append() arg
+[gate] ok=False notes=['pytest exit 1', 'FAILED tests/test_client.py::test_transient_responses_are_retried_with_backoff', "E       AssertionError: assert '<transient>' == 'payload'", 'E         - payload']
+[run_summary] outcome=complete done='Attempted to add retry backoff to fetcher/client.py across 3 failed runs.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260918T010449/golden/T-13-add-retry-backoff
+[result] FAIL (corpus pristine: True)
+
+===== STDERR =====
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(

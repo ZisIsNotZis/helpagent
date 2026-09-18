@@ -1,0 +1,39 @@
+{
+ "task": "T-16-class-state-leak",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "cart/cart.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_cart.py::test_carts_are_independent",
+    "E       AssertionError: assert ['sku-1'] == []"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "cart/cart.py",
+   "pytest_exit": 0,
+   "verdict": "ok",
+   "excerpts": [
+    "..                                                                       [100%]",
+    "2 passed in 0.03s"
+   ]
+  }
+ ],
+ "fix_summary": "cart/cart.py",
+ "gate_notes": [
+  "pytest green; untouched-files contract holds"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-16-class-state-leak-summary"
+ ]
+}

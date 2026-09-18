@@ -1,0 +1,13 @@
+== golden bugfix: T-26-plan-dataclass-port ==
+[red] pytest exit=2
+[task_card] class=port goal='Port the build plan to a real dataclass while maintaining dict-style a'
+[expand] leaf: 'Port the build plan to a real dataclass while maintaining dict-style a' est=1
+[spec] interfaces=['Plan'] files_touched=['plan/__init__.py', 'plan/model.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=True history=[{"attempt": 1, "file": "plan/model.py", "pytest_exit": 1, "verdict": "failed", "excerpts": ["FAILED tests/test_model.py::test_plan_is_a_dataclass_with_attributes", "E       AssertionError: assert False"]}, {"attempt": 2
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=complete done='Ported the Plan dataclass to support attribute access.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260918T011651/golden/T-26-plan-dataclass-port
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====

@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"status\": \"ok\", \"comment\": \"Fixed the stale read bug by invalidating the read cache after each write so the very next read always reflects the latest counter value.\", \"file_path\": \"metrics/registry.py\", \"content\": \"\\\"\\\"\\\"Counters registry with a read cache for hot paths.\\\"\\\"\\\"\\n\\n\\nclass Registry:\\n    \\\"\\\"\\\"Counters with a cached read path.\\n\\n    Reads are served from a cache so hot dashboards do not re-read the counters\\n    dict on every scrape; a write must always be visible to the very next read.\\n    \\\"\\\"\\\"\\n\\n    def __init__(self) -> None:\\n        self._counters: dict[str, int] = {}\\n        self._cache: dict[str, int] = {}\\n\\n    def increment(self, name: str, by: int = 1) -> None:\\n        self._counters[name] = self._counters.get(name, 0) + by\\n        self._cache.pop(name, None)\\n\\n    def value(self, name: str) -> int:\\n        \\\"\\\"\\\"Current value of counter ``name`` (cached read path).\\\"\\\"\\\"\\n        if name not in self._cache:\\n            self._cache[name] = self._counters.get(name, 0)\\n        return self._cache[name]\\n\"}"
+      }
+    }
+  ],
+  "created": 1789693077,
+  "model": "/home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf",
+  "system_fingerprint": "b4294-16378d93f9",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 301,
+    "prompt_tokens": 1199,
+    "total_tokens": 1500,
+    "prompt_tokens_details": {
+      "cached_tokens": 684
+    }
+  },
+  "id": "chatcmpl-wGYgpPwaXNelfBIFbr2sP0NV31mOuuFc",
+  "timings": {
+    "cache_n": 684,
+    "prompt_n": 515,
+    "prompt_ms": 115.588,
+    "prompt_per_token_ms": 0.22444271844660194,
+    "prompt_per_second": 4455.479807592485,
+    "predicted_n": 301,
+    "predicted_ms": 3605.305,
+    "predicted_per_token_ms": 12.017683333333332,
+    "predicted_per_second": 83.21071310194284
+  }
+}

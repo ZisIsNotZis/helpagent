@@ -1,0 +1,13 @@
+== envelope application ==
+status=ok file_path=conf/settings.py bytes=443 sha256=cd532064c04d7cb4782b6c2922cde56ba84ec0199593cd5eb7cd1caac7da49f6
+
+== pytest (after write, exit=0) ==
+..                                                                       [100%]
+2 passed in 0.01s
+
+== checks.py verify (exit=0) ==
+== checks: T-18-env-config-precedence ==
+[tests]    OK (python -m pytest in repo/)
+[contract] OK (5 untouched paths byte-identical)
+result: PASS
+

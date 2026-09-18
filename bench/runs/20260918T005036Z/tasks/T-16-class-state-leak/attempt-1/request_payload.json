@@ -1,0 +1,53 @@
+{
+  "model": "spark-x2.5-4b",
+  "temperature": 0.2,
+  "max_tokens": 3000,
+  "stream": false,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "whole_file_edit",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unable"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "comment",
+          "file_path",
+          "content"
+        ]
+      }
+    }
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise whole-file coding-edit engine working on a small Python repository.\n\nYou receive: a bug report, the complete current contents of every file in the repository, and the failing test output. You return exactly ONE JSON object:\n\n{\"status\": \"ok\" or \"unable\", \"comment\": \"1-2 sentences: what the bug is and what you changed (or why you cannot fix it)\", \"file_path\": \"path of the ONE file you rewrite, exactly as shown in the repository listing\", \"content\": \"the COMPLETE new content of that file\"}\n\nHard rules:\n- \"content\" REPLACES the whole file byte-for-byte. Include every line of the file: module docstring, imports, and all. Never truncate, never write \"...\" or placeholders, never wrap the content in markdown fences.\n- Change as little as possible: fix the reported bug and keep everything else exactly as it is. Do not restyle, rename, or reformat unrelated code.\n- Do not change the public API: keep function and class names, signatures, and module layout unchanged.\n- \"file_path\" must exactly match one of the repository file paths shown to you (relative to the repo root).\n- If you are not confident you can fix the bug, set \"status\" to \"unable\", explain in \"comment\", and make \"file_path\" and \"content\" empty strings.\nOutput raw JSON only."
+    },
+    {
+      "role": "user",
+      "content": "## Bug report (verbatim, from the user)\nCustomers are seeing each other's items: whatever one browser adds to its cart shows up in every other cart, and brand-new carts are not empty either. It started feeling like all carts share one list. Carts must be independent per customer; don't change how callers create a Cart.\n\n## Repository files (complete current contents)\n### README.md\n```\n# cart\n\nOne `Cart` per customer session; carts are independent.\n\n```\n\n### cart/__init__.py\n```python\n\n```\n\n### cart/cart.py\n```python\n\"\"\"A minimal shopping cart.\"\"\"\n\n\nclass Cart:\n    # Per the docs: one Cart per customer session.\n    items = []\n\n    def add(self, sku: str) -> None:\n        self.items.append(sku)\n\n    def contents(self) -> list[str]:\n        return list(self.items)\n\n```\n\n### pyproject.toml\n```\n[project]\nname = \"16classstateleak\"\nversion = \"0.1.0\"\ndescription = \"Shopping cart with a state leak.\"\nrequires-python = \">=3.10\"\ndependencies = [\"pytest\"]\n\n[tool.pytest.ini_options]\npythonpath = [\".\"]\ntestpaths = [\"tests\"]\n\n```\n\n### tests/__init__.py\n```python\n\n```\n\n### tests/test_cart.py\n```python\n\"\"\"Cart isolation tests.\"\"\"\n\nfrom cart.cart import Cart\n\n\ndef test_new_cart_starts_empty():\n    assert Cart().contents() == []\n\n\ndef test_carts_are_independent():\n    a = Cart()\n    b = Cart()\n    a.add(\"sku-1\")\n    assert a.contents() == [\"sku-1\"]\n    assert b.contents() == []\n\n```\n\n## Failing test output (`python -m pytest` run inside the repository)\n```\n.F                                                                       [100%]\n=================================== FAILURES ===================================\n__________________________ test_carts_are_independent __________________________\n\n    def test_carts_are_independent():\n        a = Cart()\n        b = Cart()\n        a.add(\"sku-1\")\n        assert a.contents() == [\"sku-1\"]\n>       assert b.contents() == []\nE       AssertionError: assert ['sku-1'] == []\nE         \nE         Left contains one more item: 'sku-1'\nE         Use -v to get more diff\n\ntests/test_cart.py:15: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_cart.py::test_carts_are_independent - AssertionError: asser...\n1 failed, 1 passed in 0.05s\n\n```\n\nFix the bug by rewriting exactly one repository file. Respond with the JSON object now."
+    }
+  ]
+}

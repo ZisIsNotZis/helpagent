@@ -1,0 +1,18 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+____________________ test_write_is_visible_to_the_next_read ____________________
+
+    def test_write_is_visible_to_the_next_read():
+        r = Registry()
+        r.increment("hits")
+        assert r.value("hits") == 1
+        r.increment("hits", by=4)
+>       assert r.value("hits") == 5
+E       AssertionError: assert 1 == 5
+E        +  where 1 = value('hits')
+E        +    where value = <metrics.registry.Registry object at 0x73d11fd8c3b0>.value
+
+tests/test_registry.py:16: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_registry.py::test_write_is_visible_to_the_next_read - Asser...
+1 failed, 1 passed in 0.02s

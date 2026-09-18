@@ -1,0 +1,32 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+_________________ test_due_check_works_with_the_default_clock __________________
+
+    def test_due_check_works_with_the_default_clock():
+        job = {"next_run": _utc(2099, 1, 1, 9)}
+>       assert not is_due(job)
+                   ^^^^^^^^^^^
+
+tests/test_jobs.py:19: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+job = {'next_run': datetime.datetime(2099, 1, 1, 9, 0, tzinfo=datetime.timezone.utc)}
+now = datetime.datetime(2026, 9, 18, 0, 51, 2, 544111)
+
+    def is_due(job: dict, now: datetime | None = None) -> bool:
+        """True when ``job``'s next_run has passed at ``now`` (UTC now by default)."""
+        now = now or datetime.utcnow()
+>       return job["next_run"] <= now
+               ^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: can't compare offset-naive and offset-aware datetimes
+
+scheduler/jobs.py:19: TypeError
+=============================== warnings summary ===============================
+tests/test_jobs.py::test_due_check_works_with_the_default_clock
+  /home/z/vibe/helpagent/bench/runs/20260918T005036Z/tasks/T-06-tz-naive-compare/work/T-06-tz-naive-compare/repo/scheduler/jobs.py:18: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = now or datetime.utcnow()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_jobs.py::test_due_check_works_with_the_default_clock - Type...
+1 failed, 1 passed, 1 warning in 0.04s

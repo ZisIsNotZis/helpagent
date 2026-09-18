@@ -1,0 +1,51 @@
+== envelope application ==
+status=ok file_path=ingest/records.py bytes=704 sha256=c1d522afd10ec3cb006e672031d5f54fc7b18c8031deee462e6550fd40239121
+
+== pytest (after write, exit=2) ==
+
+==================================== ERRORS ====================================
+____________________ ERROR collecting tests/test_records.py ____________________
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/_pytest/python.py:508: in importtestmodule
+    mod = import_path(
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/_pytest/pathlib.py:596: in import_path
+    importlib.import_module(module_name)
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1387: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1360: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1331: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:935: in _load_unlocked
+    ???
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/_pytest/assertion/rewrite.py:188: in exec_module
+    exec(co, module.__dict__)
+tests/test_records.py:3: in <module>
+    from ingest.records import normalize
+E     File "/home/z/vibe/helpagent/bench/runs/20260918T005719Z/tasks/T-27-snakecase-ingest/work/T-27-snakecase-ingest/repo/ingest/records.py", line 16
+E       for part in snake_key.split("[×"]")
+E                                       ^
+E   SyntaxError: closing parenthesis ']' does not match opening parenthesis '('
+=========================== short test summary info ============================
+ERROR tests/test_records.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.27s
+
+== checks.py verify (exit=1) ==
+== checks: T-27-snakecase-ingest ==
+[tests]    FAIL (python -m pytest in repo/)
+           E     File "/home/z/vibe/helpagent/bench/runs/20260918T005719Z/tasks/T-27-snakecase-ingest/work/T-27-snakecase-ingest/repo/ingest/records.py", line 16
+           E       for part in snake_key.split("[×"]")
+           E                                       ^
+           E   SyntaxError: closing parenthesis ']' does not match opening parenthesis '('
+           =========================== short test summary info ============================
+           ERROR tests/test_records.py
+           !!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+           1 error in 0.27s
+[contract] OK (5 untouched paths byte-identical)
+result: FAIL
+
+== rollback ==
+file restored to original bytes

@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"status\": \"ok\", \"comment\": \"Fixed the JSON mode in report/builder.py by returning a properly formatted JSON document with the 'rows' key when as_json is True, while keeping the exact legacy text output for the default text mode.\", \"file_path\": \"report/builder.py\", \"content\": \"\\\"\\\"\\\"Builds the daily report.\\n\\nThe HTTP API accepts ?format=json and must return a JSON document:\\n{\\\"rows\\\": [[...], ...]} - everything else keeps the legacy tabular text.\\n\\\"\\\"\\\"\\n\\n\\ndef build_report(rows: list[list], as_json: bool = False) -> str:\\n    if as_json:\\n        return json.dumps({\\\"rows\\\": rows}, separators=(\\\",\\\", \\\":\\\"))\\n    lines = [\\\"DAILY REPORT\\\"]\\n    for row in rows:\\n        lines.append(\\\" | \\\".join(str(c) for c in row))\\n    return \\\"\\\\n\\\".join(lines)\\n\"\n}"
+      }
+    }
+  ],
+  "created": 1789692762,
+  "model": "/home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf",
+  "system_fingerprint": "b4294-16378d93f9",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 223,
+    "prompt_tokens": 1435,
+    "total_tokens": 1658,
+    "prompt_tokens_details": {
+      "cached_tokens": 318
+    }
+  },
+  "id": "chatcmpl-dJiYy4H1vt9NOQq0OvFrLoL5s3cFZ2Q5",
+  "timings": {
+    "cache_n": 318,
+    "prompt_n": 1117,
+    "prompt_ms": 267.447,
+    "prompt_per_token_ms": 0.23943330349149508,
+    "prompt_per_second": 4176.52843367097,
+    "predicted_n": 223,
+    "predicted_ms": 3082.116,
+    "predicted_per_token_ms": 13.883405405405405,
+    "predicted_per_second": 72.0284376058526
+  }
+}

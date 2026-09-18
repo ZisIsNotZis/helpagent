@@ -1,0 +1,32 @@
+F.F                                                                      [100%]
+=================================== FAILURES ===================================
+_____________________________ test_camel_to_snake ______________________________
+
+    def test_camel_to_snake():
+>       assert normalize({"firstName": "Ada"}) == {"first_name": "Ada"}
+E       AssertionError: assert {'firstName': 'Ada'} == {'first_name': 'Ada'}
+E         
+E         Left contains 1 more item:
+E         {'firstName': 'Ada'}
+E         Right contains 1 more item:
+E         {'first_name': 'Ada'}
+E         Use -v to get more diff
+
+tests/test_records.py:7: AssertionError
+__________________________ test_unknown_keys_dropped ___________________________
+
+    def test_unknown_keys_dropped():
+>       assert normalize({"firstName": "A", "junkField": 1}) == {"first_name": "A"}
+E       AssertionError: assert {'firstName':...junkField': 1} == {'first_name': 'A'}
+E         
+E         Left contains 2 more items:
+E         {'firstName': 'A', 'junkField': 1}
+E         Right contains 1 more item:
+E         {'first_name': 'A'}
+E         Use -v to get more diff
+
+tests/test_records.py:15: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_records.py::test_camel_to_snake - AssertionError: assert {'...
+FAILED tests/test_records.py::test_unknown_keys_dropped - AssertionError: ass...
+2 failed, 1 passed in 0.05s

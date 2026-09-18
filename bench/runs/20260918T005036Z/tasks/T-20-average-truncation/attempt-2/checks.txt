@@ -1,0 +1,41 @@
+== envelope application ==
+NOT EXECUTED: unable
+
+== pytest (exit=1) ==
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+____________________________ test_half_star_average ____________________________
+
+    def test_half_star_average():
+>       assert average([4, 5]) == 4.5
+E       assert 4 == 4.5
+E        +  where 4 = average([4, 5])
+
+tests/test_stats.py:7: AssertionError
+________________________ test_repeating_fraction_rounds ________________________
+
+    def test_repeating_fraction_rounds():
+>       assert average([1, 2, 2]) == 1.67
+E       assert 1 == 1.67
+E        +  where 1 = average([1, 2, 2])
+
+tests/test_stats.py:11: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_stats.py::test_half_star_average - assert 4 == 4.5
+FAILED tests/test_stats.py::test_repeating_fraction_rounds - assert 1 == 1.67
+2 failed in 0.03s
+
+== checks.py verify (exit=1) ==
+== checks: T-20-average-truncation ==
+[tests]    FAIL (python -m pytest in repo/)
+           E       assert 1 == 1.67
+           E        +  where 1 = average([1, 2, 2])
+           
+           tests/test_stats.py:11: AssertionError
+           =========================== short test summary info ============================
+           FAILED tests/test_stats.py::test_half_star_average - assert 4 == 4.5
+           FAILED tests/test_stats.py::test_repeating_fraction_rounds - assert 1 == 1.67
+           2 failed in 0.03s
+[contract] OK (5 untouched paths byte-identical)
+result: FAIL
+

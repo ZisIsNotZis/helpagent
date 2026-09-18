@@ -1,0 +1,53 @@
+{
+  "model": "spark-x2.5-4b",
+  "temperature": 0.2,
+  "max_tokens": 3000,
+  "stream": false,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "whole_file_edit",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unable"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "comment",
+          "file_path",
+          "content"
+        ]
+      }
+    }
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise whole-file coding-edit engine working on a small Python repository.\n\nYou receive: a bug report, the complete current contents of every file in the repository, and the failing test output. You return exactly ONE JSON object:\n\n{\"status\": \"ok\" or \"unable\", \"comment\": \"1-2 sentences: what the bug is and what you changed (or why you cannot fix it)\", \"file_path\": \"path of the ONE file you rewrite, exactly as shown in the repository listing\", \"content\": \"the COMPLETE new content of that file\"}\n\nHard rules:\n- \"content\" REPLACES the whole file byte-for-byte. Include every line of the file: module docstring, imports, and all. Never truncate, never write \"...\" or placeholders, never wrap the content in markdown fences.\n- Change as little as possible: fix the reported bug and keep everything else exactly as it is. Do not restyle, rename, or reformat unrelated code.\n- Do not change the public API: keep function and class names, signatures, and module layout unchanged.\n- \"file_path\" must exactly match one of the repository file paths shown to you (relative to the repo root).\n- If you are not confident you can fix the bug, set \"status\" to \"unable\", explain in \"comment\", and make \"file_path\" and \"content\" empty strings.\nOutput raw JSON only."
+    },
+    {
+      "role": "user",
+      "content": "## Bug report (verbatim, from the user)\nThe dashboard team is waiting on the JSON report mode the API docs advertise (?format=json should return {\"rows\": [...]}) but the builder only ever emits the legacy text table. Please add the JSON mode; the text output must stay byte-for-byte identical.\n\n## Repository files (complete current contents)\n### README.md\n```\n# report\n\nDaily report builder. ?format=json returns {\"rows\": [...]}; default is text.\n\n```\n\n### pyproject.toml\n```\n[project]\nname = \"jsonreportflag\"\nversion = \"0.1.0\"\ndescription = \"Daily report builder.\"\nrequires-python = \">=3.10\"\ndependencies = [\"pytest\"]\n\n[tool.pytest.ini_options]\npythonpath = [\".\"]\ntestpaths = [\"tests\"]\n\n```\n\n### report/__init__.py\n```python\n\n```\n\n### report/builder.py\n```python\n\"\"\"Builds the daily report.\n\nThe HTTP API accepts ?format=json and must return a JSON document:\n{\"rows\": [[...], ...]} - everything else keeps the legacy tabular text.\n\"\"\"\n\n\ndef build_report(rows: list[list], as_json: bool = False) -> str:\n    lines = [\"DAILY REPORT\"]\n    for row in rows:\n        lines.append(\" | \".join(str(c) for c in row))\n    return \"\\n\".join(lines)\n\n```\n\n### tests/__init__.py\n```python\n\n```\n\n### tests/test_builder.py\n```python\n\"\"\"Output-mode tests.\"\"\"\n\nimport json\n\nfrom report.builder import build_report\n\n\ndef test_legacy_text_mode():\n    out = build_report([[\"a\", 1]])\n    assert out.startswith(\"DAILY REPORT\")\n\n\ndef test_json_mode_returns_document():\n    doc = json.loads(build_report([[\"a\", 1], [\"b\", 2]], as_json=True))\n    assert doc == {\"rows\": [[\"a\", 1], [\"b\", 2]]}\n\n```\n\n## Failing test output (`python -m pytest` run inside the repository)\n```\n.F                                                                       [100%]\n=================================== FAILURES ===================================\n_______________________ test_json_mode_returns_document ________________________\n\n    def test_json_mode_returns_document():\n>       doc = json.loads(build_report([[\"a\", 1], [\"b\", 2]], as_json=True))\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\ntests/test_builder.py:14: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/usr/lib/python3.12/json/__init__.py:346: in loads\n    return _default_decoder.decode(s)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/lib/python3.12/json/decoder.py:337: in decode\n    obj, end = self.raw_decode(s, idx=_w(s, 0).end())\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nself = <json.decoder.JSONDecoder object at 0x707ce858e870>\ns = 'DAILY REPORT\\na | 1\\nb | 2', idx = 0\n\n    def raw_decode(self, s, idx=0):\n        \"\"\"Decode a JSON document from ``s`` (a ``str`` beginning with\n        a JSON document) and return a 2-tuple of the Python\n        representation and the index in ``s`` where the document ended.\n    \n        This can be used to decode a JSON document from a string that may\n        have extraneous data at the end.\n    \n        \"\"\"\n        try:\n            obj, end = self.scan_once(s, idx)\n        except StopIteration as err:\n>           raise JSONDecodeError(\"Expecting value\", s, err.value) from None\nE           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)\n\n/usr/lib/python3.12/json/decoder.py:355: JSONDecodeError\n=========================== short test summary info ============================\nFAILED tests/test_builder.py::test_json_mode_returns_document - json.decoder....\n1 failed, 1 passed in 0.06s\n\n```\n\nFix the bug by rewriting exactly one repository file. Respond with the JSON object now."
+    }
+  ]
+}

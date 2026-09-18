@@ -1,0 +1,13 @@
+== envelope application ==
+status=ok file_path=auth/config.py bytes=111 sha256=a4bb3be8ee6f65b912a2c5f874fbde26f1c5f5d11869a8b04d5c09e8e22f8556
+
+== pytest (after write, exit=0) ==
+..                                                                       [100%]
+2 passed in 0.02s
+
+== checks.py verify (exit=0) ==
+== checks: T-01-ttl-seconds-ms ==
+[tests]    OK (python -m pytest in repo/)
+[contract] OK (5 untouched paths byte-identical)
+result: PASS
+

@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"status\": \"ok\", \"comment\": \"Implemented the chunked(seq, size) helper in utils/batch.py to split a sequence into ordered chunks of at most `size` items, with the last chunk carrying the remainder, matching the tests and contract.\", \"file_path\": \"utils/batch.py\", \"content\": \"\\\"\\\"\\\"Shared batching helpers.\\n\\nThree call sites need chunked(): feed a sequence and a size, get lists of at\\nmost `size` items, in order, with the last chunk carrying the remainder.\\n\\\"\\\"\\\"\\n\\n\\ndef chunked(seq, size: int):\\n    \\\"\\\"\\\"Split *seq* into ordered chunks of at most *size* items.\\n\\n    The last chunk contains the remainder when the sequence is not evenly\\n    divisible by *size*.\\n    \\\"\\\"\\\"\\n    return [seq[i:i + size] for i in range(0, len(seq), size)]\\n\"}"
+      }
+    }
+  ],
+  "created": 1789692981,
+  "model": "/home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf",
+  "system_fingerprint": "b4294-16378d93f9",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 209,
+    "prompt_tokens": 1274,
+    "total_tokens": 1483,
+    "prompt_tokens_details": {
+      "cached_tokens": 318
+    }
+  },
+  "id": "chatcmpl-NSod6OowIdOmwPKqGoBdSAIa0vrVMxfs",
+  "timings": {
+    "cache_n": 318,
+    "prompt_n": 956,
+    "prompt_ms": 184.565,
+    "prompt_per_token_ms": 0.19305962343096233,
+    "prompt_per_second": 5179.746972611276,
+    "predicted_n": 209,
+    "predicted_ms": 2646.404,
+    "predicted_per_token_ms": 12.723096153846154,
+    "predicted_per_second": 78.59722098364422
+  }
+}

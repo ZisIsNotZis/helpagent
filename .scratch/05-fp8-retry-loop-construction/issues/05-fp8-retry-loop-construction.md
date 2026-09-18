@@ -32,3 +32,12 @@ controls) with pass-rate delta beyond the N-run CI, then full corpus.
 
 - 2026-09-17 owner session: pattern diagnosed across 4 runs + shaping A/B;
   ticket parked at needs-triage (M4 milestone closure takes priority).
+
+- 2026-09-18 owner session: A/B RAN (guided fix_plan before each implement emit,
+  8-task family, N=3). Guided **11/24 (45.8%)** vs one-shot baseline **4/24 (16.7%)**;
+  T-16 1/3->3/3, T-21 1/3->3/3, T-18 0/3->2/3, T-24 0/3->1/3, T-26 0/3->2/3;
+  T-13 2/3->0/3 (high-variance task), T-27/T-28 unchanged 0/3. Cost: +1 call/attempt.
+  VERDICT: guided decomposition keeps — but see ticket 07/§9.10: the M0 baseline
+  (85.6%, 1.4 calls/task) beats both variants on this family, so the durable home
+  for "guided" is inside an escalation ladder (cheap path first), not the default
+  heavy path.

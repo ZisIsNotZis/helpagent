@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"status\": \"ok\", \"comment\": \"Added JSON mode support to build_report by returning a JSON document with 'rows' when as_json is True, while keeping the exact legacy text output for as_json=False.\", \"file_path\": \"report/builder.py\", \"content\": \"\\\"\\\"\\\"Builds the daily report.\\\"\\\"\\\"\\n\\n\\ndef build_report(rows: list[list], as_json: bool = False) -> str:\\n    if as_json:\\n        return json.dumps({\\\"rows\\\": rows})\\n\\n    lines = [\\\"DAILY REPORT\\\"]\\n    for row in rows:\\n        lines.append(\\\" | \\\".join(str(c) for c in row))\\n    return \\\"\\\\n\\\".join(lines)\\n\"}"
+      }
+    }
+  ],
+  "created": 1789692767,
+  "model": "/home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf",
+  "system_fingerprint": "b4294-16378d93f9",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 167,
+    "prompt_tokens": 5446,
+    "total_tokens": 5613,
+    "prompt_tokens_details": {
+      "cached_tokens": 318
+    }
+  },
+  "id": "chatcmpl-xO8tKbodN94gSXbeLPEVWIM4CZNO8G4p",
+  "timings": {
+    "cache_n": 318,
+    "prompt_n": 5128,
+    "prompt_ms": 696.329,
+    "prompt_per_token_ms": 0.13578958658346332,
+    "prompt_per_second": 7364.334962352566,
+    "predicted_n": 167,
+    "predicted_ms": 2336.162,
+    "predicted_per_token_ms": 14.073265060240963,
+    "predicted_per_second": 71.05671610102382
+  }
+}

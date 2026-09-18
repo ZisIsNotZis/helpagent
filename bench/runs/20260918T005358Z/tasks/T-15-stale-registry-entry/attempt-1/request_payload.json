@@ -1,0 +1,53 @@
+{
+  "model": "spark-x2.5-4b",
+  "temperature": 0.2,
+  "max_tokens": 3000,
+  "stream": false,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "whole_file_edit",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unable"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "comment",
+          "file_path",
+          "content"
+        ]
+      }
+    }
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise whole-file coding-edit engine working on a small Python repository.\n\nYou receive: a bug report, the complete current contents of every file in the repository, and the failing test output. You return exactly ONE JSON object:\n\n{\"status\": \"ok\" or \"unable\", \"comment\": \"1-2 sentences: what the bug is and what you changed (or why you cannot fix it)\", \"file_path\": \"path of the ONE file you rewrite, exactly as shown in the repository listing\", \"content\": \"the COMPLETE new content of that file\"}\n\nHard rules:\n- \"content\" REPLACES the whole file byte-for-byte. Include every line of the file: module docstring, imports, and all. Never truncate, never write \"...\" or placeholders, never wrap the content in markdown fences.\n- Change as little as possible: fix the reported bug and keep everything else exactly as it is. Do not restyle, rename, or reformat unrelated code.\n- Do not change the public API: keep function and class names, signatures, and module layout unchanged.\n- \"file_path\" must exactly match one of the repository file paths shown to you (relative to the repo root).\n- If you are not confident you can fix the bug, set \"status\" to \"unable\", explain in \"comment\", and make \"file_path\" and \"content\" empty strings.\nOutput raw JSON only."
+    },
+    {
+      "role": "user",
+      "content": "## Bug report (verbatim, from the user)\nWe removed the legacy-export plugin weeks ago, but the system still picks it up —\nremoved integrations keep running like they were never unregistered. Unregistering\na plugin has to make it unfindable, full stop.\n\n## Repository files (complete current contents)\n### README.md\n```\n# plugins\n\nPlugin registry.\n\n`register` makes a plugin findable by name; `unregister` must make it unfindable\nagain — a removed plugin never keeps answering lookups.\n\nRun the tests: `python -m pytest`\n\n```\n\n### plugins/__init__.py\n```python\n\"\"\"Plugin registry.\"\"\"\n\n```\n\n### plugins/registry.py\n```python\n\"\"\"Plugin registry: register, unregister, lookup.\"\"\"\n\n\nclass PluginRegistry:\n    \"\"\"Name-addressable plugin store.\n\n    ``unregister`` must fully remove a plugin: a removed plugin never keeps\n    answering lookups.\n    \"\"\"\n\n    def __init__(self) -> None:\n        self._plugins: dict[str, object] = {}\n        self._meta: dict[str, str] = {}\n\n    def register(self, name: str, plugin: object, *, version: str = \"0.0.0\") -> None:\n        self._plugins[name] = plugin\n        self._meta[name] = version\n\n    def unregister(self, name: str) -> None:\n        if name in self._meta:\n            del self._meta[name]\n\n    def lookup(self, name: str) -> object | None:\n        \"\"\"The plugin registered under ``name``, or ``None`` when absent.\"\"\"\n        return self._plugins.get(name)\n\n```\n\n### pyproject.toml\n```\n[project]\nname = \"plugins\"\nversion = \"0.1.0\"\ndescription = \"Plugin registry.\"\nrequires-python = \">=3.10\"\ndependencies = [\"pytest\"]\n\n[tool.pytest.ini_options]\npythonpath = [\".\"]\ntestpaths = [\"tests\"]\n\n```\n\n### tests/test_registry.py\n```python\n\"\"\"Tests for the plugin registry.\"\"\"\n\nfrom plugins.registry import PluginRegistry\n\n\ndef test_registered_plugin_is_found():\n    reg = PluginRegistry()\n    plugin = object()\n    reg.register(\"csv\", plugin)\n    assert reg.lookup(\"csv\") is plugin\n\n\ndef test_unregistered_plugin_is_absent():\n    reg = PluginRegistry()\n    plugin = object()\n    reg.register(\"legacy-export\", plugin, version=\"1.2\")\n    reg.unregister(\"legacy-export\")\n    assert reg.lookup(\"legacy-export\") is None\n\n\ndef test_lookup_unknown_returns_none():\n    assert PluginRegistry().lookup(\"nope\") is None\n\n```\n\n## Failing test output (`python -m pytest` run inside the repository)\n```\n.F.                                                                      [100%]\n=================================== FAILURES ===================================\n______________________ test_unregistered_plugin_is_absent ______________________\n\n    def test_unregistered_plugin_is_absent():\n        reg = PluginRegistry()\n        plugin = object()\n        reg.register(\"legacy-export\", plugin, version=\"1.2\")\n        reg.unregister(\"legacy-export\")\n>       assert reg.lookup(\"legacy-export\") is None\nE       AssertionError: assert <object object at 0x7106b69319f0> is None\nE        +  where <object object at 0x7106b69319f0> = lookup('legacy-export')\nE        +    where lookup = <plugins.registry.PluginRegistry object at 0x7106b586c800>.lookup\n\ntests/test_registry.py:18: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_registry.py::test_unregistered_plugin_is_absent - Assertion...\n1 failed, 2 passed in 0.05s\n\n```\n\nFix the bug by rewriting exactly one repository file. Respond with the JSON object now."
+    }
+  ]
+}

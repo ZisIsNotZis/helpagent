@@ -1,0 +1,53 @@
+{
+  "model": "spark-x2.5-4b",
+  "temperature": 0.2,
+  "max_tokens": 3000,
+  "stream": false,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "whole_file_edit",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unable"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "comment",
+          "file_path",
+          "content"
+        ]
+      }
+    }
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise whole-file coding-edit engine working on a small Python repository.\n\nYou receive: a bug report, the complete current contents of every file in the repository, and the failing test output. You return exactly ONE JSON object:\n\n{\"status\": \"ok\" or \"unable\", \"comment\": \"1-2 sentences: what the bug is and what you changed (or why you cannot fix it)\", \"file_path\": \"path of the ONE file you rewrite, exactly as shown in the repository listing\", \"content\": \"the COMPLETE new content of that file\"}\n\nHard rules:\n- \"content\" REPLACES the whole file byte-for-byte. Include every line of the file: module docstring, imports, and all. Never truncate, never write \"...\" or placeholders, never wrap the content in markdown fences.\n- Change as little as possible: fix the reported bug and keep everything else exactly as it is. Do not restyle, rename, or reformat unrelated code.\n- Do not change the public API: keep function and class names, signatures, and module layout unchanged.\n- \"file_path\" must exactly match one of the repository file paths shown to you (relative to the repo root).\n- If you are not confident you can fix the bug, set \"status\" to \"unable\", explain in \"comment\", and make \"file_path\" and \"content\" empty strings.\nOutput raw JSON only."
+    },
+    {
+      "role": "user",
+      "content": "## Bug report (verbatim, from the user)\nThe download endpoint intermittently comes back with the backend's transient\nmarker, and right now we surface that to users as a hard failure — support is\ntired of telling people \"just try again\". The client should ride out those\nhiccups itself: retry per the documented backoff schedule before giving up, and\nit has to stay testable without actually sleeping. Please finish that.\n\n## Repository files (complete current contents)\n### README.md\n```\n# fetcher\n\nTiny fetch shim for the download endpoint.\n\nA transient backend response (marked in the body) is retried per the documented\nbackoff schedule — `DELAYS_S` = (1, 2): one second before the first retry, two\nbefore the second. `sleep` is injectable, so tests observe the schedule without\nwaiting. If every attempt comes back transient, the marker is returned to the\ncaller.\n\nRun the tests: `python -m pytest`\n\n```\n\n### fetcher/__init__.py\n```python\n\"\"\"Fetch shim with transient-retry.\"\"\"\n\n```\n\n### fetcher/client.py\n```python\n\"\"\"Fetch shim for the download endpoint.\"\"\"\n\nimport time\n\n# Documented backoff schedule: delay before retry attempt 1, then attempt 2.\nDELAYS_S = (1, 2)\n\n# The backend flags a transient hiccup with this marker in the response body.\nRETRY_MARKER = \"<transient>\"\n\n\ndef fetch(send, url: str, *, sleep=time.sleep) -> str:\n    \"\"\"Fetch ``url`` through ``send``.\n\n    A transient response is retried per the documented backoff schedule; ``sleep``\n    is injectable so tests can observe the schedule without waiting.\n    \"\"\"\n    return send(url)\n\n```\n\n### pyproject.toml\n```\n[project]\nname = \"fetcher\"\nversion = \"0.1.0\"\ndescription = \"Tiny fetch shim with transient-retry.\"\nrequires-python = \">=3.10\"\ndependencies = [\"pytest\"]\n\n[tool.pytest.ini_options]\npythonpath = [\".\"]\ntestpaths = [\"tests\"]\n\n```\n\n### tests/test_client.py\n```python\n\"\"\"Tests for the fetch shim.\"\"\"\n\nfrom fetcher import client\n\n\ndef test_success_on_first_attempt_does_not_sleep():\n    sends: list[str] = []\n    sleeps: list[float] = []\n    out = client.fetch(lambda url: (sends.append(url), \"body\")[1], \"http://x/1\",\n                       sleep=sleeps.append)\n    assert out == \"body\"\n    assert sends == [\"http://x/1\"] and sleeps == []\n\n\ndef test_transient_responses_are_retried_with_backoff():\n    responses = iter([client.RETRY_MARKER, client.RETRY_MARKER, \"payload\"])\n    sends: list[str] = []\n    sleeps: list[float] = []\n\n    def send(url: str) -> str:\n        sends.append(url)\n        return next(responses)\n\n    out = client.fetch(send, \"http://x/2\", sleep=sleeps.append)\n    assert out == \"payload\"\n    assert sends == [\"http://x/2\"] * 3\n    assert sleeps == list(client.DELAYS_S)\n\n```\n\n## Failing test output (`python -m pytest` run inside the repository)\n```\n.F                                                                       [100%]\n=================================== FAILURES ===================================\n______________ test_transient_responses_are_retried_with_backoff _______________\n\n    def test_transient_responses_are_retried_with_backoff():\n        responses = iter([client.RETRY_MARKER, client.RETRY_MARKER, \"payload\"])\n        sends: list[str] = []\n        sleeps: list[float] = []\n    \n        def send(url: str) -> str:\n            sends.append(url)\n            return next(responses)\n    \n        out = client.fetch(send, \"http://x/2\", sleep=sleeps.append)\n>       assert out == \"payload\"\nE       AssertionError: assert '<transient>' == 'payload'\nE         \nE         - payload\nE         + <transient>\n\ntests/test_client.py:25: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_client.py::test_transient_responses_are_retried_with_backoff\n1 failed, 1 passed in 0.04s\n\n```\n\nFix the bug by rewriting exactly one repository file. Respond with the JSON object now."
+    }
+  ]
+}

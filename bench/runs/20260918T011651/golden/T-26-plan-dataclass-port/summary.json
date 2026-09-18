@@ -1,0 +1,49 @@
+{
+ "task": "T-26-plan-dataclass-port",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "plan/model.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_model.py::test_plan_is_a_dataclass_with_attributes",
+    "E       AssertionError: assert False"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "plan/model.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_model.py::test_old_dict_access_still_works",
+    "E       TypeError: 'Plan' object is not subscriptable"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "plan/model.py",
+   "pytest_exit": 0,
+   "verdict": "ok",
+   "excerpts": [
+    "..                                                                       [100%]",
+    "2 passed in 0.02s"
+   ]
+  }
+ ],
+ "fix_summary": "plan/model.py",
+ "gate_notes": [
+  "pytest green; untouched-files contract holds"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-26-plan-dataclass-port-summary"
+ ]
+}

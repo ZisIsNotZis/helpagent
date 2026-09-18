@@ -1,0 +1,13 @@
+== envelope application ==
+status=ok file_path=logparse/parser.py bytes=371 sha256=77cc9fd731aad7ae168d4a4da912cd0da630e177fc0c58e5aa1e9d73dab5fd5a
+
+== pytest (after write, exit=0) ==
+..                                                                       [100%]
+2 passed in 0.02s
+
+== checks.py verify (exit=0) ==
+== checks: T-17-log-hour-format ==
+[tests]    OK (python -m pytest in repo/)
+[contract] OK (5 untouched paths byte-identical)
+result: PASS
+

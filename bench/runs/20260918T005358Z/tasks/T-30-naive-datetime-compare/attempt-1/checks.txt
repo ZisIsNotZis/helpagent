@@ -1,0 +1,13 @@
+== envelope application ==
+status=ok file_path=tokens/tokens.py bytes=548 sha256=f875ab842974f1f7818ca8c302e962f4e581af4d9a2c5e3fb1d1e4969c9e18be
+
+== pytest (after write, exit=0) ==
+..                                                                       [100%]
+2 passed in 0.02s
+
+== checks.py verify (exit=0) ==
+== checks: T-30-naive-datetime-compare ==
+[tests]    OK (python -m pytest in repo/)
+[contract] OK (5 untouched paths byte-identical)
+result: PASS
+

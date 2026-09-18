@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"status\": \"ok\", \"comment\": \"Fixed the oversized order validation bug by replacing the ValueError with OrderValidationError in orders/service.py, ensuring all validation failures raise the documented domain error.\", \"file_path\": \"orders/service.py\", \"content\": \"\\\"\\\"\\\"Order validation and placement.\\\"\\\"\\\"\\n\\nfrom orders.errors import OrderValidationError\\n\\nMAX_ITEMS = 20\\n\\n\\ndef place_order(order: dict) -> str:\\n    \\\"\\\"\\\"Place ``order`` and return its confirmation id.\\n\\n    Validation failures raise :class:`OrderValidationError` — integrations map\\n    that error, never built-in exceptions.\\n    \\\"\\\"\\\"\\n    if not order.get(\\\"items\\\"):\\n        raise OrderValidationError(\\\"an order needs at least one item\\\")\\n    if len(order[\\\"items\\\"]) > MAX_ITEMS:\\n        raise OrderValidationError(\\\"order exceeds the item limit\\\")\\n    return f\\\"OK-{order['id']}\\\"\\n\"}"
+      }
+    }
+  ],
+  "created": 1789692692,
+  "model": "/home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf",
+  "system_fingerprint": "b4294-16378d93f9",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 217,
+    "prompt_tokens": 1336,
+    "total_tokens": 1553,
+    "prompt_tokens_details": {
+      "cached_tokens": 318
+    }
+  },
+  "id": "chatcmpl-en0hZ6P2onwl9UZWvzOYJ7O8u6cuNMKW",
+  "timings": {
+    "cache_n": 318,
+    "prompt_n": 1018,
+    "prompt_ms": 224.972,
+    "prompt_per_token_ms": 0.2209941060903733,
+    "prompt_per_second": 4525.007556495919,
+    "predicted_n": 217,
+    "predicted_ms": 2716.699,
+    "predicted_per_token_ms": 12.577310185185185,
+    "predicted_per_second": 79.50825615940522
+  }
+}

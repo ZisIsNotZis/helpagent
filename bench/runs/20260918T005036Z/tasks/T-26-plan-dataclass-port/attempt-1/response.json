@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"status\": \"ok\", \"comment\": \"Rewrote plan/model.py to define the Plan dataclass with legacy dict-style access via __getitem__/__setitem__ while keeping make_plan and finish unchanged, enabling both dict-style and attribute-style access.\", \"file_path\": \"plan/model.py\", \"content\": \"\\\"\\\"\\\"The build plan record.\\n\\nPort note: this module moves the plan off ad-hoc dicts onto a Plan\\ndataclass. The public surface (make_plan, plan[\\\"name\\\"]-style access) \\nmust keep working for existing callers during the migration.\\n\\\"\\\"\\\"\\n\\nfrom dataclasses import dataclass, field\\n\\n\\n@dataclass\\nclass Plan:\\n    name: str\\n    steps: list[str] = field(default_factory=list)\\n    done: bool = False\\n\\n    def __getitem__(self, key: str) -> object:\\n        return getattr(self, key)\\n\\n    def __setitem__(self, key: str, value: object) -> None:\\n        setattr(self, key, value)\\n\\n\\ndef make_plan(name: str, steps: list[str]) -> Plan:\\n    return Plan(name=name, steps=list(steps))\\n\\n\\ndef finish(plan: Plan) -> Plan:\\n    plan.done = True\\n    return plan\\n\"}"
+      }
+    }
+  ],
+  "created": 1789692783,
+  "model": "/home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf",
+  "system_fingerprint": "b4294-16378d93f9",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 299,
+    "prompt_tokens": 1243,
+    "total_tokens": 1542,
+    "prompt_tokens_details": {
+      "cached_tokens": 318
+    }
+  },
+  "id": "chatcmpl-SdbJomBNOo2ecxs2Uc3KC9kYkoqTXXGI",
+  "timings": {
+    "cache_n": 318,
+    "prompt_n": 925,
+    "prompt_ms": 172.328,
+    "prompt_per_token_ms": 0.18630054054054054,
+    "prompt_per_second": 5367.670953066246,
+    "predicted_n": 299,
+    "predicted_ms": 3924.056,
+    "predicted_per_token_ms": 13.167973154362416,
+    "predicted_per_second": 75.94183161504321
+  }
+}

@@ -1,0 +1,61 @@
+== envelope application ==
+status=ok file_path=ingest/records.py bytes=1019 sha256=b367d0343aeb4d4f3af099ff33263b39898b98d8a76b3b797519cebb78d7d5bf
+
+== pytest (after write, exit=1) ==
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+_____________________________ test_camel_to_snake ______________________________
+
+    def test_camel_to_snake():
+>       assert normalize({"firstName": "Ada"}) == {"first_name": "Ada"}
+E       AssertionError: assert {} == {'first_name': 'Ada'}
+E         
+E         Right contains 1 more item:
+E         {'first_name': 'Ada'}
+E         Use -v to get more diff
+
+tests/test_records.py:7: AssertionError
+_________________________ test_snake_keys_pass_through _________________________
+
+    def test_snake_keys_pass_through():
+>       assert normalize({"user_id": 7}) == {"user_id": 7}
+E       AssertionError: assert {} == {'user_id': 7}
+E         
+E         Right contains 1 more item:
+E         {'user_id': 7}
+E         Use -v to get more diff
+
+tests/test_records.py:11: AssertionError
+__________________________ test_unknown_keys_dropped ___________________________
+
+    def test_unknown_keys_dropped():
+>       assert normalize({"firstName": "A", "junkField": 1}) == {"first_name": "A"}
+E       AssertionError: assert {} == {'first_name': 'A'}
+E         
+E         Right contains 1 more item:
+E         {'first_name': 'A'}
+E         Use -v to get more diff
+
+tests/test_records.py:15: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_records.py::test_camel_to_snake - AssertionError: assert {}...
+FAILED tests/test_records.py::test_snake_keys_pass_through - AssertionError: ...
+FAILED tests/test_records.py::test_unknown_keys_dropped - AssertionError: ass...
+3 failed in 0.04s
+
+== checks.py verify (exit=1) ==
+== checks: T-27-snakecase-ingest ==
+[tests]    FAIL (python -m pytest in repo/)
+           E         Use -v to get more diff
+           
+           tests/test_records.py:15: AssertionError
+           =========================== short test summary info ============================
+           FAILED tests/test_records.py::test_camel_to_snake - AssertionError: assert {}...
+           FAILED tests/test_records.py::test_snake_keys_pass_through - AssertionError: ...
+           FAILED tests/test_records.py::test_unknown_keys_dropped - AssertionError: ass...
+           3 failed in 0.04s
+[contract] OK (5 untouched paths byte-identical)
+result: FAIL
+
+== rollback ==
+file restored to original bytes

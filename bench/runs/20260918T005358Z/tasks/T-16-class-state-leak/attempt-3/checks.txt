@@ -1,0 +1,13 @@
+== envelope application ==
+status=ok file_path=cart/cart.py bytes=303 sha256=96d38a94dda0f408f3bb6a827cfe49060b955e3d99c017e41bce7e8cc66eac74
+
+== pytest (after write, exit=0) ==
+..                                                                       [100%]
+2 passed in 0.01s
+
+== checks.py verify (exit=0) ==
+== checks: T-16-class-state-leak ==
+[tests]    OK (python -m pytest in repo/)
+[contract] OK (5 untouched paths byte-identical)
+result: PASS
+

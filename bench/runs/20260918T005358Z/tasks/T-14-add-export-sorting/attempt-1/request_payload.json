@@ -1,0 +1,53 @@
+{
+  "model": "spark-x2.5-4b",
+  "temperature": 0.2,
+  "max_tokens": 3000,
+  "stream": false,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "whole_file_edit",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unable"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "comment",
+          "file_path",
+          "content"
+        ]
+      }
+    }
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise whole-file coding-edit engine working on a small Python repository.\n\nYou receive: a bug report, the complete current contents of every file in the repository, and the failing test output. You return exactly ONE JSON object:\n\n{\"status\": \"ok\" or \"unable\", \"comment\": \"1-2 sentences: what the bug is and what you changed (or why you cannot fix it)\", \"file_path\": \"path of the ONE file you rewrite, exactly as shown in the repository listing\", \"content\": \"the COMPLETE new content of that file\"}\n\nHard rules:\n- \"content\" REPLACES the whole file byte-for-byte. Include every line of the file: module docstring, imports, and all. Never truncate, never write \"...\" or placeholders, never wrap the content in markdown fences.\n- Change as little as possible: fix the reported bug and keep everything else exactly as it is. Do not restyle, rename, or reformat unrelated code.\n- Do not change the public API: keep function and class names, signatures, and module layout unchanged.\n- \"file_path\" must exactly match one of the repository file paths shown to you (relative to the repo root).\n- If you are not confident you can fix the bug, set \"status\" to \"unable\", explain in \"comment\", and make \"file_path\" and \"content\" empty strings.\nOutput raw JSON only."
+    },
+    {
+      "role": "user",
+      "content": "## Bug report (verbatim, from the user)\nThe exported report is hard to use: rows land in whatever order they were entered,\nso finding a customer means eyeballing the whole sheet. The docs promise customers\nin alphabetical order ignoring case, and when two customers differ only by case the\nearlier submission should come first. Please make the export honor that.\n\n## Repository files (complete current contents)\n### README.md\n```\n# reporting\n\nCustomer report export.\n\nExported rows are ordered by customer, compared case-insensitively; customers that\ndiffer only by case keep the order they were submitted in (the sort is stable).\nTotals are formatted with two decimals.\n\nRun the tests: `python -m pytest`\n\n```\n\n### pyproject.toml\n```\n[project]\nname = \"reporting\"\nversion = \"0.1.0\"\ndescription = \"Customer report export.\"\nrequires-python = \">=3.10\"\ndependencies = [\"pytest\"]\n\n[tool.pytest.ini_options]\npythonpath = [\".\"]\ntestpaths = [\"tests\"]\n\n```\n\n### reporting/__init__.py\n```python\n\"\"\"Customer report export.\"\"\"\n\n```\n\n### reporting/export.py\n```python\n\"\"\"Row export for the customer report.\"\"\"\n\n\ndef export_rows(rows: list[dict]) -> list[tuple[str, str]]:\n    \"\"\"Export ``rows`` in the documented order: customer ascending, compared\n    case-insensitively; equal customers keep their submitted order (stable).\n    Each exported row is ``(customer, total formatted with two decimals)``.\n    \"\"\"\n    return [(r[\"customer\"], f\"{r['total']:.2f}\") for r in rows]\n\n```\n\n### tests/test_export.py\n```python\n\"\"\"Tests for the report export.\"\"\"\n\nfrom reporting.export import export_rows\n\n\nROWS = [\n    {\"customer\": \"northwind\", \"total\": 5},\n    {\"customer\": \"Acme\", \"total\": 3},\n    {\"customer\": \"ACME corp\", \"total\": 9},\n    {\"customer\": \"acme corp\", \"total\": 2},\n    {\"customer\": \"Borealis\", \"total\": 1},\n]\n\n\ndef test_rows_are_customer_ordered_case_insensitive_and_stable():\n    out = export_rows(ROWS)\n    assert [r[0] for r in out] == [\"Acme\", \"ACME corp\", \"acme corp\", \"Borealis\", \"northwind\"]\n\n\ndef test_totals_are_formatted_with_two_decimals():\n    out = export_rows([{\"customer\": \"a\", \"total\": 7}])\n    assert out == [(\"a\", \"7.00\")]\n\n```\n\n## Failing test output (`python -m pytest` run inside the repository)\n```\nF.                                                                       [100%]\n=================================== FAILURES ===================================\n__________ test_rows_are_customer_ordered_case_insensitive_and_stable __________\n\n    def test_rows_are_customer_ordered_case_insensitive_and_stable():\n        out = export_rows(ROWS)\n>       assert [r[0] for r in out] == [\"Acme\", \"ACME corp\", \"acme corp\", \"Borealis\", \"northwind\"]\nE       AssertionError: assert ['northwind',...', 'Borealis'] == ['Acme', 'ACM..., 'northwind']\nE         \nE         At index 0 diff: 'northwind' != 'Acme'\nE         Use -v to get more diff\n\ntests/test_export.py:17: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_export.py::test_rows_are_customer_ordered_case_insensitive_and_stable\n1 failed, 1 passed in 0.04s\n\n```\n\nFix the bug by rewriting exactly one repository file. Respond with the JSON object now."
+    }
+  ]
+}

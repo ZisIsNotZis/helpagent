@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"status\": \"unable\", \"comment\": \"The bug cannot be fixed by editing a single file. The failing test expects the prerelease part to be split into 'pre' and 'pre' sub-fields (e.g., 'beta.2'), but the current parse() function only returns a single 'pre' field. The bug report describes a different parsing issue (lumping '2.3-beta.2' into minor), which is not the actual failing behavior. Since the test requires a different return structure than the current function provides, no single-file edit can satisfy the tests.\", \"file_path\": \"\", \"content\": \"\"}"
+      }
+    }
+  ],
+  "created": 1789692827,
+  "model": "/home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf",
+  "system_fingerprint": "b4294-16378d93f9",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 131,
+    "prompt_tokens": 4657,
+    "total_tokens": 4788,
+    "prompt_tokens_details": {
+      "cached_tokens": 318
+    }
+  },
+  "id": "chatcmpl-ePYUMXAKei4pLI9XK7tV50li2wc0FISv",
+  "timings": {
+    "cache_n": 318,
+    "prompt_n": 4339,
+    "prompt_ms": 635.938,
+    "prompt_per_token_ms": 0.14656326342475223,
+    "prompt_per_second": 6822.992178482808,
+    "predicted_n": 131,
+    "predicted_ms": 1911.447,
+    "predicted_per_token_ms": 14.703438461538461,
+    "predicted_per_second": 68.0113024321365
+  }
+}

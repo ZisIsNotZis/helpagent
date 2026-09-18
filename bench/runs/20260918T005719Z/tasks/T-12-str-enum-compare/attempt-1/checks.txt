@@ -1,0 +1,13 @@
+== envelope application ==
+status=ok file_path=access/gate.py bytes=548 sha256=62dff31b50c569a255e89b8705d4bc3005abba0a726f5c5b41d14462d32d8adf
+
+== pytest (after write, exit=0) ==
+...                                                                      [100%]
+3 passed in 0.02s
+
+== checks.py verify (exit=0) ==
+== checks: T-12-str-enum-compare ==
+[tests]    OK (python -m pytest in repo/)
+[contract] OK (5 untouched paths byte-identical)
+result: PASS
+

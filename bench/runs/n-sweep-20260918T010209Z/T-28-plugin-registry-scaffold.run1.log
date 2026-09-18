@@ -1,0 +1,13 @@
+== golden bugfix: T-28-plugin-registry-scaffold ==
+[red] pytest exit=2
+[task_card] class=scaffold goal='Create the registry module (plugins/registry.py) allowing plugins to r'
+[expand] leaf: 'Implement plugins/registry.py to register, look up, and run callables ' est=2
+[spec] interfaces=['register', 'get', 'run'] files_touched=['plugins/registry.py']
+[acs] 3 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=False history=[{"attempt": 1, "file": "plugins/registry.py", "pytest_exit": 1, "verdict": "failed", "excerpts": ["FAILED tests/test_plugins.py::test_register_and_get", "FAILED tests/test_plugins.py::test_get_unknown_raises"]}, {"attem
+[gate] ok=False notes=['pytest exit 2', "E   ImportError: cannot import name 'registry' from 'plugins' (/home/z/vibe/helpagent/bench/runs/20260918T012523/golden/T-28-plugin-registry-scaffold/work/plugins/__init__.py)"]
+[run_summary] outcome=complete done='Scaffolded plugin registry and ran 3 pytest attempts'
+[persist] /home/z/vibe/helpagent/bench/runs/20260918T012523/golden/T-28-plugin-registry-scaffold
+[result] FAIL (corpus pristine: True)
+
+===== STDERR =====

@@ -1,0 +1,53 @@
+{
+  "model": "spark-x2.5-4b",
+  "temperature": 0.2,
+  "max_tokens": 3000,
+  "stream": false,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "whole_file_edit",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unable"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "comment",
+          "file_path",
+          "content"
+        ]
+      }
+    }
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise whole-file coding-edit engine working on a small Python repository.\n\nYou receive: a bug report, the complete current contents of every file in the repository, and the failing test output. You return exactly ONE JSON object:\n\n{\"status\": \"ok\" or \"unable\", \"comment\": \"1-2 sentences: what the bug is and what you changed (or why you cannot fix it)\", \"file_path\": \"path of the ONE file you rewrite, exactly as shown in the repository listing\", \"content\": \"the COMPLETE new content of that file\"}\n\nHard rules:\n- \"content\" REPLACES the whole file byte-for-byte. Include every line of the file: module docstring, imports, and all. Never truncate, never write \"...\" or placeholders, never wrap the content in markdown fences.\n- Change as little as possible: fix the reported bug and keep everything else exactly as it is. Do not restyle, rename, or reformat unrelated code.\n- Do not change the public API: keep function and class names, signatures, and module layout unchanged.\n- \"file_path\" must exactly match one of the repository file paths shown to you (relative to the repo root).\n- If you are not confident you can fix the bug, set \"status\" to \"unable\", explain in \"comment\", and make \"file_path\" and \"content\" empty strings.\nOutput raw JSON only."
+    },
+    {
+      "role": "user",
+      "content": "## Bug report (verbatim, from the user)\nEvery URL on the site still has underscores in it instead of hyphens — the SEO audit flagged the whole sitemap. Our slugs are supposed to be kebab-case. Please make the slug generator produce hyphenated slugs.\n\n## Repository files (complete current contents)\n### README.md\n```\n# textkit\n\nText utilities. Site slugs are kebab-case.\n\n```\n\n### pyproject.toml\n```\n[project]\nname = \"19slugseparator\"\nversion = \"0.1.0\"\ndescription = \"Slugifier joining with the wrong separator.\"\nrequires-python = \">=3.10\"\ndependencies = [\"pytest\"]\n\n[tool.pytest.ini_options]\npythonpath = [\".\"]\ntestpaths = [\"tests\"]\n\n```\n\n### tests/__init__.py\n```python\n\n```\n\n### tests/test_slug.py\n```python\n\"\"\"Slug tests (kebab-case per site conventions).\"\"\"\n\nfrom textkit.slug import slugify\n\n\ndef test_basic_slug():\n    assert slugify(\"Hello World\") == \"hello-world\"\n\n\ndef test_multiple_spaces_collapse():\n    assert slugify(\"  a   b  \") == \"a-b\"\n\n```\n\n### textkit/__init__.py\n```python\n\n```\n\n### textkit/slug.py\n```python\n\"\"\"URL slug generation. Slugs on this site are kebab-case.\"\"\"\n\n\ndef slugify(text: str) -> str:\n    return \"_\".join(text.lower().split())\n\n```\n\n## Failing test output (`python -m pytest` run inside the repository)\n```\nFF                                                                       [100%]\n=================================== FAILURES ===================================\n_______________________________ test_basic_slug ________________________________\n\n    def test_basic_slug():\n>       assert slugify(\"Hello World\") == \"hello-world\"\nE       AssertionError: assert 'hello_world' == 'hello-world'\nE         \nE         - hello-world\nE         ?      ^\nE         + hello_world\nE         ?      ^\n\ntests/test_slug.py:7: AssertionError\n________________________ test_multiple_spaces_collapse _________________________\n\n    def test_multiple_spaces_collapse():\n>       assert slugify(\"  a   b  \") == \"a-b\"\nE       AssertionError: assert 'a_b' == 'a-b'\nE         \nE         - a-b\nE         + a_b\n\ntests/test_slug.py:11: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_slug.py::test_basic_slug - AssertionError: assert 'hello_wo...\nFAILED tests/test_slug.py::test_multiple_spaces_collapse - AssertionError: as...\n2 failed in 0.06s\n\n```\n\nFix the bug by rewriting exactly one repository file. Respond with the JSON object now."
+    }
+  ]
+}

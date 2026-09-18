@@ -1,0 +1,13 @@
+== envelope application ==
+status=ok file_path=scheduler/jobs.py bytes=524 sha256=e7bc4a1548cd49602a46dcb8d5693fd4c1f64f7a2a5e87a0b82035361478d3f6
+
+== pytest (after write, exit=0) ==
+..                                                                       [100%]
+2 passed in 0.02s
+
+== checks.py verify (exit=0) ==
+== checks: T-06-tz-naive-compare ==
+[tests]    OK (python -m pytest in repo/)
+[contract] OK (4 untouched paths byte-identical)
+result: PASS
+

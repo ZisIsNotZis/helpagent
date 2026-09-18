@@ -1,0 +1,13 @@
+== envelope application ==
+status=ok file_path=throttle/limiter.py bytes=1002 sha256=2145144011e4b75ad425b8efe0bb6cc90a82b43addc141024500da705d513f00
+
+== pytest (after write, exit=0) ==
+...                                                                      [100%]
+3 passed in 0.01s
+
+== checks.py verify (exit=0) ==
+== checks: T-09-add-rate-limit-hook ==
+[tests]    OK (python -m pytest in repo/)
+[contract] OK (4 untouched paths byte-identical)
+result: PASS
+

@@ -1,0 +1,22 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+____________________ test_name_with_apostrophe_round_trips _____________________
+
+    def test_name_with_apostrophe_round_trips():
+        conn = connect()
+>       add_contact(conn, "Tim O'Brien", "tim@example.com")
+
+tests/test_store.py:14: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+conn = <sqlite3.Connection object at 0x7d0ece7c48b0>, name = "Tim O'Brien"
+email = 'tim@example.com'
+
+    def add_contact(conn: sqlite3.Connection, name: str, email: str) -> None:
+>       conn.execute(f"INSERT INTO contacts (name, email) VALUES ('{name}', '{email}')")
+E       sqlite3.OperationalError: near "Brien": syntax error
+
+contacts/store.py:16: OperationalError
+=========================== short test summary info ============================
+FAILED tests/test_store.py::test_name_with_apostrophe_round_trips - sqlite3.O...
+1 failed, 1 passed in 0.04s
