@@ -1,0 +1,227 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 0.0448,
+  "prompt_tokens": 210,
+  "completion_tokens": 84,
+  "wall_model_s": 1.004
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "task_card"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "expand",
+  "fresh": false,
+  "cache_hit": 0.0336,
+  "prompt_tokens": 277,
+  "completion_tokens": 109,
+  "wall_model_s": 0.8
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "expand"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_spec",
+  "fresh": false,
+  "cache_hit": 0.0306,
+  "prompt_tokens": 303,
+  "completion_tokens": 214,
+  "wall_model_s": 1.666
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_spec"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 66.6,
+  "prompt_tokens": 338,
+  "completion_tokens": 115,
+  "wall_model_s": 0.72
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0367,
+  "prompt_tokens": 254,
+  "completion_tokens": 89,
+  "wall_model_s": 1.184
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 0.0199,
+  "prompt_tokens": 462,
+  "completion_tokens": 121,
+  "wall_model_s": 0.871
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "golden_test_skipped",
+  "text": "",
+  "detail": "'tests/test_cart.py' already exists — never overwrite shipped tests"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 910.0,
+  "prompt_tokens": 911,
+  "completion_tokens": 133,
+  "wall_model_s": 0.899
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "auto_fixed",
+  "file": "cart/cart.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "cart/cart.py"
+  ]
+ },
+ {
+  "kind": "implement_red_kept",
+  "text": "",
+  "attempt": 1,
+  "file": "cart/cart.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 958.0,
+  "prompt_tokens": 959,
+  "completion_tokens": 113,
+  "wall_model_s": 0.802
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "auto_fixed",
+  "file": "cart/cart.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "cart/cart.py"
+  ]
+ },
+ {
+  "kind": "implement_red_kept",
+  "text": "",
+  "attempt": 2,
+  "file": "cart/cart.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 958.0,
+  "prompt_tokens": 959,
+  "completion_tokens": 113,
+  "wall_model_s": 0.806
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "auto_fixed",
+  "file": "cart/cart.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "cart/cart.py"
+  ]
+ },
+ {
+  "kind": "implement_red_kept",
+  "text": "",
+  "attempt": 3,
+  "file": "cart/cart.py"
+ },
+ {
+  "kind": "implement_budget_exhausted_restored",
+  "text": "",
+  "files": [
+   "cart/cart.py"
+  ]
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "run_summary",
+  "fresh": false,
+  "cache_hit": 0.0227,
+  "prompt_tokens": 406,
+  "completion_tokens": 94,
+  "wall_model_s": 0.952
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "run_summary"
+ }
+]

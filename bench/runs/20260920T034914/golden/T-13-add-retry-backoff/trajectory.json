@@ -1,0 +1,29 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [
+   "fetcher/client.py"
+  ],
+  "diff": "diff --git a/fetcher/client.py b/fetcher/client.py\nindex 85c871e..f237741 100644\n--- a/fetcher/client.py\n+++ b/fetcher/client.py\n@@ -15,4 +15,9 @@ def fetch(send, url: str, *, sleep=time.sleep) -> str:\n     A transient response is retried per the documented backoff schedule; ``sleep``\n     is injectable so tests can observe the schedule without waiting.\n     \"\"\"\n-    return send(url)\n+    response = send(url)\n+    if RETRY_MARKER in response:\n+        for delay in DELAYS_S:\n+            sleep(delay)\n+        return response\n+    return response\n",
+  "outcome": "kept"
+ },
+ {
+  "step_id": "implement-2",
+  "node_id": "implement",
+  "files_changed": [
+   "fetcher/client.py"
+  ],
+  "diff": "diff --git a/fetcher/client.py b/fetcher/client.py\nindex 85c871e..a26ff1e 100644\n--- a/fetcher/client.py\n+++ b/fetcher/client.py\n@@ -15,4 +15,8 @@ def fetch(send, url: str, *, sleep=time.sleep) -> str:\n     A transient response is retried per the documented backoff schedule; ``sleep``\n     is injectable so tests can observe the schedule without waiting.\n     \"\"\"\n-    return send(url)\n+    response = send(url)\n+    if RETRY_MARKER in response:\n+        sleep(*DELAYS_S)\n+        return send(url)\n+    return response\n",
+  "outcome": "kept"
+ },
+ {
+  "step_id": "implement-3",
+  "node_id": "implement",
+  "files_changed": [
+   "fetcher/client.py"
+  ],
+  "diff": "diff --git a/fetcher/client.py b/fetcher/client.py\nindex 85c871e..a26ff1e 100644\n--- a/fetcher/client.py\n+++ b/fetcher/client.py\n@@ -15,4 +15,8 @@ def fetch(send, url: str, *, sleep=time.sleep) -> str:\n     A transient response is retried per the documented backoff schedule; ``sleep``\n     is injectable so tests can observe the schedule without waiting.\n     \"\"\"\n-    return send(url)\n+    response = send(url)\n+    if RETRY_MARKER in response:\n+        sleep(*DELAYS_S)\n+        return send(url)\n+    return response\n",
+  "outcome": "kept"
+ }
+]

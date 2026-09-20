@@ -1,0 +1,13 @@
+== golden bugfix: T-24-json-report-flag ==
+[red] pytest exit=1
+[task_card] class=port goal='Add JSON report mode to the API so ?format=json returns {"rows": [...]'
+[expand] leaf: 'Implement JSON report mode in the API so ?format=json returns {"rows":' est=2
+[spec] interfaces=['Daily Report Builder API'] files_touched=['report/__init__.py', 'report/builder.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=False history=[{"attempt": 1, "file": "report/builder.py", "pytest_exit": 1, "verdict": "failed", "excerpts": ["FAILED tests/test_builder.py::test_json_mode_returns_document", "E           json.decoder.JSONDecodeError: Expecting prope
+[gate] ok=False notes=['pytest exit 1', 'FAILED tests/test_builder.py::test_json_mode_returns_document', 'E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)']
+[run_summary] outcome=complete done='Three attempts in report/builder.py were executed.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260920T035441/golden/T-24-json-report-flag
+[result] FAIL (corpus pristine: True)
+
+===== STDERR =====

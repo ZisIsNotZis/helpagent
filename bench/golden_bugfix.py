@@ -492,8 +492,11 @@ def main() -> int:
 
         creatable = file_tokens(task["request"]) - set(task["files"])
         acc: set[str] = set()
+        n_boundary = len(set(spec.files_touched) & (set(task["files"]) | creatable)) or 1
+        scaled_attempts = min(9, 3 * max(1, n_boundary))   # §4.1: budget scales with work
+        attempts = max(args.attempts, scaled_attempts)
         fixed, fix_summary, history = step_implement(
-            model, spec, workdir, task["files"], args.attempts, trajectory,
+            model, spec, workdir, task["files"], attempts, trajectory,
             request=task["request"], creatable=creatable, harness_written_acc=acc)
         harness_written |= acc   # accumulated multi-file edits are harness-written
         if fixed:

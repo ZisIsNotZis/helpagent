@@ -1,0 +1,227 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 39.0,
+  "prompt_tokens": 200,
+  "completion_tokens": 94,
+  "wall_model_s": 1.092
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "task_card"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "expand",
+  "fresh": false,
+  "cache_hit": 0.0319,
+  "prompt_tokens": 291,
+  "completion_tokens": 105,
+  "wall_model_s": 0.796
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "expand"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_spec",
+  "fresh": false,
+  "cache_hit": 0.0319,
+  "prompt_tokens": 291,
+  "completion_tokens": 130,
+  "wall_model_s": 1.106
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_spec"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 61.0,
+  "prompt_tokens": 310,
+  "completion_tokens": 109,
+  "wall_model_s": 0.79
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0386,
+  "prompt_tokens": 242,
+  "completion_tokens": 100,
+  "wall_model_s": 1.58
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 0.0209,
+  "prompt_tokens": 439,
+  "completion_tokens": 114,
+  "wall_model_s": 0.876
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "golden_test_skipped",
+  "text": "",
+  "detail": "file_path 'tests/test_settings.py' outside repo"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 573.0,
+  "prompt_tokens": 574,
+  "completion_tokens": 83,
+  "wall_model_s": 0.645
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "clean",
+  "file": "storage/errors.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "storage/errors.py"
+  ]
+ },
+ {
+  "kind": "implement_red_kept",
+  "text": "",
+  "attempt": 1,
+  "file": "storage/errors.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 597.0,
+  "prompt_tokens": 598,
+  "completion_tokens": 85,
+  "wall_model_s": 0.627
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "clean",
+  "file": "storage/errors.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "storage/errors.py"
+  ]
+ },
+ {
+  "kind": "implement_red_kept",
+  "text": "",
+  "attempt": 2,
+  "file": "storage/errors.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 597.0,
+  "prompt_tokens": 598,
+  "completion_tokens": 85,
+  "wall_model_s": 0.617
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "clean",
+  "file": "storage/errors.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "storage/errors.py"
+  ]
+ },
+ {
+  "kind": "implement_red_kept",
+  "text": "",
+  "attempt": 3,
+  "file": "storage/errors.py"
+ },
+ {
+  "kind": "implement_budget_exhausted_restored",
+  "text": "",
+  "files": [
+   "storage/errors.py"
+  ]
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "run_summary",
+  "fresh": false,
+  "cache_hit": 78.6,
+  "prompt_tokens": 398,
+  "completion_tokens": 97,
+  "wall_model_s": 0.912
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "run_summary"
+ }
+]

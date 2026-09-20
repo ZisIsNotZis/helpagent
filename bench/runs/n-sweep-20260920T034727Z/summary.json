@@ -1,0 +1,13 @@
+{
+ "per_task": {
+  "T-02-off-by-one": "3/3",
+  "T-13-add-retry-backoff": "2/3",
+  "T-16-class-state-leak": "2/3",
+  "T-18-env-config-precedence": "0/3",
+  "T-21-swallowed-corruption": "1/3",
+  "T-24-json-report-flag": "0/3",
+  "T-27-snakecase-ingest": "0/3",
+  "T-33-serializer-contract": "1/3"
+ },
+ "overall": "9/24"
+}

@@ -1,0 +1,11 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [
+   "cart/cart.py"
+  ],
+  "diff": "diff --git a/cart/cart.py b/cart/cart.py\nindex ddcd7c4..f075319 100644\n--- a/cart/cart.py\n+++ b/cart/cart.py\n@@ -3,7 +3,8 @@\n \n class Cart:\n     # Per the docs: one Cart per customer session.\n-    items = []\n+    def __init__(self) -> None:\n+        self.items = []\n \n     def add(self, sku: str) -> None:\n         self.items.append(sku)\n",
+  "outcome": "green"
+ }
+]

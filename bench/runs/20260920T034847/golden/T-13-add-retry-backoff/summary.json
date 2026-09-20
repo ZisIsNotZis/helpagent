@@ -1,0 +1,39 @@
+{
+ "task": "T-13-add-retry-backoff",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "fetcher/client.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_client.py::test_transient_responses_are_retried_with_backoff",
+    "E           TypeError: list.append() takes exactly one argument (2 given)"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "fetcher/client.py",
+   "pytest_exit": 0,
+   "verdict": "ok",
+   "excerpts": [
+    "..                                                                       [100%]",
+    "2 passed in 0.01s"
+   ]
+  }
+ ],
+ "fix_summary": "fetcher/client.py",
+ "gate_notes": [
+  "pytest green; untouched-files contract holds"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-13-add-retry-backoff-summary"
+ ]
+}

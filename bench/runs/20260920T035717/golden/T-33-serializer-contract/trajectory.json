@@ -1,0 +1,29 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [
+   "serialize/json_ser.py"
+  ],
+  "diff": "diff --git a/serialize/json_ser.py b/serialize/json_ser.py\nindex 5295d64..a775c84 100644\n--- a/serialize/json_ser.py\n+++ b/serialize/json_ser.py\n@@ -7,7 +7,10 @@ from serialize.base import Serializer\n \n class JSONSerializer(Serializer):\n     def dump(self, obj) -> bytes:\n-        return json.dumps(obj).encode()\n+        return json.dumps(obj).encode(\"utf-8\")\n \n     def load(self, data: bytes):\n-        return json.loads(data.decode(\"ascii\"))\n+        try:\n+            return json.loads(data.decode(\"utf-8\"))\n+        except (UnicodeDecodeError, json.JSONDecodeError) as e:\n+            raise ValueError(\"Invalid JSON data\") from e\n",
+  "outcome": "kept"
+ },
+ {
+  "step_id": "implement-2",
+  "node_id": "implement",
+  "files_changed": [
+   "serialize/json_ser.py"
+  ],
+  "diff": "diff --git a/serialize/json_ser.py b/serialize/json_ser.py\nindex 5295d64..a2ca4a8 100644\n--- a/serialize/json_ser.py\n+++ b/serialize/json_ser.py\n@@ -10,4 +10,9 @@ class JSONSerializer(Serializer):\n         return json.dumps(obj).encode()\n \n     def load(self, data: bytes):\n+        if (\n+            data.decode(\"ascii\")\n+            != json.dumps(self.dump(data.decode(\"ascii\").decode(\"utf-8\"))).encode()\n+        ):\n+            raise ValueError(\"Bytes were not produced by dump().\")\n         return json.loads(data.decode(\"ascii\"))\n",
+  "outcome": "kept"
+ },
+ {
+  "step_id": "implement-3",
+  "node_id": "implement",
+  "files_changed": [
+   "serialize/json_ser.py"
+  ],
+  "diff": "diff --git a/serialize/json_ser.py b/serialize/json_ser.py\nindex 5295d64..a775c84 100644\n--- a/serialize/json_ser.py\n+++ b/serialize/json_ser.py\n@@ -7,7 +7,10 @@ from serialize.base import Serializer\n \n class JSONSerializer(Serializer):\n     def dump(self, obj) -> bytes:\n-        return json.dumps(obj).encode()\n+        return json.dumps(obj).encode(\"utf-8\")\n \n     def load(self, data: bytes):\n-        return json.loads(data.decode(\"ascii\"))\n+        try:\n+            return json.loads(data.decode(\"utf-8\"))\n+        except (UnicodeDecodeError, json.JSONDecodeError) as e:\n+            raise ValueError(\"Invalid JSON data\") from e\n",
+  "outcome": "kept"
+ }
+]

@@ -1,0 +1,52 @@
+{
+ "task": "T-18-env-config-precedence",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "conf/settings.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_settings.py::test_env_overrides_default",
+    "E       AssertionError: assert 5 == '5'"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "conf/settings.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_settings.py::test_env_overrides_default",
+    "E       AssertionError: assert 5 == '5'"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "conf/settings.py",
+   "pytest_exit": 1,
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_settings.py::test_env_overrides_default",
+    "E       AssertionError: assert 5 == '5'"
+   ]
+  }
+ ],
+ "fix_summary": "attempt 3 left tests red (1)",
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED tests/test_settings.py::test_env_overrides_default",
+  "E       AssertionError: assert 30 == '5'",
+  "E        +  where 30 = <function get at 0x701202991f80>('timeout')"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-18-env-config-precedence-summary"
+ ]
+}

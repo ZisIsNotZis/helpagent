@@ -77,3 +77,11 @@
   ADOPTED. Gear0/1 shim explicitly accumulate=False (whole-repo boundary must
   not silently enable accumulation — wrong-edit poisoning risk; strict rollback
   is the validated 93.3% behavior). Open: cross-unit parallel writers = M8.
+
+- 2026-09-20 owner session (unified iterate mode A/B + adoption): churn family
+  4/18 -> 6/18 (T-16 1/3->2/3; T-13/21 flat; T-18/24/27 unmoved — capability, not
+  churn); controls clean; T-33 dip was a budget confound (3 vs 6 attempts) —
+  fixed by scaled budget (§4.1: attempts = 3 x boundary files, cap 9; T-33 PASS
+  re-verified). UNIFIED MODE ADOPTED: one iterate-mode implement loop for
+  single- and multi-file (user direction 2026-09-18); erasure lives at strategy
+  boundaries only (DESIGN §2.4 refined, commit 45a2f2a).

@@ -1,0 +1,13 @@
+== golden bugfix: T-13-add-retry-backoff ==
+[red] pytest exit=1
+[task_card] class=refactor goal="Update the client to handle the backend's transient marker by retrying"
+[expand] leaf: "Update the client to handle the backend's transient marker by retrying" est=1
+[spec] interfaces=[] files_touched=['fetcher/client.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=True history=[{"attempt": 1, "file": "fetcher/client.py", "pytest_exit": 1, "verdict": "failed", "excerpts": ["FAILED tests/test_client.py::test_transient_responses_are_retried_with_backoff", "E           TypeError: list.append() tak
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=complete done='Fixed transient response retry logic in fetcher/client.py.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260920T034847/golden/T-13-add-retry-backoff
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====

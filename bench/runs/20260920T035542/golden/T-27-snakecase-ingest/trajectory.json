@@ -1,0 +1,29 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [
+   "ingest/records.py"
+  ],
+  "diff": "diff --git a/ingest/records.py b/ingest/records.py\nindex 5b30cca..af0dad4 100644\n--- a/ingest/records.py\n+++ b/ingest/records.py\n@@ -6,5 +6,13 @@ Unknown keys are dropped.\n \"\"\"\n \n \n-def normalize(record: dict) -> dict:\n-    return dict(record)\n+def normalize_port(record: dict) -> dict:\n+    normalized = {}\n+    for key, value in record.items():\n+        snake_key = key.lower().replace(\"_\", \"_\").replace(\"-\", \"_\").replace(\".\", \"_\")\n+        snake_key = re.sub(r\"([a-z0-9])([A-Z])\", r\"\\1_\\2\", snake_key)\n+        snake_key = snake_key.replace(\" \", \"_\")\n+        if snake_key in normalized:\n+            continue\n+        normalized[snake_key] = value\n+    return normalized\n",
+  "outcome": "kept"
+ },
+ {
+  "step_id": "implement-2",
+  "node_id": "implement",
+  "files_changed": [
+   "ingest/records.py"
+  ],
+  "diff": "diff --git a/ingest/records.py b/ingest/records.py\nindex 5b30cca..b41166a 100644\n--- a/ingest/records.py\n+++ b/ingest/records.py\n@@ -7,4 +7,10 @@ Unknown keys are dropped.\n \n \n def normalize(record: dict) -> dict:\n-    return dict(record)\n+    normalized = {}\n+    for key, value in record.items():\n+        snake_key = key.lower().replace(\"_\", \"-\").replace(\"-\", \"_\").replace(\" \", \"_\")\n+        if snake_key in normalized:\n+            continue\n+        normalized[snake_key] = value\n+    return normalized\n",
+  "outcome": "kept"
+ },
+ {
+  "step_id": "implement-3",
+  "node_id": "implement",
+  "files_changed": [
+   "ingest/records.py"
+  ],
+  "diff": "diff --git a/ingest/records.py b/ingest/records.py\nindex 5b30cca..4d214ff 100644\n--- a/ingest/records.py\n+++ b/ingest/records.py\n@@ -7,4 +7,12 @@ Unknown keys are dropped.\n \n \n def normalize(record: dict) -> dict:\n-    return dict(record)\n+    normalized = {}\n+    for key, value in record.items():\n+        snake_key = key.lower().replace(\"_\", \"-\").replace(\"-\", \"_\").replace(\" \", \"_\")\n+        snake_key = re.sub(r\"([a-z])([A-Z])\", r\"\\1_\\2\", snake_key)\n+        snake_key = snake_key.replace(\"-\", \"_\").replace(\" \", \"_\")\n+        if snake_key in normalized:\n+            continue\n+        normalized[snake_key] = value\n+    return normalized\n",
+  "outcome": "kept"
+ }
+]

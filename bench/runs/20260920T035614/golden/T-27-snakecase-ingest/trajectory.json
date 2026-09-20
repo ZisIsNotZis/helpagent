@@ -1,0 +1,29 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [
+   "ingest/records.py"
+  ],
+  "diff": "diff --git a/ingest/records.py b/ingest/records.py\nindex 5b30cca..36b8517 100644\n--- a/ingest/records.py\n+++ b/ingest/records.py\n@@ -7,4 +7,20 @@ Unknown keys are dropped.\n \n \n def normalize(record: dict) -> dict:\n-    return dict(record)\n+    snake_keys = {\n+        \"firstName\": \"first_name\",\n+        \"lastName\": \"last_name\",\n+        \"email\": \"email\",\n+        \"phoneNumber\": \"phone_number\",\n+        \"address\": \"address\",\n+        \"city\": \"city\",\n+        \"country\": \"country\",\n+        \"zipCode\": \"zip_code\",\n+        \"createdAt\": \"created_at\",\n+        \"updatedAt\": \"updated_at\",\n+    }\n+    return {\n+        snake_keys.get(key, \"\").lower() if isinstance(key, str) else key: value\n+        for key, value in record.items()\n+        if key in snake_keys\n+    }\n",
+  "outcome": "kept"
+ },
+ {
+  "step_id": "implement-2",
+  "node_id": "implement",
+  "files_changed": [
+   "ingest/records.py"
+  ],
+  "diff": "diff --git a/ingest/records.py b/ingest/records.py\nindex 5b30cca..d79a9bd 100644\n--- a/ingest/records.py\n+++ b/ingest/records.py\n@@ -7,4 +7,16 @@ Unknown keys are dropped.\n \n \n def normalize(record: dict) -> dict:\n-    return dict(record)\n+    normalized = {}\n+    for key, value in record.items():\n+        snake_key = (\n+            key.lower()\n+            .replace(\"_\", \"_\")\n+            .replace(\"-\", \"_\")\n+            .replace(\".\", \"_\")\n+            .replace(\" \", \"_\")\n+        )\n+        snake_key = re.sub(r\"([a-z0-9])([A-Z])\", r\"\\1_\\2\", snake_key)\n+        snake_key = snake_key.replace(\"_\", \"_\").replace(\"_\", \"_\")\n+        normalized[snake_key] = value\n+    return {k: v for k, v in normalized.items() if k in record}\n",
+  "outcome": "kept"
+ },
+ {
+  "step_id": "implement-3",
+  "node_id": "implement",
+  "files_changed": [
+   "ingest/records.py"
+  ],
+  "diff": "diff --git a/ingest/records.py b/ingest/records.py\nindex 5b30cca..c04a63a 100644\n--- a/ingest/records.py\n+++ b/ingest/records.py\n@@ -5,6 +5,14 @@ records with snake_case keys to downstream code (firstName -> first_name).\n Unknown keys are dropped.\n \"\"\"\n \n+import re\n+\n \n def normalize(record: dict) -> dict:\n-    return dict(record)\n+    normalized = {}\n+    for key, value in record.items():\n+        snake_key = re.sub(r\"([a-z0-9])([A-Z])\", r\"\\1_\\2\", key).lower()\n+        if snake_key in normalized:\n+            continue\n+        normalized[snake_key] = value\n+    return normalized\n",
+  "outcome": "kept"
+ }
+]

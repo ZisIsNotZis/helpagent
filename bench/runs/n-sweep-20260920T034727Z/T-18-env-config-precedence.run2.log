@@ -1,0 +1,28 @@
+== golden bugfix: T-18-env-config-precedence ==
+[red] pytest exit=1
+[task_card] class=refactor goal='Set APP_TIMEOUT=5 in the deploy environment and ensure the service tim'
+[expand] leaf: 'Set APP_TIMEOUT=5 in the deploy environment and ensure the service tim' est=1
+[spec] interfaces=['conf.settings'] files_touched=['conf/settings.py']
+[acs] 1 ACs, gate_decide=accept after 1 round(s)
+[implement] fixed=False history=[{"attempt": 1, "file": "conf/settings.py", "pytest_exit": 1, "verdict": "failed", "excerpts": ["FAILED tests/test_settings.py::test_env_overrides_default", "E       AssertionError: assert 5 == '5'"]}, {"attempt": 2, "fi
+[gate] ok=False notes=['pytest exit 1', 'FAILED tests/test_settings.py::test_env_overrides_default', "E       AssertionError: assert 30 == '5'", "E        +  where 30 = <function get at 0x747aa2e29f80>('timeout')"]
+[run_summary] outcome=complete done='Attempted to fix env-config precedence in conf/settings.py.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260920T035125/golden/T-18-env-config-precedence
+[result] FAIL (corpus pristine: True)
+
+===== STDERR =====
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(
+/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [field_name='contract', input_value=REQUIRED, input_type=_Missing])
+  return self.__pydantic_serializer__.to_python(
