@@ -289,10 +289,10 @@ def step_write_test(model, spec: Envelope, acs: Envelope, workdir: Path, files: 
 def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
                    attempts: int, trajectory: Trajectory, request: str = "",
                    creatable: set[str] | None = None,
-                   accumulate: bool | None = None,
                    harness_written_acc: set[str] | None = None) -> tuple[bool, str, list[dict]]:
     creatable = creatable or set()
     harness_written_acc = harness_written_acc if harness_written_acc is not None else set()
+    orig_bytes: dict[str, bytes | None] = {}   # per-file pre-first-touch state
     """Bounded implement loop. D-transport: edits ride the write_test content
     envelope (only content-emitting schema tonight); on red the target file is
     rolled back and the next attempt sees a one-line failure summary + failing
@@ -301,9 +301,6 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
     last_excerpt = "no failing output captured"
     summary = "tests fail; fix the reported bug"
     guided = bool(globals().get("GUIDED_IMPLEMENT"))
-    boundary_set = set(spec.files_touched) & (set(files) | set(creatable or ()))
-    if accumulate is None:
-        accumulate = len(boundary_set) > 1   # multi-file fix: intermediate states can
     for attempt in range(1, attempts + 1):
         # one candidate file per attempt: the spec's files_touched (boundary), else whole repo
         boundary = [f for f in spec.files_touched if f in files or f in creatable] or sorted(files)
@@ -352,7 +349,9 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
             history.append({"attempt": attempt, "outcome": f"file_path-outside-repo:{env.file_path}"})
             continue
         target = workdir / env.file_path
-        before = target.read_bytes() if target.exists() else None   # None = creation (FP-10 scaffold path)
+        if env.file_path not in orig_bytes:
+            orig_bytes[env.file_path] = target.read_bytes() if target.exists() else None
+        harness_written_acc.add(env.file_path)
         # M3: the write goes through the kernel check pipeline (DESIGN §4.5) —
         # format/autofix <=2 passes, tree-sitter parse, typecheck baseline, intent.
         cw = asyncio.run(check_write(workdir, env.file_path, env.content, intent="source"))
@@ -373,25 +372,30 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
         if res.exit == 0:
             trajectory.record(step_id=f"implement-{attempt}", node_id="implement", outcome="green")
             return True, env.file_path, history
-        # red → rollback the attempt (erasure: the work tree forgets the failed
-        # text) — UNLESS the fix is multi-file: an intermediate state can never
-        # go green, so edits accumulate across attempts and the final gate
-        # judges the whole (T-31/T-33 structural fix)
-        if accumulate:
-            harness_written_acc.add(env.file_path)
-        elif before is None:
-            target.unlink()
-        else:
-            target.write_bytes(before)
+        # unified iterate mode (DESIGN §2.4 refined, owner direction 2026-09-18):
+        # the draft STAYS on the tree — attempt N+1 sees and improves attempt N's
+        # state; failed-attempt text is still never narrated into a retry (the
+        # failure summary + test output is the only carried evidence), and the
+        # whole draft is erased at the strategy boundary on budget exhaustion.
         last_excerpt = "; ".join(res.excerpts) if res.excerpts else f"pytest exit {res.exit}"
         # FP-4 family now lives in the kernel rule library (DESIGN §4.5): cross-file
         # name resolution is a lookup — harness work, never left to the model.
         for rf in diagnose_test_output(res.excerpts, files):
             last_excerpt += f"; {rf.message}"
             note("rule_diagnosis", rule=rf.code, file=rf.path)
-        summary = f"attempt {attempt} left tests red ({res.exit}); rolled back"
-        note("implement_red_rolled_back", attempt=attempt, file=env.file_path)
-        trajectory.record(step_id=f"implement-{attempt}", node_id="implement", outcome="rolled-back")
+        summary = f"attempt {attempt} left tests red ({res.exit})"
+        note("implement_red_kept", attempt=attempt, file=env.file_path)
+        trajectory.record(step_id=f"implement-{attempt}", node_id="implement", outcome="kept")
+    # budget exhausted, still red -> strategy-boundary erasure (§2.4 refined):
+    # restore every touched file so the next gear starts from a clean state
+    for rel, b in orig_bytes.items():
+        p = workdir / rel
+        if b is None:
+            p.unlink(missing_ok=True)
+        else:
+            p.write_bytes(b)
+    harness_written_acc.clear()
+    note("implement_budget_exhausted_restored", files=sorted(orig_bytes))
     return False, summary, history
 
 
