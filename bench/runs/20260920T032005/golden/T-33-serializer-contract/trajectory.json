@@ -1,0 +1,21 @@
+[
+ {
+  "step_id": "implement-1",
+  "node_id": "implement",
+  "files_changed": [
+   "serialize/json_ser.py"
+  ],
+  "diff": "diff --git a/serialize/json_ser.py b/serialize/json_ser.py\nindex 5295d64..edcb337 100644\n--- a/serialize/json_ser.py\n+++ b/serialize/json_ser.py\n@@ -7,7 +7,10 @@ from serialize.base import Serializer\n \n class JSONSerializer(Serializer):\n     def dump(self, obj) -> bytes:\n-        return json.dumps(obj).encode()\n+        return json.dumps(obj, ensure_ascii=False).encode(\"utf-8\")\n \n     def load(self, data: bytes):\n-        return json.loads(data.decode(\"ascii\"))\n+        try:\n+            return json.loads(data.decode(\"utf-8\"))\n+        except (UnicodeDecodeError, json.JSONDecodeError) as e:\n+            raise ValueError(\"Invalid JSON data\") from e\n",
+  "outcome": "rolled-back"
+ },
+ {
+  "step_id": "implement-2",
+  "node_id": "implement",
+  "files_changed": [
+   "serialize/json_ser.py",
+   "serialize/pickle_ser.py"
+  ],
+  "diff": "diff --git a/serialize/json_ser.py b/serialize/json_ser.py\nindex 5295d64..edcb337 100644\n--- a/serialize/json_ser.py\n+++ b/serialize/json_ser.py\n@@ -7,7 +7,10 @@ from serialize.base import Serializer\n \n class JSONSerializer(Serializer):\n     def dump(self, obj) -> bytes:\n-        return json.dumps(obj).encode()\n+        return json.dumps(obj, ensure_ascii=False).encode(\"utf-8\")\n \n     def load(self, data: bytes):\n-        return json.loads(data.decode(\"ascii\"))\n+        try:\n+            return json.loads(data.decode(\"utf-8\"))\n+        except (UnicodeDecodeError, json.JSONDecodeError) as e:\n+            raise ValueError(\"Invalid JSON data\") from e\ndiff --git a/serialize/pickle_ser.py b/serialize/pickle_ser.py\nindex 77762fd..31b7407 100644\n--- a/serialize/pickle_ser.py\n+++ b/serialize/pickle_ser.py\n@@ -10,4 +10,7 @@ class PickleSerializer(Serializer):\n         return pickle.dumps(obj)\n \n     def load(self, data: bytes):\n-        return pickle.loads(data)\n+        try:\n+            return pickle.loads(data)\n+        except pickle.UnpicklingError as exc:\n+            raise ValueError(\"Bytes did not produce this object.\") from exc\n",
+  "outcome": "green"
+ }
+]

@@ -288,8 +288,11 @@ def step_write_test(model, spec: Envelope, acs: Envelope, workdir: Path, files: 
 
 def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
                    attempts: int, trajectory: Trajectory, request: str = "",
-                   creatable: set[str] | None = None) -> tuple[bool, str, list[dict]]:
+                   creatable: set[str] | None = None,
+                   accumulate: bool | None = None,
+                   harness_written_acc: set[str] | None = None) -> tuple[bool, str, list[dict]]:
     creatable = creatable or set()
+    harness_written_acc = harness_written_acc if harness_written_acc is not None else set()
     """Bounded implement loop. D-transport: edits ride the write_test content
     envelope (only content-emitting schema tonight); on red the target file is
     rolled back and the next attempt sees a one-line failure summary + failing
@@ -298,6 +301,9 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
     last_excerpt = "no failing output captured"
     summary = "tests fail; fix the reported bug"
     guided = bool(globals().get("GUIDED_IMPLEMENT"))
+    boundary_set = set(spec.files_touched) & (set(files) | set(creatable or ()))
+    if accumulate is None:
+        accumulate = len(boundary_set) > 1   # multi-file fix: intermediate states can
     for attempt in range(1, attempts + 1):
         # one candidate file per attempt: the spec's files_touched (boundary), else whole repo
         boundary = [f for f in spec.files_touched if f in files or f in creatable] or sorted(files)
@@ -367,8 +373,13 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
         if res.exit == 0:
             trajectory.record(step_id=f"implement-{attempt}", node_id="implement", outcome="green")
             return True, env.file_path, history
-        # red → rollback the attempt (erasure: the work tree forgets the failed text)
-        if before is None:
+        # red → rollback the attempt (erasure: the work tree forgets the failed
+        # text) — UNLESS the fix is multi-file: an intermediate state can never
+        # go green, so edits accumulate across attempts and the final gate
+        # judges the whole (T-31/T-33 structural fix)
+        if accumulate:
+            harness_written_acc.add(env.file_path)
+        elif before is None:
             target.unlink()
         else:
             target.write_bytes(before)
@@ -476,9 +487,11 @@ def main() -> int:
                     print("[write_test] golden test red → dropped (side=test, M2 simplified router)")
 
         creatable = file_tokens(task["request"]) - set(task["files"])
+        acc: set[str] = set()
         fixed, fix_summary, history = step_implement(
             model, spec, workdir, task["files"], args.attempts, trajectory,
-            request=task["request"], creatable=creatable)
+            request=task["request"], creatable=creatable, harness_written_acc=acc)
+        harness_written |= acc   # accumulated multi-file edits are harness-written
         if fixed:
             harness_written.add(fix_summary)
         print(f"[implement] fixed={fixed} history={json.dumps(history)[:220]}")

@@ -68,7 +68,9 @@ def run_gear(gear: int, task_dir: Path, runs_dir: Path, model) -> dict:
         gb.boot_recover(work, note=gb.note)
         fixed, fix_summary, history = gb.step_implement(
             model, spec_shim, work, task["files"], attempts=3,
-            trajectory=trajectory, request=task["request"], creatable=creatable)
+            trajectory=trajectory, request=task["request"], creatable=creatable,
+            accumulate=False)   # gear0/1 keep strict per-attempt rollback: the
+            # whole-repo shim boundary must not silently enable accumulation
         if fixed:
             harness_written.add(fix_summary)
         gate_ok, gate_notes = gb.gate(work, trajectory, baseline, harness_written)

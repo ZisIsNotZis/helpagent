@@ -69,3 +69,11 @@
   single-file corpus cannot measure composer value.
   Cosmetic bug noted: tiered gear2 wall_s shows 0.0 (timer scope) — fix with
   the next tiered change.
+
+- 2026-09-18 owner session (multi-file verdict): accumulative implement mode
+  (multi-file spec boundary -> edits persist across attempts, final gate judges)
+  A/B: T-33 0/3 -> **3/3**; T-02 control 3/3 (rollback path intact); T-31 0/3
+  even at 6 attempts — genuine frontier (3-file coordinated threading).
+  ADOPTED. Gear0/1 shim explicitly accumulate=False (whole-repo boundary must
+  not silently enable accumulation — wrong-edit poisoning risk; strict rollback
+  is the validated 93.3% behavior). Open: cross-unit parallel writers = M8.

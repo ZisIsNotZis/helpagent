@@ -1,0 +1,29 @@
+{
+ "task": "T-02-off-by-one",
+ "fixed": true,
+ "gate_ok": true,
+ "green": true,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "catalog/pagination.py",
+   "pytest_exit": 0,
+   "verdict": "ok",
+   "excerpts": [
+    "....                                                                     [100%]",
+    "4 passed in 0.01s"
+   ]
+  }
+ ],
+ "fix_summary": "catalog/pagination.py",
+ "gate_notes": [
+  "pytest green; untouched-files contract holds"
+ ],
+ "attempts_cap": 6,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-02-off-by-one-summary"
+ ]
+}
