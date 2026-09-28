@@ -1,0 +1,6 @@
+{"task": "A-01-word-count", "gear": 2, "result": "PASS", "wall_s": 102.9, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T044113/A-01-word-count", "run_idx": 1}
+{"task": "A-01-word-count", "gear": 2, "result": "PASS", "wall_s": 120.7, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T044113/A-01-word-count", "run_idx": 2}
+{"task": "A-01-word-count", "gear": 2, "result": "PASS", "wall_s": 37.3, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T044113/A-01-word-count", "run_idx": 3}
+{"task": "A-04-connect", "gear": 2, "result": "FAIL", "wall_s": 218.7, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T044113/A-04-connect", "run_idx": 1}
+{"task": "A-04-connect", "gear": 2, "result": "FAIL", "wall_s": 13.0, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T044113/A-04-connect", "run_idx": 2}
+{"task": "A-04-connect", "gear": 2, "result": "FAIL", "wall_s": 181.2, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T044113/A-04-connect", "run_idx": 3}

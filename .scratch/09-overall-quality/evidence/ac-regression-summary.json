@@ -1,0 +1,10 @@
+{
+ "per_task": {
+  "A-01-word-count": "3/3",
+  "A-04-connect": "0/3"
+ },
+ "overall": "3/6",
+ "closing_gear_histogram": {
+  "2": 3
+ }
+}
