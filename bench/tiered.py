@@ -39,7 +39,7 @@ def load_model(server: str):
     return gb.LlamaServerRunner(server)
 
 
-def run_gear(gear: int, task_dir: Path, runs_dir: Path, model) -> dict:
+def run_gear(gear: int, task_dir: Path, runs_dir: Path, model, retry_view: str = "draft") -> dict:
     """One gear attempt over one task. Returns the result row."""
     gb.reset_ledger_for_tests()
     task = gb.load_task(task_dir)
@@ -49,7 +49,7 @@ def run_gear(gear: int, task_dir: Path, runs_dir: Path, model) -> dict:
     t0 = time.monotonic()
 
     if gear == 2:
-        sys.argv = ["golden_bugfix.py", "--task", str(task_dir)]
+        sys.argv = ["golden_bugfix.py", "--task", str(task_dir), "--retry-view", retry_view]
         rc = gb.main()
         return {"task": task_id, "gear": 2, "result": "PASS" if rc == 0 else "FAIL",
                 "wall_s": round(time.monotonic() - t0, 1), "runs_dir": str(runs.parent.parent / task_id)}
@@ -70,7 +70,7 @@ def run_gear(gear: int, task_dir: Path, runs_dir: Path, model) -> dict:
         fixed, fix_summary, history = gb.step_implement(
             model, spec_shim, work, task["files"], attempts=3,
             trajectory=trajectory, request=task["request"], creatable=creatable,
-            harness_written_acc=written)
+            harness_written_acc=written, retry_view=retry_view)
         harness_written |= written
         if fixed:
             harness_written.add(fix_summary)
@@ -88,13 +88,14 @@ def run_gear(gear: int, task_dir: Path, runs_dir: Path, model) -> dict:
             "attempts": len(history), "runs_dir": str(runs)}
 
 
-def run_tiered(task_dir: Path, runs_dir: Path, model, gear_override: int | None) -> dict:
+def run_tiered(task_dir: Path, runs_dir: Path, model, gear_override: int | None,
+               retry_view: str = "draft") -> dict:
     """The ladder: gear 0 → 1 → 2 until one closes the task."""
     start_gear = gear_override if gear_override is not None else 0
     last = None
     for gear in range(start_gear, 3):
         try:
-            row = run_gear(gear, task_dir, runs_dir, model)
+            row = run_gear(gear, task_dir, runs_dir, model, retry_view=retry_view)
         except Exception as exc:
             # a gear that blows up (e.g. repair respawn exhausted) is a gear
             # FAILURE — the ladder escalates; one bad step must not kill the run
@@ -117,6 +118,8 @@ def main() -> int:
     ap.add_argument("--knowledge", action="store_true",
                     help="M6: inject the knowledge pack into implement (gear 0/1)")
     ap.add_argument("--server", default=SERVER)
+    ap.add_argument("--retry-view", choices=("draft", "initial"), default="draft",
+                    help="A/B only: file snapshot shown on implementation retries")
     args = ap.parse_args()
 
     gb.KNOWLEDGE = args.knowledge
@@ -137,7 +140,7 @@ def main() -> int:
 
     for task in tasks:
         for run_idx in range(1, args.n + 1):
-            row = run_tiered(task, out, model, args.gear)
+            row = run_tiered(task, out, model, args.gear, retry_view=args.retry_view)
             row["run_idx"] = run_idx
             with results.open("a") as f:
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")

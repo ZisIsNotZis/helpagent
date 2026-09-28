@@ -1,5 +1,7 @@
 """Regression: staged draft, not original corpus, is the next attempt's input."""
 import json
+
+import pytest
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -7,7 +9,9 @@ from bench import golden_bugfix as gb
 from bench import tiered
 
 
-def test_attempt_sees_own_draft_and_exhaustion_restores(monkeypatch, tmp_path: Path):
+@pytest.mark.parametrize("retry_view,second", [("draft", "draft-one"), ("initial", "original")])
+def test_attempt_sees_selected_snapshot_and_exhaustion_restores(monkeypatch, tmp_path: Path,
+                                                                 retry_view: str, second: str):
     file = tmp_path / "impl.py"
     file.write_text("original")
     initial = {"impl.py": "original"}
@@ -31,9 +35,10 @@ def test_attempt_sees_own_draft_and_exhaustion_restores(monkeypatch, tmp_path: P
     spec = SimpleNamespace(files_touched=["impl.py"], interfaces=[], behavior="fix", implementation_notes="")
     acc = set()
     fixed, _, history = gb.step_implement(None, spec, tmp_path, initial, 2, trajectory,
-                                           harness_written_acc=acc)
+                                           harness_written_acc=acc, retry_view=retry_view)
     assert not fixed and len(history) == 2
-    assert prompts == [{"impl.py": "original"}, {"impl.py": "draft-one"}]
+    assert prompts == [{"impl.py": "original"}, {"impl.py": second}]
+    assert [h["staged_delta"] for h in history] == [[], ["impl.py"]]
     assert file.read_text() == "original"
     assert acc == set()
 
@@ -84,8 +89,9 @@ def test_tiered_gear_zero_calls_current_implement_contract(monkeypatch, tmp_path
 
     monkeypatch.setattr(tiered.gb, "step_implement", fake_implement)
     monkeypatch.setattr(tiered.gb, "gate", lambda *_: (False, ["red"]))
-    row = tiered.run_gear(0, task_dir, tmp_path / "runs", None)
+    row = tiered.run_gear(0, task_dir, tmp_path / "runs", None, retry_view="initial")
     assert row["result"] == "FAIL"
     assert len(called) == 1
     assert "accumulate" not in called[0]
     assert isinstance(called[0]["harness_written_acc"], set)
+    assert called[0]["retry_view"] == "initial"

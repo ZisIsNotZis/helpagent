@@ -311,8 +311,11 @@ def step_write_test(model, spec: Envelope, acs: Envelope, workdir: Path, files: 
 def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
                    attempts: int, trajectory: Trajectory, request: str = "",
                    creatable: set[str] | None = None,
-                   harness_written_acc: set[str] | None = None) -> tuple[bool, str, list[dict]]:
+                   harness_written_acc: set[str] | None = None,
+                   retry_view: str = "draft") -> tuple[bool, str, list[dict]]:
     """Iterate over the staged draft, restoring touched files if budget runs out."""
+    if retry_view not in ("draft", "initial"):
+        raise ValueError(f"unknown retry view: {retry_view}")
     creatable = creatable or set()
     harness_written_acc = harness_written_acc if harness_written_acc is not None else set()
     orig_bytes: dict[str, bytes | None] = {}   # per-file pre-first-touch state
@@ -333,6 +336,10 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
         # The model must see the exact draft that the next write will replace.
         current_files = {rel: (workdir / rel).read_text()
                          for rel in set(files) | creatable if (workdir / rel).is_file()}
+        # Experimental control only: hold the disk edits and budget fixed, vary
+        # precisely which file snapshot the next model call receives.
+        prompt_files = current_files if retry_view == "draft" else files
+        view_delta = sorted(rel for rel in boundary if current_files.get(rel) != files.get(rel))
         plan_text = ""
         if guided:
             plan_env = asyncio_run(llm_step(model, "fix_plan",
@@ -346,8 +353,8 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
                 "interfaces": [i.model_dump() for i in spec.interfaces],
                 "behavior": spec.behavior,
                 "implementation_notes": spec.implementation_notes}),
-                "current_files": json.dumps({rel: current_files[rel] for rel in boundary if rel in current_files}, ensure_ascii=False),
-                **({"repo_knowledge": build_knowledge(current_files, boundary)} if globals().get("KNOWLEDGE") else {}),
+                "current_files": json.dumps({rel: prompt_files[rel] for rel in boundary if rel in prompt_files}, ensure_ascii=False),
+                **({"repo_knowledge": build_knowledge(prompt_files, boundary)} if globals().get("KNOWLEDGE") else {}),
                 "bug_report": request,
                 "failing_test_output": last_excerpt},
             question=(("Follow this plan step by step: " + plan_text + ".\n") if plan_text else "") +
@@ -365,11 +372,13 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
                   "whole-file source-edit engine: re-emit the complete new version of the target file"),
             best_of_n=3))
         if env.status != "ok":
-            history.append({"attempt": attempt, "outcome": f"envelope:{env.status}"})
+            history.append({"attempt": attempt, "outcome": f"envelope:{env.status}",
+                            "staged_delta": view_delta})
             summary = f"implement returned status={env.status}: {env.unable_reason or env.comment}"
             continue
         if env.file_path not in files and env.file_path not in creatable:
-            history.append({"attempt": attempt, "outcome": f"file_path-outside-repo:{env.file_path}"})
+            history.append({"attempt": attempt, "outcome": f"file_path-outside-repo:{env.file_path}",
+                            "staged_delta": view_delta})
             continue
         target = workdir / env.file_path
         if env.file_path not in orig_bytes:
@@ -380,6 +389,7 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
         cw = asyncio.run(check_write(workdir, env.file_path, env.content, intent="source"))
         if not cw.ok:
             history.append({"attempt": attempt, "outcome": f"check-rolled-back:{cw.verdict}",
+                            "staged_delta": view_delta,
                             "findings": [f.message[:80] for f in cw.findings[:2]]})
             last_excerpt = "; ".join(f"{f.code}: {f.message}" for f in cw.findings[:2]) or cw.verdict
             note("implement_check_rolled_back", attempt=attempt, file=env.file_path)
@@ -391,6 +401,7 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
             last_excerpt = "; ".join(f"{f.code}: {f.message}" for f in cw.findings[:3])
         res = run_pytest(workdir)
         history.append({"attempt": attempt, "file": env.file_path, "pytest_exit": res.exit,
+                        "staged_delta": view_delta,
                         "verdict": res.verdict, "excerpts": res.excerpts[:2]})
         if res.exit == 0:
             trajectory.record(step_id=f"implement-{attempt}", node_id="implement", outcome="green")
@@ -451,6 +462,8 @@ def main() -> int:
                     help="A/B (ticket 05): fix_plan enumerate step before each implement emit")
     ap.add_argument("--knowledge", action="store_true",
                     help="M6: inject the knowledge pack (signatures/callers/constants) into implement")
+    ap.add_argument("--retry-view", choices=("draft", "initial"), default="draft",
+                    help="A/B only: snapshot shown to the model on implementation retries")
     args = ap.parse_args()
     global GUIDED_IMPLEMENT
     GUIDED_IMPLEMENT = args.guided_implement
@@ -532,7 +545,8 @@ def main() -> int:
         attempts = max(args.attempts, scaled_attempts)
         fixed, fix_summary, history = step_implement(
             model, spec, workdir, task["files"], attempts, trajectory,
-            request=task["request"], creatable=creatable, harness_written_acc=acc)
+            request=task["request"], creatable=creatable, harness_written_acc=acc,
+            retry_view=args.retry_view)
         harness_written |= acc   # all retained draft edits count for the gate
         if fixed:
             harness_written.add(fix_summary)
