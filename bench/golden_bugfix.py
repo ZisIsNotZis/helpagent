@@ -224,10 +224,11 @@ def step_spec(model, leaf_what: str, files: dict[str, str], conventions: str,
         context={"boundary_files": boundary}))
 
 
-def step_acs(model, leaf_what: str, spec: Envelope) -> tuple[Envelope, Envelope, int]:
-    """draft_acs → gate_decide (fresh) → one bounded revise round on reject."""
+def step_acs(model, leaf_what: str, spec: Envelope) -> tuple[Envelope | None, Envelope | None, int]:
+    """Draft an AC map when available; the shipped tests remain the final gate."""
     decides = 0
-    acs = asyncio_run(llm_step(model, "draft_acs",
+    try:
+        acs = asyncio_run(llm_step(model, "draft_acs",
         artifacts={"node": leaf_what, "spec": jdump({
             "interfaces": [i.model_dump() for i in spec.interfaces],
             "behavior": spec.behavior})},
@@ -238,23 +239,44 @@ def step_acs(model, leaf_what: str, spec: Envelope) -> tuple[Envelope, Envelope,
                  "check_kind: 'test', check_hint: 'pytest tests/test_calc.py::test_divide_by_zero'}",
         context={"node_kind": "leaf"},
         best_of_n=3))
+    except SchemaViolation as exc:
+        note("ac_map_unavailable", detail=str(exc)[:160])
+        return None, None, decides
+    if acs.status != "ok":
+        note("ac_map_unavailable", detail=f"draft_acs status={acs.status}")
+        return None, None, decides
     while True:
         decides += 1
-        verdict = asyncio_run(llm_step(model, "gate_decide",
+        try:
+            verdict = asyncio_run(llm_step(model, "gate_decide",
             artifacts={},
             question="Is this AC map a real gate? Flag 'subjective' where a deterministic check "
                      "is feasible. The proposed map (fresh session — the proposal is your only "
                      "evidence): " + jdump([a.model_dump() for a in acs.acs]),
             fresh=True))
+        except SchemaViolation as exc:
+            note("ac_gate_unavailable", detail=str(exc)[:160])
+            return acs, None, decides
+        if verdict.status != "ok":
+            note("ac_gate_unavailable", detail=f"gate_decide status={verdict.status}")
+            return acs, None, decides
         if verdict.decision == "accept" or decides >= 2:
             return acs, verdict, decides
-        acs = asyncio_run(llm_step(model, "draft_acs",
+        try:
+            revised = asyncio_run(llm_step(model, "draft_acs",
             artifacts={"node": leaf_what, "spec": jdump({
                 "interfaces": [i.model_dump() for i in spec.interfaces],
                 "behavior": spec.behavior}),
                 "prior_rejection": verdict.explanation or "gate rejected the map"},
             question="Revise the AC map per the gate decision: make every AC deterministically checkable.",
             context={"node_kind": "leaf"}))
+        except SchemaViolation as exc:
+            note("ac_revision_unavailable", detail=str(exc)[:160])
+            return acs, verdict, decides
+        if revised.status != "ok":
+            note("ac_revision_unavailable", detail=f"draft_acs status={revised.status}")
+            return acs, verdict, decides
+        acs = revised
 
 
 def step_write_test(model, spec: Envelope, acs: Envelope, workdir: Path, files: dict[str, str]) -> Path | None:
@@ -473,7 +495,17 @@ def main() -> int:
         print(f"[spec] interfaces={[i.name for i in spec.interfaces]} files_touched={spec.files_touched}")
 
         acs, verdict, decides = step_acs(model, child.what, spec)
-        print(f"[acs] {len(acs.acs)} ACs, gate_decide={verdict.decision} after {decides} round(s)")
+        if acs is None:
+            # A leaf requires an AC map (§4.8). An unavailable/invalid model map
+            # is a shaped run failure, not permission to bypass that contract.
+            (runs_dir / "ledger.json").write_text(json.dumps(ledger_entries(), indent=1))
+            (runs_dir / "summary.json").write_text(json.dumps({
+                "task": task["task_id"], "fixed": False, "gate_ok": False,
+                "reason": "ac_map_unavailable", "decides": decides}, indent=1))
+            print("[result] FAIL (AC map unavailable; no implementation attempted)")
+            return 1
+        print(f"[acs] {len(acs.acs)} ACs, "
+              f"gate_decide={verdict.decision if verdict else 'unavailable'} after {decides} round(s)")
         findings = leaf.set_ac_test_map([a.model_dump() for a in acs.acs])
         if findings.items:
             print(f"[acs] map findings: {findings.items}")
