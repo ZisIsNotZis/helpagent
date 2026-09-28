@@ -1,0 +1,146 @@
+{
+ "task": "T-31-parameter-threading",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "api/transport.py",
+   "pytest_exit": 1,
+   "staged_delta": [],
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_chain.py::test_transport_accepts_timeout",
+    "FAILED tests/test_chain.py::test_client_threads_timeout"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "api/client.py",
+   "pytest_exit": 1,
+   "staged_delta": [],
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_chain.py::test_transport_accepts_timeout",
+    "FAILED tests/test_chain.py::test_service_threads_timeout"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "api/service.py",
+   "pytest_exit": 1,
+   "staged_delta": [],
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_chain.py::test_transport_accepts_timeout",
+    "FAILED tests/test_chain.py::test_exporter_threads_timeout"
+   ]
+  },
+  {
+   "attempt": 4,
+   "file": "exporter/bulk.py",
+   "pytest_exit": 1,
+   "staged_delta": [],
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_chain.py::test_transport_accepts_timeout",
+    "E       TypeError: send() got multiple values for argument 'timeout'"
+   ]
+  },
+  {
+   "attempt": 5,
+   "file": "api/transport.py",
+   "pytest_exit": 2,
+   "staged_delta": [
+    "api/client.py",
+    "api/service.py",
+    "api/transport.py",
+    "exporter/bulk.py"
+   ],
+   "verdict": "failed",
+   "excerpts": [
+    "E     File \"/home/z/vibe/helpagent/bench/runs/20260928T120633/golden/T-31-parameter-threading/work/api/transport.py\", line 4",
+    "E       def send(data: bytes, timeout: float = 1.0, *, timeout: float = 1.0) -> None:"
+   ]
+  },
+  {
+   "attempt": 6,
+   "file": "api/transport.py",
+   "pytest_exit": 1,
+   "staged_delta": [
+    "api/client.py",
+    "api/service.py",
+    "api/transport.py",
+    "exporter/bulk.py"
+   ],
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_chain.py::test_transport_accepts_timeout",
+    "E       TypeError: send() got multiple values for argument 'timeout'"
+   ]
+  },
+  {
+   "attempt": 7,
+   "file": "api/transport.py",
+   "pytest_exit": 1,
+   "staged_delta": [
+    "api/client.py",
+    "api/service.py",
+    "api/transport.py",
+    "exporter/bulk.py"
+   ],
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_chain.py::test_transport_accepts_timeout",
+    "E       TypeError: send() got multiple values for argument 'timeout'"
+   ]
+  },
+  {
+   "attempt": 8,
+   "file": "api/transport.py",
+   "pytest_exit": 2,
+   "staged_delta": [
+    "api/client.py",
+    "api/service.py",
+    "api/transport.py",
+    "exporter/bulk.py"
+   ],
+   "verdict": "failed",
+   "excerpts": [
+    "E     File \"/home/z/vibe/helpagent/bench/runs/20260928T120633/golden/T-31-parameter-threading/work/api/transport.py\", line 4",
+    "E       def send(data: bytes, timeout: float = 1.0, *, timeout: float = 1.0) -> None:"
+   ]
+  },
+  {
+   "attempt": 9,
+   "file": "api/transport.py",
+   "pytest_exit": 1,
+   "staged_delta": [
+    "api/client.py",
+    "api/service.py",
+    "api/transport.py",
+    "exporter/bulk.py"
+   ],
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_chain.py::test_transport_accepts_timeout",
+    "E       TypeError: send() got multiple values for argument 'timeout'"
+   ]
+  }
+ ],
+ "fix_summary": "attempt 9 left tests red (1)",
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED tests/test_chain.py::test_transport_accepts_timeout",
+  "FAILED tests/test_chain.py::test_client_threads_timeout",
+  "FAILED tests/test_chain.py::test_service_threads_timeout"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-31-parameter-threading-summary"
+ ]
+}

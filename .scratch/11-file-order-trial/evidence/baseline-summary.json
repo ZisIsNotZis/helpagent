@@ -1,0 +1,8 @@
+{
+ "per_task": {
+  "T-02-off-by-one": "5/5",
+  "T-31-parameter-threading": "4/5",
+  "T-33-serializer-contract": "5/5"
+ },
+ "overall": "14/15"
+}

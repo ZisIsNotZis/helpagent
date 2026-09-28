@@ -1,6 +1,6 @@
 # 11 — Dependency-order file trial
 
-Status: claimed
+Status: done
 Owner: agent
 Need-review: yes
 Need-test-cases: yes
@@ -11,4 +11,6 @@ Objective: Test an experimental, deterministic import-graph source-file sequence
 
 Acceptance: narrow unit tests for graph order and bounded behavior; frozen N=5 per arm on three tasks with row reconciliation, crash count, attempt histograms, model-call cost where available; adopt only if T-31 improves meaningfully without control regressions or material cost. Else remove experiment flag and park with evidence.
 
-- 2026-09-28 agent: clean start at `511da83`; T-31 success evidence in ticket 10. Implementation pending.
+- 2026-09-28 agent: clean start at `511da83`; T-31 success evidence in ticket 10. Experimental AST import order committed at `131a0b0`; default unaffected. Frozen same-model golden-flow N=5 per arm on T-02/T-31/T-33; no source mutation during sweeps.
+- 2026-09-28 agent: baseline 14/15 (T-02 5/5, T-31 4/5, T-33 5/5), ordered 7/15 (4/5, 1/5, 2/5). Zero CRASH rows in either arm. Total model calls from per-run ledgers: 152 baseline vs 173 ordered; wall time 608.0s vs 598.4s (sequential server timing not a causal latency measure). Evidence: `evidence/{baseline,ordered}-{summary,results}.json`, per-run T-31/T-33 summaries, compressed run output. The ordering variant loses correctness and uses more calls; **KILL**, revert implementation and experimental tests.
+- 2026-09-28 agent: diagnosis from ordered histories: when spec listed all four T-31 source files, one run followed transport→client→service→exporter and passed at attempt 4, but another traversed all four with incorrect transport logic and never recovered in nine attempts. Three failures had spec narrowed to transport only, so the safe ordering could not widen the write boundary. T-33 model frequently returned `failed`/`unable` when constrained to base first, consuming 7–9 attempts without reaching both serializers. Forced file target is therefore a poor intervention; a single successful order was observational, not a causal recipe. Next hypothesis, if pursued, should diagnose missing caller coverage BEFORE emit rather than force writes. Experimental code and tests reverted to `511da83` behavior; full `uv run pytest -q` and `git diff --check` pass after rollback. Generated run directories cleaned after preserving scoped evidence, reference server stopped. Scoped self-review: golden implementation diff matches the pre-experiment file byte-for-byte; only the ticket and evidence remain. Residual: N=5 sequential sampling cannot prove magnitude of harm precisely, but a 7/15 vs 14/15 drop with both controls regressing is sufficient to reject this variant under reliability-first policy.

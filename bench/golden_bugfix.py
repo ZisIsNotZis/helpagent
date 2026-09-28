@@ -31,7 +31,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import ast
 import asyncio
 import json
 import shutil
@@ -309,55 +308,11 @@ def step_write_test(model, spec: Envelope, acs: Envelope, workdir: Path, files: 
     return workdir / env.file_path
 
 
-def source_dependency_order(files: dict[str, str]) -> list[str]:
-    """Small-repo experiment: dependencies before importers, source modules only."""
-    modules: dict[str, str] = {}
-    trees: dict[str, ast.Module] = {}
-    for rel, text in files.items():
-        path = Path(rel)
-        if path.suffix != ".py" or "test" in path.parts or path.name.startswith("test_"):
-            continue
-        try:
-            tree = ast.parse(text)
-        except SyntaxError:
-            continue
-        if not any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-                   for node in tree.body):
-            continue
-        module = rel.removesuffix(".py").replace("/", ".")
-        modules[module] = rel
-        trees[rel] = tree
-    if len(trees) > 8:
-        return []  # no whole-repo ordering outside the small-corpus experiment
-    deps: dict[str, set[str]] = {rel: set() for rel in trees}
-    for rel, tree in trees.items():
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module in modules:
-                dep = modules[node.module]
-                if dep != rel:
-                    deps[rel].add(dep)
-            elif isinstance(node, ast.Import):
-                for alias in node.names:
-                    if alias.name in modules and modules[alias.name] != rel:
-                        deps[rel].add(modules[alias.name])
-    ordered: list[str] = []
-    while deps:
-        ready = sorted(rel for rel, imports in deps.items() if not imports)
-        if not ready:
-            return []  # cycles have no reliable order
-        rel = ready[0]
-        ordered.append(rel)
-        deps.pop(rel)
-        for imports in deps.values():
-            imports.discard(rel)
-    return ordered
-
-
 def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
                    attempts: int, trajectory: Trajectory, request: str = "",
                    creatable: set[str] | None = None,
                    harness_written_acc: set[str] | None = None,
-                   retry_view: str = "draft", ordered_files: bool = False) -> tuple[bool, str, list[dict]]:
+                   retry_view: str = "draft") -> tuple[bool, str, list[dict]]:
     """Iterate over the staged draft, restoring touched files if budget runs out."""
     if retry_view not in ("draft", "initial"):
         raise ValueError(f"unknown retry view: {retry_view}")
@@ -368,19 +323,12 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
     last_excerpt = "no failing output captured"
     summary = "tests fail; fix the reported bug"
     guided = bool(globals().get("GUIDED_IMPLEMENT"))
-    allowed = set(spec.files_touched) & (set(files) | creatable)
-    file_plan = ([rel for rel in source_dependency_order(files) if rel in allowed]
-                 if ordered_files else [])
-    next_file = 0
     for attempt in range(1, attempts + 1):
         # one candidate file per attempt: the spec's files_touched (boundary), else whole repo
         boundary = [f for f in spec.files_touched if f in files or f in creatable] or sorted(files)
         # rank: source before tests — the fix belongs in source; editing tests to pass
         # is a test-side ticket (router rule), never the implement move
         boundary = sorted(boundary, key=lambda f: ("test" in f.lower(), f))
-        target_file = file_plan[next_file] if next_file < len(file_plan) else None
-        if target_file is not None:
-            boundary = [target_file]
         # guided decomposition (DESIGN §2.2, ticket 05 A/B): enumerate the fix
         # steps FIRST, then emit under the plan — the thinking structure is
         # harness-decomposed, the filling stays with the model
@@ -391,7 +339,6 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
         # Experimental control only: hold the disk edits and budget fixed, vary
         # precisely which file snapshot the next model call receives.
         prompt_files = current_files if retry_view == "draft" else files
-        visible_files = sorted(set(file_plan) | set(boundary)) if target_file else boundary
         view_delta = sorted(rel for rel in boundary if current_files.get(rel) != files.get(rel))
         plan_text = ""
         if guided:
@@ -406,13 +353,11 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
                 "interfaces": [i.model_dump() for i in spec.interfaces],
                 "behavior": spec.behavior,
                 "implementation_notes": spec.implementation_notes}),
-                "current_files": json.dumps({rel: prompt_files[rel] for rel in visible_files if rel in prompt_files}, ensure_ascii=False),
+                "current_files": json.dumps({rel: prompt_files[rel] for rel in boundary if rel in prompt_files}, ensure_ascii=False),
                 **({"repo_knowledge": build_knowledge(prompt_files, boundary)} if globals().get("KNOWLEDGE") else {}),
                 "bug_report": request,
                 "failing_test_output": last_excerpt},
             question=(("Follow this plan step by step: " + plan_text + ".\n") if plan_text else "") +
-                      ((f"Edit only {target_file} now; later files are handled in later steps. "
-                        if target_file else "")) +
                       ("Emit the complete content for the NEW file (file_path) so the failing "
                       "tests pass. Include every symbol the tests import. "
                       "Never edit test files to make them pass — create the source."
@@ -430,10 +375,6 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
             history.append({"attempt": attempt, "outcome": f"envelope:{env.status}",
                             "staged_delta": view_delta})
             summary = f"implement returned status={env.status}: {env.unable_reason or env.comment}"
-            continue
-        if target_file is not None and env.file_path != target_file:
-            history.append({"attempt": attempt, "outcome": f"outside-planned-file:{env.file_path}",
-                            "staged_delta": view_delta})
             continue
         if env.file_path not in files and env.file_path not in creatable:
             history.append({"attempt": attempt, "outcome": f"file_path-outside-repo:{env.file_path}",
@@ -462,8 +403,6 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
         history.append({"attempt": attempt, "file": env.file_path, "pytest_exit": res.exit,
                         "staged_delta": view_delta,
                         "verdict": res.verdict, "excerpts": res.excerpts[:2]})
-        if target_file == env.file_path:
-            next_file += 1
         if res.exit == 0:
             trajectory.record(step_id=f"implement-{attempt}", node_id="implement", outcome="green")
             return True, env.file_path, history
@@ -534,8 +473,6 @@ def main() -> int:
                     help="M6: inject the knowledge pack (signatures/callers/constants) into implement")
     ap.add_argument("--retry-view", choices=("draft", "initial"), default="draft",
                     help="A/B only: snapshot shown to the model on implementation retries")
-    ap.add_argument("--ordered-files", action="store_true",
-                    help="A/B only: first pass follows source import dependencies")
     args = ap.parse_args()
     global GUIDED_IMPLEMENT
     GUIDED_IMPLEMENT = args.guided_implement
@@ -618,7 +555,7 @@ def main() -> int:
         fixed, fix_summary, history = step_implement(
             model, spec, workdir, task["files"], attempts, trajectory,
             request=task["request"], creatable=creatable, harness_written_acc=acc,
-            retry_view=args.retry_view, ordered_files=args.ordered_files)
+            retry_view=args.retry_view)
         harness_written |= acc   # all retained draft edits count for the gate
         if fixed:
             harness_written.add(fix_summary)

@@ -1,0 +1,66 @@
+{
+ "task": "T-33-serializer-contract",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "outcome": "envelope:failed",
+   "staged_delta": []
+  },
+  {
+   "attempt": 2,
+   "outcome": "envelope:failed",
+   "staged_delta": []
+  },
+  {
+   "attempt": 3,
+   "outcome": "envelope:failed",
+   "staged_delta": []
+  },
+  {
+   "attempt": 4,
+   "outcome": "envelope:failed",
+   "staged_delta": []
+  },
+  {
+   "attempt": 5,
+   "outcome": "envelope:failed",
+   "staged_delta": []
+  },
+  {
+   "attempt": 6,
+   "outcome": "envelope:blocked",
+   "staged_delta": []
+  },
+  {
+   "attempt": 7,
+   "outcome": "envelope:failed",
+   "staged_delta": []
+  },
+  {
+   "attempt": 8,
+   "outcome": "envelope:failed",
+   "staged_delta": []
+  },
+  {
+   "attempt": 9,
+   "outcome": "envelope:unable",
+   "staged_delta": []
+  }
+ ],
+ "fix_summary": "implement returned status=unable: base.py is frozen per instructions; cannot modify it.",
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED tests/test_contract.py::test_load_refuses_foreign_bytes[PickleSerializer]",
+  "E       _pickle.UnpicklingError: invalid load key, 'n'."
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-33-serializer-contract-summary"
+ ]
+}
