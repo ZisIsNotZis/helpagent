@@ -140,7 +140,10 @@ def main() -> int:
 
     for task in tasks:
         for run_idx in range(1, args.n + 1):
-            row = run_tiered(task, out, model, args.gear, retry_view=args.retry_view)
+            # Distinct run directory: staging a repeat must not erase the prior
+            # attempt history and ledger for the same task/gear.
+            row = run_tiered(task, out / f"run-{run_idx}", model, args.gear,
+                             retry_view=args.retry_view)
             row["run_idx"] = run_idx
             with results.open("a") as f:
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")

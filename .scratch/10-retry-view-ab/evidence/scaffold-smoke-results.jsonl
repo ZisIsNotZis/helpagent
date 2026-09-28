@@ -1,0 +1,3 @@
+{"task": "T-28-plugin-registry-scaffold", "gear": 2, "result": "FAIL", "wall_s": 116.3, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T103953/run-1/T-28-plugin-registry-scaffold", "run_idx": 1}
+{"task": "T-28-plugin-registry-scaffold", "gear": 2, "result": "FAIL", "wall_s": 16.7, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T103953/run-2/T-28-plugin-registry-scaffold", "run_idx": 2}
+{"task": "T-28-plugin-registry-scaffold", "gear": 2, "result": "FAIL", "wall_s": 123.0, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T103953/run-3/T-28-plugin-registry-scaffold", "run_idx": 3}

@@ -1,0 +1,24 @@
+{"task": "T-02-off-by-one", "gear": 0, "result": "PASS", "wall_s": 8.5, "calls": 1, "attempts": 1, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/gear0/T-02-off-by-one", "run_idx": 1}
+{"task": "T-02-off-by-one", "gear": 0, "result": "PASS", "wall_s": 8.4, "calls": 1, "attempts": 1, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/gear0/T-02-off-by-one", "run_idx": 2}
+{"task": "T-02-off-by-one", "gear": 0, "result": "PASS", "wall_s": 8.5, "calls": 1, "attempts": 1, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/gear0/T-02-off-by-one", "run_idx": 3}
+{"task": "T-27-snakecase-ingest", "gear": 2, "result": "FAIL", "wall_s": 53.1, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/T-27-snakecase-ingest", "run_idx": 1}
+{"task": "T-27-snakecase-ingest", "gear": 2, "result": "FAIL", "wall_s": 71.4, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/T-27-snakecase-ingest", "run_idx": 2}
+{"task": "T-27-snakecase-ingest", "gear": 2, "result": "FAIL", "wall_s": 95.8, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/T-27-snakecase-ingest", "run_idx": 3}
+{"task": "T-28-plugin-registry-scaffold", "gear": 2, "result": "FAIL", "wall_s": 105.7, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/T-28-plugin-registry-scaffold", "run_idx": 1}
+{"task": "T-28-plugin-registry-scaffold", "gear": 2, "result": "FAIL", "wall_s": 214.8, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/T-28-plugin-registry-scaffold", "run_idx": 2}
+{"task": "T-28-plugin-registry-scaffold", "gear": 2, "result": "FAIL", "wall_s": 229.1, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/T-28-plugin-registry-scaffold", "run_idx": 3}
+{"task": "T-31-parameter-threading", "gear": 2, "result": "FAIL", "wall_s": 111.3, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/T-31-parameter-threading", "run_idx": 1}
+{"task": "T-31-parameter-threading", "gear": 2, "result": "FAIL", "wall_s": 151.1, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/T-31-parameter-threading", "run_idx": 2}
+{"task": "T-31-parameter-threading", "gear": 2, "result": "FAIL", "wall_s": 165.0, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/T-31-parameter-threading", "run_idx": 3}
+{"task": "T-32-sliding-window-limiter", "gear": 2, "result": "FAIL", "wall_s": 157.0, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/T-32-sliding-window-limiter", "run_idx": 1}
+{"task": "T-32-sliding-window-limiter", "gear": 2, "result": "FAIL", "wall_s": 158.3, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/T-32-sliding-window-limiter", "run_idx": 2}
+{"task": "T-32-sliding-window-limiter", "gear": 2, "result": "FAIL", "wall_s": 161.0, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/T-32-sliding-window-limiter", "run_idx": 3}
+{"task": "T-33-serializer-contract", "gear": 0, "result": "PASS", "wall_s": 48.0, "calls": 3, "attempts": 3, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/gear0/T-33-serializer-contract", "run_idx": 1}
+{"task": "T-33-serializer-contract", "gear": 0, "result": "PASS", "wall_s": 33.9, "calls": 2, "attempts": 2, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/gear0/T-33-serializer-contract", "run_idx": 2}
+{"task": "T-33-serializer-contract", "gear": 0, "result": "PASS", "wall_s": 37.7, "calls": 3, "attempts": 3, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/gear0/T-33-serializer-contract", "run_idx": 3}
+{"task": "T-34-expression-tokenizer", "gear": 2, "result": "FAIL", "wall_s": 170.4, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/T-34-expression-tokenizer", "run_idx": 1}
+{"task": "T-34-expression-tokenizer", "gear": 2, "result": "FAIL", "wall_s": 348.1, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/T-34-expression-tokenizer", "run_idx": 2}
+{"task": "T-34-expression-tokenizer", "gear": 2, "result": "FAIL", "wall_s": 376.0, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/T-34-expression-tokenizer", "run_idx": 3}
+{"task": "A-02-protein-translation", "gear": 2, "result": "FAIL", "wall_s": 99.8, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/A-02-protein-translation", "run_idx": 1}
+{"task": "A-02-protein-translation", "gear": 2, "result": "PASS", "wall_s": 46.4, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/A-02-protein-translation", "run_idx": 2}
+{"task": "A-02-protein-translation", "gear": 0, "result": "PASS", "wall_s": 76.5, "calls": 3, "attempts": 3, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T073630/gear0/A-02-protein-translation", "run_idx": 3}

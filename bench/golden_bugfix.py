@@ -452,6 +452,15 @@ def gate(workdir: Path, trajectory: Trajectory, baseline: dict[str, str],
 # --------------------------------------------------------------------------- main
 
 
+def summary_fields(summary: Envelope, gate_ok: bool) -> tuple[str, str]:
+    """Read only fields present in the envelope's status branch."""
+    if summary.status == "ok":
+        return summary.outcome, summary.what_was_done
+    note("run_summary_unavailable", status=summary.status)
+    outcome = "partial" if gate_ok else "parked-needs-user"
+    return outcome, f"Run summary unavailable ({summary.status}); gate_ok={gate_ok}"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--task", default=str(ROOT / "tests/fixtures/mini_repo"))
@@ -565,10 +574,11 @@ def main() -> int:
                 "task": task["task_id"], "fixed": fixed, "fix_file": fix_summary,
                 "gate": gate_ok, "history": history}, ensure_ascii=False)},
             question="Summarize: outcome, what was done, what changed, what remains."))
-        print(f"[run_summary] outcome={summary.outcome} done={summary.what_was_done[:80]!r}")
+        summary_outcome, summary_text = summary_fields(summary, gate_ok)
+        print(f"[run_summary] outcome={summary_outcome} done={summary_text[:80]!r}")
 
         tree.attach(leaf, Artifact(artifact_id=f"{task['task_id']}-summary", node_id=leaf.id,
-                                   kind="summary", content=summary.what_was_done))
+                                   kind="summary", content=summary_text))
         leaf.status = "done" if (gate_ok and fixed) else ("needs-user" if conflicts else "in-progress")
 
     try:  # everything above can raise SchemaViolation — the run still persists

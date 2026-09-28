@@ -1,8 +1,9 @@
 """Regression: staged draft, not original corpus, is the next attempt's input."""
 import json
+import sys
+from pathlib import Path
 
 import pytest
-from pathlib import Path
 from types import SimpleNamespace
 
 from bench import golden_bugfix as gb
@@ -95,3 +96,22 @@ def test_tiered_gear_zero_calls_current_implement_contract(monkeypatch, tmp_path
     assert "accumulate" not in called[0]
     assert isinstance(called[0]["harness_written_acc"], set)
     assert called[0]["retry_view"] == "initial"
+
+
+def test_tiered_repeats_get_distinct_evidence_directories(monkeypatch, tmp_path: Path):
+    (tmp_path / "bench" / "corpus" / "T-01-example").mkdir(parents=True)
+    (tmp_path / "bench" / "anchor").mkdir()
+    seen = []
+
+    def fake_run(task, runs_dir, model, gear, retry_view="draft"):
+        seen.append(runs_dir)
+        return {"task": task.name, "gear": 0, "result": "FAIL", "wall_s": 0.0}
+
+    monkeypatch.setattr(tiered, "ROOT", tmp_path)
+    monkeypatch.setattr(tiered, "load_model", lambda *_: None)
+    monkeypatch.setattr(tiered, "run_tiered", fake_run)
+    monkeypatch.setattr(sys, "argv", ["tiered.py", "--n", "2", "--tasks", "T-01-example"])
+    assert tiered.main() == 0
+    assert len(seen) == 2
+    assert seen[0].name == "run-1" and seen[1].name == "run-2"
+    assert seen[0] != seen[1]
