@@ -290,13 +290,10 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
                    attempts: int, trajectory: Trajectory, request: str = "",
                    creatable: set[str] | None = None,
                    harness_written_acc: set[str] | None = None) -> tuple[bool, str, list[dict]]:
+    """Iterate over the staged draft, restoring touched files if budget runs out."""
     creatable = creatable or set()
     harness_written_acc = harness_written_acc if harness_written_acc is not None else set()
     orig_bytes: dict[str, bytes | None] = {}   # per-file pre-first-touch state
-    """Bounded implement loop. D-transport: edits ride the write_test content
-    envelope (only content-emitting schema tonight); on red the target file is
-    rolled back and the next attempt sees a one-line failure summary + failing
-    output + current file — never the failed attempt's text (DESIGN §2.4)."""
     history: list[dict] = []
     last_excerpt = "no failing output captured"
     summary = "tests fail; fix the reported bug"
@@ -310,6 +307,10 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
         # guided decomposition (DESIGN §2.2, ticket 05 A/B): enumerate the fix
         # steps FIRST, then emit under the plan — the thinking structure is
         # harness-decomposed, the filling stays with the model
+        # Compose from the staged work tree, never the initial corpus snapshot.
+        # The model must see the exact draft that the next write will replace.
+        current_files = {rel: (workdir / rel).read_text()
+                         for rel in set(files) | creatable if (workdir / rel).is_file()}
         plan_text = ""
         if guided:
             plan_env = asyncio_run(llm_step(model, "fix_plan",
@@ -323,8 +324,8 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
                 "interfaces": [i.model_dump() for i in spec.interfaces],
                 "behavior": spec.behavior,
                 "implementation_notes": spec.implementation_notes}),
-                "current_files": json.dumps({rel: files[rel] for rel in boundary if rel in files}, ensure_ascii=False),
-                **({"repo_knowledge": build_knowledge(files, boundary)} if globals().get("KNOWLEDGE") else {}),
+                "current_files": json.dumps({rel: current_files[rel] for rel in boundary if rel in current_files}, ensure_ascii=False),
+                **({"repo_knowledge": build_knowledge(current_files, boundary)} if globals().get("KNOWLEDGE") else {}),
                 "bug_report": request,
                 "failing_test_output": last_excerpt},
             question=(("Follow this plan step by step: " + plan_text + ".\n") if plan_text else "") +
@@ -380,7 +381,9 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
         last_excerpt = "; ".join(res.excerpts) if res.excerpts else f"pytest exit {res.exit}"
         # FP-4 family now lives in the kernel rule library (DESIGN §4.5): cross-file
         # name resolution is a lookup — harness work, never left to the model.
-        for rf in diagnose_test_output(res.excerpts, files):
+        checked_files = {rel: (workdir / rel).read_text()
+                         for rel in current_files if (workdir / rel).is_file()}
+        for rf in diagnose_test_output(res.excerpts, checked_files):
             last_excerpt += f"; {rf.message}"
             note("rule_diagnosis", rule=rf.code, file=rf.path)
         summary = f"attempt {attempt} left tests red ({res.exit})"
@@ -498,7 +501,7 @@ def main() -> int:
         fixed, fix_summary, history = step_implement(
             model, spec, workdir, task["files"], attempts, trajectory,
             request=task["request"], creatable=creatable, harness_written_acc=acc)
-        harness_written |= acc   # accumulated multi-file edits are harness-written
+        harness_written |= acc   # all retained draft edits count for the gate
         if fixed:
             harness_written.add(fix_summary)
         print(f"[implement] fixed={fixed} history={json.dumps(history)[:220]}")

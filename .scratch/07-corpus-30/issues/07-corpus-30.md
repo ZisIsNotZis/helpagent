@@ -78,6 +78,7 @@
   not silently enable accumulation — wrong-edit poisoning risk; strict rollback
   is the validated 93.3% behavior). Open: cross-unit parallel writers = M8.
 
+- 2026-09-20 correction (ticket 08): the following A/B did NOT test the claimed model-visible iteration: `current_files` was built from the initial corpus snapshot, and tiered gear 0/1 still passed an obsolete argument. The numerical observations remain historical, but the causal interpretation and no-regression claim are withdrawn pending equal-budget retest.
 - 2026-09-20 owner session (unified iterate mode A/B + adoption): churn family
   4/18 -> 6/18 (T-16 1/3->2/3; T-13/21 flat; T-18/24/27 unmoved — capability, not
   churn); controls clean; T-33 dip was a budget confound (3 vs 6 attempts) —
