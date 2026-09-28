@@ -1,0 +1,26 @@
+== golden bugfix: T-02-off-by-one ==
+[red] pytest exit=1
+[task_card] class=bugfix goal='Identify why catalog listing pages are truncated (showing 3 of 4 items'
+[expand] leaf: 'Identify why catalog listing pages are truncated (showing 3 of 4 items' est=1
+
+===== STDERR =====
+Traceback (most recent call last):
+  File "/home/z/vibe/helpagent/bench/golden_bugfix.py", line 656, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/z/vibe/helpagent/bench/golden_bugfix.py", line 549, in main
+    leaf = tree.insert_ticket(tree.root, child.what, why=child.why)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/z/vibe/helpagent/harness/tree.py", line 233, in insert_ticket
+    cid = self._new_node(
+          ^^^^^^^^^^^^^^^
+  File "/home/z/vibe/helpagent/harness/tree.py", line 210, in _new_node
+    self._nodes[nid] = Node(id=nid, **kw)
+                       ^^^^^^^^^^^^^^^^^^
+  File "/home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/pydantic/main.py", line 263, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 1 validation error for Node
+why
+  Input should be a valid string [type=string_type, input_value=REQUIRED, input_type=_Missing]
+    For further information visit https://errors.pydantic.dev/2.13/v/string_type

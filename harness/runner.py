@@ -266,6 +266,18 @@ async def llm_step(
         # deterministic near-miss normalization BEFORE validation; every fire is a
         # first-class counter (frequent fire on one field = composer-bug signal)
         payload, tolerance_notes = normalize_payload(payload)
+        # When expand has exactly one harness-proposed seam, an omitted seam_id
+        # has one unambiguous parameter value. Do not infer what/why/leaf/rounds.
+        if step_type == "expand" and isinstance(payload, dict):
+            seams = (context or {}).get("candidate_seams") or {}
+            children = payload.get("children")
+            if len(seams) == 1 and isinstance(children, list):
+                only_seam = next(iter(seams))
+                for child in children:
+                    if isinstance(child, dict) and "seam_id" not in child:
+                        child["seam_id"] = only_seam
+                        tolerance_notes.append({"field": "children.seam_id",
+                                                "from": "<missing>", "to": only_seam})
         for tn in tolerance_notes:
             note("tolerance_fired", step_type=step_type, **tn)
         try:

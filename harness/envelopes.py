@@ -193,6 +193,14 @@ class ChildFill(BaseModel):
     leaf: bool = req()
     est_rounds: int = req(ge=1, le=10)  # drives per-step budget = estimate × 1.5 (§4)
 
+    @model_validator(mode="after")
+    def _all_required_fields_present(self) -> Self:
+        # Nested models do not inherit Envelope's REQUIRED-sentinel guard.
+        missing = sorted(set(type(self).model_fields) - self.model_fields_set)
+        if missing:
+            raise ValueError(f"child fill requires fields: {missing} (ENVELOPE_SCHEMAS §4)")
+        return self
+
     @field_validator("seam_id")
     @classmethod
     def _seam_in_candidates(cls, v: str, info: ValidationInfo) -> str:

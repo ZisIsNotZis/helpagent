@@ -27,8 +27,8 @@ def test_main_fails_cleanly_without_leaf_map(monkeypatch, tmp_path: Path, capsys
     monkeypatch.setattr(gb, "ROOT", tmp_path)
     monkeypatch.setattr(gb, "LlamaServerRunner", lambda *_: None)
     monkeypatch.setattr(gb, "pytest_exit", lambda *_: 1)
-    monkeypatch.setattr(gb, "step_task_card", lambda *_: SimpleNamespace(goal="fix", task_class="bugfix"))
-    monkeypatch.setattr(gb, "step_expand", lambda *_a, **_kw: SimpleNamespace(children=[
+    monkeypatch.setattr(gb, "step_task_card", lambda *_: SimpleNamespace(status="ok", goal="fix", task_class="bugfix"))
+    monkeypatch.setattr(gb, "step_expand", lambda *_a, **_kw: SimpleNamespace(status="ok", children=[
         SimpleNamespace(what="fix", why="bug", est_rounds=1)]))
     monkeypatch.setattr(gb, "step_spec", lambda *_a, **_kw: SimpleNamespace(
         interfaces=[], files_touched=["calc.py"]))

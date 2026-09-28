@@ -31,7 +31,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import ast
 import asyncio
 import json
 import shutil
@@ -66,7 +65,6 @@ from harness.workdir import boot_recover, lock  # noqa: E402
 
 GUIDED_IMPLEMENT = False
 KNOWLEDGE = False
-SPEC_CALLERS = False
 
 
 def asyncio_run(x):
@@ -210,32 +208,6 @@ def extract_constants(files: dict[str, str]) -> str:
     return "\n".join(lines[:24])
 
 
-def module_importers(files: dict[str, str]) -> str:
-    """Bounded direct source-module import edges; no guessed semantic callers."""
-    modules = {rel.removesuffix(".py").replace("/", "."): rel for rel in files
-               if rel.endswith(".py") and "tests" not in Path(rel).parts
-               and not Path(rel).name.startswith("test_")}
-    users: dict[str, set[str]] = {rel: set() for rel in modules.values()}
-    for name, rel in sorted(modules.items()):
-        try:
-            tree = ast.parse(files[rel])
-        except SyntaxError:
-            continue
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.level == 0:
-                dependency = modules.get(node.module)
-                if dependency and dependency != rel:
-                    users[dependency].add(rel)
-            elif isinstance(node, ast.Import):
-                for alias in node.names:
-                    dependency = modules.get(alias.name)
-                    if dependency and dependency != rel:
-                        users[dependency].add(rel)
-    lines = [f"- {rel} <- imported by: {', '.join(sorted(importers))}"[:180]
-             for rel, importers in sorted(users.items()) if importers]
-    return "\n".join(lines[:24])
-
-
 def step_spec(model, leaf_what: str, files: dict[str, str], conventions: str,
               request: str = "") -> Envelope:
     listing = "\n".join(f"- {rel}" for rel in sorted(files))
@@ -244,15 +216,11 @@ def step_spec(model, leaf_what: str, files: dict[str, str], conventions: str,
     boundary = sorted(set(files) | (file_tokens(request) - set(files)))
     return asyncio_run(llm_step(model, "write_spec",
         artifacts={"leaf": leaf_what, "conventions": conventions, "repo_files": listing,
-                   "repo_constants": constants,
-                   **({"repo_importers": module_importers(files)} if SPEC_CALLERS else {})},
+                   "repo_constants": constants},
         question="Write the spec: interfaces, types, behavior contract, error model, edge cases, "
                  "files_touched. Fix where the misconfigured VALUE lives (constants/config), not "
                  "where the symptom shows: when the request says the value was moved into config, "
-                 "files_touched MUST include that config module (FP-7 hard rule)." +
-                 (" When a change must propagate across modules, inspect repo_importers "
-                  "and include relevant importers in files_touched; respect files the request freezes."
-                  if SPEC_CALLERS else ""),
+                 "files_touched MUST include that config module (FP-7 hard rule).",
         context={"boundary_files": boundary}))
 
 
@@ -484,6 +452,17 @@ def gate(workdir: Path, trajectory: Trajectory, baseline: dict[str, str],
 # --------------------------------------------------------------------------- main
 
 
+def stop_unavailable_step(runs_dir: Path, task_id: str, step: str, status: str) -> int:
+    """An unable envelope has no payload; record a shaped failure before routing."""
+    note("golden_step_unavailable", step=step, status=status)
+    (runs_dir / "ledger.json").write_text(json.dumps(ledger_entries(), indent=1))
+    (runs_dir / "summary.json").write_text(json.dumps({
+        "task": task_id, "fixed": False, "gate_ok": False,
+        "reason": f"{step}_unavailable", "status": status}, indent=1))
+    print(f"[result] FAIL ({step} unavailable: {status})")
+    return 1
+
+
 def summary_fields(summary: Envelope, gate_ok: bool) -> tuple[str, str]:
     """Read only fields present in the envelope's status branch."""
     if summary.status == "ok":
@@ -503,8 +482,6 @@ def main() -> int:
                     help="A/B (ticket 05): fix_plan enumerate step before each implement emit")
     ap.add_argument("--knowledge", action="store_true",
                     help="M6: inject the knowledge pack (signatures/callers/constants) into implement")
-    ap.add_argument("--spec-callers", action="store_true",
-                    help="A/B only: inject module importers into write_spec")
     ap.add_argument("--retry-view", choices=("draft", "initial"), default="draft",
                     help="A/B only: snapshot shown to the model on implementation retries")
     args = ap.parse_args()
@@ -512,8 +489,6 @@ def main() -> int:
     GUIDED_IMPLEMENT = args.guided_implement
     global KNOWLEDGE
     KNOWLEDGE = args.knowledge
-    global SPEC_CALLERS
-    SPEC_CALLERS = args.spec_callers
 
     task_dir = Path(args.task)
     task = load_task(task_dir)
@@ -539,9 +514,13 @@ def main() -> int:
         fixed, fix_summary, history, gate_ok = False, "not reached", [], False
         model = LlamaServerRunner(args.server)
         card = step_task_card(model, task["request"])
+        if card.status != "ok":
+            return stop_unavailable_step(runs_dir, task["task_id"], "task_card", card.status)
         print(f"[task_card] class={card.task_class} goal={card.goal[:70]!r}")
 
         expand = step_expand(model, card, task["files"], request=task["request"])
+        if expand.status != "ok":
+            return stop_unavailable_step(runs_dir, task["task_id"], "expand", expand.status)
         child = expand.children[0]
         print(f"[expand] leaf: {child.what[:70]!r} est={child.est_rounds}")
 

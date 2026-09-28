@@ -1,0 +1,102 @@
+{
+ "task": "T-31-parameter-threading",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "api/transport.py",
+   "pytest_exit": 1,
+   "staged_delta": [],
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_chain.py::test_client_threads_timeout",
+    "FAILED tests/test_chain.py::test_service_threads_timeout"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "api/client.py",
+   "pytest_exit": 1,
+   "staged_delta": [
+    "api/transport.py"
+   ],
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_chain.py::test_service_threads_timeout",
+    "FAILED tests/test_chain.py::test_exporter_threads_timeout"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "api/client.py",
+   "pytest_exit": 1,
+   "staged_delta": [
+    "api/client.py",
+    "api/transport.py"
+   ],
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_chain.py::test_service_threads_timeout",
+    "FAILED tests/test_chain.py::test_exporter_threads_timeout"
+   ]
+  },
+  {
+   "attempt": 4,
+   "file": "api/transport.py",
+   "pytest_exit": 1,
+   "staged_delta": [
+    "api/client.py",
+    "api/transport.py"
+   ],
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_chain.py::test_service_threads_timeout",
+    "FAILED tests/test_chain.py::test_exporter_threads_timeout"
+   ]
+  },
+  {
+   "attempt": 5,
+   "file": "api/client.py",
+   "pytest_exit": 1,
+   "staged_delta": [
+    "api/client.py",
+    "api/transport.py"
+   ],
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_chain.py::test_service_threads_timeout",
+    "FAILED tests/test_chain.py::test_exporter_threads_timeout"
+   ]
+  },
+  {
+   "attempt": 6,
+   "file": "api/client.py",
+   "pytest_exit": 1,
+   "staged_delta": [
+    "api/client.py",
+    "api/transport.py"
+   ],
+   "verdict": "failed",
+   "excerpts": [
+    "FAILED tests/test_chain.py::test_service_threads_timeout",
+    "FAILED tests/test_chain.py::test_exporter_threads_timeout"
+   ]
+  }
+ ],
+ "fix_summary": "attempt 6 left tests red (1)",
+ "gate_notes": [
+  "pytest exit 1",
+  "FAILED tests/test_chain.py::test_transport_accepts_timeout",
+  "FAILED tests/test_chain.py::test_client_threads_timeout",
+  "FAILED tests/test_chain.py::test_service_threads_timeout"
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-31-parameter-threading-summary"
+ ]
+}

@@ -90,5 +90,31 @@ def test_end_to_end_tolerance_fires_in_llm_step():
     assert "tolerance_fired" in kinds
 
 
+def test_single_expand_seam_is_deterministically_filled():
+    reset_ledger_for_tests()
+    body = {"status": "ok", "comment": "split", "children": [
+        {"what": "fix", "why": "bug", "leaf": True, "est_rounds": 1}]}
+    fake = FakeModelRunner({"expand": [EnvelopeSpec(step_type="expand", body=body)]})
+    env = asyncio.run(llm_step(fake, "expand", {}, "q", context={
+        "candidate_seams": {"seam-primary": ["a.py"]}, "grounding_files": {"a.py"}}))
+    assert env.children[0].seam_id == "seam-primary"
+    assert any(e["kind"] == "tolerance_fired" and e["field"] == "children.seam_id"
+               for e in ledger_entries())
+
+
+def test_missing_seam_is_not_guessed_when_candidates_ambiguous():
+    from harness.runner import SchemaViolation
+    import pytest
+
+    reset_ledger_for_tests()
+    body = {"status": "ok", "comment": "split", "children": [
+        {"what": "fix", "why": "bug", "leaf": True, "est_rounds": 1}]}
+    fake = FakeModelRunner({"expand": [EnvelopeSpec(step_type="expand", body=body)]})
+    with pytest.raises(SchemaViolation, match="child fill requires fields"):
+        asyncio.run(llm_step(fake, "expand", {}, "q", context={
+            "candidate_seams": {"a": ["a.py"], "b": ["b.py"]}}))
+    assert not any(e["kind"] == "tolerance_fired" for e in ledger_entries())
+
+
 def test_schema_registry_still_resolves():
     assert schema_for_step("draft_acs").__name__ == "DraftACs"

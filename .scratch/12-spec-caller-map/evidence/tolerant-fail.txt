@@ -1,0 +1,5 @@
+== golden bugfix: T-02-off-by-one ==
+[red] pytest exit=1
+[result] FAIL (task_card unavailable: failed)
+
+===== STDERR =====
