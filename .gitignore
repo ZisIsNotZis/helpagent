@@ -5,3 +5,20 @@ __pycache__/
 .venv/
 .untouched.baseline.json
 bench/runs/**/work/
+
+# Common local caches and temporary workspaces
+node_modules/
+.tmp/
+worktrees/
+.worktrees/
+.DS_Store
+
+# Local secrets, test caches, and generated logs
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.cache/
+.env
+.env.*
+!.env.example
+*.log
