@@ -513,12 +513,18 @@ def main() -> int:
 
         fixed, fix_summary, history, gate_ok = False, "not reached", [], False
         model = LlamaServerRunner(args.server)
-        card = step_task_card(model, task["request"])
+        try:
+            card = step_task_card(model, task["request"])
+        except SchemaViolation:
+            return stop_unavailable_step(runs_dir, task["task_id"], "task_card", "invalid")
         if card.status != "ok":
             return stop_unavailable_step(runs_dir, task["task_id"], "task_card", card.status)
         print(f"[task_card] class={card.task_class} goal={card.goal[:70]!r}")
 
-        expand = step_expand(model, card, task["files"], request=task["request"])
+        try:
+            expand = step_expand(model, card, task["files"], request=task["request"])
+        except SchemaViolation:
+            return stop_unavailable_step(runs_dir, task["task_id"], "expand", "invalid")
         if expand.status != "ok":
             return stop_unavailable_step(runs_dir, task["task_id"], "expand", expand.status)
         child = expand.children[0]
