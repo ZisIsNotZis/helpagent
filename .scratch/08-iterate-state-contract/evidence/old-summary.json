@@ -1,0 +1,9 @@
+{
+ "per_task": {
+  "T-02-off-by-one": "2/3",
+  "T-16-class-state-leak": "3/3",
+  "T-18-env-config-precedence": "0/3",
+  "T-33-serializer-contract": "3/3"
+ },
+ "overall": "8/12"
+}

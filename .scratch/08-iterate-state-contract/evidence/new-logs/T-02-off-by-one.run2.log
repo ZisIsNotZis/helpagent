@@ -1,0 +1,14 @@
+== golden bugfix: T-02-off-by-one ==
+[red] pytest exit=1
+[task_card] class=bugfix goal='Resolve the pagination issue causing incomplete catalog listings and m'
+[expand] leaf: 'Resolve the pagination issue causing incomplete catalog listings and m' est=1
+[spec] interfaces=[] files_touched=['catalog/pagination.py', 'pyproject.toml']
+[acs] 2 ACs, gate_decide=reject after 2 round(s)
+[acs] map findings: [Finding(kind='invalid-ac-entry', node_id='N-2', detail="1 validation error for ACEntry\ncheck_kind\n  Input should be 'test', 'script-assertion' or 'subjective' [type=literal_error, input_value=REQUIRED, input_type=_Missing]\n    For further information visit https://errors.pydantic.dev/2.13/v/literal_error"), Finding(kind='invalid-ac-entry', node_id='N-2', detail="1 validation error for ACEntry\ncheck_kind\n  Input should be 'test', 'script-assertion' or 'subjective' [type=literal_error, input_value=REQUIRED, input_type=_Missing]\n    For further information visit https://errors.pydantic.dev/2.13/v/literal_error"), Finding(kind='empty-leaf-map', node_id='N-2', detail='leaf AC map is mandatory (DESIGN §4.8); empty map only valid for internal nodes')]
+[implement] fixed=True history=[{"attempt": 1, "file": "catalog/pagination.py", "pytest_exit": 0, "verdict": "ok", "excerpts": ["....                                                                     [100%]", "4 passed in 0.01s"]}]
+[gate] ok=True notes=['pytest green; untouched-files contract holds']
+[run_summary] outcome=complete done='Fixed off-by-one error in catalog/pagination.py.'
+[persist] /home/z/vibe/helpagent/bench/runs/20260928T024938/golden/T-02-off-by-one
+[result] PASS (corpus pristine: True)
+
+===== STDERR =====
