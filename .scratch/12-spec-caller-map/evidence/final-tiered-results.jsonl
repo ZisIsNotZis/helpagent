@@ -1,0 +1,9 @@
+{"task": "T-02-off-by-one", "gear": 0, "result": "PASS", "wall_s": 8.4, "calls": 1, "attempts": 1, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T133555/run-1/gear0/T-02-off-by-one", "run_idx": 1}
+{"task": "T-02-off-by-one", "gear": 0, "result": "PASS", "wall_s": 8.2, "calls": 1, "attempts": 1, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T133555/run-2/gear0/T-02-off-by-one", "run_idx": 2}
+{"task": "T-02-off-by-one", "gear": 0, "result": "PASS", "wall_s": 8.2, "calls": 1, "attempts": 1, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T133555/run-3/gear0/T-02-off-by-one", "run_idx": 3}
+{"task": "T-31-parameter-threading", "gear": 2, "result": "FAIL", "wall_s": 91.8, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T133555/run-1/T-31-parameter-threading", "run_idx": 1}
+{"task": "T-31-parameter-threading", "gear": 2, "result": "FAIL", "wall_s": 96.8, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T133555/run-2/T-31-parameter-threading", "run_idx": 2}
+{"task": "T-31-parameter-threading", "gear": 2, "result": "FAIL", "wall_s": 91.6, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T133555/run-3/T-31-parameter-threading", "run_idx": 3}
+{"task": "T-33-serializer-contract", "gear": 0, "result": "PASS", "wall_s": 29.5, "calls": 3, "attempts": 3, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T133555/run-1/gear0/T-33-serializer-contract", "run_idx": 1}
+{"task": "T-33-serializer-contract", "gear": 0, "result": "PASS", "wall_s": 20.4, "calls": 2, "attempts": 2, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T133555/run-2/gear0/T-33-serializer-contract", "run_idx": 2}
+{"task": "T-33-serializer-contract", "gear": 0, "result": "PASS", "wall_s": 30.4, "calls": 3, "attempts": 3, "runs_dir": "/home/z/vibe/helpagent/bench/runs/tiered-20260928T133555/run-3/gear0/T-33-serializer-contract", "run_idx": 3}

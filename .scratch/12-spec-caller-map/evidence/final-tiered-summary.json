@@ -1,0 +1,11 @@
+{
+ "per_task": {
+  "T-02-off-by-one": "3/3",
+  "T-31-parameter-threading": "0/3",
+  "T-33-serializer-contract": "3/3"
+ },
+ "overall": "6/9",
+ "closing_gear_histogram": {
+  "0": 6
+ }
+}
