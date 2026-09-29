@@ -56,3 +56,25 @@ implementer and the verifier read the same contract).
 
 Parallel writers (serialize first), the knowledge service, and any change to the leaf
 loop's claim policy.
+
+## First measurement (2026-09-29, reference model): the tree does not decompose
+
+Blind, N=1, T-31 / T-33 / T-28 (`bench/v2_tree.py`): all three ended honest-failure,
+actual 0/3, and **every run produced zero children** — the planner (the same 4B) returns
+an empty `children` list, so the node runs as a single leaf. A direct `plan_node` probe
+on T-31 (3 acceptance criteria, 4 files to thread a parameter through) also returned
+`children=0` with no re-ask event: it is a model-behaviour decision, not a validation
+rejection.
+
+So with this planner the tree is currently `leaf + 1 planning call`: no measured benefit
+and slight overhead. For comparison, the clean corpus-only leaf sweep the same day
+(9 tasks x N=2, default claim rule) scored actual 11/18, claimed 1/18, false success 0,
+missed 10, honest 7, 168 calls (~9.3 per run).
+
+Open decision for the owner (three routes, all cheap to try):
+1. force decomposition by rule (e.g. ">=2 declared files => one child per file") and A/B
+   it against the leaf on multi-part tasks;
+2. **leaf-first**: drop up-front planning and decompose only when a leaf exhausts (L6),
+   which is already wired and pays no planning cost on tasks a single leaf can do;
+3. park the tree and spend the effort on the claimed-vs-actual gap instead (the
+   independent test's quality is what keeps 10 of 18 graded successes unclaimed).
