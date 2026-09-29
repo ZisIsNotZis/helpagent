@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""Blind sweep: what the run CLAIMED vs what the grader FOUND.
+
+Owner direction 2026-09-29. The corpus tests never enter the run; after each run
+the produced files are applied to a pristine task copy and scored by the task's
+own ``checks.py``. The pair of facts (claim, verdict) is the honest measurement:
+
+    claimed  actual  quadrant
+    PASS     PASS    true success
+    PASS     FAIL    FALSE SUCCESS  <- the number this harness must never grow
+    FAIL     PASS    missed success
+    FAIL     FAIL    honest failure
+
+Usage:
+  uv run python bench/blind_run.py --tasks T-02-off-by-one,T-31-parameter-threading --n 1
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from bench.external_score import external_score  # noqa: E402
+from harness.staging import is_test_path  # noqa: E402
+
+CORPUS = ROOT / "bench" / "corpus"
+ANCHOR = ROOT / "bench" / "anchor"
+
+
+def produced_files(workdir: Path) -> dict[str, str]:
+    """Everything the run left behind, as the delivered repository."""
+    out: dict[str, str] = {}
+    for path in sorted(workdir.rglob("*")):
+        rel_parts = path.relative_to(workdir).parts
+        if not path.is_file() or path.suffix == ".pyc":
+            continue
+        if any(part.startswith(".") or part == "__pycache__" for part in rel_parts):
+            continue   # harness infrastructure (.git, .pytest_cache), not a deliverable
+        try:
+            out[str(path.relative_to(workdir))] = path.read_text()
+        except UnicodeDecodeError:
+            continue
+    return out
+
+
+def quadrant(claimed: bool, actual: bool) -> str:
+    if claimed and actual:
+        return "true-success"
+    if claimed and not actual:
+        return "false-success"
+    if not claimed and actual:
+        return "missed-success"
+    return "honest-failure"
+
+
+def run_once(task: Path, out_dir: Path, run_idx: int, server: str) -> dict:
+    cmd = [sys.executable, str(ROOT / "bench" / "golden_bugfix.py"),
+           "--task", str(task), "--blind", "--server", server]
+    t0 = time.monotonic()
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+    wall = round(time.monotonic() - t0, 1)
+    (out_dir / f"{task.name}.run{run_idx}.log").write_text(
+        proc.stdout + "\n===== STDERR =====\n" + proc.stderr)
+
+    match = re.search(r"\[result\] (PASS|FAIL)", proc.stdout)
+    claimed = match is not None and match.group(1) == "PASS"
+    persist = re.search(r"\[persist\] (\S+)", proc.stdout)
+    workdir = Path(persist.group(1)) / "work" if persist else None
+
+    if workdir is None or not workdir.exists():
+        return {"task": task.name, "run_idx": run_idx, "claimed": claimed, "actual": False,
+                "quadrant": quadrant(claimed, False), "wall_s": wall,
+                "grader_exit": None, "notes": ["no workdir persisted"],
+                "produced": [], "self_tests": []}
+
+    produced = produced_files(workdir)
+    score = external_score(task, produced, out_dir / f"grade-{task.name}-{run_idx}")
+    return {
+        "task": task.name, "run_idx": run_idx,
+        "claimed": claimed, "actual": score.passed,
+        "quadrant": quadrant(claimed, score.passed),
+        "wall_s": wall, "grader_exit": score.exit, "notes": score.notes[-3:],
+        "produced": sorted(produced),
+        "self_tests": sorted(rel for rel in produced if is_test_path(rel)),
+    }
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--tasks", default="all")
+    ap.add_argument("--n", type=int, default=1)
+    ap.add_argument("--server", default="http://127.0.0.1:8833")
+    ap.add_argument("--corpus", default=str(CORPUS))
+    args = ap.parse_args()
+
+    roots = [Path(args.corpus)]
+    if Path(args.corpus) == CORPUS:
+        roots.append(ANCHOR)
+    tasks = [p for r in roots if r.exists()
+             for p in sorted(r.iterdir()) if p.is_dir() and p.name[:2] in ("T-", "A-")]
+    if args.tasks != "all":
+        want = set(args.tasks.split(","))
+        tasks = [t for t in tasks if t.name in want]
+
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    out_dir = ROOT / "bench" / "runs" / f"blind-{ts}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    results = out_dir / "results.jsonl"
+
+    for task in tasks:
+        for run_idx in range(1, args.n + 1):
+            rec = run_once(task, out_dir, run_idx, args.server)
+            with results.open("a") as fh:
+                fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            print(f"[blind] {rec['task']} #{run_idx}: claimed={rec['claimed']} "
+                  f"actual={rec['actual']} -> {rec['quadrant']} ({rec['wall_s']}s)", flush=True)
+
+    rows = [json.loads(line) for line in results.read_text().splitlines()]
+    tally: dict[str, int] = {}
+    for row in rows:
+        tally[row["quadrant"]] = tally.get(row["quadrant"], 0) + 1
+    summary = {"per_task": {r["task"]: f"{r['actual']}" for r in rows},
+               "quadrants": tally,
+               "actual_pass_rate": f"{sum(r['actual'] for r in rows)}/{len(rows)}",
+               "false_success_rate": f"{tally.get('false-success', 0)}/{len(rows)}"}
+    (out_dir / "summary.json").write_text(json.dumps(summary, indent=1, ensure_ascii=False))
+    print(json.dumps(summary, indent=1, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

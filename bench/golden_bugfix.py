@@ -59,6 +59,7 @@ from harness.exec import exec as k_exec  # noqa: E402
 from harness.checks import check_write, diagnose_test_output  # noqa: E402
 from harness.envelopes import file_tokens  # noqa: E402
 from harness.knowledge import build_knowledge  # noqa: E402
+from harness.staging import excluded_paths, source_only  # noqa: E402
 from harness.model import LlamaServerRunner  # noqa: E402
 from harness.trajectory import Trajectory, pause_leaf_on_conflict  # noqa: E402
 from harness.workdir import boot_recover, lock  # noqa: E402
@@ -279,7 +280,15 @@ def step_acs(model, leaf_what: str, spec: Envelope) -> tuple[Envelope | None, En
         acs = revised
 
 
-def step_write_test(model, spec: Envelope, acs: Envelope, workdir: Path, files: dict[str, str]) -> Path | None:
+def step_write_test(model, spec: Envelope, acs: Envelope, workdir: Path, files: dict[str, str],
+                    grader_paths: set[str] | None = None) -> Path | None:
+    """Write the run's OWN test file.
+
+    Under the blind gate (DESIGN §6/§10) ``files`` is the source-only view, so the
+    set of paths the repository already owns must be passed separately; otherwise
+    every test path looks "outside repo". A path the grader owns is refused
+    outright: the measuring instrument is not the run's to edit (DESIGN §4.8).
+    """
     env = asyncio_run(llm_step(model, "write_test",
         artifacts={"spec_contract": jdump({
             "interfaces": [i.model_dump() for i in spec.interfaces],
@@ -290,13 +299,22 @@ def step_write_test(model, spec: Envelope, acs: Envelope, workdir: Path, files: 
     if env.status != "ok":
         note("golden_test_skipped", detail=f"write_test returned {env.status}")
         return None
-    if env.file_path not in files:
-        note("golden_test_skipped", detail=f"file_path {env.file_path!r} outside repo")
+    grader_paths = grader_paths or set()
+    rel = env.file_path
+    if rel.startswith("/") or ".." in Path(rel).parts:
+        note("golden_test_skipped", detail=f"file_path {rel!r} escapes the repository")
         return None
-    if env.file_path in files:
-        # tests are the AC contract: a golden test may only ADD a new test file,
-        # never overwrite a shipped one (overwriting = gate-easing, DESIGN §4.8)
-        note("golden_test_skipped", detail=f"{env.file_path!r} already exists — never overwrite shipped tests")
+    if rel in grader_paths:
+        note("golden_test_skipped",
+             detail=f"{rel!r} is grader-owned — the run may not write it")
+        return None
+    # The run may only ADD a new test file: overwriting a shipped one would be
+    # gate-easing (DESIGN §4.8). The old guard tested membership in the
+    # source-only view, which rejected every new path — the step was dead and
+    # wrote no self-test on any v1 run (found by the blind protocol).
+    if rel in set(files) | grader_paths:
+        note("golden_test_skipped",
+             detail=f"{rel!r} already exists — never overwrite shipped files")
         return None
     # M3: the golden test file write also rides the check pipeline (intent=test)
     cw = asyncio.run(check_write(workdir, env.file_path, env.content, intent="test"))
@@ -484,6 +502,8 @@ def main() -> int:
                     help="M6: inject the knowledge pack (signatures/callers/constants) into implement")
     ap.add_argument("--retry-view", choices=("draft", "initial"), default="draft",
                     help="A/B only: snapshot shown to the model on implementation retries")
+    ap.add_argument("--blind", action="store_true",
+                    help="grader tests never enter the run (DESIGN §6 blind gate)")
     args = ap.parse_args()
     global GUIDED_IMPLEMENT
     GUIDED_IMPLEMENT = args.guided_implement
@@ -492,6 +512,14 @@ def main() -> int:
 
     task_dir = Path(args.task)
     task = load_task(task_dir)
+    grader_paths: list[str] = []
+    if args.blind:
+        # DESIGN §6/§10: the corpus suite is the grader. It must not reach the
+        # workdir, the file map, or the grounding scope; the run's only
+        # verification is whatever it writes for itself.
+        grader_paths = excluded_paths(task["files"])
+        task["files"] = source_only(task["files"])
+        note("blind_gate", withheld=grader_paths)
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
     runs_dir = ROOT / "bench/runs" / ts / "golden" / task["task_id"]
     runs_dir.mkdir(parents=True, exist_ok=True)
@@ -555,7 +583,8 @@ def main() -> int:
 
         golden_test = None
         if not args.skip_golden_test:
-            golden_test = step_write_test(model, spec, acs, workdir, task["files"])
+            golden_test = step_write_test(model, spec, acs, workdir, task["files"],
+                                          grader_paths=set(grader_paths))
             if golden_test is not None:
                 harness_written.add(str(golden_test.relative_to(workdir)))
                 print(f"[write_test] {golden_test.relative_to(workdir)}")

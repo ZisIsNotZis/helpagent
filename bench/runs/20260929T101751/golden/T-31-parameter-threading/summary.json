@@ -1,0 +1,137 @@
+{
+ "task": "T-31-parameter-threading",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "api/transport.py",
+   "pytest_exit": 5,
+   "staged_delta": [],
+   "verdict": "failed",
+   "excerpts": [
+    "=============================== warnings summary ===============================",
+    "../../../../../../.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1624"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "api/transport.py",
+   "pytest_exit": 5,
+   "staged_delta": [
+    "api/transport.py"
+   ],
+   "verdict": "failed",
+   "excerpts": [
+    "=============================== warnings summary ===============================",
+    "../../../../../../.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1624"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "api/transport.py",
+   "pytest_exit": 5,
+   "staged_delta": [
+    "api/transport.py"
+   ],
+   "verdict": "failed",
+   "excerpts": [
+    "=============================== warnings summary ===============================",
+    "../../../../../../.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1624"
+   ]
+  },
+  {
+   "attempt": 4,
+   "file": "api/transport.py",
+   "pytest_exit": 5,
+   "staged_delta": [
+    "api/transport.py"
+   ],
+   "verdict": "failed",
+   "excerpts": [
+    "=============================== warnings summary ===============================",
+    "../../../../../../.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1624"
+   ]
+  },
+  {
+   "attempt": 5,
+   "file": "api/transport.py",
+   "pytest_exit": 5,
+   "staged_delta": [
+    "api/transport.py"
+   ],
+   "verdict": "failed",
+   "excerpts": [
+    "=============================== warnings summary ===============================",
+    "../../../../../../.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1624"
+   ]
+  },
+  {
+   "attempt": 6,
+   "file": "api/transport.py",
+   "pytest_exit": 5,
+   "staged_delta": [
+    "api/transport.py"
+   ],
+   "verdict": "failed",
+   "excerpts": [
+    "=============================== warnings summary ===============================",
+    "../../../../../../.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1624"
+   ]
+  },
+  {
+   "attempt": 7,
+   "file": "api/transport.py",
+   "pytest_exit": 5,
+   "staged_delta": [
+    "api/transport.py"
+   ],
+   "verdict": "failed",
+   "excerpts": [
+    "=============================== warnings summary ===============================",
+    "../../../../../../.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1624"
+   ]
+  },
+  {
+   "attempt": 8,
+   "file": "api/transport.py",
+   "pytest_exit": 5,
+   "staged_delta": [
+    "api/transport.py"
+   ],
+   "verdict": "failed",
+   "excerpts": [
+    "=============================== warnings summary ===============================",
+    "../../../../../../.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1624"
+   ]
+  },
+  {
+   "attempt": 9,
+   "file": "api/transport.py",
+   "pytest_exit": 5,
+   "staged_delta": [
+    "api/transport.py"
+   ],
+   "verdict": "failed",
+   "excerpts": [
+    "=============================== warnings summary ===============================",
+    "../../../../../../.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1624"
+   ]
+  }
+ ],
+ "fix_summary": "attempt 9 left tests red (5)",
+ "gate_notes": [
+  "pytest exit 5",
+  "=============================== warnings summary ===============================",
+  "../../../../../../.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1624",
+  "  /home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1624: PytestConfigWarning: No files were found in testpaths; consider removing or adjusting your testpaths configuration. Searching recursively from the current directory instead."
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-31-parameter-threading-summary"
+ ]
+}

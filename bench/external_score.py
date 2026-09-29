@@ -21,6 +21,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from harness.staging import is_test_path  # noqa: E402
+
 __all__ = ["ExternalScore", "external_score"]
 
 
@@ -71,6 +74,13 @@ def external_score(task_dir: Path, produced_files: Mapping[str, str],
 
     applied, skipped = [], []
     for rel, content in sorted(produced_files.items()):
+        if is_test_path(rel):
+            # Protocol integrity (found by the first blind run): a run that
+            # overwrote the grader's test file would be grading itself. The
+            # grader's tests stay authoritative; the run's own tests are ignored
+            # for scoring (they are still visible in the run record).
+            skipped.append(f"{rel}: grader-owned test path, not applied")
+            continue
         target = repo / rel
         try:
             target.parent.mkdir(parents=True, exist_ok=True)

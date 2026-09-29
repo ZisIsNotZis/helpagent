@@ -1,0 +1,456 @@
+[
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "task_card",
+  "fresh": false,
+  "cache_hit": 0.0393,
+  "prompt_tokens": 238,
+  "completion_tokens": 110,
+  "wall_model_s": 1.292
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "task_card"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "expand",
+  "fresh": false,
+  "cache_hit": 0.0293,
+  "prompt_tokens": 316,
+  "completion_tokens": 134,
+  "wall_model_s": 1.13
+ },
+ {
+  "kind": "tolerance_fired",
+  "text": "",
+  "step_type": "expand",
+  "field": "children.seam_id",
+  "from": "<missing>",
+  "to": "seam-primary"
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "expand"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_spec",
+  "fresh": false,
+  "cache_hit": 0.0285,
+  "prompt_tokens": 325,
+  "completion_tokens": 327,
+  "wall_model_s": 2.624
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_spec"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "draft_acs",
+  "fresh": false,
+  "cache_hit": 90.8,
+  "prompt_tokens": 459,
+  "completion_tokens": 143,
+  "wall_model_s": 1.022
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "draft_acs"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "gate_decide",
+  "fresh": true,
+  "cache_hit": 0.0346,
+  "prompt_tokens": 269,
+  "completion_tokens": 107,
+  "wall_model_s": 1.705
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "gate_decide"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 0.1359,
+  "prompt_tokens": 585,
+  "completion_tokens": 299,
+  "wall_model_s": 2.237
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "golden_test_skipped",
+  "text": "",
+  "detail": "file_path 'tests/test_timeout_threading.py' outside repo"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1103.0,
+  "prompt_tokens": 1104,
+  "completion_tokens": 119,
+  "wall_model_s": 1.032
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "escalated",
+  "file": "api/transport.py",
+  "n_findings": 3,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "api/transport.py"
+  ]
+ },
+ {
+  "kind": "implement_red_kept",
+  "text": "",
+  "attempt": 1,
+  "file": "api/transport.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1257.0,
+  "prompt_tokens": 1258,
+  "completion_tokens": 111,
+  "wall_model_s": 1.074
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "escalated",
+  "file": "api/transport.py",
+  "n_findings": 1,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "api/transport.py"
+  ]
+ },
+ {
+  "kind": "implement_red_kept",
+  "text": "",
+  "attempt": 2,
+  "file": "api/transport.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1256.0,
+  "prompt_tokens": 1257,
+  "completion_tokens": 141,
+  "wall_model_s": 1.123
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "auto_fixed",
+  "file": "api/transport.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "api/transport.py"
+  ]
+ },
+ {
+  "kind": "implement_red_kept",
+  "text": "",
+  "attempt": 3,
+  "file": "api/transport.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1256.0,
+  "prompt_tokens": 1257,
+  "completion_tokens": 141,
+  "wall_model_s": 1.099
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "escalated",
+  "file": "api/transport.py",
+  "n_findings": 1,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "api/transport.py"
+  ]
+ },
+ {
+  "kind": "implement_red_kept",
+  "text": "",
+  "attempt": 4,
+  "file": "api/transport.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1257.0,
+  "prompt_tokens": 1258,
+  "completion_tokens": 133,
+  "wall_model_s": 1.097
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "escalated",
+  "file": "api/transport.py",
+  "n_findings": 1,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "api/transport.py"
+  ]
+ },
+ {
+  "kind": "implement_red_kept",
+  "text": "",
+  "attempt": 5,
+  "file": "api/transport.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 627.5,
+  "prompt_tokens": 1257,
+  "completion_tokens": 143,
+  "wall_model_s": 1.184
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "escalated",
+  "file": "api/transport.py",
+  "n_findings": 1,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "api/transport.py"
+  ]
+ },
+ {
+  "kind": "implement_red_kept",
+  "text": "",
+  "attempt": 6,
+  "file": "api/transport.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1257.0,
+  "prompt_tokens": 1258,
+  "completion_tokens": 137,
+  "wall_model_s": 1.132
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "escalated",
+  "file": "api/transport.py",
+  "n_findings": 1,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "api/transport.py"
+  ]
+ },
+ {
+  "kind": "implement_red_kept",
+  "text": "",
+  "attempt": 7,
+  "file": "api/transport.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 627.5,
+  "prompt_tokens": 1257,
+  "completion_tokens": 140,
+  "wall_model_s": 1.097
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "auto_fixed",
+  "file": "api/transport.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "api/transport.py"
+  ]
+ },
+ {
+  "kind": "implement_red_kept",
+  "text": "",
+  "attempt": 8,
+  "file": "api/transport.py"
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "write_test",
+  "fresh": false,
+  "cache_hit": 1256.0,
+  "prompt_tokens": 1257,
+  "completion_tokens": 139,
+  "wall_model_s": 1.103
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "write_test"
+ },
+ {
+  "kind": "check_verdict",
+  "text": "",
+  "verdict": "auto_fixed",
+  "file": "api/transport.py",
+  "n_findings": 0,
+  "fix_passes": 1
+ },
+ {
+  "kind": "write_committed",
+  "text": "",
+  "files": [
+   "api/transport.py"
+  ]
+ },
+ {
+  "kind": "implement_red_kept",
+  "text": "",
+  "attempt": 9,
+  "file": "api/transport.py"
+ },
+ {
+  "kind": "implement_budget_exhausted_restored",
+  "text": "",
+  "files": [
+   "api/transport.py"
+  ]
+ },
+ {
+  "kind": "llm_invocation",
+  "text": "",
+  "step_type": "run_summary",
+  "fresh": false,
+  "cache_hit": 0.0094,
+  "prompt_tokens": 968,
+  "completion_tokens": 125,
+  "wall_model_s": 1.395
+ },
+ {
+  "kind": "step_completed",
+  "text": "",
+  "step_type": "run_summary"
+ },
+ {
+  "kind": "run_summary_unavailable",
+  "text": "",
+  "status": "failed"
+ }
+]

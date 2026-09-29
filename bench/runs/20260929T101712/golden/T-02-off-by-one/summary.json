@@ -1,0 +1,55 @@
+{
+ "task": "T-02-off-by-one",
+ "fixed": false,
+ "gate_ok": false,
+ "green": false,
+ "history": [
+  {
+   "attempt": 1,
+   "file": "catalog/pagination.py",
+   "pytest_exit": 5,
+   "staged_delta": [],
+   "verdict": "failed",
+   "excerpts": [
+    "=============================== warnings summary ===============================",
+    "../../../../../../.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1624"
+   ]
+  },
+  {
+   "attempt": 2,
+   "file": "catalog/pagination.py",
+   "pytest_exit": 5,
+   "staged_delta": [],
+   "verdict": "failed",
+   "excerpts": [
+    "=============================== warnings summary ===============================",
+    "../../../../../../.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1624"
+   ]
+  },
+  {
+   "attempt": 3,
+   "file": "catalog/pagination.py",
+   "pytest_exit": 5,
+   "staged_delta": [],
+   "verdict": "failed",
+   "excerpts": [
+    "=============================== warnings summary ===============================",
+    "../../../../../../.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1624"
+   ]
+  }
+ ],
+ "fix_summary": "attempt 3 left tests red (5)",
+ "gate_notes": [
+  "pytest exit 5",
+  "=============================== warnings summary ===============================",
+  "../../../../../../.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1624",
+  "  /home/z/vibe/helpagent/.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1624: PytestConfigWarning: No files were found in testpaths; consider removing or adjusting your testpaths configuration. Searching recursively from the current directory instead."
+ ],
+ "attempts_cap": 3,
+ "decisions": {
+  "transport": "write_test envelope (D-transport)"
+ },
+ "artifacts": [
+  "T-02-off-by-one-summary"
+ ]
+}

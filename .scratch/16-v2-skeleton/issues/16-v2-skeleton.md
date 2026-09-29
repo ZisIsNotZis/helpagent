@@ -69,3 +69,32 @@ Pinned by `tests/unit/test_v2_skeleton.py` (16 cases); full unit gate green.
   runs in a pristine copy and caught a tampered frozen file in test. Residual: the v2
   flow itself is not wired to any runner yet (next ticket), and the retracted numbers
   remain uncitable until the blind sweep runs.
+
+## First blind measurement (2026-09-29) — the leak was load-bearing
+
+Three tasks, N=1, same reference model, `bench/blind_run.py` (grader outside the run):
+T-02, T-31, T-33 → **actual 0/3, claimed 0/3, false-success 0/3** (all
+honest-failure). Compared with the contaminated v1 numbers (93.3% on the same
+stratum), this says the old score was produced almost entirely by the harness
+reading the grader's own tests. The run does not lie (no false success), but it
+also cannot close a task of any difficulty when it must verify itself.
+
+The protocol also exposed three real defects, all fixed and pinned:
+
+1. **`tests/` handling in blind staging was predicted correctly, but the run's
+   own test step was dead** — `step_write_test`'s guard required the path to be
+   simultaneously absent from and present in the file map, so it never accepted
+   any file. v1's full flow therefore wrote NO self-test on any run; the AC-test
+   step has been dead code for its whole life. Fixed semantics: the run may ADD a
+   new test file inside the repo, never overwrite an existing or grader-owned one.
+2. **Grader self-grading hole** — `external_score` would have applied a run-written
+   file onto the corpus's own test path, letting a run grade itself. The grader's
+   tests are now authoritative and such files are recorded as skipped.
+3. **Blind mode path knowledge** — the test guard needed the repository's real path
+   set, not the source-only view (all test paths looked "outside repo").
+
+Remaining honest defect the protocol just revealed: with the self-test now
+written, v1's M2 router **drops it when it is red** ("golden test red → dropped")
+instead of keeping it as the target, so the implement loop runs with no tests at
+all and exhausts. That is the next implementation item: a leaf loop that owns its
+own test, iterates red→green, and attributes failure between sides (v2 steps 4-5).

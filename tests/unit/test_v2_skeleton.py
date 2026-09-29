@@ -221,3 +221,49 @@ def test_external_score_runs_grader_outside_the_harness(tmp_path: Path):
     assert caught.passed is False
     assert any("NOT" in note or "untouched" in note.lower() or "MISMATCH" in note.upper()
                or "violat" in note.lower() for note in caught.notes) or caught.exit != 0
+
+
+def test_grader_keeps_its_own_tests_even_if_the_run_rewrites_them(tmp_path: Path):
+    """A run that overwrites the grader's test file must not grade itself."""
+    task = T31
+    tampered = {"api/transport.py": "def send(url, payload, timeout=1.0):\n    return f'200:{url}:{payload}'\n",
+                "tests/test_chain.py": "def test_everything_is_fine():\n    assert True\n"}
+    outcome = external_score(task, tampered, tmp_path / "runC")
+    assert outcome.passed is False                       # the real suite still runs
+    assert any("grader-owned" in note for note in outcome.skipped)
+    assert any("not applied" in note for note in outcome.skipped)
+
+
+def test_run_may_add_its_own_test_but_never_rewrite_an_existing_one(tmp_path: Path):
+    """The self-test step's guard, which the blind protocol proved was dead."""
+    from types import SimpleNamespace
+    from bench import golden_bugfix as gb
+
+    calls = []
+
+    def fake_step(_model, _kind, **kw):
+        return SimpleNamespace(status="ok", file_path=calls.pop(0),
+                               content="def test_repro():\n    assert True\n")
+
+    async def fake_check(*_a, **_kw):
+        return SimpleNamespace(ok=True, findings=[])
+
+    files = {"api/transport.py": "def send(u, p): pass\n"}
+    grader = {"tests/test_chain.py"}
+    for rel, expected in [("tests/test_chain.py", "grader-owned"),
+                          ("api/transport.py", "already exists"),
+                          ("../escape.py", "escapes"),
+                          ("tests/test_repro.py", None)]:
+        calls.append(rel)
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(gb, "llm_step", fake_step)
+            mp.setattr(gb, "check_write", fake_check)
+            mp.setattr(gb, "note", lambda *_a, **_kw: None)
+            spec = SimpleNamespace(interfaces=[], behavior="b")
+            acs = SimpleNamespace(acs=[])
+            written = gb.step_write_test(None, spec, acs, tmp_path, files,
+                                         grader_paths=grader)
+        if expected is None:
+            assert written is not None and written.name == "test_repro.py"
+        else:
+            assert written is None, rel
