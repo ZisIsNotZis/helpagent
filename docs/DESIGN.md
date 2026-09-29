@@ -390,6 +390,29 @@ A question notifies and records a reversible default the run proceeds with; the 
 
 The harness injects a bounded repo map (files, symbols, call relations — as precise as fits, never "everything"), and the model may issue budgeted, shaped queries. Content the model has consumed is replaced by its own one-line conclusion (with a pointer back to the source), so exploration is controlled by compression rather than by a hard cutoff; deletion is explicit, never silent. Prefix stability is NOT a principle: KV-cache reuse is a measurable trade against curation benefit, reported per run.
 
+### 10.8a Measured trade-off of the claim rule (owner-facing, 2026-09-29)
+
+Blind, 10 tasks x 2 runs, one reference 4B model, grader outside the run. "claimed" is
+what the harness asserted; "actual" is the grader; a false success is claimed-and-grader-failed.
+
+| claim rule | actual | claimed | true success | missed | honest | false | calls |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| own test only (plain) | 12/20 | 11/20 | 10 | 2 | 7 | **1** | 69 |
+| + independent test | 15/20 | 10/20 | 9 | 6 | 4 | **1** | 123 |
+| + per-criterion discrimination | **16/20** | 4/20 | 4 | 12 | 4 | **0** | 183 |
+
+More verification raises what the harness actually fixes and removes the lies, but it
+also makes the harness claim success less often than it deserves, and it costs more
+calls. The lever for converting missed success into true success is the QUALITY of the
+independently written test (today the same small model writes it), not a looser rule;
+loosening it is how the false success comes back.
+
+Residual risk (accepted, not fixable in-process): discrimination proves a test is
+sensitive to the old->new delta, never that it asserts the goal — a test can fail on the
+pristine source for an unrelated reason (a missing symbol, a wrong type, `!= 0`) and
+pass on a wrong fix. The grader remains the only ground truth; the harness's own claim
+is evidence, not proof.
+
 ### 10.8 Scoring quadrants
 
 Claimed × actual: true success (best) / **false success (worst — the system lied)** / missed success (it stopped although the work was right) / honest failure (it stopped and said so). Cost breaks ties. Honest failure scores below missed success, because both need follow-up but only the latter already achieved the goal. Per-ladder-level success rate and spend are tracked so the ladder order becomes evidence-driven.

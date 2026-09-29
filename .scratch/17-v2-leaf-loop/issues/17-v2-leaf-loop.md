@@ -307,3 +307,26 @@ and could never green). The leaf gate now runs with a neutral `-c` config and a 
 `--rootdir=.`; the grader pins `--rootdir=.` too. Import roots are declared explicitly
 (`gate_env`), so a legitimate run-written test under `tests/` can import its package
 (verification round-6 R3), while a shadow file present in the tree refuses the gate.
+
+## Final leaf measurement (10 tasks x N=2, blind, reference model)
+
+| claim rule | actual | claimed | true | missed | honest | false | calls |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| plain | 12/20 | 11/20 | 10 | 2 | 7 | 1 | 69 |
+| + independent test | 15/20 | 10/20 | 9 | 6 | 4 | 1 | 123 |
+| + per-criterion discrimination | 16/20 | 4/20 | 4 | 12 | 4 | 0 | 183 |
+
+Rounds 3-11 delivered: bounded envelope handling; replace-never-weaken with independent
+judgement; one owned-path definition (tests, conftest, pytest config, *.pth,
+sitecustomize, corpus UNTOUCHED) enforced by staging, the leaf guards and the grader;
+module-shadow refusal; interpreter isolation; report-based gates (junit in a private
+temp dir + per-run canary + expected node ids) so an exit status is never evidence; an
+independent test the run never sees, required RED on the pristine source and GREEN on
+the final source; per-criterion discrimination by explicit node ids with disjoint
+per-criterion sets; and the harness, not the model, names the test file. Every round had
+an independent shell-enabled adversarial verifier; its findings drove the next round.
+
+Stop point: the remaining weakness is the QUALITY of the independently written test (the
+same small model writes it), which is what keeps 12 of 20 graded successes unclaimed. That
+is a model-quality lever, not a rule we can tighten or loosen safely. The leaf is
+declared done; work moves to the node tree (ticket 18).
