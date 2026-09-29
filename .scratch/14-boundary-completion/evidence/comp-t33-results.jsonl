@@ -1,0 +1,5 @@
+{"task": "T-33-serializer-contract", "run_idx": 1, "result": "FAIL", "wall_s": 23.2, "exit": 1, "runs_dir": ""}
+{"task": "T-33-serializer-contract", "run_idx": 2, "result": "PASS", "wall_s": 31.4, "exit": 0, "runs_dir": "/home/z/vibe/helpagent/bench/runs/20260929T030513/golden/T-33-serializer-contract"}
+{"task": "T-33-serializer-contract", "run_idx": 3, "result": "PASS", "wall_s": 39.4, "exit": 0, "runs_dir": "/home/z/vibe/helpagent/bench/runs/20260929T030544/golden/T-33-serializer-contract"}
+{"task": "T-33-serializer-contract", "run_idx": 4, "result": "PASS", "wall_s": 30.9, "exit": 0, "runs_dir": "/home/z/vibe/helpagent/bench/runs/20260929T030624/golden/T-33-serializer-contract"}
+{"task": "T-33-serializer-contract", "run_idx": 5, "result": "PASS", "wall_s": 45.7, "exit": 0, "runs_dir": "/home/z/vibe/helpagent/bench/runs/20260929T030655/golden/T-33-serializer-contract"}
