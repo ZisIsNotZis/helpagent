@@ -56,7 +56,7 @@ from harness import (  # noqa: E402
 from harness.artifacts import Artifact  # noqa: E402
 from harness.exec import ShapedResult  # noqa: E402
 from harness.exec import exec as k_exec  # noqa: E402
-from harness.checks import check_write, diagnose_test_output  # noqa: E402
+from harness.checks import check_write, diagnose_test_output, _is_test_path as _is_test_file  # noqa: E402
 from harness.envelopes import file_tokens  # noqa: E402
 from harness.knowledge import build_knowledge  # noqa: E402
 from harness.model import LlamaServerRunner  # noqa: E402
@@ -312,7 +312,7 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
                    attempts: int, trajectory: Trajectory, request: str = "",
                    creatable: set[str] | None = None,
                    harness_written_acc: set[str] | None = None,
-                   retry_view: str = "draft") -> tuple[bool, str, list[dict]]:
+                   retry_view: str = "draft", boundary_completion: bool = False) -> tuple[bool, str, list[dict]]:
     """Iterate over the staged draft, restoring touched files if budget runs out."""
     if retry_view not in ("draft", "initial"):
         raise ValueError(f"unknown retry view: {retry_view}")
@@ -323,9 +323,12 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
     last_excerpt = "no failing output captured"
     summary = "tests fail; fix the reported bug"
     guided = bool(globals().get("GUIDED_IMPLEMENT"))
+    completions: set[str] = set()   # evidence-gated boundary extension (ticket 14)
     for attempt in range(1, attempts + 1):
         # one candidate file per attempt: the spec's files_touched (boundary), else whole repo
         boundary = [f for f in spec.files_touched if f in files or f in creatable] or sorted(files)
+        if boundary_completion:
+            boundary = sorted(set(boundary) | completions)
         # rank: source before tests — the fix belongs in source; editing tests to pass
         # is a test-side ticket (router rule), never the implement move
         boundary = sorted(boundary, key=lambda f: ("test" in f.lower(), f))
@@ -419,6 +422,13 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
         for rf in diagnose_test_output(res.excerpts, checked_files):
             last_excerpt += f"; {rf.message}"
             note("rule_diagnosis", rule=rf.code, file=rf.path)
+            # Ticket 14: a rule finding that names a repo file OUTSIDE the write
+            # boundary is evidence the spec under-covered the fix. One-way add,
+            # never test files, never outside repo+creatable, always ledgered.
+            if (boundary_completion and rf.path and rf.path in checked_files
+                    and rf.path not in boundary and not _is_test_file(rf.path)):
+                completions.add(rf.path)
+                note("boundary_completion", file=rf.path, rule=rf.code)
         summary = f"attempt {attempt} left tests red ({res.exit})"
         note("implement_red_kept", attempt=attempt, file=env.file_path)
         trajectory.record(step_id=f"implement-{attempt}", node_id="implement", outcome="kept")
@@ -484,6 +494,8 @@ def main() -> int:
                     help="M6: inject the knowledge pack (signatures/callers/constants) into implement")
     ap.add_argument("--retry-view", choices=("draft", "initial"), default="draft",
                     help="A/B only: snapshot shown to the model on implementation retries")
+    ap.add_argument("--boundary-completion", action="store_true",
+                    help="A/B only: extend the write boundary on rule evidence (ticket 14)")
     args = ap.parse_args()
     global GUIDED_IMPLEMENT
     GUIDED_IMPLEMENT = args.guided_implement
@@ -576,7 +588,7 @@ def main() -> int:
         fixed, fix_summary, history = step_implement(
             model, spec, workdir, task["files"], attempts, trajectory,
             request=task["request"], creatable=creatable, harness_written_acc=acc,
-            retry_view=args.retry_view)
+            retry_view=args.retry_view, boundary_completion=args.boundary_completion)
         harness_written |= acc   # all retained draft edits count for the gate
         if fixed:
             harness_written.add(fix_summary)
