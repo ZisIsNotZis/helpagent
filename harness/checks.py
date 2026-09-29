@@ -197,6 +197,9 @@ async def _ruff_autofix(workdir: Path, path: str, pass_no: int) -> tuple[bool, l
 
 _NAMEERROR = re.compile(r"NameError: name '(\w+)' is not defined")
 _IMPORT_FAIL = re.compile(r"(?:ImportError|ModuleNotFoundError).{0,80}?['\"]([\w.]+)['\"]")
+_TYPER_KWARG = re.compile(r"TypeError: (\w+)\(\) got an unexpected keyword argument '(\w+)'")
+_TYPER_MISSING = re.compile(r"TypeError: (\w+)\(\) missing (\d+) required positional argument")
+_FUNC_DEF = re.compile(rf"^(?:\s*)def (\w+)\s*\(([^)]*)", re.M)
 
 
 def diagnose_test_output(
@@ -249,6 +252,37 @@ def diagnose_test_output(
                                 "dependency list / install requirements",
                     )
                 )
+            continue
+        # Signature-arity family (T-31): a threaded parameter failed at a call —
+        # point at the defining function and note the callers that must thread it.
+        kw = _TYPER_KWARG.search(excerpt) or _TYPER_MISSING.search(excerpt)
+        if kw:
+            name, keyword = kw.group(1), (kw.group(2) if kw.lastindex and kw.lastindex >= 2 and "keyword" in excerpt else "")
+            if not keyword:
+                keyword = kw.group(2)
+            for rel, text in repo_files.items():
+                for fm in _FUNC_DEF.finditer(text):
+                    if fm.group(1) != name:
+                        continue
+                    params = fm.group(2)
+                    if keyword and keyword in params:
+                        continue  # the defining signature already accepts it
+                    callers = sorted(
+                        caller for caller, ctext in repo_files.items()
+                        if caller != rel and re.search(rf"\b{name}\s*\(", ctext)
+                    )
+                    hint = (f"{name} in {rel} does not accept '{keyword or 'the new required argument'}' "
+                            f"— update its def signature")
+                    if callers:
+                        hint += f"; callers {', '.join(callers)} must thread it through their own signatures"
+                    findings.append(CheckFinding(
+                        stage="rules", path=rel, code="arity-signature-thread",
+                        message=hint[:200],
+                    ))
+                    break
+                else:
+                    continue
+                break
     return findings
 
 
