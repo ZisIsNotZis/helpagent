@@ -326,23 +326,48 @@ The flow is FIXED — no step fuses or self-selects its depth; complexity may co
 
 Budget is a first-class node field and the primary control on decomposition depth: a node with budget 1 cannot split. Wall-clock deadline is the PRIMARY budget (local inference has no token cost; the scarce resource is the human's return window — a Friday-afternoon task may run to Monday morning); call units are secondary accounting that orders the ladder and feeds cost stats. A parent splits a share to its children and keeps a reserve for integration and grants; unused child calls return to the parent; grants are recorded with their reason.
 
-### 10.3 Stops — there is no "give up"
+### 10.3 What "green" may mean (owner policy 2026-09-29 — the worst quadrant is a lie)
 
-Three honest stops: **deadline handover** (park the tree, report, wait for a human window — the goal survives), **node exhausted** (below), **success**. A node is exhausted only when the same-verdict tail coincides with either a structural attempt already made (re-split, parent spec) or a broadly exercised ladder — so an untried restructuring lever keeps the node alive.
+The run's own tests are its only gate, so the gate itself must be honest:
 
-### 10.4 Escalation ladder
+- **Red on arrival is required.** A self-test that passes the moment it is written does not
+  exercise the failure; it is re-asked once and, if still green, the node stops honestly
+  (`no-red-target`) rather than claiming. `red=True` is recorded only for an observed red —
+  never asserted.
+- **A test may be replaced, never weakened, and only by independent judgement.** The model
+  saying "the test is wrong" is never enough: without an independent judge the claim is
+  uncredited (`test_blame_uncredited`). A judge-attributed replacement is re-derived from
+  scratch and must be red on arrival again; a green that follows a rewrite is reported as
+  `green-after-test-rewrite` with `own_test_mutated`, so measurement can separate it.
+- **`exit == 0` is the only green.** A transport error (`exit is None`), a policy-blocked
+  result, and a non-integer exit are all red; an un-runnable self-test stops as
+  `self-test-unverified` and leaves no file behind.
+
+### 10.4 Stops — there is no "give up"
+ — there is no "give up"
+
+Six explicit stops, each with its own `stop_reason`: **success** (`green`, or
+`green-after-test-rewrite`), **deadline handover** (`deadline`; the tree is kept so the goal
+survives a human window), **call budget** (`calls`), **attempt cap** (`attempts`), **spec
+bubble** (`spec-bubble`, `signal="bubble"`, `needs_parent=True` — the parent owns the spec),
+and **node exhausted** (below, `signal="exhausted"`). A node is exhausted only when the
+same-verdict tail coincides with either a structural attempt already made (re-split, parent
+spec) or a broadly exercised ladder — so an untried restructuring lever keeps the node alive.
+Wasted escalations are reported in the run record, not only in the process ledger.
+
+### 10.5 Escalation ladder
 
 Every escalation must ADD INFORMATION or SHRINK THE UNIT; a repeat that does neither is a wasted call. L1 more samples → L2 guided decomposition → L3 deeper exploration → L4 deterministic rule diagnosis → L5 independent review/judgement → L6 re-split into smaller children → L7 parent spec was wrong → L8 ask the human (non-blocking). Two modes feed the decision: **M1** erase the draft and regenerate with the failure history as intelligence; **M2** keep the draft and ask "do you have a new idea?" (cheapest, tried first). The model's own claim of novelty is never trusted alone: `harness/attempts.py` prefilters on failure signature and touched files and sends only genuine ambiguity to an independent judge.
 
-### 10.5 Piloting is non-blocking
+### 10.6 Piloting is non-blocking
 
 A question notifies and records a reversible default the run proceeds with; the answer arrives later as a normal tree patch (cascade reopens affected nodes). A question whose blocking nodes finished another way is withdrawn with a recorded reason, so the human returns to a short list of live questions instead of a backlog.
 
-### 10.6 Context is curated, not pre-guessed
+### 10.7 Context is curated, not pre-guessed
 
 The harness injects a bounded repo map (files, symbols, call relations — as precise as fits, never "everything"), and the model may issue budgeted, shaped queries. Content the model has consumed is replaced by its own one-line conclusion (with a pointer back to the source), so exploration is controlled by compression rather than by a hard cutoff; deletion is explicit, never silent. Prefix stability is NOT a principle: KV-cache reuse is a measurable trade against curation benefit, reported per run.
 
-### 10.7 Scoring quadrants
+### 10.8 Scoring quadrants
 
 Claimed × actual: true success (best) / **false success (worst — the system lied)** / missed success (it stopped although the work was right) / honest failure (it stopped and said so). Cost breaks ties. Honest failure scores below missed success, because both need follow-up but only the latter already achieved the goal. Per-ladder-level success rate and spend are tracked so the ladder order becomes evidence-driven.
 
