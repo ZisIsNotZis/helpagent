@@ -53,7 +53,10 @@ __all__ = [
 
 # Same rule as harness.checks._is_test_path (parity pinned by test_staging.py):
 # a tests/ directory component anywhere, a test_* file name, or an _test.py suffix.
-_TEST_PATH = re.compile(r"(^|/)(tests?/|test_|_test\.py$)")
+#: Grader-owned test paths. The ``_test.py`` suffix must match at ANY depth and with
+#: any basename (``book_store_test.py`` at the repo root leaked into a run before —
+#: the old alternation required a ``/`` or start before the suffix).
+_TEST_PATH = re.compile(r"(?:^|/)(?:tests?/|test_[^/]*$|[^/]*_test\.py$)")
 
 #: pytest reads its configuration from any of these names; a run must never own one
 #: (a hostile config can add plugins, redirect testpaths, or silence collection).

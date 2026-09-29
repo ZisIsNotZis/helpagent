@@ -403,9 +403,13 @@ def test_external_score_report_gate_greens_on_a_correct_fix(tmp_path: Path):
 #: Fixed path table (ticket 17 round 5). Every consumer must classify these identically.
 _OWNED_TABLE = ["tests/test_x.py", "pkg/tests/helper.py", "test_a.py", "conftest.py",
                 "tests/conftest.py", "pytest.ini", "tox.ini", "setup.cfg",
-                "pyproject.toml", "sitecustomize.py", "evil.pth"]
+                "pyproject.toml", "sitecustomize.py", "evil.pth",
+                "a_test.py", "book_store_test.py", "pkg/thing_test.py"]
+# ``a_test.py`` moved to the OWNED table: pytest's ``*_test.py`` convention is a test
+# path at any depth, and the old recognizer missed a root-level ``book_store_test.py``
+# (anchor A-03's grader leaked into the run until staging.py/checks.py were fixed).
 _SOURCE_TABLE = ["api/transport.py", "pkg/calc.py", "src/module.py", "contest.py",
-                 "src/latest.py", "a_test.py"]
+                 "src/latest.py"]
 
 
 def test_owned_path_definition_is_the_same_in_every_consumer():

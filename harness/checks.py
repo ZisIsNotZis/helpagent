@@ -290,7 +290,10 @@ def diagnose_test_output(
 # intent check tier 1 (deterministic; §4.5)
 # ---------------------------------------------------------------------------
 
-_TEST_PATH = re.compile(r"(^|/)(tests?/|test_|_test\.py$)")
+#: Grader-owned test paths. The ``_test.py`` suffix must match at ANY depth and with
+#: any basename (``book_store_test.py`` at the repo root leaked into a run before —
+#: the old alternation required a ``/`` or start before the suffix).
+_TEST_PATH = re.compile(r"(?:^|/)(?:tests?/|test_[^/]*$|[^/]*_test\.py$)")
 
 
 def _is_test_path(path: str) -> bool:
