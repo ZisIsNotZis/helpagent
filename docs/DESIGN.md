@@ -218,6 +218,8 @@ One plan artifact — **the task tree** — absorbs planning, tickets, and progr
 
 ## 6. Benchmark loop (drives everything)
 
+**Blind gate (owner direction 2026-09-29 — methodology correction).** The corpus tests are the GRADER: per-task `checks.py` (pytest + untouched-files byte identity) is scoring machinery and must never enter a run's view. A run's own verification is what it writes itself; `harness/staging.py` projects the task files to a source-only view for the harness and `bench/external_score.py` applies the run's produced files onto a pristine copy and runs the grader there, after the run. Every run therefore reports two facts: what it CLAIMED and what the grader found. `bench/runs/**` produced before this correction, and every conclusion derived from them, are **contaminated and not citable**; the list of retracted claims is in `.scratch/16-v2-skeleton/issues/16-v2-skeleton.md`.
+
 - **Own corpus (primary, daily):** 30–50 tasks across flow topologies — bugfix, add-feature, port, new-repo — each with deterministic checks (tests pass, types clean, behavior assertions, untouched-files contract). **Cost metrics are rubric components, not footnotes:** model calls, tokens, wall time (model + tool separately) reported per task; quality-per-cost is the comparison axis.
 - **Score rubric:** fix quality / verification behavior / safety (no unrelated changes) / stopping behavior / cost. No LLM-as-judge.
 - **Minimum effect size:** a feature's keep/kill needs a score delta exceeding the confidence interval from N repeated runs (best-of-N sampling noise is real) — otherwise it's vibes, which principle 6 forbids.
@@ -303,3 +305,45 @@ response is FLOW TIERING, not deletion:
 10. **Cost multiplier target:** the design spends ~6–8× a plain agent loop's model calls on gates/reviews/checks (estimated, not yet measured). M1–M2 must measure the real multiplier; if quality-per-cost never beats M0, the architecture's overhead is the first suspect, not the model.
 11. **KV-cache hit rate across sequential invocations** on the target llama.cpp build — measured dimension; if reuse is poor, fresh-session economics change and step sizes grow.
 12. **Guided thinking payout:** for which step types does harness-decomposed thinking (map-per-dimension) beat one-shot on quality-per-cost? Default off; keep only where it wins.
+
+---
+
+## 10. v2 flow (owner direction 2026-09-29 — supersedes the single-leaf contract in §4.8/§5)
+
+### 10.1 Fixed steps, code-aware
+
+The flow is FIXED — no step fuses or self-selects its depth; complexity may cost time, never correctness. Every step may read the repository through the controlled surfaces of §10.6.
+
+1. **requirement triage** — one user message → N discrete issues, each written up. Reads the authoritative docs first (SSOT: a documented behaviour is not a bug).
+2. **issue decomposition** — an issue → sub-issues, recursively, while budget allows. Same layer has no dependencies; a real dependency becomes nesting, never a sibling edge.
+3. **specification** — attached to the node being created (one call per node: decompose + specify). A leaf spec carries files to touch, goal, ACs, how to test, and interface (existing vs new). An internal node's spec carries the interface contract between its children plus integration ACs — the file list belongs to whoever actually writes, so an internal node lists files only when it owns work or integration tests of its own.
+4. **implementation and tests** — the two sides are written separately (test writer never sees the implementation), then meet: run, review (optional), and judge.
+5. **judgement** — on test or review failure, an independent judge attributes the failure (implementation / tests / spec / environment) against the specification as the highest contract; spec defects bubble to the parent.
+6. **completion** — a leaf closes only with implementation + passing tests; an internal node closes when its children close and its own integration ACs pass.
+7. **discovery mid-flight** — a node that learns its decomposition or requirement is wrong returns to the owning node for re-decomposition; the node's content is reset via Git (discard that subtree's commits).
+
+### 10.2 Budget
+
+Budget is a first-class node field and the primary control on decomposition depth: a node with budget 1 cannot split. Wall-clock deadline is the PRIMARY budget (local inference has no token cost; the scarce resource is the human's return window — a Friday-afternoon task may run to Monday morning); call units are secondary accounting that orders the ladder and feeds cost stats. A parent splits a share to its children and keeps a reserve for integration and grants; unused child calls return to the parent; grants are recorded with their reason.
+
+### 10.3 Stops — there is no "give up"
+
+Three honest stops: **deadline handover** (park the tree, report, wait for a human window — the goal survives), **node exhausted** (below), **success**. A node is exhausted only when the same-verdict tail coincides with either a structural attempt already made (re-split, parent spec) or a broadly exercised ladder — so an untried restructuring lever keeps the node alive.
+
+### 10.4 Escalation ladder
+
+Every escalation must ADD INFORMATION or SHRINK THE UNIT; a repeat that does neither is a wasted call. L1 more samples → L2 guided decomposition → L3 deeper exploration → L4 deterministic rule diagnosis → L5 independent review/judgement → L6 re-split into smaller children → L7 parent spec was wrong → L8 ask the human (non-blocking). Two modes feed the decision: **M1** erase the draft and regenerate with the failure history as intelligence; **M2** keep the draft and ask "do you have a new idea?" (cheapest, tried first). The model's own claim of novelty is never trusted alone: `harness/attempts.py` prefilters on failure signature and touched files and sends only genuine ambiguity to an independent judge.
+
+### 10.5 Piloting is non-blocking
+
+A question notifies and records a reversible default the run proceeds with; the answer arrives later as a normal tree patch (cascade reopens affected nodes). A question whose blocking nodes finished another way is withdrawn with a recorded reason, so the human returns to a short list of live questions instead of a backlog.
+
+### 10.6 Context is curated, not pre-guessed
+
+The harness injects a bounded repo map (files, symbols, call relations — as precise as fits, never "everything"), and the model may issue budgeted, shaped queries. Content the model has consumed is replaced by its own one-line conclusion (with a pointer back to the source), so exploration is controlled by compression rather than by a hard cutoff; deletion is explicit, never silent. Prefix stability is NOT a principle: KV-cache reuse is a measurable trade against curation benefit, reported per run.
+
+### 10.7 Scoring quadrants
+
+Claimed × actual: true success (best) / **false success (worst — the system lied)** / missed success (it stopped although the work was right) / honest failure (it stopped and said so). Cost breaks ties. Honest failure scores below missed success, because both need follow-up but only the latter already achieved the goal. Per-ladder-level success rate and spend are tracked so the ladder order becomes evidence-driven.
+
+---
