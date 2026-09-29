@@ -13,7 +13,7 @@ still does not parse after the respawn the step raises SchemaViolation and the
 ordinary erasure path takes over.
 
 Wired into ``runner.llm_step`` for CONTENT_STEPS only (write_test — the only
-content-emitting schema left, ENVELOPE_SCHEMAS §23), after schema validation,
+content-emitting schema left, ENVELOPE_SCHEMAS §24), after schema validation,
 before the envelope is returned.
 """
 

@@ -42,7 +42,7 @@ from pydantic.json_schema import PydanticJsonSchemaWarning
 from harness.envelopes import SCHEMAS
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8833"
-MAX_TOKENS = 3000  # the 3k output ceiling (ENVELOPE_SCHEMAS §23)
+MAX_TOKENS = 3000  # the 3k output ceiling (ENVELOPE_SCHEMAS §24)
 TRANSPORT_ATTEMPTS = 2  # DESIGN §4.7: cheap retries are a local-GPU property
 
 

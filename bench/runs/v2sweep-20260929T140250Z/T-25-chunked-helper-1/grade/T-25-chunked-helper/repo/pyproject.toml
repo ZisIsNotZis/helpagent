@@ -1,0 +1,10 @@
+[project]
+name = "25chunkedhelper"
+version = "0.1.0"
+description = "Utils module missing the shared chunked() helper."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

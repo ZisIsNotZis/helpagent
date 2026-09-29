@@ -1,4 +1,4 @@
-"""Grammar-target output contracts for every ``llm_step`` (ENVELOPE_SCHEMAS.md §0–§22).
+"""Grammar-target output contracts for every ``llm_step`` (ENVELOPE_SCHEMAS.md §0–§23).
 
 Every model invocation returns exactly one envelope; schemas are *selected* by the
 harness, never authored by the model (DESIGN §4.2). This module is the pydantic v2
@@ -711,6 +711,45 @@ class ProposeGrowth(Envelope):
 
 
 # ---------------------------------------------------------------------------
+# §23 plan_node — the fused decompose+specify call (ticket 18, DESIGN §10.1)
+# ---------------------------------------------------------------------------
+
+
+class ChildPlan(BaseModel):
+    """One child of a decomposition (ENVELOPE_SCHEMAS §23): goal + boundary + ACs +
+    a budget weight. ``what``/``why``/``kind``/``est_calls`` are REQUIRED;
+    ``files``/``acs``/``interfaces`` default to empty (a leaf child's AC map is
+    enforced by :func:`harness.node.validate_decomposition`, not here)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    what: str = req(min_length=1)                 # child goal (one line)
+    why: str = req(min_length=1)
+    kind: Literal["leaf", "internal"] = req()
+    files: list[str] = Field(default_factory=list)   # leaf write boundary; [] for pure internal
+    acs: list[DraftAC] = Field(default_factory=list)  # leaf: mandatory; internal: integration view
+    interfaces: list[Interface] = Field(default_factory=list)
+    est_calls: int = Field(ge=1, le=8)            # budget-allocation weight
+
+
+class PlanNode(Envelope):
+    """The fused per-node decompose+specify envelope — ONE call per node (§23).
+
+    ``children == []`` declares this node a LEAF (its own ``acs`` are then mandatory and
+    must be non-empty); a non-empty list declares it INTERNAL, with ``acs`` as the
+    integration view over descendant checks.
+    """
+
+    goal: str = req(min_length=1)                 # THIS node's goal
+    behavior: str = req(min_length=1)             # shared contract (both sides)
+    implementation_notes: str = req(min_length=1)
+    files: list[str] = req(max_length=10)         # THIS node's write boundary
+    acs: list[DraftAC] = req(max_length=10)       # THIS node's AC map (leaf mandatory)
+    interfaces: list[Interface] = req(max_length=8)
+    children: list[ChildPlan] = req(max_length=15)  # [] ⇒ this node is a LEAF
+
+
+# ---------------------------------------------------------------------------
 # Registry: {step_type: model} — the per-leaf-type schema library (DESIGN §4.2:
 # selected, never authored by the model). ``judge_<aspect>`` step types resolve via
 # the runner's wildcard prefix to the generic JudgeAspect entry.
@@ -749,6 +788,7 @@ SCHEMAS: dict[str, type[Envelope]] = {
     "gate_decide": GateDecide,  # §20
     "propose_growth": ProposeGrowth,  # §21
     "lesson": LessonEnvelope,  # §22 (standalone step; embedded form is Lesson)
+    "plan_node": PlanNode,  # §23 (fused decompose+specify, ticket 18)
 }
 
 JUDGE_STEP_PREFIX = "judge_"

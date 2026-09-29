@@ -2576,6 +2576,51 @@ def test_write_converts_filesystem_refusals_instead_of_crashing(tmp_path):
         _write(tmp_path, LONG_PATH, "x = 1\n")
 
 
+# ------------------------- ticket 18 round 4: a bare 'unable' self-test cannot crash
+# The §0 grammar leaves the payload fields at the REQUIRED (_Missing) sentinel on the
+# unable branch; the sentinel used to reach Path(...) and raise TypeError out of the
+# loop. It must take the ordinary honest self-test refusal instead.
+
+BARE_UNABLE = {"status": "unable", "comment": "cannot write a test",
+               "unable_reason": "no interpreter available"}
+
+
+def test_bare_unable_self_test_envelope_is_refused_not_a_crash(tmp_path):
+    """A bare ``unable`` self-test envelope carries no file_path (its value is the
+    REQUIRED sentinel), so it takes the honest ``self-test`` refusal — never a crash."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [BARE_UNABLE]})
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1]))
+
+    assert out.claimed is False
+    assert out.stop_reason == "self-test"
+    assert out.signal == "honest-failure"
+    assert out.self_test is None
+    assert "self_test_unavailable" in ledger_kinds()
+    assert any("status=unable" in r for r in out.refusals)
+
+
+def test_bare_unable_implementation_envelope_is_refused_not_a_crash(tmp_path):
+    """The same non-string sentinel on an implementation envelope is a plain refusal
+    (``no file_path``), not a crash out of the write guard."""
+    from harness.leaf import _write_candidate
+
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    from harness.envelopes import REQUIRED
+
+    class _Envelope:
+        status = "ok"
+        file_path = REQUIRED          # the §0 sentinel, not a string
+
+    wrote, rel, refusal, shape = _write_candidate(_Envelope(), spec, tmp_path, None, {})
+    assert wrote is False and rel == "" and not shape
+    assert "no file_path" in refusal
+
+
 # ------------------------------------------- round 6: sweep flags / run-record evidence
 
 def test_sweep_exposes_and_forwards_the_judge_and_iv_flags(tmp_path, monkeypatch):

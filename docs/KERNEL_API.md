@@ -93,6 +93,10 @@ async def llm(step_type: str,
 - Invariants enforced: grammar envelopes + `unable: reason` alternative in every schema;
   schema validation; ledger/stats recording; budget accounting; erasure — the failed
   attempt's text is never returned to a later invocation, only a failure summary.
+- **Schema library.** `harness/envelopes.SCHEMAS` holds one grammar envelope per
+  `step_type` (ENVELOPE_SCHEMAS §0–§23), **24 registered** as of ticket 18. The newest is
+  `plan_node` (ENVELOPE_SCHEMAS §23): the node tree's ONE fused decompose+specify call —
+  a node's `children` plus its own goal/behavior/files/ACs in a single invocation.
 
 ### 3.2 `exec`
 
@@ -399,3 +403,31 @@ a handle-method change, not a primitive change.
 
 No seventh primitive is introduced by this spec. Every script call in ENGINE_SCRIPT.md is
 accounted for in §2.
+
+---
+
+## 9. Tree runner entry points (ticket 18)
+
+The budgeted node tree (DESIGN §10.1–§10.2) is driven by three script-facing functions in
+`harness/tree_run.py`. None is a seventh primitive: they compose the six primitives over
+the `TaskTree` handle and call `run_leaf` (the leaf loop) VERBATIM for every leaf.
+
+- `run_tree(model, root, tree, workdir, budget, *, root_grader_paths, ...)` — the tree
+  executor: one `plan_node` call per node, weighted budget split, and the shared
+  `budget.deadline_ts` as the final stop (no new node starts once it passes).
+  `root_grader_paths` is the single withheld set every descendant leaf inherits.
+- `run_node(ctx, node, budget)` — one node: decompose if it can afford to, else execute it
+  as a leaf; applies the L6 (re-split) / L7 (parent spec) subtree resets and the
+  structural close rule.
+- `leaf_spec_from(spec, workdir, *, root_grader_paths)` — builds the `LeafSpec` a node's
+  `run_leaf` call receives. The node's declared `files` are BOTH the blind view and the
+  runtime write boundary (a write outside it is refused at the parameter layer), and
+  `grader_paths` is always the root's set — never anything a child declared.
+
+An internal node closes only when all children closed and its own integration ACs pass;
+an empty integration map is not by itself sufficient — a node with ≥2 writing descendants
+needs a passing report-gated integration verdict from its dedicated integration leaf, and
+a failing verdict reopens its responsible writer descendants (bounded per node).
+<!-- DECISION: the structural close rule is deterministic (writing-descendant count), not
+an extra model call; an integration leaf that exposes no test artifact is not a verdict
+(no keys ⇒ no close). -->

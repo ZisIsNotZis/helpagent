@@ -1,6 +1,6 @@
 """helpagent harness — kernel-side building blocks (M1 slice).
 
-- :mod:`harness.envelopes` — every envelope schema from ENVELOPE_SCHEMAS §0–§22 + registry
+- :mod:`harness.envelopes` — every envelope schema from ENVELOPE_SCHEMAS §0–§23 + registry
 - :mod:`harness.tree` — TaskTree / NodeHandle (KERNEL_API §4.1–4.2)
 - :mod:`harness.fake_model` — FakeModelRunner + misbehavior helpers (TEST_PLAN §2)
 - :mod:`harness.runner` — llm_step glue, prompt composer, minimal ledger
@@ -12,6 +12,7 @@ from harness.envelopes import (
     Ambiguity,
     Bug,
     ChildFill,
+    ChildPlan,
     DraftAC,
     DraftACs,
     DebugJudge,
@@ -30,6 +31,7 @@ from harness.envelopes import (
     Lesson,
     LessonEnvelope,
     NewIssue,
+    PlanNode,
     Problem,
     ProposeGrowth,
     ProposeProbe,
@@ -94,7 +96,7 @@ __all__ = [
     "Problem", "FailureJudge", "Bug", "IdentifyBugs", "ProposeProbe", "InterpretProbe",
     "Lesson", "LessonEnvelope", "RankedFix", "DebugJudge", "NewIssue", "FixAttempt", "JudgeAspect",
     "build_judge_aspect_model", "RunSummary", "GateDecide", "ProposedNode",
-    "ProposeGrowth",
+    "ProposeGrowth", "ChildPlan", "PlanNode",
     # tree
     "TRANSITIONS", "StatusTransitionInvalid", "ArtifactRef", "ACEntry", "Node",
     "NodeHandle", "TaskTree", "Finding", "ValidationFindings", "CheckResults",

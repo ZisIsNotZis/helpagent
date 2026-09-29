@@ -1,5 +1,5 @@
 """Envelope schema invariants — TEST_PLAN §3.1 + the grammar pairs from
-ENVELOPE_SCHEMAS §0–§22."""
+ENVELOPE_SCHEMAS §0–§23."""
 
 import asyncio
 
@@ -39,7 +39,7 @@ def test_envelope_rejects_missing_self_summary():
 def test_unable_alternative_is_in_every_envelope_schema():
     """Iterate the per-leaf-type schema library; assert each has a discriminant
     accepting `unable: reason` — and that the unable alternative actually parses."""
-    assert len(SCHEMAS) == 23
+    assert len(SCHEMAS) == 24
     for step_type, model in SCHEMAS.items():
         assert issubclass(model, Envelope), step_type
         values = get_args(model.model_fields["status"].annotation)
@@ -83,6 +83,21 @@ VALID_PAYLOADS = {
                        "nodes": [{"kind": "ticket", "what": "w", "why": "y"}], "reason": "r"},
     "lesson": {"line": "l", "topic_key": ["python", "iterator"], "provenance_task_id": "N-1",
                "provenance_ref": "ledger:fp-1"},
+    "plan_node": {
+        "goal": "fix session expiry",
+        "behavior": "expiry is computed from the ttl config",
+        "implementation_notes": "read the ttl in seconds",
+        "files": ["middleware/auth.py"],
+        "acs": [{"ac_id": "AC-1", "statement": "sessions expire per ttl",
+                 "check_kind": "test", "check_hint": "tests/test_auth.py::test_expiry"}],
+        "interfaces": [{"name": "expire()", "signature": "expire() -> None",
+                         "contract": "expires the session"}],
+        "children": [{"what": "fix the expiry computation", "why": "it uses seconds",
+                      "kind": "leaf", "files": ["middleware/auth.py"],
+                      "acs": [{"ac_id": "AC-1", "statement": "sessions expire per ttl",
+                               "check_kind": "test", "check_hint": "tests/test_auth.py::test_expiry"}],
+                      "interfaces": [], "est_calls": 3}],
+    },
 }
 
 

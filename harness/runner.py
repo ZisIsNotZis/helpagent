@@ -27,7 +27,7 @@ CONTEXT_SENSITIVE_STEPS = frozenset({"expand", "draft_acs", "write_spec", "test_
 
 # Code-carrying steps: the envelope content is a whole file and goes through the
 # tree-sitter parse-on-arrival + bounded repair respawn (DESIGN §4.7, harness/repair.py).
-# write_test is the only content-emitting schema left (ENVELOPE_SCHEMAS §23).
+# write_test is the only content-emitting schema left (ENVELOPE_SCHEMAS §24).
 CONTENT_STEPS = frozenset({"write_test"})
 
 # ---------------------------------------------------------------------------

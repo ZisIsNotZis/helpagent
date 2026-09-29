@@ -1,0 +1,10 @@
+[project]
+name = "reporting"
+version = "0.1.0"
+description = "Customer report export."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

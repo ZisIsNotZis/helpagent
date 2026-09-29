@@ -118,6 +118,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import posixpath
 import re
 import tempfile
 import time
@@ -258,6 +259,11 @@ class LeafSpec:
 
     ``files`` is the source-only view the run may see; ``grader_paths`` are owned by
     the grader and must never reach the run (DESIGN §6/§10.6).
+
+    ``write_boundary`` is the declared write scope the leaf may modify (a node's plan
+    boundary). It is ``None`` for the single-leaf driver, whose boundary is the whole
+    source view — so its behaviour is unchanged; a tree child sets it to its declared
+    files, and any write outside it is refused at the parameter layer (never a crash).
     """
 
     goal: str
@@ -265,6 +271,7 @@ class LeafSpec:
     acs: list[str]
     interfaces: list[str]
     grader_paths: tuple[str, ...] = ()  # owned by the grader: never shown, never writable
+    write_boundary: tuple[str, ...] | None = None  # None ⇒ unguarded (single-leaf driver)
 
 
 @dataclass(frozen=True)
@@ -562,9 +569,40 @@ def escalate(
 # ---------------------------------------------------------------------------
 
 
-def _escapes_repo(rel: str) -> bool:
+def _env_path(env: Any) -> str:
+    """The envelope's ``file_path`` as a real string, or "" when it is absent.
+
+    Ticket 18 P0: a bare ``unable`` self-test envelope leaves the payload field at the
+    ``REQUIRED`` (:class:`harness.envelopes._Missing`) sentinel, and that non-string
+    sentinel used to reach a ``Path(...)`` probe and crash the loop. A non-string path
+    is never a usable path, so it is reported as absent here and takes the ordinary
+    honest self-test refusal instead of raising.
+    """
+    value = getattr(env, "file_path", "")
+    return value if isinstance(value, str) else ""
+
+
+def _escapes_repo(rel: Any) -> bool:
+    if not isinstance(rel, str):
+        return True                     # a non-string path is never a usable in-repo path
     path = Path(rel)
     return path.is_absolute() or ".." in path.parts
+
+
+def _canonical_write_path(rel: str) -> str | None:
+    """Canonical repo-relative spelling of ``rel`` for the write-boundary check.
+
+    POSIX ``normpath`` collapses ``./`` and internal ``.``/``..`` so a declared
+    boundary cannot be evaded with a path alias; an absolute/escaping/empty path is
+    ``None`` (already refused elsewhere as a logic escape).
+    """
+    text = (rel or "").strip()
+    if not text or text.startswith(("~", "/")):
+        return None
+    norm = posixpath.normpath(text)
+    if norm in ("", ".", "..") or norm.startswith(("../", "/")):
+        return None
+    return norm
 
 
 def _write_shape_problem(rel: str, workdir: Path) -> str:
@@ -582,7 +620,7 @@ def _write_shape_problem(rel: str, workdir: Path) -> str:
     Both are caught here and reported as the honest write-shape problem, so neither
     the self-test nor the implementation path can crash.
     """
-    if not rel or _escapes_repo(rel):
+    if not rel or not isinstance(rel, str) or _escapes_repo(rel):
         return ""                       # path-escape is a logic refusal, handled elsewhere
     target = workdir / rel
     try:
@@ -645,6 +683,11 @@ def _source_write_problem(rel: str, spec: LeafSpec, self_test: str | None) -> st
         return "a test path (outside the implementation seam)"
     if shadowing_path(rel):
         return "a module-shadow path (would shadow an interpreter import)"
+    if spec.write_boundary is not None:
+        canon = _canonical_write_path(rel)
+        boundary = {_canonical_write_path(b) for b in spec.write_boundary}
+        if canon is None or canon not in boundary:
+            return "outside the node's declared write boundary"
     return ""
 
 
@@ -1537,25 +1580,27 @@ def _relocate_self_test(env: Any, spec: LeafSpec, workdir: Path, emit: Any) -> s
     Returns None when the envelope is unusable at the logic level (not ok, no path,
     or a path that escapes the repository).
     """
-    if getattr(env, "status", "unable") != "ok" or not getattr(env, "file_path", ""):
+    path = _env_path(env)
+    if getattr(env, "status", "unable") != "ok" or not path:
         return None
     kind, problem = _self_test_problem(env, spec, workdir)
     if not problem:
-        return env.file_path
-    normalized, note = _normalize_test_path(env.file_path, spec, workdir)
+        return path
+    normalized, note = _normalize_test_path(path, spec, workdir)
     if not note:
         return None
-    emit("self_test_relocated", detail=note, requested=env.file_path, used=normalized)
-    emit("tolerance_fired", aspect="self_test_path", requested=env.file_path, used=normalized)
+    emit("self_test_relocated", detail=note, requested=path, used=normalized)
+    emit("tolerance_fired", aspect="self_test_path", requested=path, used=normalized)
     return normalized
 
 
 def _self_test_problem(env: Any, spec: LeafSpec, workdir: Path) -> tuple[str, str]:
     """Classify a self-test envelope. Returns ``(ledger_kind, problem)``; ``problem``
     is "" when the envelope is a usable new test path."""
-    if getattr(env, "status", "unable") != "ok" or not getattr(env, "file_path", ""):
+    path = _env_path(env)
+    if getattr(env, "status", "unable") != "ok" or not path:
         return "self_test_unavailable", f"status={getattr(env, 'status', 'unknown')}"
-    problem = _new_test_problem(env.file_path, spec, workdir)
+    problem = _new_test_problem(path, spec, workdir)
     if problem:
         return "self_test_refused", problem
     return "", ""
@@ -1807,7 +1852,7 @@ async def run_leaf(
         byte, over-long name) has no safe normalization here, so it takes the
         write-shape stop; anything else is a logic-level self-test refusal.
         """
-        path = getattr(env, "file_path", "") or ""
+        path = _env_path(env)
         kind, problem = _self_test_problem(env, spec, workdir)
         emit(kind, path=path, reason=problem)
         refusals.append(f"{path}: {problem} (self-test)")
@@ -2224,7 +2269,7 @@ def _write_candidate(
     """
     if getattr(env, "status", "unable") != "ok":
         return False, "", f"status={getattr(env, 'status', 'unknown')}", False
-    rel = getattr(env, "file_path", "") or ""
+    rel = _env_path(env)
     if not rel:
         return False, "", "no file_path", False
     problem = _source_write_problem(rel, spec, self_test)
@@ -2266,7 +2311,7 @@ def _judge_request(
     test enters this request.
     """
     files = _repo_view(spec, workdir, tuple(baseline))
-    proposed = getattr(env, "file_path", "") or ""
+    proposed = _env_path(env)
     content = getattr(env, "content", "") or ""
     if (getattr(env, "status", "") == "ok" and proposed and content
             and not is_test_path(proposed) and proposed not in set(spec.grader_paths)):

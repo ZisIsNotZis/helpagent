@@ -501,18 +501,69 @@ governance as provisional. Budget: ~120 tok.
 
 ---
 
-## 23. Token-budget summary (3k output ceiling)
+## 23. `plan_node` — node tree: one fused decompose+specify call (DESIGN §10.1–§10.2)
+
+The fused per-node call of the budgeted tree (ticket 18). ONE call both DECOMPOSES (the
+`children` list) and SPECIFIES (the node's own goal/behavior/files/ACs) so the per-node
+cost is a single call. `children == []` declares the node a LEAF; a non-empty list
+declares it INTERNAL, whose own `acs` are the integration view over descendant checks.
+`est_calls` is the budget-allocation weight (1–8).
+
+```python
+class ChildPlan(Base):
+    what: str                      # child goal (one line)
+    why: str
+    kind: Literal["leaf","internal"]
+    files: list[str]               # leaf write boundary; [] for pure internal
+    acs: list[DraftAC]             # leaf: mandatory; internal: integration view
+    interfaces: list[Interface]
+    est_calls: int                 # 1–8 — weight for the budget split
+
+class PlanNode(Envelope):
+    goal: str                      # THIS node's goal
+    behavior: str                  # shared contract (both sides)
+    implementation_notes: str      # implementer-only
+    files: list[str]               # 0–10 — THIS node's write boundary
+    acs: list[DraftAC]             # 0–10 — THIS node's AC map (leaf mandatory)
+    interfaces: list[Interface]    # 0–8
+    children: list[ChildPlan]      # 0–15 — [] ⇒ this node is a LEAF
+```
+
+```text
+plan_node:
+  goal:       > Sessions expire after 60s instead of 1h — fix the computation.
+  behavior:   > expiry is derived from the configured ttl
+  files:      - middleware/auth.py
+  acs:        - AC-1  sessions expire per ttl            [test]
+  children:
+    - what:   > fix the expiry computation
+      why:    > it multiplies by 60 twice
+      kind:   [leaf]   files: - middleware/auth.py   est_calls: 3
+```
+
+**Kernel validates (post-hoc, `harness.node.validate_decomposition`):** every path is
+canonicalized (POSIX `normpath`; `..`/absolute rejected); a child's `files` must NARROW
+the parent's boundary; siblings must be pairwise file-DISJOINT; a leaf needs an empty
+`children` and a non-empty `acs`; an internal node needs ≥1 child; `est_calls >= 1`; two
+children may not share a normalized `what`; depth ≤ 4 and ≤ 15 children; any file token
+in `what`/`why` must be in the injected candidate scope. A bad plan is re-asked ONCE with
+the findings as evidence, then the node is FORCED to a leaf — invalid output never crashes
+and never silently produces a child. Budget: ~500 tok.
+
+---
+
+## 24. Token-budget summary (3k output ceiling)
 
 | Tier | Schemas | Budget | Note |
 | --- | --- | --- | --- |
 | Tiny ≤400 tok | find_ambiguities, revise_task_card, split_review, spec_review, failure_judge, propose_probe, interpret_probe, debug_judge, judge_aspects, run_summary, gate_decide, propose_growth, lesson, implement, fix_attempt | — | reports only — work happens via tool rounds |
-| Medium ≤800 tok | task_card, expand, draft_acs, test_plan, identify_bugs, write_spec | — | no risk |
+| Medium ≤800 tok | task_card, expand, draft_acs, test_plan, identify_bugs, write_spec, plan_node | — | no risk |
 | **Ceiling-risk** | write_test (~2.5k) | — | the only content-emitting schema left; one case per call; overflow → file split-window (never truncate) |
 
 Every code-carrying schema declares its split path in advance (§4.2 bounded artifacts;
 overflow triggers the path, never truncates).
 
-## 24. Cross-cutting validation split (details in KERNEL_API.md)
+## 25. Cross-cutting validation split (details in KERNEL_API.md)
 
 - **Grammar-enforced at decode:** enums, patterns (ac_id/case_id/keywords/topic_key),
   list caps, conditional requirements (unable_reason, blocked_kind, ok⇒issues==[]).

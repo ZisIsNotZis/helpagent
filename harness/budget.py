@@ -15,15 +15,52 @@ resumed after a human answers (DESIGN §10.5).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-__all__ = ["Budget", "BudgetError", "GrantRecord"]
+__all__ = ["Budget", "BudgetError", "GrantRecord", "group_weights"]
 
 DEFAULT_RESERVE = 0.25
 
 
 class BudgetError(RuntimeError):
     """Illegal budget operation (over-spend, bad split, bad restore)."""
+
+
+def group_weights(weights: Sequence[int], *, spendable: int,
+                  min_each: int) -> list[tuple[int, ...]] | None:
+    """Deterministic child indexing after the weighted-merge rule (DESIGN §10.2).
+
+    Returns groups of ``weights`` indices (each ascending) such that every group's
+    proportional share of ``spendable`` is ``>= min_each``. The two smallest groups are
+    merged (their boundary is the UNION) until the rule holds. ``None`` means the split
+    must be refused: even one group cannot be afforded (force a leaf). One
+    implementation, shared by :meth:`Budget.split_weighted` and the tree runner, so the
+    grouping a caller merges children by is exactly the grouping the budgets cover.
+    """
+    if not weights:
+        return []
+    if min_each < 1:
+        raise ValueError("min_each must be >= 1")
+    total = sum(weights)
+    if total <= 0:
+        return None
+    groups: list[list[int]] = [[i] for i in range(len(weights))]
+
+    def group_weight(group: Sequence[int]) -> int:
+        return sum(weights[i] for i in group)
+
+    while True:
+        below = [g for g in groups if (spendable * group_weight(g)) // total < min_each]
+        if not below:
+            return [tuple(sorted(g)) for g in sorted(groups, key=lambda g: g[0])]
+        if len(groups) == 1:
+            return None
+        order = sorted(range(len(groups)),
+                       key=lambda k: (group_weight(groups[k]), groups[k][0]))
+        a, b = order[0], order[1]
+        groups[a] = sorted(groups[a] + groups[b])
+        del groups[b]
 
 
 @dataclass
@@ -91,6 +128,38 @@ class Budget:
         self.calls -= total
         return [Budget(calls=share, deadline_ts=self.deadline_ts,
                        reserve_fraction=self.reserve_fraction) for _ in range(n_children)]
+
+    def split_weighted(self, weights: Sequence[int], *, min_each: int) -> list["Budget"]:
+        """Hand each child a share of the non-reserve pool proportional to its weight.
+
+        Design §2 (ticket 18): if a child's proportional share falls below ``min_each``
+        the SMALLEST children are merged (union boundary) or, when even a single group
+        cannot be afforded, the split is refused with :class:`BudgetError` so the caller
+        forces the node to a leaf. One budget is returned per surviving group, in
+        increasing index order (see :func:`group_weights`). The reserve plus the integer
+        remainder stay with the parent, exactly as in :meth:`split`.
+        """
+        weights = list(weights)
+        if not weights:
+            raise BudgetError("split_weighted() needs at least one child")
+        if min_each < 1:
+            raise BudgetError("split_weighted() needs min_each >= 1")
+        spendable = int(self.calls * (1.0 - self.reserve_fraction))
+        groups = group_weights(weights, spendable=spendable, min_each=min_each)
+        if groups is None:
+            raise BudgetError(
+                "budget too small to decompose: no child share reaches min_each")
+        total = sum(weights)
+        budgets = [Budget(calls=max(min_each, spendable * sum(weights[i] for i in group)
+                                    // total),
+                          deadline_ts=self.deadline_ts,
+                          reserve_fraction=self.reserve_fraction)
+                   for group in groups]
+        total_alloc = sum(b.calls for b in budgets)
+        if total_alloc > spendable:
+            raise BudgetError("weighted split exceeds the non-reserve pool")
+        self.calls -= total_alloc
+        return budgets
 
     def release(self, child: "Budget") -> int:
         """Return a finished child's unused calls to this pool."""
