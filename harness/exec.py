@@ -19,9 +19,11 @@ import os
 import re
 import shutil
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from harness.gate_report import GateReport
 from harness.runner import note
 from harness.tools import shape_for
 
@@ -52,6 +54,10 @@ class ShapedResult:
     stderr_tail: str = ""
     n_failures: int | None = None             # tool-registry shaping (M4)
     suggested_next_action: str = ""           # tool-registry shaping (M4)
+    # The machine-readable gate verdict, attached by the leaf's own pytest runner
+    # (ticket 17 F1). The process exit status is not evidence: a gate result that
+    # carries a report is green only when that report is green.
+    gate: GateReport | None = None
 
     @property
     def ok(self) -> bool:
@@ -140,6 +146,7 @@ async def exec(
     provenance: str = "kernel",
     allowlist: frozenset[str] = DEFAULT_ALLOWLIST,
     timeout_s: float = 120.0,
+    extra_env: Mapping[str, str] | None = None,
 ) -> ShapedResult:
     """Run ``cmd`` in ``workdir``. A model-provenance command outside the allowlist
     returns a policy-blocked shaped result (routed to an allowlist request by the
@@ -178,7 +185,7 @@ async def exec(
             # FP-6: stale __pycache__ false-PASS — a same-length edit (e.g. `is`→`==`)
             # can reuse the previous source's cached .pyc, so pytest passes on broken
             # code. Bytecode writing is disabled for every exec'd command.
-            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", **(extra_env or {})},
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

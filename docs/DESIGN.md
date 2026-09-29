@@ -218,7 +218,7 @@ One plan artifact — **the task tree** — absorbs planning, tickets, and progr
 
 ## 6. Benchmark loop (drives everything)
 
-**Blind gate (owner direction 2026-09-29 — methodology correction).** The corpus tests are the GRADER: per-task `checks.py` (pytest + untouched-files byte identity) is scoring machinery and must never enter a run's view. A run's own verification is what it writes itself; `harness/staging.py` projects the task files to a source-only view for the harness and `bench/external_score.py` applies the run's produced files onto a pristine copy and runs the grader there, after the run. Every run therefore reports two facts: what it CLAIMED and what the grader found. `bench/runs/**` produced before this correction, and every conclusion derived from them, are **contaminated and not citable**; the list of retracted claims is in `.scratch/16-v2-skeleton/issues/16-v2-skeleton.md`.
+**Blind gate (owner direction 2026-09-29 — methodology correction).** The corpus tests are the GRADER: per-task `checks.py` (pytest + untouched-files byte identity) is scoring machinery and must never enter a run's view. A run's own verification is what it writes itself; `harness/staging.py` projects the task files to a source-only view for the harness and `bench/external_score.py` applies the run's produced files onto a pristine copy and runs the grader there, after the run. Every run therefore reports two facts: what it CLAIMED and what the grader found. `bench/runs/**` produced before this correction, and every conclusion derived from them, are **contaminated and not citable**; the list of retracted claims is in `.scratch/16-v2-skeleton/issues/16-v2-skeleton.md`. Two mechanics below make "no false success" enforceable rather than aspirational: the grader scores a PRISTINE copy of the task repo, restores every grader-owned path (test paths, test infrastructure, and the corpus task's own `UNTOUCHED` list) before running, and requires its own machine-readable pytest report — the process exit status is forgeable by the run's own code (DESIGN §10.3, round-6 findings F1/F2).
 
 - **Own corpus (primary, daily):** 30–50 tasks across flow topologies — bugfix, add-feature, port, new-repo — each with deterministic checks (tests pass, types clean, behavior assertions, untouched-files contract). **Cost metrics are rubric components, not footnotes:** model calls, tokens, wall time (model + tool separately) reported per task; quality-per-cost is the comparison axis.
 - **Score rubric:** fix quality / verification behavior / safety (no unrelated changes) / stopping behavior / cost. No LLM-as-judge.
@@ -339,9 +339,21 @@ The run's own tests are its only gate, so the gate itself must be honest:
   uncredited (`test_blame_uncredited`). A judge-attributed replacement is re-derived from
   scratch and must be red on arrival again; a green that follows a rewrite is reported as
   `green-after-test-rewrite` with `own_test_mutated`, so measurement can separate it.
-- **`exit == 0` is the only green.** A transport error (`exit is None`), a policy-blocked
-  result, and a non-integer exit are all red; an un-runnable self-test stops as
-  `self-test-unverified` and leaves no file behind.
+- **A machine-readable pytest report is the only green — the exit status is not
+  evidence (owner decision 2026-09-29, round 6, adversarial finding F1).** Run-authored
+  code executes inside the gate process (the run's own test imports the run's source), so
+  `import atexit, os` + `atexit.register(lambda: os._exit(0))` made BOTH pytest runs exit
+  0 with no test summary and turned a false success into a claimed true one. Green now
+  requires a JUnit report written to a private `mkdtemp` OUTSIDE the repository: it must
+  parse, hold at least one testcase, report zero failures and zero errors, contain the
+  EXPECTED test file(s) with everything passed, and contain a per-run RANDOM canary node
+  id (a generated test the run never saw). Every anomaly is RED and recorded as
+  `gate_report_anomaly` with the detail. The corpus `checks.py` is untouched; the external
+  grader adds its OWN report gate and marks the grade `suspected_contaminated_grade` when
+  the corpus check exits 0 but the report does not. A transport error (`exit is None`), a
+  policy-blocked result, and an un-runnable self-test (`self-test-unverified`, no file
+  left behind) remain red. The run's writable scope is the union of the staged-owned paths
+  and the corpus task's `UNTOUCHED` list — exactly what the grader restores (F2).
 
 ### 10.4 Stops — there is no "give up"
  — there is no "give up"

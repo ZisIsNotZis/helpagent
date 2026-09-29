@@ -22,19 +22,25 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import json
+from pathlib import Path
 
 import pytest
 
 from harness.attempts import Attempt
 from harness.budget import Budget
 from harness.exec import ShapedResult
-from harness.fake_model import FakeModelRunner
+from harness.fake_model import FakeModelRunner, schema_violation
+from harness.gate_report import GateReport
 from harness.leaf import (
     LADDER,
     Escalation,
+    FalsifyRequest,
+    FalsifyVerdict,
     JudgeRequest,
+    JudgeVerdict,
     LeafOutcome,
     LeafSpec,
+    apply_judge_filter,
     escalate,
     run_leaf,
 )
@@ -64,6 +70,29 @@ def blocked(comment: str = "the test is wrong",
     return write_env(path, "def result():\n    return 7\n", comment=comment, status="blocked")
 
 
+def judge_blames_test(request: JudgeRequest) -> JudgeVerdict:
+    """A structured judge verdict that passes the deterministic filter: it names the
+    failing test function and one of its assertions (`result() == 42`)."""
+    return JudgeVerdict(
+        attribution="tests",
+        defect="test_goal asserts result() == 42, which pins the wrong expectation",
+        raw="tests",
+    )
+
+
+def approve_falsify(_request: FalsifyRequest) -> FalsifyVerdict:
+    """A falsifier that could not refute the candidate."""
+    return FalsifyVerdict(approved=True, raw="approve")
+
+
+def reject_falsify(counterexample: str = "calling result() still returns 0"):
+    """A falsifier that returns a concrete counterexample (then keeps rejecting)."""
+    def _falsify(_request: FalsifyRequest) -> FalsifyVerdict:
+        return FalsifyVerdict(approved=False, counterexample=counterexample,
+                              raw=f"reject: {counterexample}")
+    return _falsify
+
+
 def transport() -> ShapedResult:
     return ShapedResult(command=["python3", "-m", "pytest", "-q"], exit=None,
                         verdict="transport_error", excerpts=["timed out after 120s"])
@@ -75,11 +104,28 @@ def policy_blocked() -> ShapedResult:
                         excerpts=["command is not in the exec allowlist"])
 
 
+def scripted_gate() -> GateReport:
+    """The scripted seam's GREEN machine-readable gate report.
+
+    Production reports come from the real pytest run (``--junitxml`` into a private
+    directory plus a per-run canary, ticket 17 F1). The scripted seam stands in for a
+    green gate so these mechanics tests keep pinning the LOOP rather than pytest's XML
+    writer; the real gate is pinned by the forgery tests at the end of this file.
+    """
+    return GateReport(report_path="(scripted)", process_exit=0, canary="scripted",
+                      expected_files=(), n_tests=1, n_failed=0, n_errors=0,
+                      passed_ids=("scripted::test",), failed_ids=(), missing=(),
+                      observed=True)
+
+
 class ScriptedTests:
     """A deterministic ``run_tests`` seam: one result per call, last repeats.
 
     An item may be an exit code or a full :class:`ShapedResult` (so transport-error
-    and policy-blocked shapes are scriptable).
+    and policy-blocked shapes are scriptable). An exit code of 0 carries a green
+    :func:`scripted_gate` report, because a machine-readable report is now the only
+    green signal (ticket 17 F1); every other code carries none, so the loop sees an
+    ``observed`` red exactly as it does for a real failing pytest run.
     """
 
     def __init__(self, results, excerpts=None):
@@ -96,7 +142,8 @@ class ScriptedTests:
         excerpts = [] if code == 0 else self._excerpts.get(
             code, ["FAILED tests/test_leaf_self.py::test_goal", "E AssertionError: still red"])
         return ShapedResult(command=["python3", "-m", "pytest", "-q"], exit=code,
-                            verdict="ok" if code == 0 else "failed", excerpts=list(excerpts))
+                            verdict="ok" if code == 0 else "failed", excerpts=list(excerpts),
+                            gate=scripted_gate() if code == 0 else None)
 
 
 def make_spec(files=None, grader=(), goal="make result() return 42") -> LeafSpec:
@@ -449,9 +496,10 @@ def test_judge_tests_rewrites_the_test_and_later_green_is_green_after_rewrite(tm
 
     seen: list[JudgeRequest] = []
 
-    def judge(request: JudgeRequest) -> str:
+    def judge(request: JudgeRequest) -> JudgeVerdict:
         seen.append(request)
-        return "tests"
+        return JudgeVerdict(attribution="tests", raw="tests",
+                            defect="test_goal asserts result() == 42, the wrong expectation")
 
     out = run_leaf_sync(model, spec, tmp_path,
                         Budget(calls=10, deadline_ts=_FAR_FUTURE),
@@ -464,8 +512,12 @@ def test_judge_tests_rewrites_the_test_and_later_green_is_green_after_rewrite(tm
     assert "tests" in out.layers_used
     assert out.test_rewrites == 1
     assert out.own_test_mutated is True
-    assert out.claimed is True and out.signal == "green-after-test-rewrite"
-    assert out.stop_reason == "green"
+    # Finding 3: a green after the run REPLACED its own test is never a claim — the
+    # implementation satisfied a substituted test, so the outcome is unverified.
+    assert out.claimed is False
+    assert out.signal == "green-after-test-rewrite"
+    assert out.stop_reason == "green-after-test-rewrite"
+    assert out.claimed_basis == "own-test"
 
 
 def test_rewrite_green_on_arrival_is_rejected_as_no_red_target(tmp_path):
@@ -478,7 +530,7 @@ def test_rewrite_green_on_arrival_is_rejected_as_no_red_target(tmp_path):
     model = FakeModelRunner({"write_test": [SELF_TEST, blocked(), repaired]})
     out = run_leaf_sync(model, spec, tmp_path,
                         Budget(calls=10, deadline_ts=_FAR_FUTURE),
-                        judge=lambda request: "tests", run_tests=ScriptedTests([1, 0]))
+                        judge=judge_blames_test, run_tests=ScriptedTests([1, 0]))
 
     assert out.claimed is False
     assert out.stop_reason == "no-red-target"
@@ -498,7 +550,7 @@ def test_repeated_identical_test_rewrite_is_refused_wasted_and_ladder_advances(t
     ]})
     out = run_leaf_sync(model, spec, tmp_path,
                         Budget(calls=8, deadline_ts=_FAR_FUTURE),
-                        judge=lambda request: "tests", run_tests=ScriptedTests([1] * 6))
+                        judge=judge_blames_test, run_tests=ScriptedTests([1] * 6))
 
     assert len(out.wasted_escalations) == 1
     assert out.wasted_escalations[0].strategy == LADDER[0]
@@ -517,9 +569,9 @@ def test_insufficient_calls_for_a_multi_call_escalation_stops_cleanly(tmp_path):
 
     judge_calls: list[JudgeRequest] = []
 
-    def judge(request: JudgeRequest) -> str:
+    def judge(request: JudgeRequest) -> JudgeVerdict:
         judge_calls.append(request)
-        return "tests"
+        return judge_blames_test(request)
 
     out = run_leaf_sync(model, spec, tmp_path,
                         Budget(calls=2, deadline_ts=_FAR_FUTURE),
@@ -691,10 +743,911 @@ def test_rewrite_green_on_arrival_leaves_no_bogus_target_on_disk(tmp_path):
     out = run_leaf_sync(
         model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
         run_tests=ScriptedTests([1, 0]),
-        judge=lambda request: "tests",
+        judge=judge_blames_test,
     )
 
     assert out.claimed is False
     assert out.stop_reason == "no-red-target"
     assert out.test_rewrites == 1
     assert not (tmp_path / "tests" / "test_leaf_self.py").exists()
+
+
+# ------------------------------------------------------- malformed-output robustness
+# A model failure is DATA, not a crash: every envelope request is retried a bounded
+# number of times and a persistent malformed output stops the run as malformed-output.
+
+
+def test_malformed_self_test_envelope_is_retried_then_stops_malformed_output(tmp_path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [schema_violation()] * 3})
+    out = run_leaf_sync(model, spec, tmp_path,
+                        Budget(calls=9, deadline_ts=_FAR_FUTURE), run_tests=ScriptedTests([1]))
+
+    assert out.claimed is False
+    assert out.signal == "honest-failure"
+    assert out.stop_reason == "malformed-output"
+    assert "malformed-output" in out.exhaustion_reason
+    assert len(model.calls("write_test")) == 3          # 1 attempt + 2 retries
+    assert "envelope_malformed" in ledger_kinds()
+    assert "self_test_written" not in ledger_kinds()
+
+
+def test_malformed_envelope_recovers_on_a_bounded_retry(tmp_path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [schema_violation(), SELF_TEST, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path,
+                        Budget(calls=9, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 0]))
+
+    assert out.claimed is True and out.stop_reason == "green"
+    assert len(model.calls("write_test")) == 3          # malformed + retry + implement
+    assert "envelope_malformed" in ledger_kinds()
+
+
+def test_a_raising_model_never_crashes_the_leaf(tmp_path):
+    class ModelBoom(RuntimeError):
+        pass
+
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [ModelBoom("transport dropped")] * 3})
+    out = run_leaf_sync(model, spec, tmp_path,
+                        Budget(calls=9, deadline_ts=_FAR_FUTURE), run_tests=ScriptedTests([1]))
+
+    assert out.stop_reason == "malformed-output"
+    assert out.claimed is False
+    assert len(model.calls("write_test")) == 3
+
+
+def test_malformed_implement_envelope_stops_malformed_output(tmp_path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, *[schema_violation()] * 3]})
+    out = run_leaf_sync(model, spec, tmp_path,
+                        Budget(calls=9, deadline_ts=_FAR_FUTURE), run_tests=ScriptedTests([1]))
+
+    assert out.self_test == "tests/test_leaf_self.py"          # the red target is kept
+    assert out.stop_reason == "malformed-output"
+    assert len(model.calls("write_test")) == 4                 # self-test + 3 implement tries
+
+
+def test_malformed_judge_output_is_retried_then_stops_malformed_output(tmp_path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, blocked()]})
+    seen: list[JudgeRequest] = []
+
+    def judge(request: JudgeRequest) -> JudgeVerdict:
+        seen.append(request)
+        raise ValueError("judge output was not a verdict")
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=9, deadline_ts=_FAR_FUTURE),
+                        judge=judge, run_tests=ScriptedTests([1] * 4))
+
+    assert out.stop_reason == "malformed-output"
+    assert out.claimed is False
+    assert len(seen) == 3                                      # 1 attempt + 2 retries
+
+
+def test_malformed_test_rewrite_is_retried_then_stops_malformed_output(tmp_path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, blocked(), *[schema_violation()] * 3]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
+                        judge=judge_blames_test, run_tests=ScriptedTests([1] * 6))
+
+    assert out.stop_reason == "malformed-output"
+    assert out.test_rewrites == 0
+    assert (tmp_path / "tests/test_leaf_self.py").read_text() == SELF_TEST["content"]
+
+
+def test_malformed_output_with_no_budget_for_a_retry_stops_calls(tmp_path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [schema_violation()]})
+    out = run_leaf_sync(model, spec, tmp_path,
+                        Budget(calls=1, deadline_ts=_FAR_FUTURE), run_tests=ScriptedTests([1]))
+
+    assert out.stop_reason == "calls"
+    assert len(model.calls("write_test")) == 1
+
+
+# ------------------------------------------------ independent judge: the deterministic
+# filter. `tests` is honoured ONLY when the defect names the failing test function or
+# an assertion/expectation; anything else is coerced to implementation and recorded.
+
+
+def test_apply_judge_filter_domain_and_coercion():
+    request = JudgeRequest(
+        goal="g", failure="FAILED tests/test_x.py::test_goal\nE AssertionError",
+        test_path="tests/test_x.py",
+        test_content="def test_goal():\n    assert result() == 42\n", files={})
+
+    # honoured: names the failing test function
+    assert apply_judge_filter(JudgeVerdict(attribution="tests", defect="test_goal is wrong"),
+                              request).attribution == "tests"
+    # honoured: names the assertion expectation
+    kept = apply_judge_filter(JudgeVerdict(attribution="tests", defect="the test asserts result() == 42 wrongly"),
+                              request)
+    assert kept.attribution == "tests" and kept.coerced is False
+    # coerced: a vibe with no anchor / an empty defect
+    vibes = apply_judge_filter(JudgeVerdict(attribution="tests", defect="the test is just wrong"), request)
+    assert vibes.attribution == "implementation" and vibes.coerced is True
+    assert vibes.coercion_reason
+    assert apply_judge_filter(JudgeVerdict(attribution="tests", defect="   "), request).attribution == "implementation"
+    # a bare expected value with no test/assertion reference is NOT enough
+    assert apply_judge_filter(JudgeVerdict(attribution="tests", defect="the code returns 0, not 42"),
+                              request).attribution == "implementation"
+    # spec / environment pass through untouched
+    assert apply_judge_filter(JudgeVerdict(attribution="spec", defect="the AC contradicts"),
+                              request).attribution == "spec"
+    assert apply_judge_filter(JudgeVerdict(attribution="environment"), request).attribution == "environment"
+    # alias is canonicalized; an unknown label is coerced
+    assert apply_judge_filter(JudgeVerdict(attribution="test", defect="test_goal is wrong"),
+                              request).attribution == "tests"
+    unknown = apply_judge_filter(JudgeVerdict(attribution="banana"), request)
+    assert unknown.attribution == "implementation" and unknown.coerced is True
+
+
+def test_vibe_tests_attribution_is_coerced_and_the_source_fix_is_credited(tmp_path):
+    """A judge that says "the test is wrong" without naming the test/assertion is NOT
+    credited: the source fix is taken as the implementation path and can still green."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, blocked(), impl(comment="fixed the source")]})
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+        judge=lambda request: JudgeVerdict(attribution="tests", defect="the test is wrong"),
+        run_tests=ScriptedTests([1, 0]))
+
+    assert out.test_rewrites == 0
+    assert out.claimed is True and out.signal == "green"
+    coerced = out.attempts[0].judge
+    assert coerced is not None and coerced.attribution == "implementation"
+    assert coerced.coerced is True
+    assert "judge_coerced" in ledger_kinds()
+    assert out.judge_verdicts[-1].coerced is True
+
+
+def test_honoured_tests_verdict_is_recorded_on_the_repair_attempt(tmp_path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    repaired = write_env("tests/test_leaf_self.py", "def test_goal():\n    assert result() == 0\n")
+    model = FakeModelRunner({"write_test": [SELF_TEST, blocked(), repaired, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=10, deadline_ts=_FAR_FUTURE),
+                        judge=judge_blames_test, run_tests=ScriptedTests([1, 1, 0]))
+
+    verdict = out.attempts[0].judge
+    assert verdict is not None and verdict.attribution == "tests" and verdict.coerced is False
+    assert out.judge_verdicts[0].attribution == "tests"
+    # the per-attempt verdict must survive JSON persistence (run record)
+    json.dumps([a.model_dump(mode="json") for a in out.attempts])
+
+
+def test_run_record_records_judge_mode_and_every_verdict():
+    from bench.external_score import ExternalScore
+    from bench.v2_leaf import build_record
+
+    outcome = LeafOutcome(
+        claimed=True, signal="green", attempts=[], calls=4, wall_s=1.0,
+        self_test="tests/test_x.py", questions=[], exhausted=False, exhaustion_reason="",
+        layers_used=["spec"], stop_reason="green", test_rewrites=0, own_test_mutated=False,
+        claimed_basis="own-test+falsified-check",
+        falsify_verdicts=[FalsifyVerdict(approved=True, raw="approve")],
+        judge_verdicts=[JudgeVerdict(attribution="tests", defect="test_x is wrong",
+                                     raw="r", coerced=True, coercion_reason="filter")])
+    score = ExternalScore(passed=True, exit=0, notes=[], work_root="", applied=[], skipped=[],
+                          restored=["conftest.py: kept pristine (grader-owned; nothing to restore)"])
+
+    record = build_record("T-x", "goal", outcome, withheld=[], produced={}, score=score,
+                          quad="true-success", run_wall_s=1.0, judge_enabled=True,
+                          falsify_enabled=True)
+
+    assert record["judge"] is True
+    assert record["falsify"] is True
+    assert record["claimed_basis"] == "own-test+falsified-check"
+    assert record["judge_verdicts"][0]["attribution"] == "tests"
+    assert record["judge_verdicts"][0]["coerced"] is True
+    assert record["falsify_verdicts"][0]["approved"] is True
+    assert record["grader_restored"]                      # restores land in the record
+    json.dumps(record)
+
+
+def test_judge_request_never_exposes_a_grader_path(tmp_path):
+    """The blind gate holds for the judge too: the grader's withheld paths can never
+    appear in the goal, the run's own test, the failing output, or the source view."""
+    grader = ("tests/test_chain.py",)
+    spec = make_spec(grader=grader)
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, blocked()]})
+    seen: list[JudgeRequest] = []
+
+    def judge(request: JudgeRequest) -> JudgeVerdict:
+        seen.append(request)
+        return JudgeVerdict(attribution="implementation", defect="the source is wrong")
+
+    run_leaf_sync(model, spec, tmp_path, Budget(calls=4, deadline_ts=_FAR_FUTURE),
+                  judge=judge, run_tests=ScriptedTests([1]))
+
+    assert seen
+    blob = "\n".join([seen[0].test_content, seen[0].failure, *seen[0].files.values()])
+    assert "tests/test_chain.py" not in blob
+    assert seen[0].acs == spec.acs
+    assert "pkg/calc.py" in seen[0].files
+
+
+def test_driver_judge_defaults_on_and_no_judge_disables_the_baseline():
+    from bench.v2_leaf import build_parser
+
+    assert build_parser().parse_args(["--task", "t"]).judge is True
+    assert build_parser().parse_args(["--task", "t", "--judge"]).judge is True
+    assert build_parser().parse_args(["--task", "t", "--no-judge"]).judge is False
+
+
+def test_driver_model_judge_maps_the_debug_judge_envelope():
+    """The default judge reuses the §16 debug_judge envelope (no new schema) and
+    reads an ``unable`` verdict as an environment attribution."""
+    from bench.v2_leaf import model_judge
+
+    model = FakeModelRunner({"debug_judge": [
+        {"status": "ok", "comment": "judged", "blame": "test",
+         "problem": "test_goal asserts the wrong value",
+         "fixes": [{"rank": 1, "approach": "fix the test", "how": "assert 0"}]},
+        {"status": "unable", "comment": "cannot judge", "unable_reason": "no interpreter"},
+    ]})
+    request = JudgeRequest(goal="g", failure="f", test_path="tests/test_x.py",
+                           test_content="def test_goal():\n    assert True\n", files={},
+                           acs=["AC-1"])
+
+    verdict = asyncio.run(model_judge(model, request))
+    assert verdict.attribution == "tests" and "test_goal" in verdict.defect
+    assert model.calls("debug_judge")[0].fresh is True          # fresh context
+    assert model.calls("debug_judge")[0].artifacts == {}
+    unable = asyncio.run(model_judge(model, request))
+    assert unable.attribution == "environment" and unable.defect == "no interpreter"
+
+
+# ------------------------------------------------- independent falsification (finding 4)
+# claimed=True additionally requires ONE fresh-context call asked to REFUTE the fix.
+# On reject its counterexample is the next attempt's failure context and the loop
+# CONTINUES; on approve the claim may stand. A missing/malformed call never claims.
+
+
+def test_claim_requires_the_independent_falsifier_to_approve(tmp_path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST,
+        impl("def result():\n    return 1\n", comment="first try"),
+        impl("def result():\n    return 42\n", comment="threaded the real value"),
+    ]})
+    seen: list[FalsifyRequest] = []
+
+    def falsifier(request: FalsifyRequest) -> FalsifyVerdict:
+        seen.append(request)
+        if len(seen) == 1:
+            return FalsifyVerdict(approved=False, counterexample="result() returns 1, not 42")
+        return FalsifyVerdict(approved=True)
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        falsifier=falsifier, run_tests=ScriptedTests([1, 0, 0]))
+
+    assert out.claimed is True
+    assert out.claimed_basis == "own-test+falsified-check"
+    assert out.stop_reason == "green" and out.signal == "green"
+    assert [v.approved for v in out.falsify_verdicts] == [False, True]
+    assert out.falsify_counterexample == "result() returns 1, not 42"
+    assert (tmp_path / "pkg/calc.py").read_text() == impl("def result():\n    return 42\n")["content"]
+    assert "falsify_verdict" in ledger_kinds() and "falsified_attempt" in ledger_kinds()
+    # the counterexample became the SECOND implementation's failure context
+    impl_calls = model.calls("write_test")
+    assert "result() returns 1, not 42" in impl_calls[2].artifacts["failure_output"]
+    # the falsifier saw the blind source diff, never a grader path
+    assert seen and "return 1" in seen[0].diff
+
+
+def test_falsifier_rejection_continues_and_never_claims(tmp_path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST,
+        impl("def result():\n    return 1\n"),
+        impl("def result():\n    return 1\n"),
+    ]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=5, deadline_ts=_FAR_FUTURE),
+                        falsifier=reject_falsify("result() still returns 1, not 42"),
+                        run_tests=ScriptedTests([1, 0, 0]))
+
+    assert out.claimed is False
+    assert out.stop_reason == "calls"           # the loop continued, then ran out of calls
+    assert out.falsify_verdicts and all(v.approved is False for v in out.falsify_verdicts)
+    assert out.falsify_counterexample == "result() still returns 1, not 42"
+    refutations = [a for a in out.attempts
+                   if a.claimed_delta == "result() still returns 1, not 42"]
+    assert refutations and refutations[0].outcome == "fail"
+    impl_calls = model.calls("write_test")
+    assert "result() still returns 1, not 42" in impl_calls[2].artifacts["failure_output"]
+
+
+def test_malformed_falsifier_output_keeps_claimed_false(tmp_path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    seen: list[FalsifyRequest] = []
+
+    def falsifier(request: FalsifyRequest):
+        seen.append(request)
+        raise ValueError("falsifier output was not a verdict")
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=9, deadline_ts=_FAR_FUTURE),
+                        falsifier=falsifier, run_tests=ScriptedTests([1, 0]))
+
+    assert out.claimed is False
+    assert out.stop_reason == "malformed-output"
+    assert out.claimed_basis == "own-test"
+    assert len(seen) == 3            # 1 attempt + 2 retries
+
+
+def test_unaffordable_falsification_keeps_claimed_false(tmp_path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    seen: list[FalsifyRequest] = []
+
+    def falsifier(request: FalsifyRequest) -> FalsifyVerdict:
+        seen.append(request)
+        return approve_falsify(request)
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=2, deadline_ts=_FAR_FUTURE),
+                        falsifier=falsifier, run_tests=ScriptedTests([1, 0]))
+
+    assert out.claimed is False
+    assert out.stop_reason == "calls"
+    assert seen == []                # not even started
+    assert out.claimed_basis == "own-test"
+
+
+def test_no_falsifier_claims_on_the_own_test_with_basis_own_test(tmp_path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=4, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 0]))
+
+    assert out.claimed is True and out.stop_reason == "green"
+    assert out.claimed_basis == "own-test"
+    assert out.falsify_verdicts == []
+
+
+def test_falsify_request_never_exposes_a_grader_path(tmp_path):
+    grader = ("tests/test_chain.py",)
+    spec = make_spec(grader=grader)
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    seen: list[FalsifyRequest] = []
+
+    def falsifier(request: FalsifyRequest) -> FalsifyVerdict:
+        seen.append(request)
+        return FalsifyVerdict(approved=False, counterexample="keep looking")
+
+    run_leaf_sync(model, spec, tmp_path, Budget(calls=4, deadline_ts=_FAR_FUTURE),
+                  falsifier=falsifier, run_tests=ScriptedTests([1, 0]))
+
+    assert seen
+    blob = "\n".join([seen[0].test_content, seen[0].diff, *seen[0].acs])
+    assert "tests/test_chain.py" not in blob
+    assert "pkg/calc.py" in seen[0].diff
+
+
+# -------------------------------------------------- write-target shape (finding 2)
+# A schema-valid envelope whose file_path is an existing directory or under an existing
+# file used to raise IsADirectoryError / FileExistsError OUTSIDE the bounded request
+# wrapper and crashed the real driver. The shape is a parameter: the self-test is
+# normalized; an un-normalizable source write stops honestly with a distinct reason.
+
+
+@pytest.mark.parametrize("shape", ["pkg", "pkg/", ".", "pkg/calc.py/x.py"])
+def test_implementation_with_a_bad_target_shape_stops_honestly(tmp_path, shape):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST,
+        write_env(shape, "def result():\n    return 42\n"),
+    ]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1]))
+
+    assert out.claimed is False
+    assert out.signal == "honest-failure"
+    assert out.stop_reason == "write-shape"
+    assert "write_shape_refused" in ledger_kinds()
+
+
+def test_self_test_with_a_directory_shaped_target_is_normalized(tmp_path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        write_env("pkg/", "def test_goal():\n    assert result() == 42\n"),
+        impl(),
+    ]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 0]))
+
+    assert out.self_test is not None and out.self_test.startswith("tests/")
+    assert (tmp_path / out.self_test).read_text().startswith("def test_goal")
+    assert out.claimed is True                 # the loop completed; no crash
+    assert "self_test_relocated" in ledger_kinds()
+
+
+def test_driver_falsify_defaults_on_and_no_falsify_disables_the_check():
+    from bench.v2_leaf import build_parser
+
+    assert build_parser().parse_args(["--task", "t"]).falsify is True
+    assert build_parser().parse_args(["--task", "t", "--falsify"]).falsify is True
+    assert build_parser().parse_args(["--task", "t", "--no-falsify"]).falsify is False
+
+
+def test_driver_model_falsifier_maps_the_gate_decide_envelope():
+    """The default falsifier reuses the §20 gate_decide envelope (no new schema):
+    ``accept`` approves, ``reject`` carries the counterexample in ``explanation``, and an
+    ``unable`` envelope is NOT an approval."""
+    from bench.v2_leaf import model_falsifier
+
+    model = FakeModelRunner({"gate_decide": [
+        {"status": "ok", "comment": "could not refute", "decision": "accept",
+         "reason_is_real": True, "weakens_gate": False, "meaning_preserved": True},
+        {"status": "ok", "comment": "refuted", "decision": "reject",
+         "reason_is_real": True, "weakens_gate": False, "meaning_preserved": True,
+         "explanation": "result() returns 1, not 42"},
+        {"status": "unable", "comment": "cannot check", "unable_reason": "no interpreter"},
+    ]})
+    request = FalsifyRequest(goal="g", acs=["AC-1"], test_path="tests/test_x.py",
+                             test_content="def test_goal():\n    assert True\n", diff="diff")
+
+    approved = asyncio.run(model_falsifier(model, request))
+    assert approved.approved is True
+    assert model.calls("gate_decide")[0].fresh is True          # fresh context
+    assert model.calls("gate_decide")[0].artifacts == {}
+    rejected = asyncio.run(model_falsifier(model, request))
+    assert rejected.approved is False
+    assert rejected.counterexample == "result() returns 1, not 42"
+    unable = asyncio.run(model_falsifier(model, request))
+    assert unable.approved is False and "no interpreter" in unable.counterexample
+
+
+def test_v2_driver_survives_a_bad_write_target_shape(tmp_path, monkeypatch):
+    """Finding 2 through the driver: ``run_once`` returns a record (no crash) when the
+    implementation envelope names an existing directory as its target."""
+    import harness.leaf as leaf_mod
+    from bench import v2_leaf
+    from bench.external_score import ExternalScore
+
+    task_dir = tmp_path / "T-shape"
+    (task_dir / "repo" / "pkg").mkdir(parents=True)
+    (task_dir / "repo" / "pkg" / "calc.py").write_text("def result():\n    return 0\n")
+    (task_dir / "request.md").write_text("make result() return 42")
+
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST,
+        write_env("pkg", "def result():\n    return 42\n"),   # existing directory at the target
+    ]})
+    monkeypatch.setattr(v2_leaf, "LlamaServerRunner", lambda server: model)
+    monkeypatch.setattr(leaf_mod, "_default_run_tests", ScriptedTests([1]))
+    monkeypatch.setattr(v2_leaf, "external_score",
+                        lambda *a, **k: ExternalScore(passed=False, exit=1))
+
+    record = v2_leaf.run_once(task_dir, tmp_path / "out", "http://server",
+                              calls=6, deadline_hours=1.0, use_judge=False,
+                              use_falsify=True)
+
+    assert record["stop_reason"] == "write-shape"
+    assert record["claimed"] is False
+    assert record["quadrant"] == "honest-failure"
+
+
+def test_v2_driver_falsify_mode_changes_the_claim_basis(tmp_path, monkeypatch):
+    """Finding 4 through the driver: with ``--falsify`` (the default) a green claim
+    carries ``own-test+falsified-check`` and the refutation pass ran; with
+    ``--no-falsify`` the basis is the run's own test alone."""
+    import harness.leaf as leaf_mod
+    from bench import v2_leaf
+    from bench.external_score import ExternalScore
+
+    task_dir = tmp_path / "T-falsify"
+    (task_dir / "repo" / "pkg").mkdir(parents=True)
+    (task_dir / "repo" / "pkg" / "calc.py").write_text("def result():\n    return 0\n")
+    (task_dir / "request.md").write_text("make result() return 42")
+
+    monkeypatch.setattr(v2_leaf, "external_score",
+                        lambda *a, **k: ExternalScore(passed=True, exit=0))
+
+    model_on = FakeModelRunner({
+        "write_test": [SELF_TEST, impl()],
+        "gate_decide": [{"status": "ok", "comment": "could not refute",
+                         "decision": "accept", "reason_is_real": True,
+                         "weakens_gate": False, "meaning_preserved": True}],
+    })
+    monkeypatch.setattr(leaf_mod, "_default_run_tests", ScriptedTests([1, 0]))
+    monkeypatch.setattr(v2_leaf, "LlamaServerRunner", lambda server: model_on)
+    rec_on = v2_leaf.run_once(task_dir, tmp_path / "on", "http://s", calls=6,
+                              deadline_hours=1.0, use_judge=False, use_falsify=True)
+    assert rec_on["claimed"] is True
+    assert rec_on["claimed_basis"] == "own-test+falsified-check"
+    assert model_on.calls("gate_decide")               # the refutation pass ran
+
+    model_off = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    monkeypatch.setattr(leaf_mod, "_default_run_tests", ScriptedTests([1, 0]))
+    monkeypatch.setattr(v2_leaf, "LlamaServerRunner", lambda server: model_off)
+    rec_off = v2_leaf.run_once(task_dir, tmp_path / "off", "http://s", calls=6,
+                               deadline_hours=1.0, use_judge=False, use_falsify=False)
+    assert rec_off["claimed"] is True
+    assert rec_off["claimed_basis"] == "own-test"
+    assert rec_off["falsify"] is False
+    assert model_off.calls("gate_decide") == []
+
+
+# ------------------------------------------ round 5: one owned-path definition
+
+
+def test_run_written_conftest_is_refused_and_never_reaches_the_gate(tmp_path):
+    """Attack 3B reproduced: staging decided "grader-owned" by ``is_test_path`` only, so
+    a run-written ``conftest.py`` with a ``pytest_sessionfinish`` hook was accepted and
+    made the LEAF's own pytest exit 0 (a manufactured ``claimed=True``). The write is now
+    refused as test infrastructure, recorded, and never runs the gate."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    hook = ("import pytest\n\n\ndef pytest_sessionfinish(session, exitstatus):\n"
+            "    session.exitstatus = 0\n")
+    conftest = write_env("conftest.py", hook, comment="make the gate green")
+    model = FakeModelRunner({"write_test": [SELF_TEST, conftest, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=5, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 0]))
+
+    assert not (tmp_path / "conftest.py").exists()          # refused, never written
+    assert any("conftest.py" in r for r in out.refusals)
+    assert any("infrastructure" in r for r in out.refusals)
+    assert "implement_refused" in ledger_kinds()
+    # only the self-test red and the real implementation green drove the gate
+    assert out.claimed is True and out.signal == "green"
+
+
+def test_leaf_refuses_a_module_shadow_source_write(tmp_path):
+    """Attack 3A through the leaf: a run may not land a top-level module that shadows an
+    interpreter import. The write is refused (recorded) and the escalation continues."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    shadow = write_env("json.py", "import sys\nsys.exit(0)\n", comment="make the grader pass")
+    model = FakeModelRunner({"write_test": [SELF_TEST, shadow, impl(), impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 1, 0]))
+
+    assert not (tmp_path / "json.py").exists()
+    assert any("json.py" in r for r in out.refusals)
+    assert any("module-shadow" in r for r in out.refusals)
+    assert "implement_refused" in ledger_kinds()
+
+
+def test_leaf_gate_refuses_to_run_with_a_shadow_file_in_the_tree(tmp_path):
+    """The leaf's own gate is isolated two ways: PYTHONSAFEPATH removes the implicit
+    cwd prepend, and the gate refuses to run at all when the tree holds an import
+    shadow (which the workdir being on PYTHONPATH would otherwise make decisive)."""
+    import harness.leaf as leaf_mod
+
+    (tmp_path / "json.py").write_text(
+        "import pathlib, sys\npathlib.Path('shadowed.txt').write_text('x')\nsys.exit(0)\n")
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_red.py").write_text("def test_red():\n    assert False\n")
+
+    res = asyncio.run(leaf_mod._default_run_tests(tmp_path))
+
+    assert res.exit == 1                                   # never a forged 0
+    assert not (tmp_path / "shadowed.txt").exists()        # the shadow never executed
+    assert res.gate is not None and res.gate.anomaly == "shadow-file-present"
+
+
+def test_leaf_gate_lets_a_legit_test_import_its_package(tmp_path):
+    """Verification round-6 finding R3: with the import root declared explicitly, a
+    run-written test under tests/ can import the package it tests (it could not while
+    PYTHONSAFEPATH was the only knob)."""
+    import harness.leaf as leaf_mod
+
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "__init__.py").write_text("")
+    (tmp_path / "pkg" / "calc.py").write_text("def result():\n    return 42\n")
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_ok.py").write_text(
+        "from pkg.calc import result\n\ndef test_ok():\n    assert result() == 42\n")
+
+    res = asyncio.run(leaf_mod._default_run_tests(tmp_path))
+
+    assert res.exit == 0 and res.gate is not None and res.gate.green
+
+
+# ------------------------------------------------- round 5: run-record audit
+
+
+def test_run_record_records_refusals_and_the_isolation_env():
+    from bench.external_score import ExternalScore
+    from bench.v2_leaf import build_record
+
+    outcome = LeafOutcome(
+        claimed=False, signal="honest-failure", attempts=[], calls=2, wall_s=1.0,
+        self_test=None, questions=[], exhausted=False, exhaustion_reason="calls",
+        layers_used=[], stop_reason="calls",
+        refusals=["json.py: a module-shadow path (would shadow an interpreter import)"])
+    score = ExternalScore(passed=False, exit=1, shadowed=["json.py"],
+                          isolation={"PYTHONSAFEPATH": "1",
+                                     "PYTEST_ADDOPTS": "-p no:cacheprovider"})
+
+    record = build_record("T-x", "goal", outcome, withheld=[], produced={}, score=score,
+                          quad="honest-failure", run_wall_s=1.0)
+
+    assert record["refusals"] == outcome.refusals
+    assert record["grader_shadowed"] == ["json.py"]
+    assert record["isolation"]["env"]["PYTHONSAFEPATH"] == "1"
+    assert record["isolation"]["grader_env"]["PYTHONSAFEPATH"] == "1"
+    assert "no:cacheprovider" in record["isolation"]["pytest_args"]
+    json.dumps(record)
+
+
+# --------------------------------------- round 5: attack 3A end to end (driver)
+
+
+def test_end_to_end_shadow_module_wrong_fix_is_not_a_true_success(tmp_path, monkeypatch):
+    """The driver case an adversarial pass demonstrated: a wrong fix whose only other
+    change is a run-authored ``json.py`` must not reach the true-success quadrant. The
+    leaf refuses the shadow write and the external grader would refuse it too, so the
+    real source bug stands and the run reports honestly."""
+    import harness.leaf as leaf_mod
+    from bench import v2_leaf
+
+    task_dir = (Path(__file__).resolve().parents[2] / "bench" / "corpus"
+                / "T-31-parameter-threading")
+    shadow = write_env("json.py", "import sys\nsys.exit(0)\n", comment="make the grader pass")
+    wrong = write_env("api/transport.py", "def send(url, payload):\n    return \"ok\"\n",
+                      comment="change the transport")
+    model = FakeModelRunner({"write_test": [SELF_TEST, shadow, *([wrong] * 5)]})
+    monkeypatch.setattr(v2_leaf, "LlamaServerRunner", lambda server: model)
+    monkeypatch.setattr(leaf_mod, "_default_run_tests", ScriptedTests([1]))
+
+    record = v2_leaf.run_once(task_dir, tmp_path / "out", "http://server",
+                              calls=6, deadline_hours=1.0, use_judge=False,
+                              use_falsify=False)
+
+    assert record["claimed"] is False
+    assert record["actual"] is False
+    assert record["quadrant"] != "true-success"
+    assert any("json.py" in r for r in record["refusals"])
+    assert not (tmp_path / "out" / "work" / "json.py").exists()
+
+
+# ---------------------------- round 6: the gate is a machine-readable pytest report (F1)
+# The adversarial pass forged a green with run-authored code: ``import atexit, os`` plus
+# ``atexit.register(lambda: os._exit(0))`` made BOTH pytest runs exit 0 with no test
+# summary, and the run reached claimed=True AND actual=True with the bug untouched. The
+# exit status is no longer evidence: the leaf's own gate requires a JUnit report with the
+# expected test files AND a per-run random canary, so a forged green is RED.
+
+T31 = Path(__file__).resolve().parents[2] / "bench" / "corpus" / "T-31-parameter-threading"
+
+
+def _forged_workdir(tmp_path: Path, *, kill_at_import: bool) -> Path:
+    """A workdir whose own test imports a source that kills pytest with exit 0."""
+    (tmp_path / "pkg").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "pkg" / "__init__.py").write_text("")
+    guard = ("import os\nos._exit(0)\n" if kill_at_import else
+             "import atexit, os\natexit.register(lambda: os._exit(0))\n")
+    (tmp_path / "pkg" / "calc.py").write_text(guard + "\n\ndef result():\n    return 42\n")
+    (tmp_path / "test_leaf_self.py").write_text(
+        "from pkg import calc\n\n\ndef test_goal():\n    assert calc.result() == 41\n")
+    return tmp_path
+
+
+def test_leaf_gate_rejects_a_forged_exit_zero_from_run_code(tmp_path):
+    """The atexit forgery through the REAL gate: the process lies (exit 0) while the
+    run's own test fails. The report catches the failure, so the gate is RED."""
+    import harness.leaf as leaf_mod
+
+    work = _forged_workdir(tmp_path / "atexit", kill_at_import=False)
+    res = asyncio.run(leaf_mod._default_run_tests(work))
+
+    assert res.gate.process_exit == 0                  # the forgery worked on the process
+    assert res.exit != 0                               # ... the report overrode it
+    assert leaf_mod._is_green(res) is False
+    assert res.gate.green is False
+    assert res.gate.observed is True                   # a real report: a real red
+    assert res.gate.anomaly == "tests-failed"
+    assert not (work / "tests").joinpath("report.xml").exists()
+
+
+def test_leaf_gate_is_unobserved_when_run_code_destroys_the_report(tmp_path):
+    """``os._exit(0)`` at import kills pytest before the report is written: no
+    machine-readable evidence, so nothing greens and nothing is a red target."""
+    import harness.leaf as leaf_mod
+
+    work = _forged_workdir(tmp_path / "import", kill_at_import=True)
+    res = asyncio.run(leaf_mod._default_run_tests(work))
+
+    assert res.exit != 0
+    assert leaf_mod._is_green(res) is False
+    assert res.gate.anomaly == "report-missing"
+    assert res.gate.observed is False
+    assert res.gate.structural_anomaly is True
+
+
+def test_leaf_never_claims_when_run_code_forges_the_gate(tmp_path):
+    """F1 end to end with the real gate: the run's ``os._exit(0)`` source kills the gate
+    process, the leaf records ``gate_report_anomaly`` and never claims."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    evil = "import os\nos._exit(0)\n\n\ndef result():\n    return 42\n"
+    model = FakeModelRunner({"write_test": [
+        write_env("test_leaf_self.py",
+                  "from pkg import calc\n\n\ndef test_goal():\n    assert calc.result() == 42\n"),
+        impl(evil, comment="fix the source"),
+    ]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=3, deadline_ts=_FAR_FUTURE))
+
+    assert out.claimed is False
+    assert out.signal != "green"
+    assert out.gate_anomalies and out.gate_anomalies[0].startswith("report-missing")
+    assert "gate_report_anomaly" in ledger_kinds()
+    assert all(a.outcome == "fail" for a in out.attempts)
+
+
+def test_an_exit_zero_without_a_report_is_not_green():
+    """The exit status alone must never green a gate, even at the seam level."""
+    import harness.leaf as leaf_mod
+
+    bare = ShapedResult(command=["python3", "-m", "pytest", "-q"], exit=0, verdict="ok",
+                        excerpts=[])
+    assert leaf_mod._is_green(bare) is False
+
+
+# --------------------------- round 6: the corpus UNTOUCHED set is grader-owned (F2)
+# The grader restores owned_paths(rel) OR the corpus task's UNTOUCHED list, but the leaf
+# guarded only owned_paths, so a run could green by writing a frozen source file the
+# grader then restored — a false success.
+
+def test_t31_untouched_files_are_grader_paths_and_the_write_is_refused(tmp_path):
+    from bench.v2_leaf import build_spec, load_task
+
+    spec = build_spec(load_task(T31))
+    assert "api/__init__.py" in spec.grader_paths           # the UNTOUCHED set (F2)
+    assert "README.md" in spec.grader_paths
+    assert "tests/test_chain.py" in spec.grader_paths       # ... plus the staged-owned paths
+
+    stage(tmp_path, spec.files)
+    frozen = (tmp_path / "api" / "__init__.py").read_text()
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST,
+        write_env("api/__init__.py", "# rewritten by the run\n", comment="touch a frozen file"),
+        impl(path="api/transport.py", content="def send(url, payload, timeout=1.0):\n    return 1\n"),
+    ]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 0]))
+
+    assert (tmp_path / "api" / "__init__.py").read_text() == frozen   # never written
+    assert any("api/__init__.py" in r and "grader-owned" in r for r in out.refusals)
+    assert "implement_refused" in ledger_kinds()
+    assert out.claimed is True                     # the real source fix still greens
+
+
+# ------------------------------- round 6: two more crash shapes become honest refusals (F3)
+# Schema-valid file_path values crashed the real driver: an embedded NUL byte (ValueError
+# from write_text / Path.is_dir) and an over-long file name (OSError ENAMETOOLONG). Both
+# are now the honest write-shape refusal path.
+
+NUL_PATH = "pkg/calc\x00.py"
+LONG_PATH = "pkg/" + "a" * 300 + ".py"
+
+
+@pytest.mark.parametrize("path", [NUL_PATH, LONG_PATH])
+def test_implementation_write_with_an_unusable_name_stops_write_shape(tmp_path, path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST, write_env(path, "def result():\n    return 42\n")]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1]))
+
+    assert out.claimed is False
+    assert out.signal == "honest-failure"
+    assert out.stop_reason == "write-shape"
+    assert "write_shape_refused" in ledger_kinds()
+    assert any("unwritable path" in r for r in out.refusals)
+
+
+@pytest.mark.parametrize("path", ["tests/test_\x00self.py", "tests/" + "a" * 300 + ".py"])
+def test_self_test_with_an_unusable_name_stops_write_shape(tmp_path, path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        write_env(path, "def test_goal():\n    assert result() == 42\n")]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=3, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1]))
+
+    assert out.claimed is False
+    assert out.stop_reason == "write-shape"
+    assert out.self_test is None
+    assert "write_shape_refused" in ledger_kinds()
+
+
+def test_write_converts_filesystem_refusals_instead_of_crashing(tmp_path):
+    """The second half of F3: ``_write`` never leaks a ValueError/OSError."""
+    from harness.leaf import WriteShapeRefused, _write
+
+    with pytest.raises(WriteShapeRefused) as nul:
+        _write(tmp_path, NUL_PATH, "x = 1\n")
+    assert nul.value.path == NUL_PATH
+    assert "unwritable path" in nul.value.detail
+    with pytest.raises(WriteShapeRefused):
+        _write(tmp_path, LONG_PATH, "x = 1\n")
+
+
+# ------------------------------------------- round 6: sweep flags / run-record evidence
+
+def test_sweep_exposes_and_forwards_the_judge_and_falsify_flags(tmp_path, monkeypatch):
+    """An A/B measurement must run unattended: the sweep exposes --judge/--no-judge and
+    --falsify/--no-falsify and forwards both to the driver."""
+    from bench import v2_sweep
+
+    parser = v2_sweep.build_parser()
+    assert parser.parse_args([]).judge is True and parser.parse_args([]).falsify is True
+    off = parser.parse_args(["--no-judge", "--no-falsify"])
+    assert off.judge is False and off.falsify is False
+
+    corpus = tmp_path / "corpus" / "T-99-pinned"
+    (corpus / "repo").mkdir(parents=True)
+    (tmp_path / "anchor").mkdir()
+    monkeypatch.setattr(v2_sweep, "CORPUS", tmp_path / "corpus")
+    monkeypatch.setattr(v2_sweep, "ANCHOR", tmp_path / "anchor")
+    monkeypatch.setattr(v2_sweep, "ROOT", tmp_path)
+    seen: list[dict] = []
+
+    def fake_run_once(task_dir, out_dir, server, calls, deadline_hours, **kw):
+        seen.append(kw)
+        return {"task": task_dir.name, "claimed": False, "actual": False, "signal": "x",
+                "quadrant": "honest-failure", "stop_reason": "calls", "calls": 0,
+                "run_wall_s": 0.1}
+
+    monkeypatch.setattr(v2_sweep, "run_once", fake_run_once)
+    monkeypatch.setattr("sys.argv", ["v2_sweep", "--tasks", "all"])
+    assert v2_sweep.main() == 0
+    assert seen == [{"use_judge": True, "use_falsify": True}]
+
+    seen.clear()
+    monkeypatch.setattr("sys.argv", ["v2_sweep", "--tasks", "all", "--no-judge", "--no-falsify"])
+    assert v2_sweep.main() == 0
+    assert seen == [{"use_judge": False, "use_falsify": False}]
+
+
+def test_run_record_records_the_gate_report_evidence():
+    from bench.external_score import ExternalScore
+    from bench.v2_leaf import build_record
+    from harness.gate_report import GateReport
+
+    gate = GateReport(report_path="/tmp/private/report.xml", process_exit=0, canary="tok",
+                      expected_files=("tests/test_chain.py",), n_tests=5, n_failed=4,
+                      n_errors=0, passed_ids=("tests/test_chain.py::test_ok",),
+                      failed_ids=("tests/test_chain.py::test_bad",), missing=(),
+                      observed=True, anomaly="tests-failed", detail="4 failure(s)")
+    outcome = LeafOutcome(
+        claimed=False, signal="honest-failure", attempts=[], calls=2, wall_s=1.0,
+        self_test=None, questions=[], exhausted=False, exhaustion_reason="calls",
+        layers_used=[], stop_reason="calls",
+        gate_anomalies=["report-missing: no machine-readable pytest report"])
+    score = ExternalScore(passed=False, exit=0, notes=[], work_root="", applied=[],
+                          skipped=[], report_gate=gate, suspected_contaminated_grade=True)
+
+    record = build_record("T-x", "goal", outcome, withheld=[], produced={}, score=score,
+                          quad="honest-failure", run_wall_s=1.0)
+
+    assert record["gate_anomalies"] == outcome.gate_anomalies
+    assert record["grader_report_gate"]["anomaly"] == "tests-failed"
+    assert record["grader_report_gate"]["expected_files"] == ("tests/test_chain.py",)
+    assert record["grader_suspected_contaminated_grade"] is True
+    assert record["isolation"]["report_dir"].startswith("private mkdtemp")
+    json.dumps(record)

@@ -26,7 +26,7 @@ from typing import Literal, Sequence
 from pydantic import BaseModel, ConfigDict, Field
 
 __all__ = [
-    "TargetLayer", "Strategy", "Novelty", "Attempt",
+    "TargetLayer", "Strategy", "Novelty", "Attempt", "JudgeVerdict",
     "failure_signature", "prefilter", "exhausted", "layers_tried",
 ]
 
@@ -71,6 +71,27 @@ def failure_signature(failing_tests: Sequence[str], excerpts: Sequence[str]) -> 
     return f"tests[{ids_s}] errors[{kinds_s}]" if (ids_s or kinds_s) else ""
 
 
+class JudgeVerdict(BaseModel):
+    """An independent judge's attribution of a failure, after the deterministic
+    filter (ticket 17 round 3).
+
+    ``attribution`` is always one of implementation | tests | spec | environment
+    once :func:`harness.leaf.apply_judge_filter` has run. ``defect`` names the
+    CONCRETE defect in one sentence. ``raw`` keeps the judge's unedited verdict and
+    ``coerced``/``coercion_reason`` record whether the filter overrode a ``tests``
+    claim that did not name the failing test or one of its assertions — the evidence
+    the judge itself is calibrated against later.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    attribution: str = "implementation"   # domain enforced by apply_judge_filter
+    defect: str = ""
+    raw: str = ""
+    coerced: bool = False
+    coercion_reason: str = ""
+
+
 class Attempt(BaseModel):
     """One escalation attempt on one node. Append-only evidence, never injected."""
 
@@ -84,6 +105,7 @@ class Attempt(BaseModel):
     touched_files: list[str] = Field(default_factory=list)
     outcome: Literal["pass", "fail"]
     verdict: Novelty | None = None   # filled by prefilter or judge
+    judge: JudgeVerdict | None = None  # the independent attribution, when one was consulted
     calls_used: int = 1
     at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

@@ -161,6 +161,20 @@ Invariants to pin as tests (>= 12 cases):
   (transport error now stops as `self-test-unverified` and leaves no file), removed the
   bogus target left by a vacuous rewrite, pinned all three with tests. Suite **211 green**
   (`tests/unit/test_v2_leaf.py` = 31 cases).
+- 2026-09-29 lane `worker` (round 6, adversarial findings F1-F3): **the process exit status
+  stopped being evidence.** Both gates (the leaf's own pytest and the grader's own
+  verification) now require a JUnit report — `--junitxml` into a private `mkdtemp` OUTSIDE
+  the repository — with at least one testcase, zero failures and zero errors, the EXPECTED
+  test file(s) all passed, and a per-run RANDOM canary node id (a generated test the run
+  never saw). Any anomaly is RED and recorded as `gate_report_anomaly` with the detail; the
+  corpus `checks.py` is NOT modified — `bench/external_score.py` adds its own report gate and
+  records `suspected_contaminated_grade` when the corpus check exits 0 but the report does
+  not. F2: the driver passes the corpus `UNTOUCHED` set into `LeafSpec.grader_paths` (union
+  with the staged-owned paths), so the leaf refuses exactly what the grader restores (T-31
+  `api/__init__.py`). F3: an embedded NUL byte and an over-long file name are converted into
+  the honest write-shape refusal instead of crashing. `bench/v2_sweep.py` gains
+  `--judge/--no-judge` and `--falsify/--no-falsify`, forwarded to the driver. Suite **284
+  green**.
 
 ## First honest v2 measurement (2026-09-29, reference model, N=1)
 
@@ -193,3 +207,35 @@ model's own "the test is wrong" claim is never credited. T-02's second live run 
 textbook case: the source fix was right, the self-test was wrong (it asserted every item
 appears on every page), and the leaf honestly reported exhaustion instead of claiming —
 a missed success that an independent test-side judgement would have converted.
+
+## Rounds 3-6 (delegated) and the perimeter decision
+
+Six delegated rounds, each a writer lane plus an independent read-only *adversarial*
+verifier lane (shell-enabled, explicitly told to try to forge a pass). Attacks found and
+closed: the model naming its test after the withheld grader file; envelope crashes; the
+judge path letting a weakened test claim success; a run-written `conftest.py` that
+turned the grader green; stdlib/pytest module shadowing (`json.py`, `pytest.py`) that
+forged a pass; `atexit` + `os._exit(0)` inside a legitimate source file that forged
+BOTH gates. Fixes: parameter-layer tolerance, bounded envelope retries, replace-never-
+weaken + independent judgement, one owned-path definition used by staging/the leaf/the
+grader, module-shadow refusal, interpreter isolation, and report-based gates (junit XML
+in a private temp dir + per-run randomized canary + expected node ids) so an exit status
+is never evidence.
+
+Perimeter decision (owner charter is "no false success"): in-process evidence is
+fundamentally forgeable, because the measured code executes inside the gate's own
+process — a run can read `sys.argv`/`/tmp`, unlink the canary, rewrite the report, and
+exit 0. Verification demonstrated this end to end (minimal recipe in the round-6 review).
+We stop hardening here and record it as a KNOWN LIMITATION with tamper-evidence
+(`gate_report_anomaly`, `gate_process_lie`, `shadow-file-present`) plus the recorded
+escape hatch: eventual OS-level separation of the gate (the harness already has bwrap
+plumbing). Empirically the reference model never produced such code; the exposure is
+adversarial, and the accidental case (a stray `sys.exit()` in edited source) is caught.
+
+Live-run findings fixed directly by the supervisor: the gate inherited the repository's
+own pytest configuration because the workdir lives under the repo, which changed the
+report's file paths and silently broke canary/expected-file matching (T-02 ran 7 calls
+and could never green). The leaf gate now runs with a neutral `-c` config and a pinned
+`--rootdir=.`; the grader pins `--rootdir=.` too. Import roots are declared explicitly
+(`gate_env`), so a legitimate run-written test under `tests/` can import its package
+(verification round-6 R3), while a shadow file present in the tree refuses the gate.

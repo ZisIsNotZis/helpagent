@@ -14,7 +14,9 @@ instead of kept as the target. This module is the replacement: a single leaf tha
 3. escalates along L1–L5, refusing an escalation that neither adds information nor
    shrinks the unit (recorded ``wasted``; the ladder still advances), and
 4. stops only on green, node exhaustion, a spec bubble, a deadline handover, a
-   refused/unestablished self-test, or an exhausted call budget.
+   refused/unestablished self-test, an exhausted call budget, or a model envelope that
+   stayed malformed past its bounded retries (``malformed-output`` — no model failure
+   ever raises out of the leaf).
 
 Fixed contract points, each deliberate:
 
@@ -27,16 +29,42 @@ Fixed contract points, each deliberate:
   schema (ENVELOPE_SCHEMAS §10/§11). No new schema was added: ``SCHEMAS`` stays at 23
   entries (pinned by test_envelopes_schema), and the leaf reuses the documented
   transport rather than widening the library.
-- **No false success, ever.** ``exit == 0`` is the ONLY green condition; a
-  ``None`` exit (transport error) and a policy-blocked shaped result are red. The
-  run's own ``run_tests`` is the only thing that can set ``claimed=True``. A model
-  ``comment`` claiming green is irrelevant.
+- **No false success, ever.** Green is a MACHINE-READABLE pytest report, never the
+  process exit status (ticket 17 F1): run-authored code executes inside the gate
+  process, so ``import atexit, os`` + ``os._exit(0)`` could make both pytest runs exit
+  0 with no test summary. The gate now runs pytest with ``--junitxml`` into a private
+  ``mkdtemp`` outside the repository and requires the report to exist, parse, hold at
+  least one testcase, report zero failures/errors, contain the run's own expected test
+  file(s) with everything passed, and contain this run's random canary node id; any
+  anomaly is RED and recorded as ``gate_report_anomaly``. A ``None`` exit (transport
+  error), a policy-blocked shaped result, and a gate result with no report are all red.
+  The run's own ``run_tests`` is the only thing that can set ``claimed=True``. A model
+  ``comment`` claiming green is irrelevant. A green that follows a judge-authorized
+  test REWRITE never claims: it stops as ``green-after-test-rewrite`` (the
+  implementation satisfied a replaced test — unverified).
+- **A claim needs an independent refutation pass (ticket 17 round 4).** When a
+  ``falsifier`` is injected (the ``--falsify`` driver default), ``claimed=True``
+  additionally requires one fresh-context call asked to REFUTE the fix, seeing the
+  goal, the ACs, the run's own test, and the source diff — never a grader path. A
+  concrete counterexample makes it the next attempt's failure context and the loop
+  CONTINUES; an approval lets the claim stand (``claimed_basis="own-test+falsified-check"``).
+  A falsification call that cannot be afforded or whose output is malformed leaves
+  ``claimed=False`` — never claim unverified. Without a ``falsifier`` the basis is the
+  run's own unmodified test (``claimed_basis="own-test"``).
 - **A test may only be REPLACED, never weakened, and only with an independent
   judge.** The model's own "the test is wrong" claim is never enough: without an
   injected independent judge the claim is not credited and the failure is treated
   as an implementation failure (deterministic conservative default). When the judge
   does attribute to the tests, the test is re-derived from scratch and must be RED
-  ON ARRIVAL again before the loop continues.
+  ON ARRIVAL again before the loop continues. A judge attribution of ``tests`` is
+  itself put through the deterministic filter (:func:`apply_judge_filter`): it is
+  honoured only when the verdict carries a non-empty defect naming the failing test
+  function or one of its assertions; otherwise it is coerced to implementation and
+  the coercion is recorded for calibration.
+- **No model failure crashes the leaf.** Every envelope request (self-test, its
+  retry, implement, judge, test rewrite) is retried up to :data:`ENVELOPE_RETRIES`
+  times when the model output is malformed/unparseable; a persistent failure stops
+  the run as ``malformed-output`` rather than raising :class:`SchemaViolation`.
 - **No "give up".** Exhaustion is delegated to :func:`harness.attempts.exhausted`,
   so a same-verdict tail without a structural lever or three exercised layers keeps
   the node alive. The leaf's ``exhausted`` flag is set only by that function; a call
@@ -45,31 +73,64 @@ Fixed contract points, each deliberate:
 
 from __future__ import annotations
 
+import difflib
 import inspect
 import json
+import re
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 from typing import Any
 
-from harness.attempts import Attempt, failure_signature, layers_tried, prefilter
+from harness.attempts import (
+    Attempt,
+    JudgeVerdict,
+    failure_signature,
+    layers_tried,
+    prefilter,
+)
 from harness.attempts import exhausted as attempts_exhausted
 from harness.budget import Budget
 from harness.checks import diagnose_test_output
 from harness.exec import ShapedResult
 from harness.exec import exec as k_exec
+from harness.gate_report import (
+    JUNIT_FAMILY_ARGS,
+    GateReport,
+    canary_path,
+    canary_source,
+    canary_token,
+    cleanup_report,
+    evaluate_gate,
+    private_report_path,
+)
 from harness.questions import Question, QuestionQueue
 from harness.runner import llm_step, note
-from harness.staging import is_test_path
+from harness.staging import (
+    PYTEST_ISOLATION_ARGS,
+    gate_env,
+    shadowing_paths,
+    PYTEST_ISOLATION_ENV,
+    is_test_infrastructure,
+    is_test_path,
+    owned_paths,
+    shadowing_path,
+)
 
 __all__ = [
     "LADDER",
     "STRATEGY_LAYER",
     "Escalation",
+    "FalsifyRequest",
+    "FalsifyVerdict",
     "JudgeRequest",
+    "JudgeVerdict",
     "LeafOutcome",
     "LeafSpec",
+    "WriteShapeRefused",
+    "apply_judge_filter",
     "escalate",
     "run_leaf",
 ]
@@ -99,16 +160,26 @@ STRATEGY_LAYER: dict[str, str] = {
 }
 
 #: The leaf's stop vocabulary (ticket policy). Exactly one is set on every return.
+#: ``malformed-output`` is the round-3 robustness stop: a model envelope that stayed
+#: unparseable after its bounded retries no longer raises — it stops honestly here.
 STOP_REASONS: tuple[str, ...] = (
-    "calls",         # the call budget is spent
-    "deadline",      # the wall-clock window closed (handover)
-    "attempts",      # node exhaustion or the bounded-attempt cap
-    "ladder",        # no rung is left to advance to
-    "spec-bubble",   # the judge attributed the failure to the specification
-    "no-red-target", # the run's own test could not be made to fail on arrival
-    "self-test",     # the run's own test could not be written at a safe path
-    "green",         # the run's own tests exited 0
+    "calls",            # the call budget is spent
+    "deadline",         # the wall-clock window closed (handover)
+    "attempts",         # node exhaustion or the bounded-attempt cap
+    "ladder",           # no rung is left to advance to
+    "spec-bubble",      # the judge attributed the failure to the specification
+    "no-red-target",    # the run's own test could not be made to fail on arrival
+    "self-test",        # the run's own test could not be written at a safe path / could not run
+    "green",            # the run's own tests exited 0 (and, in falsify mode, were not refuted)
+    "green-after-test-rewrite",  # a replaced test went green: unverified, never claimed
+    "write-shape",      # a write target could not be normalized (NUL/long/dir/file-parent)
+    "malformed-output", # a model envelope stayed malformed past its bounded retries
 )
+
+#: Bounded retries for a malformed/unparseable model envelope (owner direction: no
+#: model failure may crash the leaf). One initial attempt plus this many retries; a
+#: persistent failure stops the run as ``malformed-output`` instead of raising.
+ENVELOPE_RETRIES = 2
 
 _SELF_TEST_QUESTION = (
     "Write the run's OWN test file that pins the goal. Reply with a NEW file path "
@@ -154,11 +225,16 @@ class LeafOutcome:
     """The two facts that matter — what the run CLAIMED and how it stopped — plus the
     evidence needed to audit the loop's honesty.
 
-    ``claimed`` is True only if the run's own tests exited 0. ``stop_reason`` is the
+    ``claimed`` is True only if the run's own tests exited 0 AND (when a falsifier
+    was injected) an independent refutation pass approved. ``stop_reason`` is the
     single explicit stop (:data:`STOP_REASONS`); ``exhaustion_reason`` keeps the
     human-readable detail. ``wasted_escalations`` surfaces refusals that were only
     visible in the process-global ledger before. ``test_rewrites`` /
-    ``own_test_mutated`` record a judge-authorized replacement of the run's own test.
+    ``own_test_mutated`` record a judge-authorized replacement of the run's own test;
+    a green that follows one is ``green-after-test-rewrite`` and never claimed.
+    ``claimed_basis`` records whether the claim rested on the run's own test alone or
+    on the own test plus the independent falsified check; ``falsify_verdicts`` and
+    ``falsify_counterexample`` carry every refutation attempt.
     """
 
     claimed: bool  # True ONLY if the run's own pytest exited 0
@@ -176,17 +252,61 @@ class LeafOutcome:
     test_rewrites: int = 0
     own_test_mutated: bool = False
     needs_parent: bool = False  # a spec bubble: the parent owns the next move
+    judge_verdicts: list[JudgeVerdict] = field(default_factory=list)  # every attribution,
+    # raw + coerced, for calibrating the judge itself (also attached to its Attempt)
+    claimed_basis: str = "own-test"  # "own-test" | "own-test+falsified-check"
+    falsify_verdicts: list[FalsifyVerdict] = field(default_factory=list)
+    falsify_counterexample: str = ""  # the last concrete refutation, when one was given
+    # Every write-guard action (ticket 17 round 5): a refused self-test/source write or
+    # a normalized landing spot. Persisted in the run record so a forged-green attempt
+    # is visible after the fact.
+    refusals: list[str] = field(default_factory=list)
+    # Every gate report anomaly seen (ticket 17 F1): a missing/unparsable pytest report,
+    # a report without the per-run canary, a report that contradicts the exit status.
+    # A gate with an anomaly is RED and the detail lands here and in the run record.
+    gate_anomalies: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
 class JudgeRequest:
-    """Everything an independent attribution judge may see (never grader paths)."""
+    """Everything an independent attribution judge may see (never grader paths).
+
+    The blind view: the goal, the acceptance criteria, the run's OWN test file, the
+    failing test output, and the current source (source-only, never a grader path).
+    """
 
     goal: str
     failure: str
     test_path: str
     test_content: str
     files: dict[str, str]
+    acs: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class FalsifyRequest:
+    """Everything the independent falsifier may see: never a grader path.
+
+    The blind view of the finished candidate — the goal, the acceptance criteria, the
+    run's OWN test, and the source diff (baseline ``spec.files`` → the current blind
+    source view). It is asked to REFUTE, not to bless: it returns a concrete
+    counterexample or an approval.
+    """
+
+    goal: str
+    acs: list[str]
+    test_path: str
+    test_content: str
+    diff: str
+
+
+@dataclass(frozen=True)
+class FalsifyVerdict:
+    """The independent falsifier's answer: approval, or a concrete counterexample."""
+
+    approved: bool
+    counterexample: str = ""
+    raw: str = ""
 
 
 @dataclass(frozen=True)
@@ -280,35 +400,114 @@ def _escapes_repo(rel: str) -> bool:
     return path.is_absolute() or ".." in path.parts
 
 
+def _write_shape_problem(rel: str, workdir: Path) -> str:
+    """Why ``rel`` cannot be written as a file in ``workdir`` ("" when it can).
+
+    A write target is a PARAMETER: a schema-valid envelope naming an existing
+    directory (``"pkg"``, ``"pkg/"``, ``"."``) or a path under an existing file
+    (``"pkg/calc.py/x.py"``) would otherwise raise ``IsADirectoryError`` /
+    ``FileExistsError`` from ``Path.write_text``/``mkdir`` — outside the bounded
+    request wrapper, which crashed a real driver run.
+
+    Ticket 17 F3: the same schema-valid envelope can carry a path the FILESYSTEM
+    itself refuses — an embedded NUL byte (``ValueError``) or an over-long file name
+    (``OSError`` ENAMETOOLONG) is raised from the very ``Path.is_dir`` probe below.
+    Both are caught here and reported as the honest write-shape problem, so neither
+    the self-test nor the implementation path can crash.
+    """
+    if not rel or _escapes_repo(rel):
+        return ""                       # path-escape is a logic refusal, handled elsewhere
+    target = workdir / rel
+    try:
+        if target.is_dir():
+            return "target is an existing directory"
+        parent = target.parent
+        while parent != workdir and parent != parent.parent:
+            if parent.is_file():
+                return "a path component is an existing file"
+            parent = parent.parent
+    except (ValueError, OSError) as exc:
+        # ValueError: embedded NUL byte. OSError: ENAMETOOLONG / EACCES / ... — the
+        # filesystem refuses the name itself, which no amount of mkdir can fix.
+        return f"unwritable path ({type(exc).__name__}: {exc})"
+    return ""
+
+
 def _new_test_problem(rel: str, spec: LeafSpec, workdir: Path) -> str:
-    """Why ``rel`` may not be the run's own test path ("" when it may)."""
+    """Why ``rel`` may not be the run's own test path ("" when it may).
+
+    The run's OWN test must be a NEW test path: a non-test path, test infrastructure
+    (``tests/conftest.py``, pytest config, ``sitecustomize``), a module-shadow path
+    (``json.py``), an existing file, or a path of the wrong shape are all refused here;
+    the caller normalizes such a landing spot to a free test path.
+    """
     if _escapes_repo(rel):
         return "escapes the repository"
     if rel in set(spec.grader_paths):
         return "grader-owned path"
+    if is_test_infrastructure(rel):
+        return "test infrastructure (grader-owned)"
     if not is_test_path(rel):
         return "not a test path"
+    if shadowing_path(rel):
+        return "a module-shadow path"
+    shape = _write_shape_problem(rel, workdir)
+    if shape:
+        return shape
     if rel in spec.files or (workdir / rel).exists():
         return "already exists — never overwrite shipped files"
     return ""
 
 
 def _source_write_problem(rel: str, spec: LeafSpec, self_test: str | None) -> str:
+    """Why ``rel`` may not be written as an implementation file ("" when it may).
+
+    The implementation seam excludes every :func:`harness.staging.owned_paths` path —
+    a run may never write a test path, ``conftest.py``/pytest config/``sitecustomize``,
+    or a module-shadow path that would subvert the interpreter's own imports.
+    """
     if _escapes_repo(rel):
         return "escapes the repository"
     if rel in set(spec.grader_paths):
         return "grader-owned path"
     if self_test is not None and rel == self_test:
         return "the run's own test file (outside the implementation seam)"
-    if is_test_path(rel):
+    if owned_paths(rel):
+        if is_test_infrastructure(rel):
+            return "test infrastructure (grader-owned)"
         return "a test path (outside the implementation seam)"
+    if shadowing_path(rel):
+        return "a module-shadow path (would shadow an interpreter import)"
     return ""
 
 
+class WriteShapeRefused(RuntimeError):
+    """A write target the filesystem refuses (embedded NUL, ENAMETOOLONG, ...).
+
+    Raised by :func:`_write` instead of leaking ``ValueError``/``OSError`` out of the
+    loop; every caller routes it to the honest write-shape refusal / stop.
+    """
+
+    def __init__(self, path: str, detail: str) -> None:
+        super().__init__(f"{path}: {detail}")
+        self.path = path
+        self.detail = detail
+
+
 def _write(workdir: Path, rel: str, content: str) -> Path:
+    """Write ``rel`` under ``workdir``; the filesystem's own refusal is data.
+
+    The callers already probe the shape with :func:`_write_shape_problem`; this catch
+    is the second half of F3 (and covers anything that probe does not anticipate): a
+    ``ValueError`` (embedded NUL byte) or ``OSError`` (over-long name, permissions)
+    becomes :class:`WriteShapeRefused` instead of crashing the loop.
+    """
     target = workdir / rel
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content)
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content)
+    except (ValueError, OSError) as exc:
+        raise WriteShapeRefused(rel, f"unwritable path ({type(exc).__name__}: {exc})") from exc
     return target
 
 
@@ -343,18 +542,25 @@ def _exit_code(res: ShapedResult | Any) -> int | None:
 
 
 def _is_green(res: ShapedResult | Any) -> bool:
-    """``exit == 0`` is the ONLY green condition (owner policy).
+    """Green requires a MACHINE-READABLE report, not an exit status (ticket 17 F1).
 
     A ``None`` exit (transport error), a policy-blocked result, and a non-int exit
-    (a bare ``False`` is not an exit code) are all red. This mirrors
-    ``ShapedResult.ok`` (``harness/exec.py``); ignoring ``policy_blocked`` here
-    contradicted this docstring and was the one crack an independent verification
-    pass found by crafting ``policy_blocked=True, exit=0``.
+    (a bare ``False`` is not an exit code) are all red; this mirrors
+    ``ShapedResult.ok`` (``harness/exec.py``) and closed the ``policy_blocked=True,
+    exit=0`` crack an independent verification pass found.
+
+    The exit status alone is never enough: run-authored code executes inside the gate
+    process and can force it to 0 before any test runs, so a gate result must carry a
+    :class:`~harness.gate_report.GateReport` and that report must be green. A result
+    with no report at all is red.
     """
     code = _exit_code(res)
     if not isinstance(code, int) or isinstance(code, bool) or code != 0:
         return False
-    return not getattr(res, "policy_blocked", False)
+    if getattr(res, "policy_blocked", False):
+        return False
+    gate = getattr(res, "gate", None)
+    return gate is not None and gate.green
 
 
 def _history_text(attempts: Sequence[Attempt]) -> str:
@@ -384,6 +590,107 @@ def _claims_test_wrong(env: Any) -> bool:
     return any(phrase in comment for phrase in _TEST_BLAME_PHRASES)
 
 
+# ---------------------------------------------------------------------------
+# independent judge: deterministic filter over the model's attribution
+# ---------------------------------------------------------------------------
+
+#: The canonical attribution domain (owner policy: implementation | tests | spec |
+#: environment). A judge's label is mapped onto this before anything is credited.
+ATTRIBUTIONS: tuple[str, ...] = ("implementation", "tests", "spec", "environment")
+
+#: Aliases a judge model may use for the same four attributions.
+_ATTRIBUTION_ALIASES = {
+    "implementation": "implementation", "code": "implementation", "source": "implementation",
+    "tests": "tests", "test": "tests",
+    "spec": "spec", "specification": "spec", "requirement": "spec",
+    "environment": "environment", "env": "environment", "harness": "environment",
+}
+
+_TEST_FN = re.compile(r"\bdef\s+(test_[A-Za-z0-9_]+)")
+_ASSERT = re.compile(r"\bassert\b\s+(.+)$")
+_STRING_LITERAL = re.compile(r"(['\"])(.+?)\1")
+_FAILED_TEST_ID = re.compile(r"::\s*([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def _test_anchors(request: JudgeRequest) -> set[str]:
+    """Deterministic anchors that make a defect *about the test* rather than a vibe:
+    the test function names, each assertion expression and its string-literal
+    expectations, and the failing test ids named in the run's failing output. A bare
+    numeric literal is deliberately NOT an anchor — the expected value also appears in
+    a defect that blames the implementation, so it would let a mis-attribution through."""
+    anchors: set[str] = set()
+    content = request.test_content or ""
+    for name in _TEST_FN.findall(content):
+        anchors.add(_norm(name))
+    for line in content.splitlines():
+        match = _ASSERT.search(line)
+        if not match:
+            continue
+        expr = match.group(1).split("#", 1)[0].strip().rstrip(":")
+        if len(expr) >= 3:
+            anchors.add(_norm(expr))
+        for _, literal in _STRING_LITERAL.findall(expr):
+            if len(literal) >= 3:
+                anchors.add(_norm(literal))
+    for name in _FAILED_TEST_ID.findall(request.failure or ""):
+        anchors.add(_norm(name))
+    return {a for a in anchors if a}
+
+
+def _defect_names_the_test(defect: str, request: JudgeRequest) -> bool:
+    normalized = _norm(defect)
+    if not normalized:
+        return False
+    return any(anchor in normalized for anchor in _test_anchors(request))
+
+
+def apply_judge_filter(verdict: JudgeVerdict, request: JudgeRequest) -> JudgeVerdict:
+    """The DETERMINISTIC FILTER — never trust the model's word alone.
+
+    ``attribution == "tests"`` is honoured ONLY when ``defect`` is non-empty AND names
+    the failing test function or an assertion/expectation of the run's own test.
+    Anything else is coerced to ``implementation`` and the coercion is recorded
+    (``coerced`` + ``coercion_reason``) so the judge can be calibrated later. An
+    unknown attribution label is likewise coerced to ``implementation``.
+    """
+    canonical = _ATTRIBUTION_ALIASES.get(_norm(verdict.attribution))
+    if canonical is None:
+        return verdict.model_copy(update={
+            "attribution": "implementation", "coerced": True,
+            "coercion_reason": f"unknown attribution {verdict.attribution!r} coerced to implementation"})
+    if canonical == "tests" and not _defect_names_the_test(verdict.defect, request):
+        return verdict.model_copy(update={
+            "attribution": "implementation", "coerced": True,
+            "coercion_reason": ("tests attribution without a defect naming the failing test "
+                                "or one of its assertions (deterministic filter)")})
+    if canonical != verdict.attribution:
+        return verdict.model_copy(update={"attribution": canonical})
+    return verdict
+
+
+def _as_verdict(result: Any) -> JudgeVerdict:
+    """Accept a structured verdict, a raw payload dict, or a bare attribution string
+    (hand-authored oracles in tests use the string form)."""
+    if isinstance(result, JudgeVerdict):
+        return result
+    if isinstance(result, Mapping):
+        return JudgeVerdict(
+            attribution=str(result.get("attribution", "implementation")),
+            defect=str(result.get("defect", "")),
+            raw=str(result.get("raw", "")),
+        )
+    if isinstance(result, str):
+        return JudgeVerdict(attribution=result, raw=result)
+    raise TypeError(
+        f"judge returned {type(result).__name__}; expected a verdict, dict, or attribution")
+
+
+async def _call_judge(attribution: Any, request: JudgeRequest) -> JudgeVerdict:
+    """One judge call including verdict conversion — a module-level helper so it can be
+    bound with :func:`functools.partial` (no loop-variable capture)."""
+    return _as_verdict(await _maybe_await(attribution, request))
+
+
 async def _maybe_await(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
     result = fn(*args, **kwargs)
     if inspect.isawaitable(result):
@@ -391,8 +698,134 @@ async def _maybe_await(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any
     return result
 
 
+def _as_falsify_verdict(result: Any) -> FalsifyVerdict:
+    """Accept a structured verdict, a raw payload dict, or a bare response string
+    (hand-authored oracles in tests use the string form). Anything else is malformed
+    and must not be read as an approval (never claim unverified)."""
+    if isinstance(result, FalsifyVerdict):
+        return result
+    if isinstance(result, Mapping):
+        return FalsifyVerdict(
+            approved=bool(result.get("approved", False)),
+            counterexample=str(result.get("counterexample", "")),
+            raw=str(result.get("raw", "")),
+        )
+    if isinstance(result, str):
+        lowered = result.strip().lower()
+        if lowered in {"approve", "approved", "accept", "accepted", "ok", "pass"}:
+            return FalsifyVerdict(approved=True, raw=result)
+        head, _, tail = result.partition(":")
+        if head.strip().lower() in {"reject", "rejected", "refute", "refuted", "fail"}:
+            return FalsifyVerdict(approved=False, counterexample=tail.strip(), raw=result)
+    raise ValueError(
+        f"falsifier returned {type(result).__name__}; expected an approval or a rejection "
+        "with a concrete counterexample")
+
+
+async def _call_falsifier(
+    falsifier: Any, request: FalsifyRequest
+) -> FalsifyVerdict:
+    """One falsification call including verdict conversion — module-level so it can be
+    bound with :func:`functools.partial` (no loop-variable capture)."""
+    return _as_falsify_verdict(await _maybe_await(falsifier, request))
+
+
+def _source_diff(spec: LeafSpec, workdir: Path,
+                 baseline: Mapping[str, str | None]) -> str:
+    """The blind source diff (baseline ``spec.files`` → the current source view) handed
+    to the falsifier. Test and grader paths never appear (``_repo_view`` filters test
+    paths; ``spec.files`` is already source-only)."""
+    current = _repo_view(spec, workdir, tuple(baseline))
+    chunks: list[str] = []
+    for rel in sorted(set(spec.files) | set(current)):
+        before = spec.files.get(rel)
+        after = current.get(rel)
+        if before == after:
+            continue
+        diff = difflib.unified_diff(
+            (before or "").splitlines(keepends=True),
+            (after or "").splitlines(keepends=True),
+            fromfile=f"a/{rel}", tofile=f"b/{rel}")
+        chunks.append("".join(diff))
+    return "\n".join(chunks) or "(no source changes)"
+
+
 async def _default_run_tests(workdir: Path) -> ShapedResult:
-    return await k_exec(["python3", "-m", "pytest", "-q"], workdir, provenance="kernel")
+    """The run's own gate: interpreter isolation + a machine-readable report.
+
+    ``PYTHONSAFEPATH=1`` keeps the run-owned workdir off ``sys.path`` so a
+    run-authored top-level module (``json.py`` / ``pytest.py`` / ``_pytest/``) cannot
+    shadow an interpreter import and exit 0 before pytest runs; ``-p
+    no:cacheprovider`` keeps pytest from writing a cache into the run's tree.
+
+    Ticket 17 F1: the process exit status is not evidence. pytest is launched with
+    ``--junitxml=<path in a private mkdtemp OUTSIDE the repository>`` and a small
+    generated CANARY test (random token in its node id) next to the run's own tests;
+    the gate is green only when the report exists, parses, holds the expected test
+    file(s) and the canary all passed, and reports no failure or error. The exit code
+    exposed to the loop is DERIVED from the report — 0 only on a green report.
+    """
+    workdir = Path(workdir)
+    shadows = shadowing_paths(workdir)
+    if shadows:
+        # The workdir is on PYTHONPATH so a legitimate test can import its package;
+        # that makes a shadow file decisive, so the gate refuses to run at all.
+        from harness.gate_report import GateReport
+        detail = "workdir holds an import shadow: " + ", ".join(shadows)
+        return ShapedResult(
+            command=["python3", "-m", "pytest", "-q"], exit=1, verdict="gate_refused",
+            excerpts=[detail],
+            gate=GateReport(report_path="", process_exit=None, canary="",
+                            expected_files=(), n_tests=0, n_failed=0, n_errors=0,
+                            passed_ids=(), failed_ids=(), missing=(), observed=False,
+                            anomaly="shadow-file-present", detail=detail))
+    # Expected test files: the run's own (staging withheld every grader test, so the
+    # only test files in the workdir are the ones the run wrote).
+    expected = _workdir_test_files(workdir)
+    token = canary_token()
+    canary_dir = "tests"
+    canary_file = workdir / canary_path(token, canary_dir)
+    report_path = private_report_path()
+    # A neutral config + pinned rootdir: a workdir nested under the repository would
+    # otherwise inherit the repository's own pytest configuration, which changes the
+    # report's file paths (rootdir-relative) and silently breaks expected-file and
+    # canary matching — a real false-negative found by a live run (T-02, 2026-09-29).
+    neutral_ini = report_path.parent / "gate.ini"
+    neutral_ini.write_text("[pytest]\n")
+    canary_file.parent.mkdir(parents=True, exist_ok=True)
+    canary_file.write_text(canary_source(token))
+    try:
+        res = await k_exec(
+            ["python3", "-m", "pytest", "-q", *PYTEST_ISOLATION_ARGS,
+             "-c", str(neutral_ini), "--rootdir=.", *JUNIT_FAMILY_ARGS,
+             f"--junitxml={report_path}"],
+            workdir, provenance="kernel", extra_env=gate_env(workdir))
+    finally:
+        canary_file.unlink(missing_ok=True)
+    gate = evaluate_gate(report_path, canary=token, expected_files=expected,
+                         canary_dir=canary_dir, process_exit=res.exit)
+    cleanup_report(report_path)
+    res.gate = gate
+    res.exit = 0 if gate.green else _nonzero_exit(res.exit)
+    return res
+
+
+def _nonzero_exit(code: Any) -> int:
+    """A non-zero exit code for a red gate result (keeps a real code for the record)."""
+    return code if isinstance(code, int) and not isinstance(code, bool) and code != 0 else 1
+
+
+def _workdir_test_files(workdir: Path) -> tuple[str, ...]:
+    """The run's own test files in ``workdir`` (repo-relative, sorted).
+
+    Staging withholds every grader-owned test path, so a test file found here was
+    written by the run: those are exactly the tests its own gate must have run.
+    """
+    return tuple(
+        path.relative_to(workdir).as_posix()
+        for path in sorted(workdir.rglob("*.py"))
+        if path.is_file() and is_test_path(path.relative_to(workdir).as_posix())
+    )
 
 
 def _reason(history: Sequence[Attempt]) -> str:
@@ -566,7 +999,10 @@ async def run_leaf(
     workdir: Path,
     budget: Budget,
     *,
-    judge: Callable[[JudgeRequest], Awaitable[str] | str] | None = None,
+    judge: Callable[[JudgeRequest], Awaitable[JudgeVerdict | dict | str] | JudgeVerdict | dict | str]
+    | None = None,
+    falsifier: Callable[[FalsifyRequest], Awaitable[FalsifyVerdict | dict | str]
+                        | FalsifyVerdict | dict | str] | None = None,
     run_tests: Callable[[Path], Awaitable[ShapedResult] | ShapedResult] | None = None,
     now: Callable[[], float] | None = None,
     on_event: Callable[[str, dict], None] | None = None,
@@ -575,8 +1011,14 @@ async def run_leaf(
     tests = run_tests or _default_run_tests
     # No default judge: a test replacement needs an INDEPENDENT attribution. The
     # model's own word is never enough, so ``judge=None`` means the claim is not
-    # credited (deterministic conservative default).
+    # credited (deterministic conservative default). A provided judge may return a
+    # ``JudgeVerdict`` (or a dict / bare attribution string); its ``tests`` claim is
+    # still filtered by :func:`apply_judge_filter` before it is credited.
     attribution = judge
+    # ``falsifier=None`` is the own-test-only basis (``claimed_basis="own-test"``): the
+    # green is delivered on the run's own unmodified test. A provided falsifier adds an
+    # INDEPENDENT refutation pass that must approve before any claim (ticket 17 round 4);
+    # a missing/malformed falsification call never becomes a claim.
     workdir = Path(workdir)
     started = clock()
 
@@ -585,6 +1027,7 @@ async def run_leaf(
     queue = QuestionQueue()
     rung = 0
     claimed = False
+    claimed_basis = "own-test"
     signal = "honest-failure"
     exhaustion_reason = ""
     stop_reason = ""
@@ -595,6 +1038,10 @@ async def run_leaf(
     baseline: dict[str, str | None] = {}
     wasted_escalations: list[Escalation] = []
     test_rewrites = 0
+    judge_verdicts: list[JudgeVerdict] = []
+    falsify_verdicts: list[FalsifyVerdict] = []
+    refusals: list[str] = []
+    gate_anomalies: list[str] = []
     attempt_cap = min(9, 3 * max(1, len(spec.files)))
 
     def emit(kind: str, **data: Any) -> None:
@@ -615,12 +1062,101 @@ async def run_leaf(
         never escape mid-run (owner policy)."""
         return budget.calls >= n
 
+    async def request_bounded(call: Callable[[], Awaitable[Any]], label: str
+                              ) -> tuple[Any | None, str]:
+        """Run one envelope request with a bounded malformed-output retry.
+
+        No model failure may crash the leaf: a schema violation, a transport error, or
+        any other exception raised by the model/envelope is retried up to
+        :data:`ENVELOPE_RETRIES` times. Persistent failure returns reason
+        ``"malformed-output"``; an unaffordable retry returns ``"calls"``.
+        """
+        for attempt in range(ENVELOPE_RETRIES + 1):
+            if not spend():
+                return None, "calls"
+            try:
+                return await call(), ""
+            except Exception as exc:  # noqa: BLE001 — a model failure is data, not a crash
+                emit("envelope_malformed", step=label, attempt=attempt + 1,
+                     detail=f"{type(exc).__name__}: {exc}")
+        return None, "malformed-output"
+
     def stop(sig: str, reason: str, why: str, *, exhausted: bool = False,
              parent: bool = False) -> None:
         nonlocal signal, exhaustion_reason, stop_reason, node_exhausted, needs_parent
         signal, exhaustion_reason, stop_reason = sig, reason, why
         node_exhausted = exhausted
         needs_parent = parent
+
+    def record_gate(res: ShapedResult | Any) -> GateReport | None:
+        """Surface the machine-readable gate verdict; record an anomaly LOUDLY (F1).
+
+        The process exit status is not evidence, so every anomaly (a missing or
+        unparsable report, a report without the per-run canary, a report that
+        contradicts the exit) lands in the ledger and on the outcome. A gate result
+        with no report at all is the injected seam's, not the run's.
+        """
+        gate = getattr(res, "gate", None)
+        if gate is None:
+            return None
+        if gate.structural_anomaly:
+            emit("gate_report_anomaly", anomaly=gate.anomaly, detail=gate.detail,
+                 report=gate.report_path, process_exit=gate.process_exit)
+            gate_anomalies.append(f"{gate.anomaly}: {gate.detail}")
+        elif gate.observed and gate.process_exit == 0 and not gate.green:
+            # R2 (verification round 6): the process claimed success while its own
+            # report said otherwise (e.g. run code forcing exit 0 from atexit). It is a
+            # trustworthy RED, but the lie itself is evidence and must be recorded.
+            emit("gate_process_lie", anomaly=gate.anomaly, detail=gate.detail,
+                 report=gate.report_path, process_exit=gate.process_exit)
+            gate_anomalies.append(f"process-exit-lie: {gate.anomaly}: {gate.detail}")
+        return gate
+
+    def excerpts_of(res: ShapedResult | Any) -> list[str]:
+        """Shaped pytest output, quoting the gate anomaly when nothing was observed.
+
+        A missing report leaves no failure excerpt at all, so the next attempt would
+        otherwise start blind; the anomaly is the only honest failure context there.
+        """
+        excerpts = list(getattr(res, "excerpts", []) or [])
+        gate = getattr(res, "gate", None)
+        if gate is not None and not gate.green and not gate.observed:
+            return [f"gate_report_anomaly {gate.anomaly}: {gate.detail}", *excerpts]
+        return excerpts
+
+    def write_self_test(rel: str, content: str) -> bool:
+        """Write the run's own test; a filesystem refusal stops honestly (F3)."""
+        try:
+            _write(workdir, rel, content)
+        except WriteShapeRefused as exc:
+            emit("write_shape_refused", path=exc.path, reason=exc.detail)
+            refusals.append(f"{exc.path}: {exc.detail} (self-test)")
+            stop("honest-failure", f"unwritable self-test target: {exc.detail}", "write-shape")
+            return False
+        return True
+
+    def refuse_self_test(env: Any, message: str, reason: str, *, open_question: bool) -> None:
+        """Honest stop for a self-test envelope with no usable landing spot.
+
+        A write-SHAPE problem (existing directory, path under a file, embedded NUL
+        byte, over-long name) has no safe normalization here, so it takes the
+        write-shape stop; anything else is a logic-level self-test refusal.
+        """
+        path = getattr(env, "file_path", "") or ""
+        kind, problem = _self_test_problem(env, spec, workdir)
+        emit(kind, path=path, reason=problem)
+        refusals.append(f"{path}: {problem} (self-test)")
+        if _write_shape_problem(path, workdir):
+            emit("write_shape_refused", path=path, reason=problem)
+            stop("honest-failure", f"{message}: {problem}", "write-shape")
+            return
+        if open_question:
+            queue.open(
+                f"self-test:{spec.goal[:40]}",
+                "the run could not write its own test at a safe path",
+                default_choice="park until a writable test path is available",
+            )
+        stop("honest-failure", f"{message}: {problem}", reason)
 
     def finish() -> LeafOutcome:
         return LeafOutcome(
@@ -639,6 +1175,13 @@ async def run_leaf(
             test_rewrites=test_rewrites,
             own_test_mutated=test_rewrites > 0,
             needs_parent=needs_parent,
+            judge_verdicts=list(judge_verdicts),
+            claimed_basis=claimed_basis,
+            falsify_verdicts=list(falsify_verdicts),
+            falsify_counterexample=next(
+                (v.counterexample for v in reversed(falsify_verdicts) if v.counterexample), ""),
+            refusals=list(refusals),
+            gate_anomalies=list(gate_anomalies),
         )
 
     # ---- deadline before the first call (an already-expired budget writes nothing)
@@ -647,25 +1190,29 @@ async def run_leaf(
         return finish()
 
     # ---- step 1: the run's own test, RUN and required to be RED ON ARRIVAL ----
-    if not spend():
+    self_env, failure = await request_bounded(
+        partial(_request_write, model, _self_test_artifacts(spec), _SELF_TEST_QUESTION),
+        "self-test")
+    if failure == "calls":
         stop("honest-failure", "call-budget", "calls")
         return finish()
-    self_env = await _request_write(model, _self_test_artifacts(spec), _SELF_TEST_QUESTION)
+    if failure:
+        stop("honest-failure", "malformed-output after bounded retries", "malformed-output")
+        return finish()
     normalized = _relocate_self_test(self_env, spec, workdir, emit)
     if normalized is None:
-        kind, problem = _self_test_problem(self_env, spec, workdir)
-        emit(kind, path=getattr(self_env, "file_path", ""), reason=problem)
-        queue.open(
-            f"self-test:{spec.goal[:40]}",
-            "the run could not write its own test at a safe path",
-            default_choice="park until a writable test path is available",
-        )
-        stop("honest-failure", f"self-test-refused: {problem}", "self-test")
+        refuse_self_test(self_env, "self-test-refused", "self-test", open_question=True)
         return finish()
-    _write(workdir, normalized, self_env.content)
+    if normalized != getattr(self_env, "file_path", ""):
+        _, problem = _self_test_problem(self_env, spec, workdir)
+        refusals.append(f"{getattr(self_env, 'file_path', '')}: {problem} -> "
+                        f"{normalized} (self-test relocated)")
+    if not write_self_test(normalized, self_env.content):
+        return finish()
     self_test = normalized
 
     res = await _maybe_await(tests, workdir)
+    gate = record_gate(res)
     if _is_green(res):
         # A test that passes on arrival does not exercise the failure. Re-ask ONCE
         # with that evidence; never emit red=True without having observed a red.
@@ -674,38 +1221,46 @@ async def run_leaf(
         previous_content = _read(workdir, self_test)
         (workdir / self_test).unlink(missing_ok=True)
         self_test = None
-        if not spend():
+        retry_env, failure = await request_bounded(
+            partial(_request_write, model,
+                    _retry_self_test_artifacts(spec, previous_path, previous_content),
+                    _RETRY_SELF_TEST_QUESTION),
+            "self-test-retry")
+        if failure == "calls":
             stop("honest-failure", "call-budget", "calls")
             return finish()
-        retry_env = await _request_write(
-            model,
-            _retry_self_test_artifacts(spec, previous_path, previous_content),
-            _RETRY_SELF_TEST_QUESTION,
-        )
+        if failure:
+            stop("honest-failure", "malformed-output after bounded retries", "malformed-output")
+            return finish()
         normalized = _relocate_self_test(retry_env, spec, workdir, emit)
         if normalized is None:
-            kind, problem = _self_test_problem(retry_env, spec, workdir)
-            emit(kind, path=getattr(retry_env, "file_path", ""), reason=problem)
-            stop("honest-failure", f"no-red-target: {problem}", "no-red-target")
+            refuse_self_test(retry_env, "no-red-target", "no-red-target", open_question=False)
             return finish()
-        _write(workdir, normalized, retry_env.content)
+        if normalized != getattr(retry_env, "file_path", ""):
+            _, problem = _self_test_problem(retry_env, spec, workdir)
+            refusals.append(f"{getattr(retry_env, 'file_path', '')}: {problem} -> "
+                            f"{normalized} (self-test relocated)")
+        if not write_self_test(normalized, retry_env.content):
+            return finish()
         self_test = normalized
         res = await _maybe_await(tests, workdir)
+        gate = record_gate(res)
         if _is_green(res):
             emit("self_test_green_on_arrival", path=self_test)
             (workdir / self_test).unlink(missing_ok=True)
             self_test = None
             stop("honest-failure", "no-red-target", "no-red-target")
             return finish()
-    if _exit_code(res) is None:
-        # We could not run the run's own tests at all (transport error / sandbox
-        # block): nothing was observed, so nothing may be recorded as a red.
+    if _exit_code(res) is None or (gate is not None and not gate.observed):
+        # We could not trust an observation of the run's own tests: a transport error /
+        # sandbox block, or a gate report that is missing or holds no testcase. Nothing
+        # may be recorded as a red, so no target is kept.
         emit("self_test_unverified", path=self_test, reason="tests did not run")
         (workdir / self_test).unlink(missing_ok=True)
         self_test = None
         stop("honest-failure", "self-test-unverified", "self-test")
         return finish()
-    last_excerpts = list(getattr(res, "excerpts", []) or [])
+    last_excerpts = excerpts_of(res)
     emit("self_test_written", path=self_test, red=True)
 
     # ---- step 2: attempt loop (bounded by Budget and 3 × files, cap 9) ----
@@ -739,19 +1294,23 @@ async def run_leaf(
             continue
 
         mode = _mode(attempts)
+        pending_verdict: JudgeVerdict | None = None
         emit("leaf_attempt", n=len(attempts) + 1, strategy=esc.strategy, layer=esc.layer,
              mode=mode)
         if mode == "M1":
             _erase_draft(workdir, baseline)
-        if not spend():
+        env, failure = await request_bounded(
+            partial(_request_write, model,
+                    _implement_artifacts(spec, workdir, esc, attempts, last_excerpts,
+                                         self_test, mode, baseline),
+                    _implement_question(mode, esc)),
+            "implement")
+        if failure == "calls":
             stop("honest-failure", "call-budget", "calls")
             break
-        env = await _request_write(
-            model,
-            _implement_artifacts(spec, workdir, esc, attempts, last_excerpts, self_test,
-                                 mode, baseline),
-            _implement_question(mode, esc),
-        )
+        if failure:
+            stop("honest-failure", "malformed-output after bounded retries", "malformed-output")
+            break
 
         # the model claims its own TEST is wrong -> independent attribution only
         if _claims_test_wrong(env):
@@ -765,16 +1324,32 @@ async def run_leaf(
                 stop("honest-failure", "call-budget", "calls")
                 break
             else:
-                if not spend():
+                # a FRESH-CONTEXT judge call, wrapped like every other envelope request.
+                # Conversion/validation errors are malformed output too, so they are
+                # raised inside the bounded call and get the same retry/stop treatment.
+                jr = _judge_request(spec, workdir, self_test, last_excerpts, env, baseline)
+                raw_verdict, failure = await request_bounded(
+                    partial(_call_judge, attribution, jr), "judge")
+                if failure == "calls":
                     stop("honest-failure", "call-budget", "calls")
                     break
-                attribution_result = await _attribute(
-                    attribution, spec, workdir, self_test, last_excerpts, env, emit)
+                if failure:
+                    stop("honest-failure", "malformed-output after bounded retries",
+                         "malformed-output")
+                    break
+                verdict = apply_judge_filter(raw_verdict, jr)
+                judge_verdicts.append(verdict)
+                emit("judge_verdict", attribution=verdict.attribution, defect=verdict.defect,
+                     coerced=verdict.coerced, raw=verdict.raw)
+                if verdict.coerced:
+                    emit("judge_coerced", reason=verdict.coercion_reason)
+                pending_verdict = verdict
+                attribution_result = verdict.attribution
                 if attribution_result == "spec":
                     attempts.append(Attempt(
                         node_id="leaf", layer="spec", strategy=esc.strategy,
                         claimed_delta="judge attributed the failure to the spec",
-                        outcome="fail", verdict="novel"))
+                        outcome="fail", verdict="novel", judge=verdict))
                     queue.open(
                         f"spec:{spec.goal[:40]}",
                         "the leaf's failure was attributed to the specification; the "
@@ -785,17 +1360,31 @@ async def run_leaf(
                     stop("bubble", "spec-bubble", "spec-bubble", parent=True)
                     break
                 if attribution_result == "tests" and self_test:
-                    if not spend():
+                    repaired, failure = await request_bounded(
+                        partial(_repair_test, model, spec, workdir, self_test,
+                                last_excerpts, env),
+                        "test-rewrite")
+                    if failure == "calls":
                         stop("honest-failure", "call-budget", "calls")
                         break
-                    repaired = await _repair_test(
-                        model, spec, workdir, self_test, last_excerpts, env)
+                    if failure:
+                        stop("honest-failure", "malformed-output after bounded retries",
+                             "malformed-output")
+                        break
                     if (getattr(repaired, "status", "unable") == "ok"
                             and getattr(repaired, "content", "")):
-                        _write(workdir, self_test, repaired.content)
+                        try:
+                            _write(workdir, self_test, repaired.content)
+                        except WriteShapeRefused as exc:
+                            emit("write_shape_refused", path=exc.path, reason=exc.detail)
+                            refusals.append(f"{exc.path}: {exc.detail} (test rewrite)")
+                            stop("honest-failure",
+                                 f"unwritable test rewrite: {exc.detail}", "write-shape")
+                            break
                         test_rewrites += 1
                         rres = await _maybe_await(tests, workdir)
-                        repair_excerpts = list(getattr(rres, "excerpts", []) or [])
+                        record_gate(rres)
+                        repair_excerpts = excerpts_of(rres)
                         if _is_green(rres):
                             # a rewrite that passes on arrival does not pin the goal:
                             # leave no bogus target behind
@@ -811,7 +1400,7 @@ async def run_leaf(
                             claimed_delta=(getattr(repaired, "comment", "")
                                            or "rewrote the run's own test"),
                             failure_signature=signature, touched_files=[self_test],
-                            outcome="fail")
+                            outcome="fail", judge=verdict)
                         repair_attempt.verdict = prefilter(attempts, repair_attempt)
                         attempts.append(repair_attempt)
                         emit("test_rewritten", path=self_test, verdict=repair_attempt.verdict)
@@ -821,12 +1410,25 @@ async def run_leaf(
                 # implementation / environment / uncredited: fall through to the red path
 
         # normal path: write the source candidate (guarded) and run the tests
-        wrote, source_rel, refusal = _write_candidate(env, spec, workdir, self_test, baseline)
+        wrote, source_rel, refusal, shape = _write_candidate(env, spec, workdir, self_test, baseline)
+        if shape:
+            # A bad target SHAPE on a source write has no safe normalization (we cannot
+            # guess which file the model meant), so stop honestly instead of raising.
+            refusals.append(f"{source_rel}: {refusal} (un-normalizable target shape)")
+            emit("write_shape_refused", path=source_rel, reason=refusal)
+            stop("honest-failure", f"un-normalizable write target: {refusal}", "write-shape")
+            break
         if refusal:
+            # A refused source write (a test path, test infrastructure, a grader path,
+            # or a module-shadow path) never touches the tree and never runs the gate;
+            # the attempt is recorded and the ladder continues.
+            refusals.append(f"{source_rel}: {refusal}")
+            emit("implement_refused", path=source_rel, reason=refusal)
             last_excerpts = [f"implement refused: {refusal}"]
         res = await _maybe_await(tests, workdir) if wrote else None
         if res is not None:
-            last_excerpts = list(getattr(res, "excerpts", []) or [])
+            record_gate(res)
+            last_excerpts = excerpts_of(res)
 
         signature = failure_signature(last_excerpts, last_excerpts)
         candidate = Attempt(
@@ -837,6 +1439,7 @@ async def run_leaf(
             failure_signature=signature,
             touched_files=[source_rel] if wrote else [],
             outcome="pass" if _is_green(res) else "fail",
+            judge=pending_verdict,
         )
         if not wrote:
             candidate.verdict = "same"
@@ -845,10 +1448,61 @@ async def run_leaf(
 
         if candidate.outcome == "pass":
             attempts.append(candidate)
-            claimed = True
-            stop("green-after-test-rewrite" if test_rewrites else "green", "", "green")
-            emit("leaf_green", strategy=esc.strategy, after_test_rewrite=bool(test_rewrites))
-            break
+            if test_rewrites:
+                # A green after the run REPLACED its own test is not a claim: the
+                # implementation satisfied a substituted test, so the result is
+                # unverified (ticket 17 round 4). Keep the rewrite machinery and the
+                # judge filter — they now stop honestly and hand the node a status.
+                emit("leaf_green_after_test_rewrite", strategy=esc.strategy)
+                stop("green-after-test-rewrite", "", "green-after-test-rewrite")
+                break
+            if falsifier is None:
+                # Own-test-only basis (conservative baseline): the run's OWN unmodified
+                # test went green. With --falsify the driver injects the refutation pass
+                # that must approve before any claim (finding 4).
+                claimed = True
+                claimed_basis = "own-test"
+                stop("green", "", "green")
+                emit("leaf_green", strategy=esc.strategy, after_test_rewrite=False)
+                break
+            if not can_afford(1):
+                stop("honest-failure", "call-budget", "calls")
+                break
+            fr = _falsify_request(spec, workdir, self_test, baseline)
+            raw_falsify, failure = await request_bounded(
+                partial(_call_falsifier, falsifier, fr), "falsify")
+            if failure == "calls":
+                stop("honest-failure", "call-budget", "calls")
+                break
+            if failure:
+                # A refutation pass that could not be produced never becomes a claim.
+                stop("honest-failure", "falsification-unverified", "malformed-output")
+                break
+            falsify_verdicts.append(raw_falsify)
+            emit("falsify_verdict", approved=raw_falsify.approved,
+                 counterexample=raw_falsify.counterexample, raw=raw_falsify.raw)
+            if raw_falsify.approved:
+                claimed = True
+                claimed_basis = "own-test+falsified-check"
+                stop("green", "", "green")
+                emit("leaf_green", strategy=esc.strategy, after_test_rewrite=False)
+                break
+            # Refuted: the counterexample becomes the next attempt's failure context
+            # and the loop CONTINUES (an escalation that adds information, §10.5).
+            last_excerpts = ([f"falsified: {raw_falsify.counterexample}"]
+                             if raw_falsify.counterexample else
+                             ["falsified: an independent check found a counterexample"])
+            attempts.append(Attempt(
+                node_id="leaf", layer=esc.layer, strategy=esc.strategy or "L1-resample",
+                claimed_delta=(raw_falsify.counterexample
+                              or "the independent falsifier refuted the fix"),
+                failure_signature=failure_signature(last_excerpts, last_excerpts),
+                touched_files=[source_rel] if wrote else [],
+                outcome="fail", verdict="novel"))
+            emit("falsified_attempt", strategy=esc.strategy,
+                 counterexample=raw_falsify.counterexample)
+            rung += 1
+            continue
 
         attempts.append(candidate)
         emit("attempt_recorded", strategy=esc.strategy, layer=esc.layer,
@@ -862,43 +1516,86 @@ async def run_leaf(
 def _write_candidate(
     env: Any, spec: LeafSpec, workdir: Path, self_test: str | None,
     baseline: dict[str, str | None],
-) -> tuple[bool, str, str]:
+) -> tuple[bool, str, str, bool]:
     """Apply an implementation envelope through the blind write guard.
 
-    Returns ``(wrote, rel, refusal)``. A refusal does not touch the tree; the loop
-    records it as a red attempt and lets the ladder advance.
+    Returns ``(wrote, rel, refusal, shape)``. ``shape`` is True when the ONLY problem
+    is an un-normalizable target shape (an existing directory at the target, or a path
+    component that is an existing file): the caller stops honestly instead of raising
+    ``IsADirectoryError``/``FileExistsError``. Any other refusal does not touch the
+    tree; the loop records it as a red attempt and lets the ladder advance.
     """
     if getattr(env, "status", "unable") != "ok":
-        return False, "", f"status={getattr(env, 'status', 'unknown')}"
+        return False, "", f"status={getattr(env, 'status', 'unknown')}", False
     rel = getattr(env, "file_path", "") or ""
     if not rel:
-        return False, "", "no file_path"
+        return False, "", "no file_path", False
     problem = _source_write_problem(rel, spec, self_test)
     if problem:
-        return False, "", problem
+        return False, rel, problem, False
+    shape = _write_shape_problem(rel, workdir)
+    if shape:
+        return False, rel, shape, True
     if rel not in baseline:
         target = workdir / rel
         baseline[rel] = target.read_text() if target.exists() else None
-    _write(workdir, rel, env.content)
-    return True, rel, ""
+    try:
+        if rel not in baseline:
+            target = workdir / rel
+            baseline[rel] = target.read_text() if target.exists() else None
+        _write(workdir, rel, env.content)
+    except WriteShapeRefused as exc:
+        # The shape probe above did not anticipate this one; it is still a write-shape
+        # refusal (F3), never a crash.
+        return False, rel, exc.detail, True
+    except (ValueError, OSError) as exc:      # embedded NUL / ENAMETOOLONG on the probe-free path
+        return False, rel, f"unwritable path ({type(exc).__name__}: {exc})", True
+    return True, rel, "", False
 
 
-async def _attribute(
-    attribution: Callable[[JudgeRequest], Awaitable[str] | str],
+def _judge_request(
     spec: LeafSpec,
     workdir: Path,
     self_test: str | None,
     last_excerpts: Sequence[str],
     env: Any,
-    emit: Callable[..., None],
-) -> str:
-    request = JudgeRequest(
+    baseline: Mapping[str, str | None],
+) -> JudgeRequest:
+    """Build the blind judge view (never a grader path).
+
+    The judge sees the goal, the ACs, the run's own test file, the failing output,
+    and the source: the blind view (``spec.files``) plus any draft the run wrote, with
+    the current attempt's proposed content overlaid. No test path but the run's OWN
+    test enters this request.
+    """
+    files = _repo_view(spec, workdir, tuple(baseline))
+    proposed = getattr(env, "file_path", "") or ""
+    content = getattr(env, "content", "") or ""
+    if (getattr(env, "status", "") == "ok" and proposed and content
+            and not is_test_path(proposed) and proposed not in set(spec.grader_paths)):
+        files[proposed] = content
+    return JudgeRequest(
         goal=spec.goal,
+        acs=list(spec.acs),
         failure="\n".join(last_excerpts) or (getattr(env, "comment", "") or ""),
         test_path=self_test or "",
         test_content=_read(workdir, self_test),
-        files=_repo_view(spec, workdir),
+        files=files,
     )
-    result = await _maybe_await(attribution, request)
-    emit("judge_attribution", attribution=result)
-    return result if result in ("implementation", "tests", "spec", "environment") else "implementation"
+
+
+def _falsify_request(
+    spec: LeafSpec,
+    workdir: Path,
+    self_test: str | None,
+    baseline: Mapping[str, str | None],
+) -> FalsifyRequest:
+    """Build the blind falsifier view (never a grader path): goal, ACs, the run's own
+    test, and the source diff. It is a REFUTATION context, not an author context."""
+    return FalsifyRequest(
+        goal=spec.goal,
+        acs=list(spec.acs),
+        test_path=self_test or "",
+        test_content=_read(workdir, self_test),
+        diff=_source_diff(spec, workdir, baseline),
+    )
