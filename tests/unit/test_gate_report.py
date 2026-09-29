@@ -162,3 +162,19 @@ def test_expected_file_with_no_passing_case_is_red(tmp_path: Path):
                          canary_dir="tests", process_exit=0)
     assert gate.green is False
     assert gate.anomaly == "expected-test-not-passed"
+
+
+def test_class_qualified_testcases_get_a_runnable_selector(tmp_path: Path):
+    """A class-based test must yield a pytest-runnable node id (file::Class::name);
+    discarding classname produced an exit-4 'not found' and a false negative."""
+    report = tmp_path / "report.xml"
+    report.write_text(
+        '<testsuites><testsuite name="pytest" tests="2" failures="0" errors="0">'
+        '<testcase classname="tests.test_x" name="test_top" file="tests/test_x.py"/>'
+        '<testcase classname="tests.test_x.TestAC1" name="test_ac1_thing" '
+        'file="tests/test_x.py"/>'
+        '</testsuite></testsuites>')
+    cases, error = parse_junit(report)
+    assert error == ""
+    ids = [c.node_id for c in cases]
+    assert ids == ["tests/test_x.py::test_top", "tests/test_x.py::TestAC1::test_ac1_thing"]

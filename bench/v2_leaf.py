@@ -233,6 +233,18 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         "independent_test_reason": outcome.independent_test_reason,
         "iv_attempts": outcome.iv_attempts,
         "iv_repairs": outcome.iv_repairs,
+        # Ticket 17 rounds 10-11: the per-criterion discrimination evidence. For every
+        # index it carries the explicit node ids (``selection``) plus the
+        # original/final collected count and failures and the reason it failed (empty =
+        # it discriminated). ``iv_criteria_count`` of 0 means no criteria were extracted
+        # and the rule was skipped; ``iv_covered_indices`` discriminated,
+        # ``iv_uncovered_indices`` had no matching node, and ``iv_shared_node_ids`` were
+        # selected for more than one criterion.
+        "iv_criteria_count": outcome.iv_criteria_count,
+        "iv_criteria": [dataclasses.asdict(c) for c in outcome.iv_criteria],
+        "iv_covered_indices": outcome.iv_covered_indices,
+        "iv_uncovered_indices": outcome.iv_uncovered_indices,
+        "iv_shared_node_ids": outcome.iv_shared_node_ids,
         "iv_original_gate": (dataclasses.asdict(outcome.iv_original_gate)
                               if outcome.iv_original_gate is not None else None),
         "iv_final_gate": (dataclasses.asdict(outcome.iv_final_gate)
@@ -316,13 +328,26 @@ async def model_judge(model: Any, request: JudgeRequest) -> JudgeVerdict:
                         defect=getattr(env, "problem", "") or "", raw=raw)
 
 
+def _numbered_acs(acs: list[str]) -> str:
+    """The criteria as ``AC<i>: ...`` lines — the stable index the coverage rule uses."""
+    if not acs:
+        return "(none given)"
+    return "\n".join(f"AC{i}: {ac}" for i, ac in enumerate(acs, 1))
+
+
 def _independent_test_question(request: IndependentTestRequest) -> str:
     """The fresh-context independent-test prompt. With ``fresh=True`` the runner injects
     no artifacts, so the evidence rides the question verbatim (DESIGN §2.4 / §10.1 step 5).
-    It sees the goal, the ACs, and the ORIGINAL/FINAL source of the changed files — never
-    the run's own test and never a grader path. On the ONE bounded repair (ticket 17
-    round 8) it also carries the rejected test and the verdict that rejected it."""
-    acs = "\n".join(f"- {a}" for a in request.acs) or "- (none given)"
+    It sees the goal, the NUMBERED ACs, and the ORIGINAL/FINAL source of the changed files
+    — never the run's own test and never a grader path. It is asked for ONE DISTINCT test
+    function per criterion, each named with its own criterion index (``test_ac1_...``,
+    ``test_ac2_...``): the naming is the HINT the harness uses to derive each criterion's
+    EXPLICIT node ids, but the rule is DISCRIMINATION — each criterion's node set must
+    fail on the original and pass on the final (ticket 17 rounds 10-11), and no single
+    test node may serve two criteria. On the ONE bounded repair (ticket 17 round 8) it
+    also carries the rejected test and the verdict that rejected it, plus the offending
+    criterion indices."""
+    acs = _numbered_acs(request.acs)
     original = "\n".join(f"--- {rel} (ORIGINAL) ---\n{text}"
                           for rel, text in sorted(request.original.items())) or "(no source changed)"
     final = "\n".join(f"--- {rel} (FINAL) ---\n{text}"
@@ -332,6 +357,22 @@ def _independent_test_question(request: IndependentTestRequest) -> str:
         if request.repair_reason == "independent-test-not-red":
             guidance = ("It PASSED against the ORIGINAL source, so it cannot detect the "
                         "goal at all; make it FAIL on the ORIGINAL source.")
+        elif request.repair_reason == "independent-test-not-discriminating":
+            offending = ", ".join(f"AC{i}" for i in request.offending_indices) or "the criteria"
+            guidance = (f"Its tests for {offending} still PASS against the ORIGINAL "
+                        "source, so they do not pin the goal. Make each one FAIL on the "
+                        "ORIGINAL source and PASS on the FINAL source.")
+        elif request.repair_reason == "independent-test-incomplete-coverage":
+            missing = ", ".join(f"AC{i}" for i in request.offending_indices) or "the criteria"
+            guidance = (f"It did not exercise every acceptance criterion. Add ONE test "
+                        f"function for each MISSING criterion ({missing}), named "
+                        "test_ac<i>_<short_name>.")
+        elif request.repair_reason == "independent-test-shared-coverage":
+            offending = ", ".join(f"AC{i}" for i in request.offending_indices) or "the criteria"
+            guidance = (f"One test node serves several criteria ({offending}). Write a "
+                        "SEPARATE test function for each — test_ac1_<name>, "
+                        "test_ac2_<name>, ... — so no function name carries more than one "
+                        "criterion index.")
         else:
             guidance = ("pytest did not collect/observe it; write a COLLECTIBLE pytest "
                         "file (name it test_*.py, no collection errors).")
@@ -344,10 +385,15 @@ def _independent_test_question(request: IndependentTestRequest) -> str:
         "the run's own test. Write your OWN pytest file that encodes the acceptance "
         "criteria as executable checks against the code under test.\n"
         f"GOAL:\n{request.goal}\n\n"
-        f"ACCEPTANCE CRITERIA:\n{acs}\n\n"
+        f"ACCEPTANCE CRITERIA (numbered; write ONE test function per criterion):\n{acs}\n\n"
         f"ORIGINAL SOURCE (before the fix):\n{original}\n\n"
         f"FINAL SOURCE (after the fix):\n{final}\n"
         f"{repair}\n"
+        "Write ONE pytest test function for EACH acceptance criterion above. Name each "
+        "function with ITS OWN criterion index — test_ac1_<short_name>, "
+        "test_ac2_<short_name>, and so on in order — and NEVER put more than one "
+        "criterion index in a single function name (no test_ac1_ac2_<name>), so each "
+        "criterion maps to its own distinct test node.\n"
         "Write a test that FAILS against the ORIGINAL source and PASSES against the FINAL "
         "source. Return a NEW test file path under tests/ and its complete content. Do not "
         "reference any file other than the source shown above."

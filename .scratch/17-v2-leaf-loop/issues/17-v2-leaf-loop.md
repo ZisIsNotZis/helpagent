@@ -195,6 +195,54 @@ Invariants to pin as tests (>= 12 cases):
   (one per requirement sentence / bullet) and feeds them to the self-test, implement,
   judge, and independent-test calls; the raw text lands in the run record. Suite **296
   green**.
+- 2026-09-29 lane `leaf` (rounds 8-10, worker): round 8 made the independent test's FILE
+  NAME a harness parameter (relocate to a collectible path, record the relocation) so a
+  naming slip can never be `independent-test-unobserved`. Round 9 added acceptance-criteria
+  coverage as a deterministic NAME check (every index 1..N must appear in a collected node
+  id) with a one-shot repair. An independent adversarial pass proved name-only coverage
+  proves only that the criterion was NAMED: one real test plus placeholders
+  (`test_ac2_placeholder`/`test_ac3_placeholder` asserting True), one function carrying
+  all indices, and a `parametrize(ids=["ac1",...])` all approved while a grader for the
+  unexercised criterion still failed. Round 10 **replaces the name rule with
+  PER-CRITERION DISCRIMINATION**: for every index the SAME pytest `-k ac<i>` selection
+  runs through the report gate on the original and the final tree and must collect an
+  independent-test node, FAIL on the original and PASS on the final. A green-on-original
+  selection is `independent-test-not-discriminating`, an empty one is
+  `independent-test-incomplete-coverage`; both are repairable once with the offending
+  indices. Node-id counts are scoped to the independent test's own file (the canary or any
+  other file can never satisfy a criterion); the name convention stays a prompt hint (a
+  class-based `TestAC1::test_x` passes when it discriminates, a placeholder fails); the
+  whole-file red-on-original / green-on-final gates, the harness-owned file name, and the
+  private-copy isolation are unchanged. The run record carries, per index, the selection's
+  original/final collected counts and failures plus the reason. Suite **315 green**
+  (13 new/rewritten cases pin discrimination, the placeholder and combined-name attacks,
+  the class-based and parametrize approvals, and the record's per-criterion evidence).
+- 2026-09-29 lane `leaf` (round 11, worker): round 10's per-criterion ``-k ac<i>`` gating
+  had two deterministic gaps an adversarial pass found. **Finding C**: ``-k`` is a
+  case-sensitive SUBSTRING match, so the selection for criterion 1 (``ac1``) also
+  selected ``test_ac12_thing``/``test_ac10_...``, letting an index-colliding name
+  "cover" the wrong criterion. **Finding A**: one genuinely discriminating test renamed
+  to carry every index (``test_ac1_ac2_ac3_goal``) was selected for every criterion and
+  approved them all, so "one test per criterion" was not enforced. Round 11 **stops
+  selecting by ``-k``**: the index -> node-id map is derived from the FIRST full-file
+  report (the whole-file red-on-original gate) with a boundary-aware, case-insensitive
+  match on the test NODE NAME (``ac1`` never matches ``ac12``/``ac10``), scoped to the
+  independent test file. Each criterion's discrimination check now runs the EXPLICIT
+  node ids for that criterion (``pytest path::nodeid ...`` plus the canary node id, no
+  ``-k`` term) on the original and final trees, so nothing else can run or satisfy the
+  criterion. The per-criterion test sets must be DISJOINT: one node id mapped to more
+  than one criterion is the new, REPAIRABLE ``independent-test-shared-coverage`` (the
+  detail lists the shared ids); a criterion with no matching node stays
+  ``independent-test-incomplete-coverage``. Red-on-original / green-on-final, the
+  whole-file gates, the harness-owned file name, the private copies, the report gate,
+  the per-criterion record evidence, and unaffordable/malformed keeping ``claimed``
+  False are unchanged. Known consequence of the boundary rule: a class-based
+  ``TestAC1::test_thing`` has no index in its junit node NAME and is now
+  ``independent-test-incomplete-coverage`` (the index must be in the method/parameter
+  name; parametrized ``ids=[...]`` still approve). Tests pin the index-colliding name,
+  the all-index shared test (rejected + repairable), distinct per-criterion approvals,
+  the explicit-node-id command (no ``-k``), and a live-repair path where a shared test is
+  re-asked. Suite **318 green**.
 
 ## First honest v2 measurement (2026-09-29, reference model, N=1)
 

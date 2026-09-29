@@ -84,21 +84,29 @@ def judge_blames_test(request: JudgeRequest) -> JudgeVerdict:
 
 def scripted_red_gate() -> GateReport:
     """The scripted seam's RED machine-readable gate report (an observed, trustworthy
-    red: pytest produced a report that says the test failed)."""
+    red: pytest produced a report that says the test failed).
+
+    The failing node name carries ``ac1`` so the round-11 node map can derive an explicit
+    node id from this first full-file report for the single-criterion ``make_spec``
+    fixtures; production reports carry the real candidate's node names."""
     return GateReport(report_path="(scripted)", process_exit=1, canary="scripted",
                       expected_files=(), n_tests=1, n_failed=1, n_errors=0,
-                      passed_ids=(), failed_ids=("scripted::test_goal",), missing=(),
+                      passed_ids=(), failed_ids=("scripted::test_ac1",), missing=(),
                       observed=True, anomaly="tests-failed", detail="1 failure(s)")
 
 
 def iv_candidate(path: str = "tests/test_independent.py",
-                 content: str = "from pkg.calc import result\n\n\ndef test_goal():\n    assert result() == 42\n"):
-    """A deterministic independent-test candidate for mechanics tests."""
+                 content: str = "from pkg.calc import result\n\n\ndef test_ac1_goal():\n    assert result() == 42\n"):
+    """A deterministic independent-test candidate for mechanics tests.
+
+    The function name carries the criterion index (``test_ac1_``) so the round-11 node
+    map derives an AC1 node id for it and it discriminates for the single-criterion
+    ``make_spec`` fixtures."""
     return IndependentTestCandidate(path=path, content=content)
 
 
 def iv_source() -> str:
-    return "from pkg.calc import result\n\n\ndef test_goal():\n    assert result() == 42\n"
+    return "from pkg.calc import result\n\n\ndef test_ac1_goal():\n    assert result() == 42\n"
 
 
 def iv_env(path: str = "tests/test_independent.py", content: str | None = None) -> dict:
@@ -123,12 +131,39 @@ def scripted_gate() -> GateReport:
     Production reports come from the real pytest run (``--junitxml`` into a private
     directory plus a per-run canary, ticket 17 F1). The scripted seam stands in for a
     green gate so these mechanics tests keep pinning the LOOP rather than pytest's XML
-    writer; the real gate is pinned by the forgery tests at the end of this file.
+    writer; the real discrimination gate is pinned by the tests at the end of this file.
     """
     return GateReport(report_path="(scripted)", process_exit=0, canary="scripted",
                       expected_files=(), n_tests=1, n_failed=0, n_errors=0,
-                      passed_ids=("scripted::test",), failed_ids=(), missing=(),
+                      passed_ids=("scripted::test_ac1",), failed_ids=(), missing=(),
                       observed=True)
+
+
+def _gate_report(iv_path: str, passed=(), failed=(), *, green=True) -> GateReport:
+    """A scripted report whose node ids all belong to the independent test file."""
+    return GateReport(report_path="(scripted)", process_exit=0 if green else 1,
+                      canary="scripted", expected_files=(),
+                      n_tests=len(passed) + len(failed), n_failed=len(failed), n_errors=0,
+                      passed_ids=tuple(passed), failed_ids=tuple(failed), missing=(),
+                      observed=True, anomaly="" if green else "tests-failed",
+                      detail="" if green else "1 failure(s)")
+
+
+def _iv_file_in(workdir: Path) -> str:
+    """The independent test file in a private ISOLATION copy (the only non-canary test)."""
+    from harness.staging import is_test_path
+
+    for path in sorted(Path(workdir).rglob("*.py")):
+        rel = path.relative_to(workdir).as_posix()
+        if is_test_path(rel) and not path.name.startswith("test_gate_canary_"):
+            return rel
+    return "tests/test_independent.py"
+
+
+def _retag(node_id: str, iv_path: str) -> str:
+    """Rewrite a scripted node id's file part to the independent test's real path."""
+    suffix = node_id.split("::", 1)[1] if "::" in node_id else node_id
+    return f"{iv_path}::{suffix}"
 
 
 class ScriptedTests:
@@ -140,24 +175,72 @@ class ScriptedTests:
     :func:`scripted_red_gate` (ticket 17 F1) — the loop then sees an ``observed`` red
     exactly as it does for a real failing pytest run, and so does the independent
     test's red-on-original gate.
+
+    Round 11 adds the per-criterion EXPLICIT node-id calls (``node_ids`` kwarg). A
+    node-id call models pytest running exactly those node ids: an integer item
+    (green/red at file level) mirrors to the requested node ids, and a
+    :class:`ShapedResult` item keeps only the requested nodes it actually reports (so a
+    report that names only AC1 collects nothing for AC2 and is ``incomplete-coverage``).
+    This keeps the loop mechanics sequences unchanged while the real-gate tests pin the
+    discrimination semantics.
     """
 
     def __init__(self, results, excerpts=None):
         self._results = list(results)
         self._excerpts = excerpts or {}
         self.calls = 0
+        self.selections: list[tuple[str, ...] | None] = []
+        self._index = 0
+        self._last: object | None = None
 
-    def __call__(self, workdir) -> ShapedResult:
-        item = self._results[self.calls] if self.calls < len(self._results) else self._results[-1]
+    def __call__(self, workdir, node_ids=None) -> ShapedResult:
         self.calls += 1
+        self.selections.append(tuple(node_ids) if node_ids is not None else None)
+        if node_ids is not None:
+            return self._selected(workdir, node_ids)
+        item = (self._results[self._index] if self._index < len(self._results)
+                else self._results[-1])
+        self._index += 1
+        self._last = item
+        return self._as_result(item, workdir)
+
+    def _as_result(self, item: object, workdir: Path | None = None) -> ShapedResult:
         if isinstance(item, ShapedResult):
             return item
-        code = item
-        excerpts = [] if code == 0 else self._excerpts.get(
-            code, ["FAILED tests/test_leaf_self.py::test_goal", "E AssertionError: still red"])
-        return ShapedResult(command=["python3", "-m", "pytest", "-q"], exit=code,
-                            verdict="ok" if code == 0 else "failed", excerpts=list(excerpts),
-                            gate=scripted_gate() if code == 0 else scripted_red_gate())
+        excerpts = [] if item == 0 else self._excerpts.get(
+            item, ["FAILED tests/test_leaf_self.py::test_goal", "E AssertionError: still red"])
+        gate = scripted_gate() if item == 0 else scripted_red_gate()
+        if workdir is not None:
+            # production reports name the test file that actually ran; keep the fake
+            # faithful so the harness's independent-test scoping sees its own nodes
+            iv = _iv_file_in(workdir)
+            gate = dataclasses.replace(
+                gate, passed_ids=tuple(_retag(nid, iv) for nid in gate.passed_ids),
+                failed_ids=tuple(_retag(nid, iv) for nid in gate.failed_ids))
+        return ShapedResult(command=["python3", "-m", "pytest", "-q"], exit=item,
+                            verdict="ok" if item == 0 else "failed", excerpts=list(excerpts),
+                            gate=gate)
+
+    def _selected(self, workdir: Path, node_ids) -> ShapedResult:
+        iv = _iv_file_in(workdir)
+        base = self._last
+        if isinstance(base, int):
+            green = base == 0
+            nodes = tuple(node_ids)
+            return ShapedResult(
+                command=["python3", "-m", "pytest", "-q"], exit=base,
+                verdict="ok" if green else "failed",
+                excerpts=[] if green else [f"FAILED {n}" for n in nodes],
+                gate=_gate_report(iv, passed=nodes if green else (),
+                                  failed=() if green else nodes, green=green))
+        gate = getattr(base, "gate", None)
+        if gate is None:
+            return self._as_result(base, workdir)
+        requested = set(node_ids)
+        passed = tuple(nid for nid in gate.passed_ids if nid in requested)
+        failed = tuple(nid for nid in gate.failed_ids if nid in requested)
+        return dataclasses.replace(base, gate=_gate_report(
+            iv, passed=passed, failed=failed, green=gate.green))
 
 
 def make_spec(files=None, grader=(), goal="make result() return 42") -> LeafSpec:
@@ -1127,7 +1210,7 @@ def test_claim_requires_the_independent_test_red_original_green_final(tmp_path):
     assert [v.approved for v in out.iv_verdicts] == [True]
     assert out.independent_test == iv_source()
     assert out.independent_test_path == "tests/test_independent.py"
-    assert out.independent_test_node_ids == ["scripted::test"]
+    assert out.independent_test_node_ids == ["tests/test_independent.py::test_ac1"]
     assert out.iv_original_gate is not None and out.iv_original_gate.anomaly == "tests-failed"
     assert out.iv_final_gate is not None and out.iv_final_gate.green is True
     assert "independent_test_verdict" in ledger_kinds()
@@ -1200,19 +1283,14 @@ def test_independent_test_runs_in_a_private_copy_never_the_run_workdir(tmp_path)
 
     class RecordingGate:
         def __init__(self, codes):
-            self._codes = list(codes)
-            self.calls = 0
+            self._inner = ScriptedTests(codes)
 
-        def __call__(self, workdir) -> ShapedResult:
+        def __call__(self, workdir, node_ids=None) -> ShapedResult:
             workdir = Path(workdir)
             seen_dirs.append(workdir)
             seen_files.append(sorted(p.relative_to(workdir).as_posix()
                                      for p in workdir.rglob("*") if p.is_file()))
-            code = self._codes[min(self.calls, len(self._codes) - 1)]
-            self.calls += 1
-            return ShapedResult(command=["python3", "-m", "pytest", "-q"], exit=code,
-                                verdict="ok" if code == 0 else "failed", excerpts=[],
-                                gate=scripted_gate() if code == 0 else scripted_red_gate())
+            return self._inner(workdir, node_ids=node_ids)
 
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
                         iv=lambda request: iv_candidate(),
@@ -1300,19 +1378,22 @@ def test_independent_test_request_never_exposes_a_grader_path_or_the_own_test(tm
 
 
 def test_evaluate_independent_test_real_gate_approves_red_original_green_final():
-    """The real report gate, twice: the same test is red on the pre-run tree and green
-    on the final tree, so the verdict approves and records the passed node ids."""
+    """The real report gate: the whole file is red on the pre-run tree and green on the
+    final tree, and its explicit AC1 node id discriminates, so the verdict approves and
+    records the independent test's passed node ids."""
     import harness.leaf as leaf_mod
 
     original = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 0\n"}
     final = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 42\n"}
     verdict = asyncio.run(evaluate_independent_test(
-        iv_candidate(), original, final, leaf_mod._default_run_tests))
+        iv_candidate(), original, final, leaf_mod._default_run_tests, criteria_count=1))
 
     assert verdict.approved is True and verdict.reason == ""
     assert verdict.original_gate is not None and verdict.original_gate.anomaly == "tests-failed"
     assert verdict.final_gate is not None and verdict.final_gate.green is True
-    assert any("test_goal" in nid for nid in verdict.node_ids)
+    assert any("test_ac1_goal" in nid for nid in verdict.node_ids)
+    assert verdict.criteria_count == 1
+    assert verdict.covered_indices == (1,) and verdict.uncovered_indices == ()
 
 
 def test_evaluate_independent_test_real_gate_rejects_a_vacuous_test():
@@ -1376,9 +1457,9 @@ def test_iv_relocates_a_non_collectible_tests_path_and_still_approves():
     final = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 42\n"}
     candidate = IndependentTestCandidate(
         path="tests/verify_pagination.py",
-        content="from pkg.calc import result\n\n\ndef test_goal():\n    assert result() == 42\n")
+        content="from pkg.calc import result\n\n\ndef test_ac1_goal():\n    assert result() == 42\n")
     verdict = asyncio.run(evaluate_independent_test(
-        candidate, original, final, leaf_mod._default_run_tests))
+        candidate, original, final, leaf_mod._default_run_tests, criteria_count=1))
 
     assert verdict.approved is True
     assert verdict.requested_path == "tests/verify_pagination.py"
@@ -1545,6 +1626,498 @@ def test_run_record_reports_iv_attempts_and_repairs(tmp_path):
     json.dumps(record)
 
 
+# -------------------- acceptance-criteria discrimination (ticket 17 round 10)
+# Round 9 made coverage a NAME check, and the adversarial pass proved that only proved
+# the criterion was NAMED: a real test plus ``test_ac2_placeholder``/``test_ac3_placeholder``
+# (each asserting True), one function carrying all indices, or a parametrize ids=[...]
+# all approved while the criterion was never exercised. The rule is now PER-CRITERION
+# DISCRIMINATION: for every index 1..N the SAME EXPLICIT node ids runs on the
+# original and final tree, and must collect an independent-test node, FAIL on the
+# original (a placeholder is green there and is rejected) and PASS on the final. A
+# green-on-original set is ``independent-test-not-discriminating``, one with no node is
+# ``independent-test-incomplete-coverage``, and one node mapped to several criteria is
+# ``independent-test-shared-coverage``; all are repairable once with the offending
+# indices, and the name convention is only the hint that makes the node map work.
+
+
+def _green_gate(*node_names: str) -> GateReport:
+    """A scripted GREEN report whose passed node ids are exactly ``node_names``."""
+    return GateReport(report_path="(scripted)", process_exit=0, canary="scripted",
+                      expected_files=(), n_tests=len(node_names), n_failed=0, n_errors=0,
+                      passed_ids=tuple(node_names), failed_ids=(), missing=(), observed=True)
+
+
+def _green_result(*node_names: str) -> ShapedResult:
+    return ShapedResult(command=["python3", "-m", "pytest", "-q"], exit=0,
+                        verdict="ok", excerpts=[], gate=_green_gate(*node_names))
+
+
+def _red_gate(*node_names: str) -> GateReport:
+    """A scripted observed RED report whose failed node ids are exactly ``node_names``."""
+    return GateReport(report_path="(scripted)", process_exit=1, canary="scripted",
+                      expected_files=(), n_tests=len(node_names), n_failed=len(node_names),
+                      n_errors=0, passed_ids=(), failed_ids=tuple(node_names), missing=(),
+                      observed=True, anomaly="tests-failed",
+                      detail=f"{len(node_names)} failure(s)")
+
+
+def _red_result(*node_names: str) -> ShapedResult:
+    return ShapedResult(command=["python3", "-m", "pytest", "-q"], exit=1,
+                        verdict="failed", excerpts=[f"FAILED {n}" for n in node_names],
+                        gate=_red_gate(*node_names))
+
+
+def _two_acs_spec() -> LeafSpec:
+    return dataclasses.replace(make_spec(),
+                               acs=["result() returns 42", "result() is stable"])
+
+
+def test_criterion_node_map_is_boundary_aware_and_scoped():
+    """Round 11: the index -> node-id map comes from the first full-file report with a
+    boundary-aware node-NAME match (``ac1`` never matches ``ac12``/``ac10``) scoped to
+    the independent test file; a node used for several criteria is detected as shared;
+    every count is scoped to the file, and the verdict reason follows the documented
+    priority (a structural shared-coverage defect wins)."""
+    from harness.leaf import (
+        CriterionEvidence,
+        _classify_criteria,
+        _criterion_evidence,
+        _criterion_node_map,
+        _iv_scoped_ids,
+        _node_criterion_indices,
+        _shared_node_ids,
+    )
+
+    iv = "tests/test_independent.py"
+    canary = "tests/test_gate_canary_deadbeef.py::test_gate_canary_deadbeef"
+    # boundary-aware: ac12/ac10 never match criterion 1, and another file never counts
+    assert _node_criterion_indices(f"{iv}::test_ac1_ok", iv) == (1,)
+    assert _node_criterion_indices(f"{iv}::test_ac12_thing", iv) == (12,)
+    assert _node_criterion_indices("tests/other.py::test_ac1_x", iv) == ()
+    assert _node_criterion_indices(f"{iv}::test_ac1_ac2_ac3_combined", iv) == (1, 2, 3)
+
+    seed = _gate_report(iv, passed=(f"{iv}::test_ac1_ok", canary),
+                        failed=(f"{iv}::test_ac12_thing", f"{iv}::test_ac2_ok"),
+                        green=False)
+    assert _criterion_node_map(seed, iv, 2) == {
+        1: (f"{iv}::test_ac1_ok",), 2: (f"{iv}::test_ac2_ok",)}
+    assert _iv_scoped_ids(seed, iv) == ((f"{iv}::test_ac1_ok",),
+                                        (f"{iv}::test_ac12_thing", f"{iv}::test_ac2_ok"))
+
+    # one node selected for two criteria is the shared-coverage defect
+    shared_seed = _gate_report(iv, failed=(f"{iv}::test_ac1_ac2_goal",), green=False)
+    mapping = _criterion_node_map(shared_seed, iv, 2)
+    assert mapping == {1: (f"{iv}::test_ac1_ac2_goal",),
+                       2: (f"{iv}::test_ac1_ac2_goal",)}
+    assert _shared_node_ids(mapping) == {f"{iv}::test_ac1_ac2_goal": (1, 2)}
+
+    # no matching node is incomplete-coverage; a collected-but-green set is
+    # not-discriminating; a red set that stays red is red-on-final
+    assert _criterion_evidence(2, (), None, None, iv).reason == "incomplete-coverage"
+    green = _gate_report(iv, passed=(f"{iv}::test_ac2_placeholder",))
+    ev = _criterion_evidence(2, (f"{iv}::test_ac2_placeholder",), green, green, iv)
+    assert ev.reason == "not-discriminating" and ev.original_failures == 0
+    red = _gate_report(iv, failed=(f"{iv}::test_ac2_ok",), green=False)
+    green_ok = _gate_report(iv, passed=(f"{iv}::test_ac2_ok",))
+    ev = _criterion_evidence(2, (f"{iv}::test_ac2_ok",), red, green_ok, iv)
+    assert ev.reason == "" and ev.original_failures == 1 and ev.final_failures == 0
+    assert _criterion_evidence(2, (f"{iv}::test_ac2_ok",), red, red, iv).reason == "red-on-final"
+
+    # priority: a structural shared-coverage defect outranks the others; a reparable
+    # test defect outranks a fix failure.
+    crit = (CriterionEvidence(1, "ac1", 1, 1, 1, 1, "shared-coverage", ""),
+            CriterionEvidence(2, "ac2", 0, 0, 0, 0, "incomplete-coverage", ""),
+            CriterionEvidence(3, "ac3", 1, 1, 1, 1, "red-on-final", ""))
+    assert _classify_criteria(crit) == ("independent-test-shared-coverage", (1,))
+    assert _classify_criteria((crit[1],)) == ("independent-test-incomplete-coverage", (2,))
+    assert _classify_criteria((crit[2],)) == ("independent-test-red-on-final", (3,))
+    assert _classify_criteria(()) == ("", ())
+
+
+def test_incomplete_coverage_rejects_and_one_repair_can_approve(tmp_path):
+    """A green test that names only AC1 of two criteria is rejected with
+    ``independent-test-incomplete-coverage`` (listing the uncovered index); the ONE
+    bounded re-ask that names the missing criterion then approves."""
+    spec = _two_acs_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    seen: list[IndependentTestRequest] = []
+
+    def iv(request: IndependentTestRequest) -> IndependentTestCandidate:
+        seen.append(request)
+        return iv_candidate()
+
+    ac1 = "tests/test_independent.py::test_ac1_ok"
+    ac2 = "tests/test_independent.py::test_ac2_ok"
+    # self red(1), impl green(0), IV orig red(ac1,ac2), IV final green ac1 ONLY,
+    # repair orig red(ac1,ac2), repair final green ac1+ac2
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        iv=iv, run_tests=ScriptedTests([
+                            1, 0, _red_result(ac1, ac2), _green_result(ac1),
+                            _red_result(ac1, ac2), _green_result(ac1, ac2),
+                        ]))
+
+    assert out.claimed is True
+    assert out.claimed_basis == "own-test+independent-test"
+    assert out.iv_attempts == 2 and out.iv_repairs == 1
+    assert [v.reason for v in out.iv_verdicts] == [
+        "independent-test-incomplete-coverage", ""]
+    assert out.iv_verdicts[0].covered_indices == (1,)
+    assert out.iv_verdicts[0].uncovered_indices == (2,)
+    assert out.iv_verdicts[1].covered_indices == (1, 2)
+    assert out.iv_verdicts[1].uncovered_indices == ()
+    # the repair carried the offending index as evidence
+    assert len(seen) == 2 and seen[1].repair_reason == "independent-test-incomplete-coverage"
+    assert seen[1].offending_indices == (2,)
+    assert "AC2" in seen[1].repair_detail
+    assert "independent_test_repair" in ledger_kinds()
+
+
+def test_shared_coverage_rejects_and_one_repair_can_approve(tmp_path):
+    """Finding A through the loop: one node id that serves both criteria is rejected as
+    ``independent-test-shared-coverage`` (listing the shared ids), and the ONE bounded
+    re-ask that supplies distinct per-criterion nodes then approves."""
+    spec = _two_acs_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    seen: list[IndependentTestRequest] = []
+
+    def iv(request: IndependentTestRequest) -> IndependentTestCandidate:
+        seen.append(request)
+        return iv_candidate()
+
+    shared = "tests/test_independent.py::test_ac1_ac2_goal"
+    ac1 = "tests/test_independent.py::test_ac1_ok"
+    ac2 = "tests/test_independent.py::test_ac2_ok"
+    # self red(1), impl green(0), IV orig red(shared), IV final green(shared),
+    # repair orig red(ac1,ac2 distinct), repair final green(ac1,ac2 distinct)
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        iv=iv, run_tests=ScriptedTests([
+                            1, 0, _red_result(shared), _green_result(shared),
+                            _red_result(ac1, ac2), _green_result(ac1, ac2),
+                        ]))
+
+    assert out.claimed is True
+    assert out.iv_attempts == 2 and out.iv_repairs == 1
+    assert [v.reason for v in out.iv_verdicts] == [
+        "independent-test-shared-coverage", ""]
+    assert out.iv_verdicts[0].shared_node_ids == (shared,)
+    assert out.iv_verdicts[0].offending_indices == (1, 2)
+    assert out.iv_verdicts[1].covered_indices == (1, 2)
+    # the repair named the shared-coverage reason and the offending indices
+    assert len(seen) == 2 and seen[1].repair_reason == "independent-test-shared-coverage"
+    assert seen[1].offending_indices == (1, 2)
+
+
+def test_incomplete_coverage_after_repair_keeps_claimed_false(tmp_path):
+    """ONE repair only: a repaired test that still misses an index leaves the verdict
+    standing, the run unclaimed, and the coverage evidence on the outcome."""
+    spec = _two_acs_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    ac1 = "tests/test_independent.py::test_ac1_ok"
+    ac2 = "tests/test_independent.py::test_ac2_ok"
+    ac1_only = _green_result(ac1)
+
+    # self red(1), impl green(0), IV orig red(ac1,ac2), IV final green ac1,
+    # repair orig red(ac1,ac2), repair final green ac1 (still missing ac2)
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        iv=lambda request: iv_candidate(),
+                        run_tests=ScriptedTests([
+                            1, 0, _red_result(ac1, ac2), ac1_only,
+                            _red_result(ac1, ac2), ac1_only]))
+
+    assert out.claimed is False
+    assert out.iv_attempts == 2 and out.iv_repairs == 1
+    assert out.iv_verdicts[-1].reason == "independent-test-incomplete-coverage"
+    assert out.independent_test_reason.startswith("independent-test-incomplete-coverage")
+    assert out.iv_criteria_count == 2
+    assert out.iv_covered_indices == [1] and out.iv_uncovered_indices == [2]
+
+
+def test_empty_acceptance_criteria_skips_coverage_and_is_recorded(tmp_path):
+    """No extracted acceptance criteria ⇒ the coverage rule is skipped (a test that names
+    no ``ac<i>`` can approve) and ``no_acceptance_criteria`` is recorded."""
+    spec = dataclasses.replace(make_spec(), acs=[])
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    # self red(1), impl green(0), IV orig red(1), IV final green with NO ac token
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        iv=lambda request: iv_candidate(),
+                        run_tests=ScriptedTests([
+                            1, 0, 1,
+                            _green_result("tests/test_independent.py::test_goal"),
+                        ]))
+
+    assert out.claimed is True
+    assert out.iv_criteria_count == 0
+    assert out.iv_covered_indices == [] and out.iv_uncovered_indices == []
+    assert "no_acceptance_criteria" in ledger_kinds()
+
+
+def test_evaluate_independent_test_real_gate_rejects_incomplete_coverage():
+    """The real report gate: a green test with one criterion missing is rejected by the
+    deterministic node-id check, with the uncovered index recorded."""
+    import harness.leaf as leaf_mod
+
+    original = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 0\n"}
+    final = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 42\n"}
+    candidate = IndependentTestCandidate(
+        path="tests/test_independent.py",
+        content="from pkg.calc import result\n\n\ndef test_ac1_goal():\n    assert result() == 42\n")
+    verdict = asyncio.run(evaluate_independent_test(
+        candidate, original, final, leaf_mod._default_run_tests, criteria_count=2))
+
+    assert verdict.approved is False
+    assert verdict.reason == "independent-test-incomplete-coverage"
+    assert verdict.covered_indices == (1,) and verdict.uncovered_indices == (2,)
+    assert verdict.offending_indices == (2,)
+    assert verdict.final_gate is not None and verdict.final_gate.green is True
+    # the per-criterion evidence is carried on the verdict
+    assert [(c.index, c.reason) for c in verdict.criteria] == [
+        (1, ""), (2, "incomplete-coverage")]
+
+
+def test_real_gate_rejects_placeholders_that_only_name_the_criterion():
+    """The round-10 attack: a real AC1 test plus ``test_ac2_placeholder`` and
+    ``test_ac3_placeholder`` (each asserting True). The whole file is green on the final
+    source, but the placeholder node sets are green on the ORIGINAL too, so they cannot
+    discriminate and the claim is rejected with the offending indices listed."""
+    import harness.leaf as leaf_mod
+
+    original = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 0\n"}
+    final = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 42\n"}
+    content = ("from pkg.calc import result\n\n\n"
+               "def test_ac1_goal():\n    assert result() == 42\n\n\n"
+               "def test_ac2_placeholder():\n    assert True\n\n\n"
+               "def test_ac3_placeholder():\n    assert True\n")
+    verdict = asyncio.run(evaluate_independent_test(
+        IndependentTestCandidate(path="tests/test_independent.py", content=content),
+        original, final, leaf_mod._default_run_tests, criteria_count=3))
+
+    assert verdict.approved is False
+    assert verdict.reason == "independent-test-not-discriminating"
+    assert verdict.offending_indices == (2, 3)
+    assert [c.index for c in verdict.criteria if not c.reason] == [1]
+    assert verdict.final_gate is not None and verdict.final_gate.green is True
+
+
+def test_real_gate_rejects_a_shared_index_test_as_repairable():
+    """Finding A (round 11): one genuinely discriminating test renamed to carry EVERY
+    index (``test_ac1_ac2_ac3_goal``) used to be selected for every criterion and approve
+    them all. "One test per criterion" is now enforced: the node id is mapped to every
+    criterion and rejected as ``independent-test-shared-coverage`` (repairable, listing
+    the shared node id and the offending indices)."""
+    import harness.leaf as leaf_mod
+    from harness.leaf import _IV_REPAIRABLE
+
+    original = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 0\n"}
+    final = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 42\n"}
+    content = ("from pkg.calc import result\n\n\n"
+               "def test_ac1_ac2_ac3_goal():\n    assert result() == 42\n")
+    verdict = asyncio.run(evaluate_independent_test(
+        IndependentTestCandidate(path="tests/test_independent.py", content=content),
+        original, final, leaf_mod._default_run_tests, criteria_count=3))
+
+    assert verdict.approved is False
+    assert verdict.reason == "independent-test-shared-coverage"
+    assert verdict.reason in _IV_REPAIRABLE                 # repairable once
+    assert verdict.offending_indices == (1, 2, 3)
+    assert verdict.shared_node_ids == (
+        "tests/test_independent.py::test_ac1_ac2_ac3_goal",)
+    assert verdict.final_gate is not None and verdict.final_gate.green is True
+
+
+def test_real_gate_rejects_an_index_colliding_name():
+    """Finding C (round 11): ``-k ac1`` was a case-sensitive SUBSTRING match, so a
+    criterion could be "covered" by ``test_ac12_thing``. The node map matches the index
+    token boundary-aware, so a file whose only test is ``test_ac12_thing`` has no node
+    for AC1 and is ``independent-test-incomplete-coverage`` — never an approval."""
+    import harness.leaf as leaf_mod
+
+    original = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 0\n"}
+    final = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 42\n"}
+    content = ("from pkg.calc import result\n\n\n"
+               "def test_ac12_thing():\n    assert result() == 42\n")
+    verdict = asyncio.run(evaluate_independent_test(
+        IndependentTestCandidate(path="tests/test_independent.py", content=content),
+        original, final, leaf_mod._default_run_tests, criteria_count=1))
+
+    assert verdict.approved is False
+    assert verdict.reason == "independent-test-incomplete-coverage"
+    assert verdict.uncovered_indices == (1,)
+    assert verdict.final_gate is not None and verdict.final_gate.green is True
+
+
+def test_real_gate_accepts_distinct_per_criterion_tests():
+    """Genuinely distinct per-criterion tests still approve: three test functions, each
+    named with its OWN index, each red on the original and green on the final, map to
+    three disjoint node ids."""
+    import harness.leaf as leaf_mod
+
+    original = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 0\n"}
+    final = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 42\n"}
+    content = ("from pkg.calc import result\n\n\n"
+               "def test_ac1_goal():\n    assert result() == 42\n\n\n"
+               "def test_ac2_goal():\n    assert result() == 42\n\n\n"
+               "def test_ac3_goal():\n    assert result() == 42\n")
+    verdict = asyncio.run(evaluate_independent_test(
+        IndependentTestCandidate(path="tests/test_independent.py", content=content),
+        original, final, leaf_mod._default_run_tests, criteria_count=3))
+
+    assert verdict.approved is True
+    assert verdict.covered_indices == (1, 2, 3)
+    assert verdict.shared_node_ids == ()
+    assert {nid.rsplit("::", 1)[-1] for nid in verdict.node_ids} == {
+        "test_ac1_goal", "test_ac2_goal", "test_ac3_goal"}
+
+
+def test_real_gate_class_based_test_without_an_indexed_node_name_is_incomplete():
+    """Round 11 pins the boundary rule: the junit node NAME of a class method is the
+    method name only (the class is not in the report) and only a boundary-aware index
+    token in that name maps a criterion. A ``TestAC1::test_thing`` therefore has no node
+    for AC1 and is ``independent-test-incomplete-coverage`` — not a silent approval, and
+    not a crash."""
+    import harness.leaf as leaf_mod
+
+    original = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 0\n"}
+    final = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 42\n"}
+    content = ("from pkg.calc import result\n\n\nclass TestAC1:\n"
+               "    def test_thing(self):\n        assert result() == 42\n")
+    verdict = asyncio.run(evaluate_independent_test(
+        IndependentTestCandidate(path="tests/test_independent.py", content=content),
+        original, final, leaf_mod._default_run_tests, criteria_count=1))
+
+    assert verdict.approved is False
+    assert verdict.reason == "independent-test-incomplete-coverage"
+    assert verdict.uncovered_indices == (1,)
+
+
+def test_default_gate_passes_explicit_node_ids_and_never_a_dash_k(tmp_path, monkeypatch):
+    """Round 11 pins the SELECTION EXPLICITNESS: a criterion's gate command carries the
+    explicit ``path::nodeid`` arguments plus the canary node id — never a ``-k`` term,
+    which could match unrelated names."""
+    import harness.leaf as leaf_mod
+
+    captured: dict[str, list[str]] = {}
+
+    async def fake_exec(cmd, cwd, **kwargs):
+        captured["cmd"] = list(cmd)
+        return ShapedResult(command=list(cmd), exit=1, verdict="failed", excerpts=[])
+
+    monkeypatch.setattr(leaf_mod, "k_exec", fake_exec)
+    (tmp_path / "tests").mkdir()
+    node = "tests/test_independent.py::test_ac1_goal"
+
+    asyncio.run(leaf_mod._default_run_tests(tmp_path, node_ids=(node,)))
+    cmd = captured["cmd"]
+    assert node in cmd
+    assert not any(arg == "-k" or arg.startswith("-k") for arg in cmd)
+    assert any(arg.startswith("tests/test_gate_canary_")
+               and "::test_gate_canary_" in arg for arg in cmd)
+
+    asyncio.run(leaf_mod._default_run_tests(tmp_path))
+    whole = captured["cmd"]
+    assert not any(arg == "-k" or arg.startswith("-k") for arg in whole)
+    assert node not in whole
+
+
+def test_real_gate_accepts_a_parametrized_discriminating_test():
+    """A ``@pytest.mark.parametrize`` whose ids carry the indices discriminates for every
+    index: each ``[ac<i>]`` parameter node is its own explicit node id, which is red on
+    the original and green on the final."""
+    import harness.leaf as leaf_mod
+
+    original = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 0\n"}
+    final = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 42\n"}
+    content = ("import pytest\nfrom pkg.calc import result\n\n\n"
+               "@pytest.mark.parametrize('expected', [42, 42, 42], ids=['ac1', 'ac2', 'ac3'])\n"
+               "def test_thing(expected):\n    assert result() == expected\n")
+    verdict = asyncio.run(evaluate_independent_test(
+        IndependentTestCandidate(path="tests/test_independent.py", content=content),
+        original, final, leaf_mod._default_run_tests, criteria_count=3))
+
+    assert verdict.approved is True
+    assert verdict.covered_indices == (1, 2, 3)
+    assert len(verdict.node_ids) == 3
+
+
+def test_independent_test_prompt_numbers_criteria_and_asks_one_test_per_criterion():
+    """The prompt carries the NUMBERED criteria and the naming convention the coverage
+    rule checks; on the coverage repair it carries the uncovered indices."""
+    from bench.v2_leaf import _independent_test_question
+
+    request = IndependentTestRequest(goal="g", acs=["first req", "second req"],
+                                     original={}, final={})
+    question = _independent_test_question(request)
+    assert "AC1: first req" in question and "AC2: second req" in question
+    assert "ONE test function per criterion" in question
+    assert "test_ac1_" in question and "test_ac2_" in question
+
+    repaired = dataclasses.replace(
+        request, previous_test="def test_ac1_first(): ...\n",
+        repair_reason="independent-test-incomplete-coverage",
+        repair_detail="no test node is selected for AC2", offending_indices=(2,))
+    repair_q = _independent_test_question(repaired)
+    assert "REJECTED (independent-test-incomplete-coverage)" in repair_q
+    assert "AC2" in repair_q and "test_ac" in repair_q
+
+    not_discriminating = dataclasses.replace(
+        request, previous_test="def test_ac2_second(): ...\n",
+        repair_reason="independent-test-not-discriminating",
+        repair_detail="the AC2 selection still PASSES on the pre-run source",
+        offending_indices=(2,))
+    nd_q = _independent_test_question(not_discriminating)
+    assert "REJECTED (independent-test-not-discriminating)" in nd_q
+    assert "AC2" in nd_q and "FAIL on the" in nd_q
+
+    shared = dataclasses.replace(
+        request, previous_test="def test_ac1_ac2_goal(): ...\n",
+        repair_reason="independent-test-shared-coverage",
+        repair_detail="the node serves AC1 and AC2", offending_indices=(1, 2))
+    shared_q = _independent_test_question(shared)
+    assert "REJECTED (independent-test-shared-coverage)" in shared_q
+    assert "AC1" in shared_q and "AC2" in shared_q
+    assert "SEPARATE test function" in shared_q
+
+
+def test_run_record_carries_the_per_criterion_discrimination_evidence():
+    """The persisted run record carries the criteria count and, for EVERY index, the
+    selection's original/final collected count and failures plus the reason it failed
+    (ticket 17 round 10)."""
+    from bench.external_score import ExternalScore
+    from bench.v2_leaf import build_record
+    from harness.leaf import CriterionEvidence
+
+    outcome = LeafOutcome(
+        claimed=False, signal="honest-failure", attempts=[], calls=3, wall_s=1.0,
+        self_test="tests/test_x.py", questions=[], exhausted=False,
+        exhaustion_reason="independent-test not discriminating",
+        layers_used=[], stop_reason="calls", iv_criteria_count=2,
+        iv_criteria=[
+            CriterionEvidence(1, "ac1", 1, 1, 1, 0, "", ""),
+            CriterionEvidence(2, "ac2", 1, 0, 1, 0, "not-discriminating",
+                              "the AC2 selection still PASSES on the pre-run source")],
+        iv_covered_indices=[1], iv_uncovered_indices=[],
+        independent_test_reason="independent-test-not-discriminating: the selection for AC2")
+    score = ExternalScore(passed=False, exit=1, notes=[], work_root="", applied=[],
+                          skipped=[])
+
+    record = build_record("T-x", "goal", outcome, withheld=[], produced={}, score=score,
+                          quad="honest-failure", run_wall_s=1.0, iv_enabled=True,
+                          acs=["a", "b"])
+
+    assert record["iv_criteria_count"] == 2
+    assert record["iv_covered_indices"] == [1]
+    assert record["iv_uncovered_indices"] == []
+    assert [(c["index"], c["original_failures"], c["reason"])
+            for c in record["iv_criteria"]] == [
+        (1, 1, ""), (2, 0, "not-discriminating")]
+    assert record["independent_test_reason"].startswith(
+        "independent-test-not-discriminating")
+    json.dumps(record)
+
+
 # -------------------------------------------------- write-target shape (finding 2)
 # A schema-valid envelope whose file_path is an existing directory or under an existing
 # file used to raise IsADirectoryError / FileExistsError OUTSIDE the bounded request
@@ -1678,7 +2251,7 @@ def test_v2_driver_iv_mode_changes_the_claim_basis(tmp_path, monkeypatch):
         node_ids=("tests/test_independent.py::test_goal",),
         original_gate=scripted_red_gate(), final_gate=scripted_gate())
     monkeypatch.setattr(leaf_mod, "evaluate_independent_test",
-                        lambda candidate, original, final, run_tests: approved)
+                        lambda candidate, original, final, run_tests, **kw: approved)
 
     # The IV call is a third fresh write_test envelope; the run's own gate is scripted.
     model_on = FakeModelRunner({"write_test": [SELF_TEST, impl(), iv_env()]})

@@ -67,6 +67,33 @@ Fixed contract points, each deliberate:
   exactly ONE bounded re-ask of the same fresh-context producer with the verdict as
   evidence and the gates run again (``iv_attempts``/``iv_repairs`` count the cost). If
   the repair also fails, the verdict stands and the loop continues as before.
+- **Coverage is PER-CRITERION DISCRIMINATION on a DETERMINISTIC node map (ticket 17
+  rounds 10-11).** The round-9 rule only proved a criterion was NAMED: one real test
+  plus a ``test_ac2_placeholder`` that asserts ``True`` (or a single function carrying
+  every index) approved while the criterion was never exercised. Round 10 required each
+  criterion's ``-k ac<i>`` selection to be RED ON ORIGINAL and GREEN ON FINAL, but two
+  deterministic gaps remained: ``-k`` is a case-sensitive SUBSTRING match (``ac1`` also
+  selects ``test_ac12_thing``), and one test carrying every index was selected for every
+  criterion and approved them all. Round 11 replaces the ``-k`` term with a deterministic
+  node map: the index -> node-id mapping is derived from the FIRST full-file report (the
+  whole-file red-on-original gate) with a BOUNDARY-AWARE index match on the test node
+  NAME (``ac1`` never matches ``ac12``/``ac10``; case-insensitive), scoped to the
+  independent test file's own node ids. Each criterion's discrimination is then checked
+  by running the EXPLICIT node ids for that criterion (``pytest path::nodeid ...``, plus
+  the per-run canary node id explicitly) on the original and final trees, so nothing
+  else can run or satisfy the criterion. A criterion with no matching node is
+  ``independent-test-incomplete-coverage``; a node id selected for more than one
+  criterion is ``independent-test-shared-coverage`` (the per-criterion sets must be
+  DISJOINT). Both are REPAIRABLE on the existing one-shot path, whose evidence lists the
+  offending indices. A criterion that is green on the original is
+  ``independent-test-not-discriminating``. Every per-criterion count is scoped to the
+  independent test file's own node ids, so the canary or any other collected file can
+  never satisfy a criterion. The name convention stays a HINT in the prompt. The criteria
+  count and, for each index, the explicit node ids plus the original/final collected
+  counts, failures, and reason land in the persisted run record. An empty criteria list
+  skips the requirement and records ``no_acceptance_criteria``. This makes an
+  index-colliding name unmappable for the wrong criterion and makes a single all-index
+  test a REPAIRABLE defect rather than a free pass.
 - **A test may only be REPLACED, never weakened, and only with an independent
   judge.** The model's own "the test is wrong" claim is never enough: without an
   injected independent judge the claim is not credited and the failure is treated
@@ -115,6 +142,7 @@ from harness.exec import exec as k_exec
 from harness.gate_report import (
     JUNIT_FAMILY_ARGS,
     GateReport,
+    canary_node_id,
     canary_path,
     canary_source,
     canary_token,
@@ -138,6 +166,7 @@ from harness.staging import (
 __all__ = [
     "LADDER",
     "STRATEGY_LAYER",
+    "CriterionEvidence",
     "Escalation",
     "IndependentTestCandidate",
     "IndependentTestRequest",
@@ -238,6 +267,29 @@ class LeafSpec:
     grader_paths: tuple[str, ...] = ()  # owned by the grader: never shown, never writable
 
 
+@dataclass(frozen=True)
+class CriterionEvidence:
+    """Per-criterion discrimination evidence (ticket 17 rounds 10-11).
+
+    For criterion ``index`` the harness ran the EXPLICIT node ids it derived for that
+    criterion (``selection`` is their space-joined form) on the original and the final
+    tree and counted the INDEPENDENT test's own node ids (never the canary or another
+    file). ``reason`` is "" when the node ids collected, FAILED on the original and
+    PASSED on the final; otherwise it names the defect (``not-discriminating`` /
+    ``incomplete-coverage`` / ``shared-coverage`` / ``red-on-final`` / ``unobserved``)
+    and ``detail`` is the human-readable evidence for the run record.
+    """
+
+    index: int
+    selection: str
+    original_collected: int
+    original_failures: int
+    final_collected: int
+    final_failures: int
+    reason: str = ""
+    detail: str = ""
+
+
 @dataclass
 class LeafOutcome:
     """The two facts that matter — what the run CLAIMED and how it stopped — plus the
@@ -289,10 +341,24 @@ class LeafOutcome:
     # Ticket 17 round 8: the cost of the independent-test mechanism. ``iv_attempts``
     # counts every independent test that reached the two gates (first evaluations +
     # bounded repairs); ``iv_repairs`` counts the one-shot re-asks a defective verdict
-    # (``independent-test-not-red`` / ``independent-test-unobserved``) triggered. Both
-    # land in the persisted run record so the mechanism's price is measurable.
+    # (``independent-test-not-red`` / ``independent-test-not-discriminating`` /
+    # ``independent-test-incomplete-coverage`` / ``independent-test-unobserved``)
+    # triggered. Both land in the persisted run record so the mechanism's price is
+    # measurable.
     iv_attempts: int = 0
     iv_repairs: int = 0
+    # Ticket 17 rounds 10-11: the acceptance-criteria discrimination evidence from the
+    # LAST independent-test verdict. ``iv_criteria_count`` is the extracted criteria
+    # count (0 = none extracted); ``iv_criteria`` carries, for every index, the explicit
+    # node ids plus the selection's original/final collected count and failures and the
+    # reason it failed; ``iv_covered_indices`` are the indices whose selection
+    # discriminated, ``iv_uncovered_indices`` the ones with no matching node, and
+    # ``iv_shared_node_ids`` the node ids selected for more than one criterion.
+    iv_criteria_count: int = 0
+    iv_criteria: list[CriterionEvidence] = field(default_factory=list)
+    iv_covered_indices: list[int] = field(default_factory=list)
+    iv_uncovered_indices: list[int] = field(default_factory=list)
+    iv_shared_node_ids: list[str] = field(default_factory=list)
     # Every write-guard action (ticket 17 round 5): a refused self-test/source write or
     # a normalized landing spot. Persisted in the run record so a forged-green attempt
     # is visible after the fact.
@@ -339,6 +405,10 @@ class IndependentTestRequest:
     previous_test: str = ""
     repair_reason: str = ""
     repair_detail: str = ""
+    # Ticket 17 round 10: on a discrimination repair, the criterion indices the rejected
+    # test got wrong (uncovered or not discriminating). Empty on a first call and on the
+    # other repair reasons.
+    offending_indices: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -356,12 +426,24 @@ class IndependentTestVerdict:
 
     ``approved`` is True only when the test FAILED on a private copy of the pre-run
     source (``original_gate``) and PASSED on a private copy of the final source
-    (``final_gate``) with the canary and expected node ids satisfied. ``reason`` names a
-    rejection: ``independent-test-not-red`` (it passed on the original — vacuous),
-    ``independent-test-unobserved`` (no trustworthy report could be produced), or
-    ``independent-test-red-on-final`` (the fix is still wrong). ``content`` and the gate
-    reports are kept for the audit trail; ``output`` is the failure context the loop
-    feeds into the next attempt.
+    (``final_gate``) with the canary and expected node ids satisfied, AND every
+    acceptance criterion's own explicit node-id selection discriminated (rounds 10-11).
+    ``reason`` names a rejection: ``independent-test-not-red`` (the whole file passed on
+    the original — vacuous), ``independent-test-unobserved`` (no trustworthy report could
+    be produced), ``independent-test-not-discriminating`` (a criterion's selection still
+    passed on the original), ``independent-test-incomplete-coverage`` (a criterion has no
+    matching node), ``independent-test-shared-coverage`` (one node id is selected for
+    more than one criterion), or ``independent-test-red-on-final`` (the fix is still
+    wrong). ``content`` and the gate reports are kept for the audit trail; ``output`` is
+    the failure context the loop feeds into the next attempt.
+
+    Ticket 17 rounds 10-11 record the discrimination evidence on every verdict:
+    ``criteria_count`` is the number of extracted acceptance criteria (0 means the list
+    was empty and the requirement was skipped — :attr:`coverage_skipped`); ``criteria``
+    carries one :class:`CriterionEvidence` per index; ``covered_indices`` are the indices
+    whose selection discriminated, ``uncovered_indices`` the ones with no matching node,
+    and ``shared_node_ids`` the node ids selected for more than one criterion;
+    ``offending_indices`` is the flattened set the repair must fix.
     """
 
     approved: bool
@@ -378,6 +460,20 @@ class IndependentTestVerdict:
     final_gate: GateReport | None = None
     output: tuple[str, ...] = ()
     raw: str = ""
+    # Ticket 17 round 10: the acceptance-criteria discrimination evidence.
+    # ``criteria_count`` is the extracted AC count (0 ⇒ the requirement is skipped);
+    # ``criteria`` is one deterministic per-index discrimination record.
+    criteria_count: int = 0
+    criteria: tuple[CriterionEvidence, ...] = ()
+    covered_indices: tuple[int, ...] = ()
+    uncovered_indices: tuple[int, ...] = ()
+    offending_indices: tuple[int, ...] = ()
+    shared_node_ids: tuple[str, ...] = ()
+
+    @property
+    def coverage_skipped(self) -> bool:
+        """True when there were no extracted acceptance criteria to cover."""
+        return self.criteria_count == 0
 
 
 @dataclass(frozen=True)
@@ -821,21 +917,31 @@ def _iv_request(spec: LeafSpec, workdir: Path,
 
 
 #: Verdicts that mean the independent TEST itself is defective (it cannot discriminate —
-#: it passed on the original — or it was never collected), not that the fix is wrong.
-#: Each earns exactly ONE bounded re-ask of the same fresh-context producer with the
-#: verdict as evidence (ticket 17 round 8). ``independent-test-red-on-final`` is a FIX
-#: failure and is deliberately NOT repaired: the loop continues with it as context.
+#: it passed on the original — it has no node for a criterion, it reuses one node for
+#: several criteria, or it was never collected), not that the fix is wrong. Each earns
+#: exactly ONE bounded re-ask of the same fresh-context producer with the verdict as
+#: evidence (ticket 17 round 8). ``independent-test-not-discriminating``,
+#: ``independent-test-incomplete-coverage`` and ``independent-test-shared-coverage``
+#: (rounds 10-11) are TEST defects, so the test is re-asked with the offending indices
+#: as evidence. ``independent-test-red-on-final`` is a FIX failure and is deliberately
+#: NOT repaired: the loop continues with it as context.
 _IV_REPAIRABLE: frozenset[str] = frozenset(
-    {"independent-test-not-red", "independent-test-unobserved"})
+    {"independent-test-not-red", "independent-test-unobserved",
+     "independent-test-not-discriminating", "independent-test-incomplete-coverage",
+     "independent-test-shared-coverage"})
 
 
 def _iv_repair_request(
     request: IndependentTestRequest, verdict: IndependentTestVerdict
 ) -> IndependentTestRequest:
     """The ONE bounded repair request: the same fresh-context call re-asked with the
-    rejected test and the verdict that rejected it as explicit evidence."""
+    rejected test and the verdict that rejected it as explicit evidence.
+
+    On a discrimination repair the offending criterion indices ride the request
+    (``offending_indices``) so the re-ask names them, not just a prose detail."""
     return replace(request, previous_test=verdict.content,
-                   repair_reason=verdict.reason, repair_detail=verdict.detail)
+                   repair_reason=verdict.reason, repair_detail=verdict.detail,
+                   offending_indices=verdict.offending_indices)
 
 
 #: pytest's default ``python_files``: collect ``test_*.py`` and ``*_test.py`` only.
@@ -872,15 +978,217 @@ def _iv_safe_path(rel: str) -> str:
     return "tests/test_independent.py"
 
 
+#: The boundary-aware index token (ticket 17 round 11). The discipline is the round-9
+#: one: the token is ``ac<digits>`` and it only counts when the ``ac`` is not preceded
+#: and the digits are not followed by another alphanumeric character, so ``ac1`` never
+#: matches ``ac12``/``ac10``. Case-insensitive: ``AC1`` matches.
+_INDEX_TOKEN = re.compile(r"(?<![0-9A-Za-z])ac(\d+)(?![0-9A-Za-z])", re.IGNORECASE)
+
+
+def _node_criterion_indices(node_id: str, iv_path: str) -> tuple[int, ...]:
+    """The criterion indices a node NAME carries, scoped to the independent test file.
+
+    Only the part after ``<iv_path>::`` is matched (the node name) and only a
+    boundary-aware index token counts, so a node belonging to another file, or one named
+    ``test_ac12_thing`` for criterion 1, can never satisfy a criterion.
+    """
+    prefix = f"{iv_path}::"
+    if not node_id.startswith(prefix):
+        return ()
+    name = node_id[len(prefix):]
+    return tuple(sorted({int(match) for match in _INDEX_TOKEN.findall(name)}))
+
+
+def _criterion_node_map(
+    gate: GateReport, iv_path: str, criteria_count: int
+) -> dict[int, tuple[str, ...]]:
+    """The DETERMINISTIC index -> node-id map for criteria ``1..N`` (round 11).
+
+    Derived from the FIRST full-file report (the whole-file red-on-original run): every
+    independent-test node id — passed or failed — is bucketed by the boundary-aware
+    indices its NAME carries. A node may land in several buckets, which is exactly the
+    shared-coverage defect the caller detects; a criterion with no node keeps an empty
+    tuple. ``criteria_count == 0`` yields an empty map (the requirement is skipped).
+    """
+    mapping: dict[int, list[str]] = {index: [] for index in range(1, criteria_count + 1)}
+    passed, failed = _iv_scoped_ids(gate, iv_path)
+    for node_id in (*passed, *failed):
+        for index in _node_criterion_indices(node_id, iv_path):
+            if index in mapping and node_id not in mapping[index]:
+                mapping[index].append(node_id)
+    return {index: tuple(ids) for index, ids in mapping.items()}
+
+
+def _shared_node_ids(
+    mapping: Mapping[int, Sequence[str]]
+) -> dict[str, tuple[int, ...]]:
+    """The node ids selected for MORE than one criterion (round 11).
+
+    The per-criterion test sets must be DISJOINT: a node that serves several criteria
+    ("one test per criterion") is a defect, not free coverage. Returns ``node id ->
+    sorted indices`` for every shared node.
+    """
+    by_node: dict[str, list[int]] = {}
+    for index, ids in mapping.items():
+        for node_id in ids:
+            by_node.setdefault(node_id, []).append(index)
+    return {node_id: tuple(sorted(indices))
+            for node_id, indices in by_node.items() if len(indices) > 1}
+
+
+def _shared_coverage_detail(shared: Mapping[str, Sequence[int]]) -> str:
+    """The readable shared-coverage evidence, listing every shared node id."""
+    parts = [f"{node_id} serves {', '.join(f'AC{i}' for i in indices)}"
+             for node_id, indices in sorted(shared.items())]
+    return ("the independent test reuses one test node for several acceptance criteria "
+            "(each criterion needs its own distinct node): " + "; ".join(parts))
+
+
+def _mark_shared(
+    criteria: Sequence[CriterionEvidence], shared: Mapping[str, Sequence[int]]
+) -> list[CriterionEvidence]:
+    """Mark every criterion served by a shared node with the shared-coverage reason.
+
+    A criterion's set is disjoint or it is not: if ANY node id it was mapped to also
+    serves another criterion, the whole criterion is offending (the caller then rejects
+    the verdict with ``independent-test-shared-coverage`` and can repair it once).
+    """
+    shared_indices = {index for indices in shared.values() for index in indices}
+    marked: list[CriterionEvidence] = []
+    for criterion in criteria:
+        if criterion.index not in shared_indices:
+            marked.append(criterion)
+            continue
+        ids = sorted(node_id for node_id, indices in shared.items()
+                     if criterion.index in indices)
+        marked.append(replace(
+            criterion, reason="shared-coverage",
+            detail=f"AC{criterion.index} shares {', '.join(ids)} with another criterion"))
+    return marked
+
+
+def _iv_scoped_ids(
+    gate: GateReport, iv_path: str
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """A gate report's passed/failed node ids belonging to the INDEPENDENT test only.
+
+    Ticket 17 round 10 (point 3): every per-criterion count is scoped to the file the
+    harness wrote (``<iv_path>::``), so the per-run canary or any other collected file
+    can never satisfy a criterion.
+    """
+    prefix = f"{iv_path}::"
+    passed = tuple(nid for nid in gate.passed_ids if nid.startswith(prefix))
+    failed = tuple(nid for nid in gate.failed_ids if nid.startswith(prefix))
+    return passed, failed
+
+
+def _criterion_evidence(
+    index: int, node_ids: Sequence[str], original: GateReport | None,
+    final: GateReport | None, iv_path: str,
+) -> CriterionEvidence:
+    """The deterministic per-criterion discrimination evidence (rounds 10-11).
+
+    Both runs use the SAME EXPLICIT node ids derived for this criterion from the first
+    full-file report. A criterion with no matching node is ``incomplete-coverage``; a
+    node set that collects but PASSES on the original is ``not-discriminating`` (a
+    placeholder that asserts ``True`` is green there and is therefore rejected); the set
+    must be RED ON ORIGINAL and GREEN ON FINAL. A trustworthy report that was never
+    produced is ``unobserved``. Counts are scoped to the requested node ids within the
+    independent test's own file, so nothing else can satisfy the criterion.
+    """
+    selection = " ".join(node_ids)
+    if not node_ids:
+        return CriterionEvidence(
+            index, selection, 0, 0, 0, 0, reason="incomplete-coverage",
+            detail=f"no independent-test node carries the AC{index} index")
+    if original is None or not original.observed or final is None or not final.observed:
+        return CriterionEvidence(
+            index, selection, 0, 0, 0, 0, reason="unobserved",
+            detail=f"the AC{index} node selection produced no machine-readable report")
+    requested = set(node_ids)
+    o_passed, o_failed = _iv_scoped_ids(original, iv_path)
+    f_passed, f_failed = _iv_scoped_ids(final, iv_path)
+    o_passed = tuple(nid for nid in o_passed if nid in requested)
+    o_failed = tuple(nid for nid in o_failed if nid in requested)
+    f_passed = tuple(nid for nid in f_passed if nid in requested)
+    f_failed = tuple(nid for nid in f_failed if nid in requested)
+    o_collected, f_collected = len(o_passed) + len(o_failed), len(f_passed) + len(f_failed)
+    if o_collected == 0:
+        reason, detail = "incomplete-coverage", f"no independent-test node is selected for AC{index}"
+    elif not o_failed:
+        reason, detail = "not-discriminating", f"the AC{index} node selection still PASSES on the pre-run source"
+    elif f_collected == 0:
+        reason, detail = "incomplete-coverage", f"no independent-test node is selected for AC{index}"
+    elif f_failed:
+        reason, detail = "red-on-final", f"the AC{index} node selection still FAILS on the final source"
+    else:
+        reason, detail = "", ""
+    return CriterionEvidence(index, selection, o_collected, len(o_failed),
+                             f_collected, len(f_failed), reason, detail)
+
+
+#: The per-criterion reasons in verdict PRIORITY order: a missing observation first,
+#: then the structural SHARED-coverage defect, then the two repairable TEST defects (a
+#: placeholder / a missing test), and finally the FIX failure, which is not repaired.
+_CRITERION_REASON_ORDER: tuple[str, ...] = (
+    "unobserved", "shared-coverage", "not-discriminating", "incomplete-coverage",
+    "red-on-final")
+
+_CRITERION_VERDICT_REASON: dict[str, str] = {
+    "unobserved": "independent-test-unobserved",
+    "shared-coverage": "independent-test-shared-coverage",
+    "not-discriminating": "independent-test-not-discriminating",
+    "incomplete-coverage": "independent-test-incomplete-coverage",
+    "red-on-final": "independent-test-red-on-final",
+}
+
+
+def _classify_criteria(
+    criteria: Sequence[CriterionEvidence],
+) -> tuple[str, tuple[int, ...]]:
+    """Pick the verdict reason from the per-criterion evidence (rounds 10-11).
+
+    Returns ``(verdict_reason, offending_indices)``; ``("", ())`` means every criterion
+    discriminated. A single verdict can only carry one reason, so the highest-priority
+    defect wins (see :data:`_CRITERION_REASON_ORDER`) and its offending indices are the
+    evidence the ONE repair is asked to fix.
+    """
+    for criterion_reason in _CRITERION_REASON_ORDER:
+        offending = tuple(c.index for c in criteria if c.reason == criterion_reason)
+        if offending:
+            return _CRITERION_VERDICT_REASON[criterion_reason], offending
+    return "", ()
+
+
+def _criterion_detail(reason: str, offending: Sequence[int]) -> str:
+    """The human-readable evidence for a per-criterion rejection (rounds 10-11)."""
+    indices = ", ".join(f"AC{i}" for i in offending)
+    if reason == "independent-test-not-discriminating":
+        return ("the independent test does not pin the goal for every acceptance "
+                f"criterion: the node selection for {indices} still PASSES on the pre-run source")
+    if reason == "independent-test-incomplete-coverage":
+        return ("the independent test does not exercise every acceptance criterion: "
+                f"no independent-test node carries the index for {indices}")
+    if reason == "independent-test-unobserved":
+        return ("the independent test node selection for "
+                f"{indices} produced no machine-readable report")
+    return f"the independent test still FAILS on the final source for {indices}"
+
+
 async def _run_iv_gate(
-    run_tests: Callable[[Path], Awaitable[ShapedResult] | ShapedResult],
-    tree: Mapping[str, str], iv_path: str, iv_content: str,
+    run_tests: Callable[..., Awaitable[ShapedResult] | ShapedResult],
+    tree: Mapping[str, str], iv_path: str, iv_content: str, *,
+    node_ids: Sequence[str] | None = None,
 ) -> tuple[ShapedResult, GateReport | None]:
     """Run the existing report gate on a PRIVATE COPY of ``tree`` + the test.
 
     The copy is a fresh ``tempfile`` directory OUTSIDE the workdir, so the run never sees
     the independent test and the run's own test files are absent (the tree is the
     source-only view). The directory is removed before returning.
+
+    Ticket 17 round 11: ``node_ids`` are the EXPLICIT pytest node ids restricting the run
+    to one criterion's tests; the gate forces the per-run canary node id into the same
+    argument list. The SAME node ids are used on the original and the final tree.
     """
     with tempfile.TemporaryDirectory(prefix="helpagent-iv-") as tmp:
         root = Path(tmp)
@@ -891,7 +1199,10 @@ async def _run_iv_gate(
         target = root / iv_path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(iv_content)
-        res = await _maybe_await(run_tests, root)
+        if node_ids is None:
+            res = await _maybe_await(run_tests, root)
+        else:
+            res = await _maybe_await(run_tests, root, node_ids=node_ids)
     return res, getattr(res, "gate", None)
 
 
@@ -899,15 +1210,30 @@ async def evaluate_independent_test(
     candidate: IndependentTestCandidate,
     original_tree: Mapping[str, str],
     final_tree: Mapping[str, str],
-    run_tests: Callable[[Path], Awaitable[ShapedResult] | ShapedResult],
+    run_tests: Callable[..., Awaitable[ShapedResult] | ShapedResult],
+    *,
+    criteria_count: int = 0,
 ) -> IndependentTestVerdict:
-    """The DETERMINISTIC claim condition (ticket 17 round 7): two report gates.
+    """The DETERMINISTIC claim condition (ticket 17 rounds 7-11): report gates.
 
-    1. RED ON ORIGINAL: a private copy of the PRE-RUN source plus the test must run and
-       FAIL. A test that passes there does not exercise the failure (vacuous) and is
-       rejected with ``independent-test-not-red``.
-    2. GREEN ON FINAL: a private copy of the FINAL source plus the SAME test must run and
-       PASS with the canary and expected node ids satisfied.
+    1. RED ON ORIGINAL (whole file): a private copy of the PRE-RUN source plus the test
+       must run and FAIL. A test that passes there does not exercise the failure
+       (vacuous) and is rejected with ``independent-test-not-red``.
+    2. THE NODE MAP (round 11): the index -> node-id mapping for criteria ``1..N`` is
+       derived from that FIRST full-file report with a boundary-aware, case-insensitive
+       match on the test node NAME (``ac1`` never matches ``ac12``/``ac10``), scoped to
+       the independent test file. A node id that serves more than one criterion is the
+       ``independent-test-shared-coverage`` defect (the per-criterion sets must be
+       DISJOINT).
+    3. GREEN ON FINAL (whole file): a private copy of the FINAL source plus the SAME test
+       must run and PASS with the canary and expected node ids satisfied.
+    4. PER-CRITERION DISCRIMINATION (rounds 10-11): every criterion index
+       ``1..criteria_count`` runs the EXPLICIT node ids derived for it in step 2 (plus
+       the canary) through the SAME report gate on both trees. The node set must be RED
+       ON ORIGINAL and GREEN ON FINAL; a set that stays green on the original is
+       ``independent-test-not-discriminating``. A criterion with no matching node is
+       ``independent-test-incomplete-coverage``. The test defects (incomplete / shared /
+       not-discriminating) are repairable once.
 
     Both snapshots come from the blind source view (``run_tests`` in production is
     :func:`_default_run_tests`, which writes/requires the JUnit report and canary). A test
@@ -915,13 +1241,16 @@ async def evaluate_independent_test(
 
     The file the model names is a PARAMETER (round 8): it is normalized to a path pytest
     actually collects (:func:`_iv_safe_path`), and the verdict records the requested path
-    plus whether a relocation happened.
+    plus whether a relocation happened. ``criteria_count=0`` (no extracted acceptance
+    criteria) skips the per-criterion requirement.
     """
     requested_path = candidate.path or ""
     iv_path = _iv_safe_path(requested_path)
     relocated = requested_path != iv_path
     common = {"path": iv_path, "requested_path": requested_path, "relocated": relocated,
-              "content": candidate.content, "raw": candidate.raw}
+              "content": candidate.content, "raw": candidate.raw,
+              "criteria_count": criteria_count}
+    # 1. Whole-file RED ON ORIGINAL.
     orig_res, orig_gate = await _run_iv_gate(run_tests, original_tree, iv_path, candidate.content)
     orig_red = (orig_gate is not None and orig_gate.observed and not orig_gate.green
                 and orig_gate.anomaly == "tests-failed")
@@ -937,25 +1266,75 @@ async def evaluate_independent_test(
             approved=False, reason=reason, detail=detail, original_gate=orig_gate,
             output=tuple(getattr(orig_res, "excerpts", []) or ()), **common)
 
+    # 2. THE NODE MAP: derive index -> explicit node ids from THIS first full-file report
+    # (boundary-aware node-NAME match, scoped to the independent test file).
+    mapping = _criterion_node_map(orig_gate, iv_path, criteria_count)
+    shared = _shared_node_ids(mapping)
+
+    # 3. Per-criterion RED ON ORIGINAL with the EXPLICIT node ids for that criterion (a
+    # criterion with no matching node has nothing to run and stays incomplete-coverage).
+    original_criteria: dict[int, GateReport | None] = {}
+    for index in range(1, criteria_count + 1):
+        node_ids = mapping[index]
+        if not node_ids:
+            original_criteria[index] = None
+            continue
+        _, gate = await _run_iv_gate(run_tests, original_tree, iv_path, candidate.content,
+                                     node_ids=node_ids)
+        original_criteria[index] = gate
+
+    # 4. Whole-file GREEN ON FINAL.
     final_res, final_gate = await _run_iv_gate(run_tests, final_tree, iv_path, candidate.content)
-    if final_gate is None or not final_gate.green:
-        detail = (final_gate.detail if final_gate is not None else
-                  "the independent test produced no machine-readable report on the final source")
+    if final_gate is None:
         return IndependentTestVerdict(
-            approved=False, reason="independent-test-red-on-final", detail=detail,
+            approved=False, reason="independent-test-red-on-final",
+            detail="the independent test produced no machine-readable report on the final source",
+            original_gate=orig_gate, final_gate=None,
+            output=tuple(getattr(final_res, "excerpts", []) or ()), **common)
+    if not final_gate.green:
+        return IndependentTestVerdict(
+            approved=False, reason="independent-test-red-on-final", detail=final_gate.detail,
             original_gate=orig_gate, final_gate=final_gate,
-            node_ids=tuple(final_gate.passed_ids) if final_gate is not None else (),
+            node_ids=tuple(nid for nid in final_gate.passed_ids
+                           if nid.startswith(f"{iv_path}::")),
+            output=tuple(getattr(final_res, "excerpts", []) or ()), **common)
+
+    # 5. Per-criterion GREEN ON FINAL with the IDENTICAL explicit node ids per index.
+    evidence: list[CriterionEvidence] = []
+    for index in range(1, criteria_count + 1):
+        node_ids = mapping[index]
+        if not node_ids:
+            evidence.append(_criterion_evidence(index, (), None, None, iv_path))
+            continue
+        _, final_sel_gate = await _run_iv_gate(
+            run_tests, final_tree, iv_path, candidate.content, node_ids=node_ids)
+        evidence.append(_criterion_evidence(index, node_ids, original_criteria[index],
+                                            final_sel_gate, iv_path))
+    criteria = tuple(_mark_shared(evidence, shared))
+    covered = tuple(c.index for c in criteria if not c.reason)
+    uncovered = tuple(c.index for c in criteria if c.reason == "incomplete-coverage")
+    shared_ids = tuple(sorted(shared))
+    node_ids = tuple(nid for nid in final_gate.passed_ids if nid.startswith(f"{iv_path}::"))
+    reason, offending = _classify_criteria(criteria)
+    if reason:
+        detail = (_shared_coverage_detail(shared)
+                  if reason == "independent-test-shared-coverage"
+                  else _criterion_detail(reason, offending))
+        return IndependentTestVerdict(
+            approved=False, reason=reason, detail=detail,
+            original_gate=orig_gate, final_gate=final_gate, node_ids=node_ids,
+            criteria=criteria, covered_indices=covered, uncovered_indices=uncovered,
+            offending_indices=offending, shared_node_ids=shared_ids,
             output=tuple(getattr(final_res, "excerpts", []) or ()), **common)
 
     return IndependentTestVerdict(
-        approved=True,
-        node_ids=(tuple(nid for nid in final_gate.passed_ids
-                        if nid.startswith(f"{iv_path}::")) or tuple(final_gate.passed_ids)),
+        approved=True, node_ids=node_ids,
         original_gate=orig_gate, final_gate=final_gate,
+        criteria=criteria, covered_indices=covered, uncovered_indices=(),
         output=tuple(getattr(final_res, "excerpts", []) or ()), **common)
 
 
-async def _default_run_tests(workdir: Path) -> ShapedResult:
+async def _default_run_tests(workdir: Path, node_ids: Sequence[str] | None = None) -> ShapedResult:
     """The run's own gate: interpreter isolation + a machine-readable report.
 
     ``PYTHONSAFEPATH=1`` keeps the run-owned workdir off ``sys.path`` so a
@@ -969,6 +1348,11 @@ async def _default_run_tests(workdir: Path) -> ShapedResult:
     the gate is green only when the report exists, parses, holds the expected test
     file(s) and the canary all passed, and reports no failure or error. The exit code
     exposed to the loop is DERIVED from the report — 0 only on a green report.
+
+    Ticket 17 round 11: ``node_ids`` are the EXPLICIT pytest node ids restricting the run
+    to one acceptance criterion's tests (used for per-criterion discrimination). The
+    per-run canary node id is forced into the same argument list so the report still
+    carries this run's evidence; nothing else runs.
     """
     workdir = Path(workdir)
     shadows = shadowing_paths(workdir)
@@ -999,10 +1383,16 @@ async def _default_run_tests(workdir: Path) -> ShapedResult:
     neutral_ini.write_text("[pytest]\n")
     canary_file.parent.mkdir(parents=True, exist_ok=True)
     canary_file.write_text(canary_source(token))
+    target_args: list[str] = []
+    if node_ids is not None:
+        # EXPLICIT node ids only: pytest runs exactly the criterion's tests plus the
+        # canary (whose node id is named explicitly), so nothing else can run or satisfy
+        # a criterion. The harness still scopes its counts to the independent test file.
+        target_args = [*node_ids, canary_node_id(token, canary_dir)]
     try:
         res = await k_exec(
             ["python3", "-m", "pytest", "-q", *PYTEST_ISOLATION_ARGS,
-             "-c", str(neutral_ini), "--rootdir=.", *JUNIT_FAMILY_ARGS,
+             "-c", str(neutral_ini), "--rootdir=.", *target_args, *JUNIT_FAMILY_ARGS,
              f"--junitxml={report_path}"],
             workdir, provenance="kernel", extra_env=gate_env(workdir))
     finally:
@@ -1294,28 +1684,33 @@ async def run_leaf(
         original_tree: Mapping[str, str],
         final_tree: Mapping[str, str],
     ) -> tuple[IndependentTestVerdict | None, str]:
-        """Author and evaluate ONE independent test (round 8).
+        """Author and evaluate ONE independent test (rounds 8-10).
 
         One bounded authoring call (malformed-output retries apply) plus the two
-        deterministic gates. Returns ``(verdict, "")`` or ``(None, failure_reason)``
-        where ``failure_reason`` is ``"calls"`` or ``"malformed-output"`` — the caller
-        maps it to the same honest stop the other envelope steps use.
+        deterministic gates and the deterministic per-criterion discrimination check.
+        Returns ``(verdict, "")`` or ``(None, failure_reason)`` where ``failure_reason``
+        is ``"calls"`` or ``"malformed-output"`` — the caller maps it to the same honest
+        stop the other envelope steps use.
         """
         candidate_test, failure = await request_bounded(
             partial(_call_iv, iv, request), "independent-test")
         if failure:
             return None, failure
         verdict = await _maybe_await(
-            evaluate_independent_test, candidate_test, original_tree, final_tree, tests)
+            evaluate_independent_test, candidate_test, original_tree, final_tree, tests,
+            criteria_count=len(request.acs))
         return verdict, ""
 
     def record_iv(verdict: IndependentTestVerdict) -> None:
-        """Count, persist, and surface ONE independent-test verdict (round 8).
+        """Count, persist, and surface ONE independent-test verdict (rounds 8-10).
 
         The relocation is recorded exactly like the self-test's parameter-layer
         tolerance (``independent_test_relocated`` + ``tolerance_fired`` + a refusal
         note), so a naming slip is visible after the fact instead of silently becoming
-        ``independent-test-unobserved``.
+        ``independent-test-unobserved``. An empty acceptance-criteria list is recorded
+        as ``no_acceptance_criteria`` (round 9): the per-criterion requirement is not
+        applied there. The per-criterion discrimination evidence rides the emitted
+        event (round 10).
         """
         nonlocal iv_attempts
         iv_attempts += 1
@@ -1327,8 +1722,24 @@ async def run_leaf(
                  requested=verdict.requested_path, used=verdict.path)
             refusals.append(f"{verdict.requested_path}: not collectible -> {verdict.path} "
                             "(independent test relocated)")
+        if verdict.coverage_skipped:
+            emit("no_acceptance_criteria", path=verdict.path,
+                 detail="the extracted acceptance-criteria list is empty; "
+                        "per-criterion discrimination is not required")
         emit("independent_test_verdict", approved=verdict.approved,
              reason=verdict.reason, path=verdict.path,
+             criteria_count=verdict.criteria_count,
+             covered_indices=list(verdict.covered_indices),
+             uncovered_indices=list(verdict.uncovered_indices),
+             offending_indices=list(verdict.offending_indices),
+             shared_node_ids=list(verdict.shared_node_ids),
+             criteria=[{"index": c.index, "selection": c.selection,
+                        "original_collected": c.original_collected,
+                        "original_failures": c.original_failures,
+                        "final_collected": c.final_collected,
+                        "final_failures": c.final_failures,
+                        "reason": c.reason, "detail": c.detail}
+                       for c in verdict.criteria],
              original_gate=(verdict.original_gate.anomaly
                             if verdict.original_gate is not None else None),
              final_gate=(verdict.final_gate.anomaly
@@ -1444,6 +1855,11 @@ async def run_leaf(
             independent_test_reason=last_iv_reason,
             iv_attempts=iv_attempts,
             iv_repairs=iv_repairs,
+            iv_criteria_count=(last.criteria_count if last is not None else 0),
+            iv_criteria=list(last.criteria) if last is not None else [],
+            iv_covered_indices=list(last.covered_indices) if last is not None else [],
+            iv_uncovered_indices=list(last.uncovered_indices) if last is not None else [],
+            iv_shared_node_ids=list(last.shared_node_ids) if last is not None else [],
             refusals=list(refusals),
             gate_anomalies=list(gate_anomalies),
         )

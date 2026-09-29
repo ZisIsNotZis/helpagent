@@ -183,6 +183,26 @@ def cleanup_report(report_path: Path | str) -> None:
 # ---------------------------------------------------------------------- parsing
 
 
+def _selector(file: str, classname: str, name: str) -> str:
+    """A pytest-runnable node id for a testcase.
+
+    A report's ``classname`` carries the class for a method test (``pkg.mod.TestAC1``).
+    The selector must include it, or ``pytest path::name`` fails with exit 4 ("not
+    found") — a class-qualified test would otherwise be a false negative.
+    """
+    if not file:
+        return name
+    if classname:
+        # Only a classname that EXTENDS the module path names a class; a classname
+        # equal to the module (the common case) must not be mistaken for one.
+        stem = file[:-3].replace("/", ".") if file.endswith(".py") else file
+        if classname.startswith(stem + "."):
+            tail = classname[len(stem) + 1:]
+            if tail:
+                return f"{file}::" + "::".join([*tail.split("."), name])
+    return f"{file}::{name}"
+
+
 def parse_junit(report_path: Path | str) -> tuple[tuple[JunitCase, ...], str]:
     """Parse a JUnit report. Returns ``(testcases, error)``; ``error`` is ``""`` when
     the XML parsed. A missing/unreadable file is an error too — callers turn that into
@@ -196,8 +216,9 @@ def parse_junit(report_path: Path | str) -> tuple[tuple[JunitCase, ...], str]:
     for node in root.iter("testcase"):
         name = node.get("name", "") or ""
         raw_file = node.get("file", "") or ""
+        classname = node.get("classname", "") or ""
         file = str(PurePosixPath(raw_file)) if raw_file else ""
-        node_id = f"{file}::{name}" if file else name
+        node_id = _selector(file, classname, name)
         if node.find("failure") is not None:
             outcome = "failed"
         elif node.find("error") is not None:
