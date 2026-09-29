@@ -57,6 +57,16 @@ Fixed contract points, each deliberate:
   produced, afforded, or evaluated leaves ``claimed=False`` — never claim unverified.
   Without an ``iv`` producer the basis is the run's own unmodified test
   (``claimed_basis="own-test"``).
+- **The independent test's file name is a PARAMETER (ticket 17 round 8).** The harness,
+  not the model, decides the collected file name: the candidate is written at a path
+  pytest actually collects (:func:`_iv_safe_path`), and a relocation is recorded
+  (``independent_test_relocated`` + ``tolerance_fired``), so a naming slip can never
+  become ``independent-test-unobserved`` — that verdict is reserved for a test the gate
+  genuinely could not observe. A DEFECTIVE verdict — ``independent-test-not-red`` (the
+  test also passes on the pristine source) or ``independent-test-unobserved`` — earns
+  exactly ONE bounded re-ask of the same fresh-context producer with the verdict as
+  evidence and the gates run again (``iv_attempts``/``iv_repairs`` count the cost). If
+  the repair also fails, the verdict stands and the loop continues as before.
 - **A test may only be REPLACED, never weakened, and only with an independent
   judge.** The model's own "the test is wrong" claim is never enough: without an
   injected independent judge the claim is not credited and the failure is treated
@@ -85,9 +95,9 @@ import re
 import tempfile
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import partial
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from harness.attempts import (
@@ -244,6 +254,8 @@ class LeafOutcome:
     the claim rested on the run's own test alone or on the own test plus the
     independent test; ``iv_verdicts`` carries every independent-test evaluation and
     the last verdict's source, node ids, and both gate reports for audit.
+    ``iv_attempts``/``iv_repairs`` count the independent-test mechanism's cost (every
+    evaluated test, and every bounded one-shot repair of a defective verdict).
     """
 
     claimed: bool  # True ONLY if the run's own pytest exited 0
@@ -274,6 +286,13 @@ class LeafOutcome:
     iv_final_gate: GateReport | None = None
     iv_verdicts: list[IndependentTestVerdict] = field(default_factory=list)
     independent_test_reason: str = ""
+    # Ticket 17 round 8: the cost of the independent-test mechanism. ``iv_attempts``
+    # counts every independent test that reached the two gates (first evaluations +
+    # bounded repairs); ``iv_repairs`` counts the one-shot re-asks a defective verdict
+    # (``independent-test-not-red`` / ``independent-test-unobserved``) triggered. Both
+    # land in the persisted run record so the mechanism's price is measurable.
+    iv_attempts: int = 0
+    iv_repairs: int = 0
     # Every write-guard action (ticket 17 round 5): a refused self-test/source write or
     # a normalized landing spot. Persisted in the run record so a forged-green attempt
     # is visible after the fact.
@@ -314,6 +333,12 @@ class IndependentTestRequest:
     acs: list[str]
     original: dict[str, str]
     final: dict[str, str]
+    # Bounded-repair evidence (ticket 17 round 8): a rejected test's source and the
+    # verdict that rejected it. Set only on the ONE re-ask; empty on a first call, so
+    # the producer can tell a first attempt from its bounded repair.
+    previous_test: str = ""
+    repair_reason: str = ""
+    repair_detail: str = ""
 
 
 @dataclass(frozen=True)
@@ -343,6 +368,10 @@ class IndependentTestVerdict:
     reason: str = ""
     detail: str = ""
     path: str = ""
+    # The path the model asked for and whether the harness had to relocate it to a
+    # path pytest actually collects (round 8, parameter-layer normalization).
+    requested_path: str = ""
+    relocated: bool = False
     content: str = ""
     node_ids: tuple[str, ...] = ()
     original_gate: GateReport | None = None
@@ -791,17 +820,56 @@ def _iv_request(spec: LeafSpec, workdir: Path,
     )
 
 
+#: Verdicts that mean the independent TEST itself is defective (it cannot discriminate —
+#: it passed on the original — or it was never collected), not that the fix is wrong.
+#: Each earns exactly ONE bounded re-ask of the same fresh-context producer with the
+#: verdict as evidence (ticket 17 round 8). ``independent-test-red-on-final`` is a FIX
+#: failure and is deliberately NOT repaired: the loop continues with it as context.
+_IV_REPAIRABLE: frozenset[str] = frozenset(
+    {"independent-test-not-red", "independent-test-unobserved"})
+
+
+def _iv_repair_request(
+    request: IndependentTestRequest, verdict: IndependentTestVerdict
+) -> IndependentTestRequest:
+    """The ONE bounded repair request: the same fresh-context call re-asked with the
+    rejected test and the verdict that rejected it as explicit evidence."""
+    return replace(request, previous_test=verdict.content,
+                   repair_reason=verdict.reason, repair_detail=verdict.detail)
+
+
+#: pytest's default ``python_files``: collect ``test_*.py`` and ``*_test.py`` only.
+_COLLECTIBLE_TEST_FILE = re.compile(r"^(?:test_.+|.+_test)\.py$")
+
+
+def _iv_collectible(rel: str) -> bool:
+    """True when pytest's DEFAULT collection rule would run ``rel`` as a test module.
+
+    pytest's ``python_files`` default collects only ``test_*.py`` and ``*_test.py``; a
+    file merely living under ``tests/`` (``tests/verify_pagination.py``) is never
+    collected. The staging rule :func:`harness.staging.is_test_path` is broader (it owns
+    everything under ``tests/``), so it must not be used as the collectability test.
+    """
+    return bool(_COLLECTIBLE_TEST_FILE.match(PurePosixPath(rel).name))
+
+
 def _iv_safe_path(rel: str) -> str:
-    """Normalize a candidate test path into a collectible test file (parameter-layer
-    tolerance): a non-test or escaping landing spot is relocated under ``tests/``, since
-    the private copy is fully harness-controlled and intent is unambiguous."""
+    """Normalize a candidate path into a COLLECTIBLE test file (parameter-layer
+    tolerance): the harness, not the model, decides the collected file name.
+
+    A model that names its test ``tests/verify_pagination.py`` (a valid ``tests/`` path
+    by the staging rule, but NOT collectible by pytest's ``test_*.py``/``*_test.py``
+    rule) used to be punished with ``independent-test-unobserved`` for the harness's own
+    naming rule (ticket 17 round 8 defect). Any landing spot pytest would not collect —
+    and any escaping or non-test path — is relocated to ``tests/test_independent.py``.
+    The private copy is fully harness-controlled, so intent is unambiguous. Returns the
+    path actually written; the caller compares it against the requested path to record
+    the relocation.
+    """
     rel = (rel or "").strip().lstrip("/")
-    if rel and not _escapes_repo(rel) and is_test_path(rel):
+    if rel and not _escapes_repo(rel) and is_test_path(rel) and _iv_collectible(rel):
         return rel
-    name = Path(rel).name or "test_independent.py"
-    if not (name.startswith("test_") or name.endswith("_test.py")):
-        name = "test_independent.py"
-    return f"tests/{name}"
+    return "tests/test_independent.py"
 
 
 async def _run_iv_gate(
@@ -844,8 +912,16 @@ async def evaluate_independent_test(
     Both snapshots come from the blind source view (``run_tests`` in production is
     :func:`_default_run_tests`, which writes/requires the JUnit report and canary). A test
     the gate cannot observe (no report) is rejected as unobserved.
+
+    The file the model names is a PARAMETER (round 8): it is normalized to a path pytest
+    actually collects (:func:`_iv_safe_path`), and the verdict records the requested path
+    plus whether a relocation happened.
     """
-    iv_path = _iv_safe_path(candidate.path)
+    requested_path = candidate.path or ""
+    iv_path = _iv_safe_path(requested_path)
+    relocated = requested_path != iv_path
+    common = {"path": iv_path, "requested_path": requested_path, "relocated": relocated,
+              "content": candidate.content, "raw": candidate.raw}
     orig_res, orig_gate = await _run_iv_gate(run_tests, original_tree, iv_path, candidate.content)
     orig_red = (orig_gate is not None and orig_gate.observed and not orig_gate.green
                 and orig_gate.anomaly == "tests-failed")
@@ -858,9 +934,8 @@ async def evaluate_independent_test(
             detail = (orig_gate.detail if orig_gate is not None else
                       "the independent test produced no machine-readable report on the pre-run source")
         return IndependentTestVerdict(
-            approved=False, reason=reason, detail=detail, path=iv_path,
-            content=candidate.content, raw=candidate.raw, original_gate=orig_gate,
-            output=tuple(getattr(orig_res, "excerpts", []) or ()))
+            approved=False, reason=reason, detail=detail, original_gate=orig_gate,
+            output=tuple(getattr(orig_res, "excerpts", []) or ()), **common)
 
     final_res, final_gate = await _run_iv_gate(run_tests, final_tree, iv_path, candidate.content)
     if final_gate is None or not final_gate.green:
@@ -868,17 +943,16 @@ async def evaluate_independent_test(
                   "the independent test produced no machine-readable report on the final source")
         return IndependentTestVerdict(
             approved=False, reason="independent-test-red-on-final", detail=detail,
-            path=iv_path, content=candidate.content, raw=candidate.raw,
             original_gate=orig_gate, final_gate=final_gate,
             node_ids=tuple(final_gate.passed_ids) if final_gate is not None else (),
-            output=tuple(getattr(final_res, "excerpts", []) or ()))
+            output=tuple(getattr(final_res, "excerpts", []) or ()), **common)
 
     return IndependentTestVerdict(
-        approved=True, path=iv_path, content=candidate.content, raw=candidate.raw,
+        approved=True,
         node_ids=(tuple(nid for nid in final_gate.passed_ids
                         if nid.startswith(f"{iv_path}::")) or tuple(final_gate.passed_ids)),
         original_gate=orig_gate, final_gate=final_gate,
-        output=tuple(getattr(final_res, "excerpts", []) or ()))
+        output=tuple(getattr(final_res, "excerpts", []) or ()), **common)
 
 
 async def _default_run_tests(workdir: Path) -> ShapedResult:
@@ -1172,6 +1246,8 @@ async def run_leaf(
     judge_verdicts: list[JudgeVerdict] = []
     iv_verdicts: list[IndependentTestVerdict] = []
     last_iv_reason = ""
+    iv_attempts = 0
+    iv_repairs = 0
     refusals: list[str] = []
     gate_anomalies: list[str] = []
     attempt_cap = min(9, 3 * max(1, len(spec.files)))
@@ -1212,6 +1288,52 @@ async def run_leaf(
                 emit("envelope_malformed", step=label, attempt=attempt + 1,
                      detail=f"{type(exc).__name__}: {exc}")
         return None, "malformed-output"
+
+    async def iv_verdict_for(
+        request: IndependentTestRequest,
+        original_tree: Mapping[str, str],
+        final_tree: Mapping[str, str],
+    ) -> tuple[IndependentTestVerdict | None, str]:
+        """Author and evaluate ONE independent test (round 8).
+
+        One bounded authoring call (malformed-output retries apply) plus the two
+        deterministic gates. Returns ``(verdict, "")`` or ``(None, failure_reason)``
+        where ``failure_reason`` is ``"calls"`` or ``"malformed-output"`` — the caller
+        maps it to the same honest stop the other envelope steps use.
+        """
+        candidate_test, failure = await request_bounded(
+            partial(_call_iv, iv, request), "independent-test")
+        if failure:
+            return None, failure
+        verdict = await _maybe_await(
+            evaluate_independent_test, candidate_test, original_tree, final_tree, tests)
+        return verdict, ""
+
+    def record_iv(verdict: IndependentTestVerdict) -> None:
+        """Count, persist, and surface ONE independent-test verdict (round 8).
+
+        The relocation is recorded exactly like the self-test's parameter-layer
+        tolerance (``independent_test_relocated`` + ``tolerance_fired`` + a refusal
+        note), so a naming slip is visible after the fact instead of silently becoming
+        ``independent-test-unobserved``.
+        """
+        nonlocal iv_attempts
+        iv_attempts += 1
+        iv_verdicts.append(verdict)
+        if verdict.relocated:
+            emit("independent_test_relocated", requested=verdict.requested_path,
+                 used=verdict.path)
+            emit("tolerance_fired", aspect="independent_test_path",
+                 requested=verdict.requested_path, used=verdict.path)
+            refusals.append(f"{verdict.requested_path}: not collectible -> {verdict.path} "
+                            "(independent test relocated)")
+        emit("independent_test_verdict", approved=verdict.approved,
+             reason=verdict.reason, path=verdict.path,
+             original_gate=(verdict.original_gate.anomaly
+                            if verdict.original_gate is not None else None),
+             final_gate=(verdict.final_gate.anomaly
+                         if verdict.final_gate is not None else None),
+             raw=verdict.raw)
 
     def stop(sig: str, reason: str, why: str, *, exhausted: bool = False,
              parent: bool = False) -> None:
@@ -1320,6 +1442,8 @@ async def run_leaf(
             iv_final_gate=(last.final_gate if last is not None else None),
             iv_verdicts=list(iv_verdicts),
             independent_test_reason=last_iv_reason,
+            iv_attempts=iv_attempts,
+            iv_repairs=iv_repairs,
             refusals=list(refusals),
             gate_anomalies=list(gate_anomalies),
         )
@@ -1611,8 +1735,7 @@ async def run_leaf(
             iv_request = _iv_request(spec, workdir, baseline)
             original_tree = dict(spec.files)
             final_tree = _repo_view(spec, workdir, tuple(baseline))
-            candidate_test, failure = await request_bounded(
-                partial(_call_iv, iv, iv_request), "independent-test")
+            verdict, failure = await iv_verdict_for(iv_request, original_tree, final_tree)
             if failure == "calls":
                 stop("honest-failure", "call-budget", "calls")
                 break
@@ -1620,16 +1743,26 @@ async def run_leaf(
                 # An independent test that could not be produced never becomes a claim.
                 stop("honest-failure", "independent-test-unverified", "malformed-output")
                 break
-            verdict = await _maybe_await(
-                evaluate_independent_test, candidate_test, original_tree, final_tree, tests)
-            iv_verdicts.append(verdict)
-            emit("independent_test_verdict", approved=verdict.approved,
-                 reason=verdict.reason, path=verdict.path,
-                 original_gate=(verdict.original_gate.anomaly
-                                if verdict.original_gate is not None else None),
-                 final_gate=(verdict.final_gate.anomaly
-                             if verdict.final_gate is not None else None),
-                 raw=verdict.raw)
+            record_iv(verdict)
+            # Bounded IV repair (ticket 17 round 8): a defective TEST — vacuous (it
+            # passed on the original) or uncollected — gets exactly ONE re-ask of the
+            # same fresh-context producer with the verdict as evidence, then the two
+            # gates run again. ``independent-test-red-on-final`` is a FIX failure, not a
+            # test defect: it is never repaired here and the loop continues with it.
+            if not verdict.approved and verdict.reason in _IV_REPAIRABLE and can_afford(1):
+                iv_repairs += 1
+                emit("independent_test_repair", reason=verdict.reason,
+                     detail=verdict.detail, requested=verdict.requested_path)
+                repaired, failure = await iv_verdict_for(
+                    _iv_repair_request(iv_request, verdict), original_tree, final_tree)
+                if failure == "calls":
+                    stop("honest-failure", "call-budget", "calls")
+                    break
+                if failure:
+                    stop("honest-failure", "independent-test-unverified", "malformed-output")
+                    break
+                record_iv(repaired)
+                verdict = repaired
             if verdict.approved:
                 claimed = True
                 claimed_basis = "own-test+independent-test"

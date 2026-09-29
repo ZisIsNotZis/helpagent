@@ -231,6 +231,8 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         "independent_test_path": outcome.independent_test_path,
         "independent_test_node_ids": outcome.independent_test_node_ids,
         "independent_test_reason": outcome.independent_test_reason,
+        "iv_attempts": outcome.iv_attempts,
+        "iv_repairs": outcome.iv_repairs,
         "iv_original_gate": (dataclasses.asdict(outcome.iv_original_gate)
                               if outcome.iv_original_gate is not None else None),
         "iv_final_gate": (dataclasses.asdict(outcome.iv_final_gate)
@@ -318,12 +320,25 @@ def _independent_test_question(request: IndependentTestRequest) -> str:
     """The fresh-context independent-test prompt. With ``fresh=True`` the runner injects
     no artifacts, so the evidence rides the question verbatim (DESIGN §2.4 / §10.1 step 5).
     It sees the goal, the ACs, and the ORIGINAL/FINAL source of the changed files — never
-    the run's own test and never a grader path."""
+    the run's own test and never a grader path. On the ONE bounded repair (ticket 17
+    round 8) it also carries the rejected test and the verdict that rejected it."""
     acs = "\n".join(f"- {a}" for a in request.acs) or "- (none given)"
     original = "\n".join(f"--- {rel} (ORIGINAL) ---\n{text}"
                           for rel, text in sorted(request.original.items())) or "(no source changed)"
     final = "\n".join(f"--- {rel} (FINAL) ---\n{text}"
                        for rel, text in sorted(request.final.items())) or "(no source changed)"
+    repair = ""
+    if request.repair_reason:
+        if request.repair_reason == "independent-test-not-red":
+            guidance = ("It PASSED against the ORIGINAL source, so it cannot detect the "
+                        "goal at all; make it FAIL on the ORIGINAL source.")
+        else:
+            guidance = ("pytest did not collect/observe it; write a COLLECTIBLE pytest "
+                        "file (name it test_*.py, no collection errors).")
+        repair = (
+            f"\nYOUR PREVIOUS TEST WAS REJECTED ({request.repair_reason}): "
+            f"{request.repair_detail}\n{guidance}\n"
+            f"PREVIOUS TEST:\n{request.previous_test}\n")
     return (
         "You are an INDEPENDENT verifier. You did not write the fix and you will never see "
         "the run's own test. Write your OWN pytest file that encodes the acceptance "
@@ -331,7 +346,8 @@ def _independent_test_question(request: IndependentTestRequest) -> str:
         f"GOAL:\n{request.goal}\n\n"
         f"ACCEPTANCE CRITERIA:\n{acs}\n\n"
         f"ORIGINAL SOURCE (before the fix):\n{original}\n\n"
-        f"FINAL SOURCE (after the fix):\n{final}\n\n"
+        f"FINAL SOURCE (after the fix):\n{final}\n"
+        f"{repair}\n"
         "Write a test that FAILS against the ORIGINAL source and PASSES against the FINAL "
         "source. Return a NEW test file path under tests/ and its complete content. Do not "
         "reference any file other than the source shown above."
@@ -396,7 +412,8 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     print(f"[judge]  {'on' if use_judge else 'off (conservative baseline)'} "
           f"({len(outcome.judge_verdicts)} verdict(s))")
     print(f"[iv]  {'on' if use_iv else 'off (own-test basis)'} "
-          f"({len(outcome.iv_verdicts)} verdict(s))")
+          f"({len(outcome.iv_verdicts)} verdict(s), {outcome.iv_attempts} attempt(s), "
+          f"{outcome.iv_repairs} repair(s))")
     print(f"[acs]  {len(spec.acs)} extracted from the request")
     print(f"[claim]  claimed={outcome.claimed} basis={outcome.claimed_basis} "
           f"signal={outcome.signal} stop={outcome.stop_reason or 'n/a'} "

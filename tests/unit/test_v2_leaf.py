@@ -1081,6 +1081,24 @@ def test_driver_model_judge_maps_the_debug_judge_envelope():
     assert unable.attribution == "environment" and unable.defect == "no interpreter"
 
 
+def test_driver_independent_test_prompt_carries_the_repair_evidence():
+    """Round 8: the bounded repair is the SAME fresh-context producer, and the rejected
+    test plus its verdict ride the question (the driver never sees a grader path)."""
+    from bench.v2_leaf import _independent_test_question
+
+    base = IndependentTestRequest(goal="g", acs=["a"], original={"pkg/x.py": "orig"},
+                                  final={"pkg/x.py": "fixed"})
+    assert "REJECTED" not in _independent_test_question(base)
+
+    repaired = dataclasses.replace(
+        base, previous_test="def test_goal():\n    assert True\n",
+        repair_reason="independent-test-not-red", repair_detail="it passed on the original")
+    question = _independent_test_question(repaired)
+    assert "REJECTED (independent-test-not-red)" in question
+    assert "it passed on the original" in question
+    assert "def test_goal()" in question
+
+
 # ------------------------------------------------ independent test (ticket 17 round 7)
 # claimed=True additionally requires a fresh-context INDEPENDENT TEST, checked
 # DETERMINISTICALLY on private copies: it must FAIL on the pre-run source (red on
@@ -1335,6 +1353,196 @@ def test_iv_safe_path_relocates_a_non_test_landing_spot():
     assert _iv_safe_path("pkg/helper.py") == "tests/test_independent.py"
     assert _iv_safe_path("") == "tests/test_independent.py"
 
+
+# ---------------------------------------------- independent test file / repair (round 8)
+# The blind measurement found ``independent-test-unobserved`` was a HARNESS defect: the
+# model named its test ``tests/verify_pagination.py``, which the staging rule accepts as
+# a ``tests/`` path but pytest's collection rule never runs. The harness, not the model,
+# now decides the collected file name (recording the relocation + ``tolerance_fired``),
+# and a defective verdict (vacuous / uncollected) earns exactly ONE bounded re-ask with
+# the verdict as evidence. Both costs are counted on the outcome and in the run record.
+
+
+def test_iv_relocates_a_non_collectible_tests_path_and_still_approves():
+    """The exact live defect: ``tests/verify_pagination.py`` is never collected by
+    pytest, so the harness could not observe the test and punished the run with
+    ``independent-test-unobserved`` for its own naming rule. The normalized file is
+    written at a collectible path, is really collected, and the verdict approves."""
+    import harness.leaf as leaf_mod
+    from harness.leaf import _iv_safe_path
+
+    assert _iv_safe_path("tests/verify_pagination.py") == "tests/test_independent.py"
+    original = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 0\n"}
+    final = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 42\n"}
+    candidate = IndependentTestCandidate(
+        path="tests/verify_pagination.py",
+        content="from pkg.calc import result\n\n\ndef test_goal():\n    assert result() == 42\n")
+    verdict = asyncio.run(evaluate_independent_test(
+        candidate, original, final, leaf_mod._default_run_tests))
+
+    assert verdict.approved is True
+    assert verdict.requested_path == "tests/verify_pagination.py"
+    assert verdict.path == "tests/test_independent.py"
+    assert verdict.relocated is True
+    assert verdict.final_gate is not None and verdict.final_gate.green is True
+    # the relocated file was actually COLLECTED (its node id is in the report)
+    assert verdict.node_ids and all("tests/test_independent.py" in nid for nid in verdict.node_ids)
+
+
+def test_iv_relocation_is_recorded_and_never_lands_in_the_run_workdir(tmp_path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+
+    def iv(request: IndependentTestRequest) -> IndependentTestCandidate:
+        return iv_candidate(path="tests/verify_pagination.py")
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        iv=iv, run_tests=ScriptedTests([1, 0, 1, 0]))
+
+    assert out.claimed is True
+    assert out.independent_test_path == "tests/test_independent.py"
+    assert out.iv_verdicts[-1].requested_path == "tests/verify_pagination.py"
+    assert out.iv_verdicts[-1].relocated is True
+    assert out.iv_attempts == 1 and out.iv_repairs == 0
+    assert any("not collectible -> tests/test_independent.py" in r for r in out.refusals)
+    kinds = ledger_kinds()
+    assert "independent_test_relocated" in kinds
+    assert "tolerance_fired" in kinds
+    # the independent test never enters the run's workdir (neither name)
+    assert not (tmp_path / "tests" / "test_independent.py").exists()
+    assert not (tmp_path / "tests" / "verify_pagination.py").exists()
+
+
+def test_vacuous_iv_triggers_exactly_one_repair_then_approves(tmp_path):
+    """A test that also passes on the pristine source cannot discriminate: it earns ONE
+    re-ask carrying the rejected test and verdict as evidence, and can then approve."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    seen: list[IndependentTestRequest] = []
+
+    def iv(request: IndependentTestRequest) -> IndependentTestCandidate:
+        seen.append(request)
+        if request.repair_reason:
+            return iv_candidate()
+        return IndependentTestCandidate(path="tests/test_vacuous.py",
+                                        content="def test_goal():\n    assert True\n")
+
+    # self red(1), impl green(0), IV original GREEN(0) -> vacuous, repair original red(1),
+    # repair final green(0) -> approved
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        iv=iv, run_tests=ScriptedTests([1, 0, 0, 1, 0]))
+
+    assert out.claimed is True
+    assert out.claimed_basis == "own-test+independent-test"
+    assert out.iv_attempts == 2 and out.iv_repairs == 1
+    assert [v.reason for v in out.iv_verdicts] == ["independent-test-not-red", ""]
+    assert [v.approved for v in out.iv_verdicts] == [False, True]
+    # both the first and the repaired verdict are recorded
+    assert len(out.iv_verdicts) == 2 and out.independent_test == iv_source()
+    # the repair carried the rejected test and the verdict as evidence
+    assert len(seen) == 2
+    assert seen[1].repair_reason == "independent-test-not-red"
+    assert seen[1].previous_test == "def test_goal():\n    assert True\n"
+    assert seen[1].repair_detail
+    assert "independent_test_repair" in ledger_kinds()
+
+
+def test_uncollected_iv_triggers_one_repair_then_approves(tmp_path):
+    """``independent-test-unobserved`` also earns exactly one repair; if the repaired
+    test is observable and red-on-original, it can approve."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    seen: list[IndependentTestRequest] = []
+
+    def iv(request: IndependentTestRequest) -> IndependentTestCandidate:
+        seen.append(request)
+        return iv_candidate()
+
+    # IV original unobserved (transport), repair original red, repair final green
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        iv=iv, run_tests=ScriptedTests([1, 0, transport(), 1, 0]))
+
+    assert out.claimed is True
+    assert out.iv_attempts == 2 and out.iv_repairs == 1
+    assert out.iv_verdicts[0].reason == "independent-test-unobserved"
+    assert out.iv_verdicts[1].approved is True
+    assert seen[1].repair_reason == "independent-test-unobserved"
+
+
+def test_iv_repair_that_fails_again_keeps_claimed_false(tmp_path):
+    """ONE repair only: if the re-asked test is defective again the verdict stands, the
+    run stays unclaimed, and the loop continues (here it stops cleanly on the budget)."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+
+    def iv(request: IndependentTestRequest) -> IndependentTestCandidate:
+        return IndependentTestCandidate(path="tests/test_vacuous.py",
+                                        content="def test_goal():\n    assert True\n")
+
+    # self red(1), impl green(0), IV original green(0), repair original green(0)
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=4, deadline_ts=_FAR_FUTURE),
+                        iv=iv, run_tests=ScriptedTests([1, 0, 0, 0]))
+
+    assert out.claimed is False
+    assert out.iv_attempts == 2 and out.iv_repairs == 1
+    assert [v.approved for v in out.iv_verdicts] == [False, False]
+    assert out.iv_verdicts[-1].reason == "independent-test-not-red"
+    assert out.independent_test_reason.startswith("independent-test-not-red")
+    assert "independent-test" in out.exhaustion_reason
+    assert "independent_test_repair" in ledger_kinds()
+
+
+def test_iv_red_on_final_is_a_fix_failure_and_is_not_repaired(tmp_path):
+    """``independent-test-red-on-final`` means the FIX did not satisfy the test, not that
+    the test is defective: it is never repaired and the loop continues with it."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    seen: list[IndependentTestRequest] = []
+
+    def iv(request: IndependentTestRequest) -> IndependentTestCandidate:
+        seen.append(request)
+        return iv_candidate()
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=4, deadline_ts=_FAR_FUTURE),
+                        iv=iv, run_tests=ScriptedTests([1, 0, 1, 1]))
+
+    assert out.claimed is False
+    assert out.iv_attempts == 1 and out.iv_repairs == 0
+    assert out.iv_verdicts[-1].reason == "independent-test-red-on-final"
+    assert len(seen) == 1                       # no repair was requested
+
+
+def test_run_record_reports_iv_attempts_and_repairs(tmp_path):
+    """The cost of the independent-test mechanism is measurable: the persisted run
+    record carries ``iv_attempts`` and ``iv_repairs``."""
+    from bench.external_score import ExternalScore
+    from bench.v2_leaf import build_record
+
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+
+    def iv(request: IndependentTestRequest) -> IndependentTestCandidate:
+        if request.repair_reason:
+            return iv_candidate()
+        return IndependentTestCandidate(path="tests/test_vacuous.py",
+                                        content="def test_goal():\n    assert True\n")
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        iv=iv, run_tests=ScriptedTests([1, 0, 0, 1, 0]))
+    score = ExternalScore(passed=True, exit=0, notes=[], work_root="", applied=[], skipped=[])
+    record = build_record("T-x", "goal", out, withheld=[], produced={}, score=score,
+                          quad="true-success", run_wall_s=1.0, iv_enabled=True)
+
+    assert record["iv_attempts"] == 2
+    assert record["iv_repairs"] == 1
+    assert len(record["iv_verdicts"]) == 2
+    json.dumps(record)
 
 
 # -------------------------------------------------- write-target shape (finding 2)

@@ -95,6 +95,8 @@ def main() -> int:
         "claimed_pass": f"{sum(bool(r['claimed']) for r in rows)}/{len(rows)}",
         "quadrants": tally,
         "calls_total": sum(int(r.get("calls") or 0) for r in rows),
+        "iv_attempts_total": sum(int(r.get("iv_attempts") or 0) for r in rows),
+        "iv_repairs_total": sum(int(r.get("iv_repairs") or 0) for r in rows),
         "per_task": {r["task"]: r["quadrant"] for r in rows},
         "stop_reasons": sorted({str(r.get("stop_reason")) for r in rows}),
     }
