@@ -175,6 +175,26 @@ Invariants to pin as tests (>= 12 cases):
   the honest write-shape refusal instead of crashing. `bench/v2_sweep.py` gains
   `--judge/--no-judge` and `--falsify/--no-falsify`, forwarded to the driver. Suite **284
   green**.
+- 2026-09-29 lane `worker` (round 7): **the round-4 falsifier was a text opinion — the blind
+  8-task measurement showed it never approved once (actual 4/8, claimed 0/8, 69 calls), so
+  the harness never claimed even when it succeeded, and its rejections were unreliable
+  (invented counterexamples, self-contradiction, "unable: no acceptance criteria were
+  injected"). Replaced with a DETERMINISTIC INDEPENDENT TEST. A fresh-context model call
+  (`model_independent_test`, §10 `write_test`, `fresh=True`) sees the goal, the extracted
+  ACs, and the ORIGINAL and FINAL source of the changed files — never the run's own test
+  and never a grader path — and writes its own test. The harness runs it via the existing
+  report gate TWICE on private `tempfile` copies (never the workdir): RED ON ORIGINAL
+  (vacuous ⇒ `independent-test-not-red`) and GREEN ON FINAL (canary + expected node ids);
+  `claimed=True` only when both hold and `own_test_mutated` is False, with
+  `claimed_basis="own-test+independent-test"`, the test source, its node ids, and both gate
+  reports in the record. A rejection becomes the next attempt's failure context and the
+  loop continues; a test that cannot be produced/afforded/evaluated leaves `claimed=False`.
+  The falsifier seam, its schema reuse, and `--falsify/--no-falsify` are removed;
+  `--iv/--no-iv` (default ON) replaces them in `bench/v2_leaf.py` and `bench/v2_sweep.py`.
+  ACs: `build_spec` now extracts acceptance criteria from `request.md` deterministically
+  (one per requirement sentence / bullet) and feeds them to the self-test, implement,
+  judge, and independent-test calls; the raw text lands in the run record. Suite **296
+  green**.
 
 ## First honest v2 measurement (2026-09-29, reference model, N=1)
 

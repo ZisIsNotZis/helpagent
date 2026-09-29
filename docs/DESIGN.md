@@ -328,7 +328,7 @@ Budget is a first-class node field and the primary control on decomposition dept
 
 ### 10.3 What "green" may mean (owner policy 2026-09-29 — the worst quadrant is a lie)
 
-The run's own tests are its only gate, so the gate itself must be honest:
+The run's own tests gate the run, and a claim additionally needs an independent test; the gate itself must be honest:
 
 - **Red on arrival is required.** A self-test that passes the moment it is written does not
   exercise the failure; it is re-asked once and, if still green, the node stops honestly
@@ -339,6 +339,17 @@ The run's own tests are its only gate, so the gate itself must be honest:
   uncredited (`test_blame_uncredited`). A judge-attributed replacement is re-derived from
   scratch and must be red on arrival again; a green that follows a rewrite is reported as
   `green-after-test-rewrite` with `own_test_mutated`, so measurement can separate it.
+- **A claim needs an INDEPENDENT TEST, not a text opinion (owner decision 2026-09-29,
+  round 7 — replaces the round-4 falsifier).** A fresh-context call writes its own test from
+  the goal, the extracted ACs, and the ORIGINAL and FINAL source of the changed files — it
+  never sees the run's own test and never a grader path. The harness runs that test on a
+  PRIVATE COPY of the pre-run tree and on one of the final tree (temp dirs outside the
+  workdir): it must FAIL on the original (a test that passes there is vacuous,
+  `independent-test-not-red`) and PASS on the final with the canary and expected node ids
+  satisfied. `claimed=True` only when both gates hold and the run's own test is unmodified
+  (`claimed_basis="own-test+independent-test"`). A rejection becomes the next attempt's
+  failure context and the loop continues; a test that cannot be produced, afforded, or
+  evaluated leaves `claimed=False`.
 - **A machine-readable pytest report is the only green — the exit status is not
   evidence (owner decision 2026-09-29, round 6, adversarial finding F1).** Run-authored
   code executes inside the gate process (the run's own test imports the run's source), so

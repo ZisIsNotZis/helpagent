@@ -7,7 +7,7 @@ sequential loop with a per-task deadline and no retries hidden from the record.
 
 Usage:
   uv run python bench/v2_sweep.py --tasks T-02-off-by-one,T-31-parameter-threading --n 1
-  uv run python bench/v2_sweep.py --tasks all --no-judge --no-falsify
+  uv run python bench/v2_sweep.py --tasks all --no-judge --no-iv
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ ANCHOR = ROOT / "bench" / "anchor"
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """The sweep CLI, exposed so the judge/falsify forwarding can be pinned by a test."""
+    """The sweep CLI, exposed so the judge/iv forwarding can be pinned by a test."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--tasks", default="all")
     ap.add_argument("--n", type=int, default=1)
@@ -37,12 +37,12 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--calls", type=int, default=24)
     ap.add_argument("--deadline-hours", type=float, default=6.0)
     # Forwarded to bench/v2_leaf.run_once so an A/B measurement can run unattended:
-    # judge ON by default (independent attribution), falsifier ON by default
-    # (independent refutation before any claim).
+    # judge ON by default (independent attribution), independent test ON by default
+    # (deterministic red-on-original / green-on-final before any claim).
     ap.add_argument("--judge", action=argparse.BooleanOptionalAction, default=True,
                     help="run the independent attribution judge (default ON)")
-    ap.add_argument("--falsify", action=argparse.BooleanOptionalAction, default=True,
-                    help="run the independent refutation pass (default ON)")
+    ap.add_argument("--iv", action=argparse.BooleanOptionalAction, default=True,
+                    help="run the independent test (default ON)")
     return ap
 
 
@@ -69,7 +69,7 @@ def main() -> int:
             t0 = time.monotonic()
             try:
                 record = run_once(task, out_dir, args.server, args.calls, args.deadline_hours,
-                                  use_judge=args.judge, use_falsify=args.falsify)
+                                  use_judge=args.judge, use_iv=args.iv)
             except Exception as exc:                       # keep the sweep recoverable
                 record = {"task": task.name, "run_idx": idx, "claimed": False, "actual": False,
                           "quadrant": "honest-failure", "signal": "crashed",

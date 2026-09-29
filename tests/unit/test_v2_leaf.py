@@ -34,14 +34,16 @@ from harness.gate_report import GateReport
 from harness.leaf import (
     LADDER,
     Escalation,
-    FalsifyRequest,
-    FalsifyVerdict,
+    IndependentTestCandidate,
+    IndependentTestRequest,
+    IndependentTestVerdict,
     JudgeRequest,
     JudgeVerdict,
     LeafOutcome,
     LeafSpec,
     apply_judge_filter,
     escalate,
+    evaluate_independent_test,
     run_leaf,
 )
 from harness.runner import ledger_entries, reset_ledger_for_tests
@@ -80,17 +82,28 @@ def judge_blames_test(request: JudgeRequest) -> JudgeVerdict:
     )
 
 
-def approve_falsify(_request: FalsifyRequest) -> FalsifyVerdict:
-    """A falsifier that could not refute the candidate."""
-    return FalsifyVerdict(approved=True, raw="approve")
+def scripted_red_gate() -> GateReport:
+    """The scripted seam's RED machine-readable gate report (an observed, trustworthy
+    red: pytest produced a report that says the test failed)."""
+    return GateReport(report_path="(scripted)", process_exit=1, canary="scripted",
+                      expected_files=(), n_tests=1, n_failed=1, n_errors=0,
+                      passed_ids=(), failed_ids=("scripted::test_goal",), missing=(),
+                      observed=True, anomaly="tests-failed", detail="1 failure(s)")
 
 
-def reject_falsify(counterexample: str = "calling result() still returns 0"):
-    """A falsifier that returns a concrete counterexample (then keeps rejecting)."""
-    def _falsify(_request: FalsifyRequest) -> FalsifyVerdict:
-        return FalsifyVerdict(approved=False, counterexample=counterexample,
-                              raw=f"reject: {counterexample}")
-    return _falsify
+def iv_candidate(path: str = "tests/test_independent.py",
+                 content: str = "from pkg.calc import result\n\n\ndef test_goal():\n    assert result() == 42\n"):
+    """A deterministic independent-test candidate for mechanics tests."""
+    return IndependentTestCandidate(path=path, content=content)
+
+
+def iv_source() -> str:
+    return "from pkg.calc import result\n\n\ndef test_goal():\n    assert result() == 42\n"
+
+
+def iv_env(path: str = "tests/test_independent.py", content: str | None = None) -> dict:
+    return {"status": "ok", "comment": "wrote the independent test", "file_path": path,
+            "content": content or iv_source()}
 
 
 def transport() -> ShapedResult:
@@ -123,9 +136,10 @@ class ScriptedTests:
 
     An item may be an exit code or a full :class:`ShapedResult` (so transport-error
     and policy-blocked shapes are scriptable). An exit code of 0 carries a green
-    :func:`scripted_gate` report, because a machine-readable report is now the only
-    green signal (ticket 17 F1); every other code carries none, so the loop sees an
-    ``observed`` red exactly as it does for a real failing pytest run.
+    :func:`scripted_gate` report and any non-zero code carries an observed RED
+    :func:`scripted_red_gate` (ticket 17 F1) — the loop then sees an ``observed`` red
+    exactly as it does for a real failing pytest run, and so does the independent
+    test's red-on-original gate.
     """
 
     def __init__(self, results, excerpts=None):
@@ -143,7 +157,7 @@ class ScriptedTests:
             code, ["FAILED tests/test_leaf_self.py::test_goal", "E AssertionError: still red"])
         return ShapedResult(command=["python3", "-m", "pytest", "-q"], exit=code,
                             verdict="ok" if code == 0 else "failed", excerpts=list(excerpts),
-                            gate=scripted_gate() if code == 0 else None)
+                            gate=scripted_gate() if code == 0 else scripted_red_gate())
 
 
 def make_spec(files=None, grader=(), goal="make result() return 42") -> LeafSpec:
@@ -693,6 +707,51 @@ def test_v2_driver_stages_a_source_only_blind_spec(tmp_path):
     assert spec.goal == "fix the thing"
     assert "tests/test_grader.py" not in spec.files
     assert spec.grader_paths == ("tests/test_grader.py",)
+    # acceptance criteria are derived from the request (round 7)
+    assert spec.acs == ["fix the thing"]
+
+
+def test_extract_acs_is_deterministic_over_prose_and_bullets():
+    """One criterion per requirement sentence / bullet: comments and headers dropped,
+    bullets and sentences split, whitespace collapsed, duplicates removed in order."""
+    from bench.v2_leaf import extract_acs
+
+    request = (
+        "<!-- ANCHOR TASK — ignore me -->\n"
+        "# Instructions\n"
+        "Sessions must expire after an hour. Several products never show up at all.\n"
+        "- simple words\n"
+        "- contractions (it's a word)\n"
+        "1. numbers are words\n"
+        "- simple words\n"
+    )
+    assert extract_acs(request) == [
+        "Sessions must expire after an hour.",
+        "Several products never show up at all.",
+        "simple words",
+        "contractions (it's a word)",
+        "numbers are words",
+    ]
+    assert extract_acs("") == []
+
+
+def test_extract_acs_reflows_wrapped_prose_and_skips_fenced_examples():
+    """Wrapped request lines are one sentence, not fragments; a fenced example block is
+    example output, not a requirement."""
+    from bench.v2_leaf import extract_acs
+
+    request = (
+        "The listing looks short — with 4 items per page I only ever get 3, and every\n"
+        "page is missing its last item. It smells like an off-by-one.\n"
+        "```text\n"
+        "123: 1\n"
+        "agent: 1\n"
+        "```\n"
+    )
+    assert extract_acs(request) == [
+        "The listing looks short — with 4 items per page I only ever get 3, and every page is missing its last item.",
+        "It smells like an off-by-one.",
+    ]
 
 
 def test_policy_blocked_with_exit_zero_is_red(tmp_path):
@@ -926,7 +985,7 @@ def test_honoured_tests_verdict_is_recorded_on_the_repair_attempt(tmp_path):
     json.dumps([a.model_dump(mode="json") for a in out.attempts])
 
 
-def test_run_record_records_judge_mode_and_every_verdict():
+def test_run_record_records_judge_and_iv_modes_and_every_verdict():
     from bench.external_score import ExternalScore
     from bench.v2_leaf import build_record
 
@@ -934,8 +993,16 @@ def test_run_record_records_judge_mode_and_every_verdict():
         claimed=True, signal="green", attempts=[], calls=4, wall_s=1.0,
         self_test="tests/test_x.py", questions=[], exhausted=False, exhaustion_reason="",
         layers_used=["spec"], stop_reason="green", test_rewrites=0, own_test_mutated=False,
-        claimed_basis="own-test+falsified-check",
-        falsify_verdicts=[FalsifyVerdict(approved=True, raw="approve")],
+        claimed_basis="own-test+independent-test",
+        independent_test=iv_source(),
+        independent_test_path="tests/test_independent.py",
+        independent_test_node_ids=["tests/test_independent.py::test_goal"],
+        iv_original_gate=scripted_red_gate(),
+        iv_final_gate=scripted_gate(),
+        iv_verdicts=[IndependentTestVerdict(
+            approved=True, path="tests/test_independent.py", content=iv_source(),
+            node_ids=("tests/test_independent.py::test_goal",),
+            original_gate=scripted_red_gate(), final_gate=scripted_gate())],
         judge_verdicts=[JudgeVerdict(attribution="tests", defect="test_x is wrong",
                                      raw="r", coerced=True, coercion_reason="filter")])
     score = ExternalScore(passed=True, exit=0, notes=[], work_root="", applied=[], skipped=[],
@@ -943,14 +1010,19 @@ def test_run_record_records_judge_mode_and_every_verdict():
 
     record = build_record("T-x", "goal", outcome, withheld=[], produced={}, score=score,
                           quad="true-success", run_wall_s=1.0, judge_enabled=True,
-                          falsify_enabled=True)
+                          iv_enabled=True, acs=["result() returns 42"])
 
     assert record["judge"] is True
-    assert record["falsify"] is True
-    assert record["claimed_basis"] == "own-test+falsified-check"
+    assert record["iv"] is True
+    assert record["acs"] == ["result() returns 42"]
+    assert record["claimed_basis"] == "own-test+independent-test"
     assert record["judge_verdicts"][0]["attribution"] == "tests"
     assert record["judge_verdicts"][0]["coerced"] is True
-    assert record["falsify_verdicts"][0]["approved"] is True
+    assert record["independent_test"] == iv_source()
+    assert record["independent_test_node_ids"] == ["tests/test_independent.py::test_goal"]
+    assert record["iv_original_gate"]["anomaly"] == "tests-failed"
+    assert record["iv_final_gate"]["anomaly"] == ""
+    assert record["iv_verdicts"][0]["approved"] is True
     assert record["grader_restored"]                      # restores land in the record
     json.dumps(record)
 
@@ -1009,80 +1081,147 @@ def test_driver_model_judge_maps_the_debug_judge_envelope():
     assert unable.attribution == "environment" and unable.defect == "no interpreter"
 
 
-# ------------------------------------------------- independent falsification (finding 4)
-# claimed=True additionally requires ONE fresh-context call asked to REFUTE the fix.
-# On reject its counterexample is the next attempt's failure context and the loop
-# CONTINUES; on approve the claim may stand. A missing/malformed call never claims.
+# ------------------------------------------------ independent test (ticket 17 round 7)
+# claimed=True additionally requires a fresh-context INDEPENDENT TEST, checked
+# DETERMINISTICALLY on private copies: it must FAIL on the pre-run source (red on
+# original) and PASS on the final source (green on final). The run's workdir never
+# holds the test, the run never sees it, and a rejection is the next attempt's failure
+# context (never a claim).
 
 
-def test_claim_requires_the_independent_falsifier_to_approve(tmp_path):
-    spec = make_spec()
-    stage(tmp_path, spec.files)
-    model = FakeModelRunner({"write_test": [
-        SELF_TEST,
-        impl("def result():\n    return 1\n", comment="first try"),
-        impl("def result():\n    return 42\n", comment="threaded the real value"),
-    ]})
-    seen: list[FalsifyRequest] = []
-
-    def falsifier(request: FalsifyRequest) -> FalsifyVerdict:
-        seen.append(request)
-        if len(seen) == 1:
-            return FalsifyVerdict(approved=False, counterexample="result() returns 1, not 42")
-        return FalsifyVerdict(approved=True)
-
-    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
-                        falsifier=falsifier, run_tests=ScriptedTests([1, 0, 0]))
-
-    assert out.claimed is True
-    assert out.claimed_basis == "own-test+falsified-check"
-    assert out.stop_reason == "green" and out.signal == "green"
-    assert [v.approved for v in out.falsify_verdicts] == [False, True]
-    assert out.falsify_counterexample == "result() returns 1, not 42"
-    assert (tmp_path / "pkg/calc.py").read_text() == impl("def result():\n    return 42\n")["content"]
-    assert "falsify_verdict" in ledger_kinds() and "falsified_attempt" in ledger_kinds()
-    # the counterexample became the SECOND implementation's failure context
-    impl_calls = model.calls("write_test")
-    assert "result() returns 1, not 42" in impl_calls[2].artifacts["failure_output"]
-    # the falsifier saw the blind source diff, never a grader path
-    assert seen and "return 1" in seen[0].diff
-
-
-def test_falsifier_rejection_continues_and_never_claims(tmp_path):
-    spec = make_spec()
-    stage(tmp_path, spec.files)
-    model = FakeModelRunner({"write_test": [
-        SELF_TEST,
-        impl("def result():\n    return 1\n"),
-        impl("def result():\n    return 1\n"),
-    ]})
-    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=5, deadline_ts=_FAR_FUTURE),
-                        falsifier=reject_falsify("result() still returns 1, not 42"),
-                        run_tests=ScriptedTests([1, 0, 0]))
-
-    assert out.claimed is False
-    assert out.stop_reason == "calls"           # the loop continued, then ran out of calls
-    assert out.falsify_verdicts and all(v.approved is False for v in out.falsify_verdicts)
-    assert out.falsify_counterexample == "result() still returns 1, not 42"
-    refutations = [a for a in out.attempts
-                   if a.claimed_delta == "result() still returns 1, not 42"]
-    assert refutations and refutations[0].outcome == "fail"
-    impl_calls = model.calls("write_test")
-    assert "result() still returns 1, not 42" in impl_calls[2].artifacts["failure_output"]
-
-
-def test_malformed_falsifier_output_keeps_claimed_false(tmp_path):
+def test_claim_requires_the_independent_test_red_original_green_final(tmp_path):
     spec = make_spec()
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
-    seen: list[FalsifyRequest] = []
+    seen: list[IndependentTestRequest] = []
 
-    def falsifier(request: FalsifyRequest):
+    def iv(request: IndependentTestRequest) -> IndependentTestCandidate:
         seen.append(request)
-        raise ValueError("falsifier output was not a verdict")
+        return iv_candidate()
+
+    # gate order: self-test red, impl green, IV red-on-original, IV green-on-final
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        iv=iv, run_tests=ScriptedTests([1, 0, 1, 0]))
+
+    assert out.claimed is True
+    assert out.claimed_basis == "own-test+independent-test"
+    assert out.stop_reason == "green" and out.signal == "green"
+    assert [v.approved for v in out.iv_verdicts] == [True]
+    assert out.independent_test == iv_source()
+    assert out.independent_test_path == "tests/test_independent.py"
+    assert out.independent_test_node_ids == ["scripted::test"]
+    assert out.iv_original_gate is not None and out.iv_original_gate.anomaly == "tests-failed"
+    assert out.iv_final_gate is not None and out.iv_final_gate.green is True
+    assert "independent_test_verdict" in ledger_kinds()
+    # the independent test saw the changed-file source, never the run's own test
+    assert seen and seen[0].original == {"pkg/calc.py": "def result():\n    return 0\n"}
+    assert seen[0].final == {"pkg/calc.py": impl()["content"]}
+    assert seen[0].acs == spec.acs
+
+
+def test_independent_test_rejection_is_the_next_attempt_failure_context(tmp_path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST,
+        impl("def result():\n    return 1\n"),
+        impl("def result():\n    return 1\n"),
+    ]})
+    # gate order: self-test red, impl green, IV red-original, IV RED-final (still wrong)
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=5, deadline_ts=_FAR_FUTURE),
+                        iv=lambda request: iv_candidate(),
+                        run_tests=ScriptedTests([1, 0, 1, 1]))
+
+    assert out.claimed is False
+    assert out.stop_reason in ("calls", "attempts")   # the loop continued, then stopped
+    assert out.iv_verdicts[-1].reason == "independent-test-red-on-final"
+    assert out.independent_test_reason.startswith("independent-test-red-on-final")
+    assert "independent-test" in out.exhaustion_reason
+    rejected = [a for a in out.attempts if a.claimed_delta.startswith("independent test:")]
+    assert rejected and rejected[0].outcome == "fail"
+    # the failing IV output became the next implementation's failure context
+    impl_calls = model.calls("write_test")
+    assert "independent test rejected" in impl_calls[2].artifacts["failure_output"]
+
+
+def test_vacuous_independent_test_is_rejected_as_not_red(tmp_path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    # gate order: self-test red, impl green, IV GREEN-original (vacuous)
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=4, deadline_ts=_FAR_FUTURE),
+                        iv=lambda request: iv_candidate(),
+                        run_tests=ScriptedTests([1, 0, 0]))
+
+    assert out.claimed is False
+    assert out.iv_verdicts[-1].reason == "independent-test-not-red"
+    assert out.stop_reason == "calls"
+
+
+def test_unobserved_independent_test_keeps_claimed_false(tmp_path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
+                        iv=lambda request: iv_candidate(),
+                        run_tests=ScriptedTests([1, 0, transport()]))
+
+    assert out.claimed is False
+    assert out.iv_verdicts[-1].reason == "independent-test-unobserved"
+
+
+def test_independent_test_runs_in_a_private_copy_never_the_run_workdir(tmp_path):
+    """The independent test is kept out of the run's view: its two gates run in private
+    copies (never the workdir), the copies hold the IV test and NEVER the run's own test,
+    and nothing the IV writes lands in the run's tree."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    seen_dirs: list[Path] = []
+    seen_files: list[list[str]] = []
+
+    class RecordingGate:
+        def __init__(self, codes):
+            self._codes = list(codes)
+            self.calls = 0
+
+        def __call__(self, workdir) -> ShapedResult:
+            workdir = Path(workdir)
+            seen_dirs.append(workdir)
+            seen_files.append(sorted(p.relative_to(workdir).as_posix()
+                                     for p in workdir.rglob("*") if p.is_file()))
+            code = self._codes[min(self.calls, len(self._codes) - 1)]
+            self.calls += 1
+            return ShapedResult(command=["python3", "-m", "pytest", "-q"], exit=code,
+                                verdict="ok" if code == 0 else "failed", excerpts=[],
+                                gate=scripted_gate() if code == 0 else scripted_red_gate())
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        iv=lambda request: iv_candidate(),
+                        run_tests=RecordingGate([1, 0, 1, 0]))
+
+    assert out.claimed is True
+    # the run's own gate ran in the workdir; the two IV gates ran in private copies
+    assert seen_dirs[0] == tmp_path and seen_dirs[1] == tmp_path
+    assert seen_dirs[2] != tmp_path and tmp_path not in seen_dirs[2].parents
+    assert seen_dirs[3] != tmp_path and tmp_path not in seen_dirs[3].parents
+    assert "tests/test_independent.py" in seen_files[2]
+    assert "tests/test_leaf_self.py" not in seen_files[2]
+    assert not (tmp_path / "tests" / "test_independent.py").exists()
+
+
+def test_malformed_independent_test_output_keeps_claimed_false(tmp_path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    seen: list[IndependentTestRequest] = []
+
+    def iv(request: IndependentTestRequest):
+        seen.append(request)
+        raise ValueError("independent test output was not a test file")
 
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=9, deadline_ts=_FAR_FUTURE),
-                        falsifier=falsifier, run_tests=ScriptedTests([1, 0]))
+                        iv=iv, run_tests=ScriptedTests([1, 0]))
 
     assert out.claimed is False
     assert out.stop_reason == "malformed-output"
@@ -1090,26 +1229,26 @@ def test_malformed_falsifier_output_keeps_claimed_false(tmp_path):
     assert len(seen) == 3            # 1 attempt + 2 retries
 
 
-def test_unaffordable_falsification_keeps_claimed_false(tmp_path):
+def test_unaffordable_independent_test_keeps_claimed_false(tmp_path):
     spec = make_spec()
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
-    seen: list[FalsifyRequest] = []
+    started: list[IndependentTestRequest] = []
 
-    def falsifier(request: FalsifyRequest) -> FalsifyVerdict:
-        seen.append(request)
-        return approve_falsify(request)
+    def iv(request: IndependentTestRequest) -> IndependentTestCandidate:
+        started.append(request)
+        return iv_candidate()
 
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=2, deadline_ts=_FAR_FUTURE),
-                        falsifier=falsifier, run_tests=ScriptedTests([1, 0]))
+                        iv=iv, run_tests=ScriptedTests([1, 0]))
 
     assert out.claimed is False
     assert out.stop_reason == "calls"
-    assert seen == []                # not even started
+    assert started == []             # not even started
     assert out.claimed_basis == "own-test"
 
 
-def test_no_falsifier_claims_on_the_own_test_with_basis_own_test(tmp_path):
+def test_no_iv_producer_claims_on_the_own_test_with_basis_own_test(tmp_path):
     spec = make_spec()
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
@@ -1118,27 +1257,84 @@ def test_no_falsifier_claims_on_the_own_test_with_basis_own_test(tmp_path):
 
     assert out.claimed is True and out.stop_reason == "green"
     assert out.claimed_basis == "own-test"
-    assert out.falsify_verdicts == []
+    assert out.iv_verdicts == []
 
 
-def test_falsify_request_never_exposes_a_grader_path(tmp_path):
+def test_independent_test_request_never_exposes_a_grader_path_or_the_own_test(tmp_path):
     grader = ("tests/test_chain.py",)
     spec = make_spec(grader=grader)
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
-    seen: list[FalsifyRequest] = []
+    seen: list[IndependentTestRequest] = []
 
-    def falsifier(request: FalsifyRequest) -> FalsifyVerdict:
+    def iv(request: IndependentTestRequest) -> IndependentTestCandidate:
         seen.append(request)
-        return FalsifyVerdict(approved=False, counterexample="keep looking")
+        return iv_candidate()
 
-    run_leaf_sync(model, spec, tmp_path, Budget(calls=4, deadline_ts=_FAR_FUTURE),
-                  falsifier=falsifier, run_tests=ScriptedTests([1, 0]))
+    run_leaf_sync(model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
+                  iv=iv, run_tests=ScriptedTests([1, 0, 1, 0]))
 
     assert seen
-    blob = "\n".join([seen[0].test_content, seen[0].diff, *seen[0].acs])
+    blob = "\n".join([*seen[0].original.values(), *seen[0].final.values(), *seen[0].acs])
     assert "tests/test_chain.py" not in blob
-    assert "pkg/calc.py" in seen[0].diff
+    assert "test_leaf_self" not in blob          # the run's own test is never shown
+    assert "pkg/calc.py" in seen[0].final
+
+
+def test_evaluate_independent_test_real_gate_approves_red_original_green_final():
+    """The real report gate, twice: the same test is red on the pre-run tree and green
+    on the final tree, so the verdict approves and records the passed node ids."""
+    import harness.leaf as leaf_mod
+
+    original = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 0\n"}
+    final = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 42\n"}
+    verdict = asyncio.run(evaluate_independent_test(
+        iv_candidate(), original, final, leaf_mod._default_run_tests))
+
+    assert verdict.approved is True and verdict.reason == ""
+    assert verdict.original_gate is not None and verdict.original_gate.anomaly == "tests-failed"
+    assert verdict.final_gate is not None and verdict.final_gate.green is True
+    assert any("test_goal" in nid for nid in verdict.node_ids)
+
+
+def test_evaluate_independent_test_real_gate_rejects_a_vacuous_test():
+    import harness.leaf as leaf_mod
+
+    original = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 0\n"}
+    vacuous = IndependentTestCandidate(path="tests/test_independent.py",
+                                       content="def test_goal():\n    assert True\n")
+    verdict = asyncio.run(evaluate_independent_test(
+        vacuous, original, dict(original), leaf_mod._default_run_tests))
+
+    assert verdict.approved is False
+    assert verdict.reason == "independent-test-not-red"
+
+
+def test_evaluate_independent_test_real_gate_rejects_red_on_final():
+    """The real gate: the test is red on the original AND still red on the final (the
+    fix did not satisfy it), so the verdict rejects with ``independent-test-red-on-final``
+    and the loop may continue with that output."""
+    import harness.leaf as leaf_mod
+
+    original = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 0\n"}
+    verdict = asyncio.run(evaluate_independent_test(
+        iv_candidate(), original, dict(original), leaf_mod._default_run_tests))
+
+    assert verdict.approved is False
+    assert verdict.reason == "independent-test-red-on-final"
+    assert verdict.original_gate is not None and verdict.original_gate.anomaly == "tests-failed"
+    assert verdict.final_gate is not None and verdict.final_gate.anomaly == "tests-failed"
+
+
+def test_iv_safe_path_relocates_a_non_test_landing_spot():
+    from harness.leaf import _iv_safe_path
+
+    assert _iv_safe_path("tests/test_independent.py") == "tests/test_independent.py"
+    assert _iv_safe_path("test_independent.py") == "test_independent.py"
+    assert _iv_safe_path("../evil.py") == "tests/test_independent.py"
+    assert _iv_safe_path("pkg/helper.py") == "tests/test_independent.py"
+    assert _iv_safe_path("") == "tests/test_independent.py"
+
 
 
 # -------------------------------------------------- write-target shape (finding 2)
@@ -1181,40 +1377,47 @@ def test_self_test_with_a_directory_shaped_target_is_normalized(tmp_path):
     assert "self_test_relocated" in ledger_kinds()
 
 
-def test_driver_falsify_defaults_on_and_no_falsify_disables_the_check():
+def test_driver_iv_defaults_on_and_no_iv_disables_the_check():
     from bench.v2_leaf import build_parser
 
-    assert build_parser().parse_args(["--task", "t"]).falsify is True
-    assert build_parser().parse_args(["--task", "t", "--falsify"]).falsify is True
-    assert build_parser().parse_args(["--task", "t", "--no-falsify"]).falsify is False
+    assert build_parser().parse_args(["--task", "t"]).iv is True
+    assert build_parser().parse_args(["--task", "t", "--iv"]).iv is True
+    assert build_parser().parse_args(["--task", "t", "--no-iv"]).iv is False
 
 
-def test_driver_model_falsifier_maps_the_gate_decide_envelope():
-    """The default falsifier reuses the §20 gate_decide envelope (no new schema):
-    ``accept`` approves, ``reject`` carries the counterexample in ``explanation``, and an
-    ``unable`` envelope is NOT an approval."""
-    from bench.v2_leaf import model_falsifier
+def test_driver_model_independent_test_maps_the_write_test_envelope():
+    """The default independent test reuses the §10 write_test envelope (no new schema),
+    runs with a FRESH context, and carries the goal, ACs, and the original/final changed
+    source — never the run's own test."""
+    from bench.v2_leaf import model_independent_test
 
-    model = FakeModelRunner({"gate_decide": [
-        {"status": "ok", "comment": "could not refute", "decision": "accept",
-         "reason_is_real": True, "weakens_gate": False, "meaning_preserved": True},
-        {"status": "ok", "comment": "refuted", "decision": "reject",
-         "reason_is_real": True, "weakens_gate": False, "meaning_preserved": True,
-         "explanation": "result() returns 1, not 42"},
-        {"status": "unable", "comment": "cannot check", "unable_reason": "no interpreter"},
-    ]})
-    request = FalsifyRequest(goal="g", acs=["AC-1"], test_path="tests/test_x.py",
-                             test_content="def test_goal():\n    assert True\n", diff="diff")
+    model = FakeModelRunner({"write_test": [iv_env()]})
+    request = IndependentTestRequest(
+        goal="make result() return 42", acs=["result() returns 42"],
+        original={"pkg/calc.py": "def result():\n    return 0\n"},
+        final={"pkg/calc.py": "def result():\n    return 42\n"})
 
-    approved = asyncio.run(model_falsifier(model, request))
-    assert approved.approved is True
-    assert model.calls("gate_decide")[0].fresh is True          # fresh context
-    assert model.calls("gate_decide")[0].artifacts == {}
-    rejected = asyncio.run(model_falsifier(model, request))
-    assert rejected.approved is False
-    assert rejected.counterexample == "result() returns 1, not 42"
-    unable = asyncio.run(model_falsifier(model, request))
-    assert unable.approved is False and "no interpreter" in unable.counterexample
+    candidate = asyncio.run(model_independent_test(model, request))
+    assert candidate.path == "tests/test_independent.py"
+    assert candidate.content == iv_source()
+    call = model.calls("write_test")[0]
+    assert call.fresh is True                       # fresh context
+    assert call.artifacts == {}
+    assert "ORIGINAL" in call.question and "FINAL" in call.question
+    assert "result() returns 42" in call.question
+
+
+def test_driver_model_independent_test_rejects_an_unusable_envelope():
+    """An ``unable`` independent-test envelope is malformed (never a claim): the driver
+    raises so the leaf's bounded request stops honestly instead of trusting it."""
+    from bench.v2_leaf import model_independent_test
+
+    model = FakeModelRunner({"write_test": [
+        {"status": "unable", "comment": "cannot", "unable_reason": "no interpreter"}]})
+    request = IndependentTestRequest(goal="g", acs=[], original={}, final={})
+
+    with pytest.raises(ValueError):
+        asyncio.run(model_independent_test(model, request))
 
 
 def test_v2_driver_survives_a_bad_write_target_shape(tmp_path, monkeypatch):
@@ -1240,52 +1443,57 @@ def test_v2_driver_survives_a_bad_write_target_shape(tmp_path, monkeypatch):
 
     record = v2_leaf.run_once(task_dir, tmp_path / "out", "http://server",
                               calls=6, deadline_hours=1.0, use_judge=False,
-                              use_falsify=True)
+                              use_iv=False)
 
     assert record["stop_reason"] == "write-shape"
     assert record["claimed"] is False
     assert record["quadrant"] == "honest-failure"
 
 
-def test_v2_driver_falsify_mode_changes_the_claim_basis(tmp_path, monkeypatch):
-    """Finding 4 through the driver: with ``--falsify`` (the default) a green claim
-    carries ``own-test+falsified-check`` and the refutation pass ran; with
-    ``--no-falsify`` the basis is the run's own test alone."""
+def test_v2_driver_iv_mode_changes_the_claim_basis(tmp_path, monkeypatch):
+    """Ticket 17 round 7 through the driver: with ``--iv`` (the default) a green claim
+    carries ``own-test+independent-test`` and the independent test ran; with ``--no-iv``
+    the basis is the run's own test alone."""
     import harness.leaf as leaf_mod
     from bench import v2_leaf
     from bench.external_score import ExternalScore
 
-    task_dir = tmp_path / "T-falsify"
+    task_dir = tmp_path / "T-iv"
     (task_dir / "repo" / "pkg").mkdir(parents=True)
     (task_dir / "repo" / "pkg" / "calc.py").write_text("def result():\n    return 0\n")
     (task_dir / "request.md").write_text("make result() return 42")
 
     monkeypatch.setattr(v2_leaf, "external_score",
                         lambda *a, **k: ExternalScore(passed=True, exit=0))
+    approved = IndependentTestVerdict(
+        approved=True, path="tests/test_independent.py", content=iv_source(),
+        node_ids=("tests/test_independent.py::test_goal",),
+        original_gate=scripted_red_gate(), final_gate=scripted_gate())
+    monkeypatch.setattr(leaf_mod, "evaluate_independent_test",
+                        lambda candidate, original, final, run_tests: approved)
 
-    model_on = FakeModelRunner({
-        "write_test": [SELF_TEST, impl()],
-        "gate_decide": [{"status": "ok", "comment": "could not refute",
-                         "decision": "accept", "reason_is_real": True,
-                         "weakens_gate": False, "meaning_preserved": True}],
-    })
+    # The IV call is a third fresh write_test envelope; the run's own gate is scripted.
+    model_on = FakeModelRunner({"write_test": [SELF_TEST, impl(), iv_env()]})
     monkeypatch.setattr(leaf_mod, "_default_run_tests", ScriptedTests([1, 0]))
     monkeypatch.setattr(v2_leaf, "LlamaServerRunner", lambda server: model_on)
     rec_on = v2_leaf.run_once(task_dir, tmp_path / "on", "http://s", calls=6,
-                              deadline_hours=1.0, use_judge=False, use_falsify=True)
+                              deadline_hours=1.0, use_judge=False, use_iv=True)
     assert rec_on["claimed"] is True
-    assert rec_on["claimed_basis"] == "own-test+falsified-check"
-    assert model_on.calls("gate_decide")               # the refutation pass ran
+    assert rec_on["claimed_basis"] == "own-test+independent-test"
+    assert rec_on["independent_test"] == iv_source()
+    assert rec_on["iv_original_gate"]["anomaly"] == "tests-failed"
+    assert rec_on["iv_final_gate"]["anomaly"] == ""
+    assert model_on.calls("write_test")[-1].fresh is True       # fresh-context IV call
 
     model_off = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
     monkeypatch.setattr(leaf_mod, "_default_run_tests", ScriptedTests([1, 0]))
     monkeypatch.setattr(v2_leaf, "LlamaServerRunner", lambda server: model_off)
     rec_off = v2_leaf.run_once(task_dir, tmp_path / "off", "http://s", calls=6,
-                               deadline_hours=1.0, use_judge=False, use_falsify=False)
+                               deadline_hours=1.0, use_judge=False, use_iv=False)
     assert rec_off["claimed"] is True
     assert rec_off["claimed_basis"] == "own-test"
-    assert rec_off["falsify"] is False
-    assert model_off.calls("gate_decide") == []
+    assert rec_off["iv"] is False
+    assert rec_off["iv_verdicts"] == []
 
 
 # ------------------------------------------ round 5: one owned-path definition
@@ -1414,7 +1622,7 @@ def test_end_to_end_shadow_module_wrong_fix_is_not_a_true_success(tmp_path, monk
 
     record = v2_leaf.run_once(task_dir, tmp_path / "out", "http://server",
                               calls=6, deadline_hours=1.0, use_judge=False,
-                              use_falsify=False)
+                              use_iv=False)
 
     assert record["claimed"] is False
     assert record["actual"] is False
@@ -1589,15 +1797,15 @@ def test_write_converts_filesystem_refusals_instead_of_crashing(tmp_path):
 
 # ------------------------------------------- round 6: sweep flags / run-record evidence
 
-def test_sweep_exposes_and_forwards_the_judge_and_falsify_flags(tmp_path, monkeypatch):
+def test_sweep_exposes_and_forwards_the_judge_and_iv_flags(tmp_path, monkeypatch):
     """An A/B measurement must run unattended: the sweep exposes --judge/--no-judge and
-    --falsify/--no-falsify and forwards both to the driver."""
+    --iv/--no-iv and forwards both to the driver."""
     from bench import v2_sweep
 
     parser = v2_sweep.build_parser()
-    assert parser.parse_args([]).judge is True and parser.parse_args([]).falsify is True
-    off = parser.parse_args(["--no-judge", "--no-falsify"])
-    assert off.judge is False and off.falsify is False
+    assert parser.parse_args([]).judge is True and parser.parse_args([]).iv is True
+    off = parser.parse_args(["--no-judge", "--no-iv"])
+    assert off.judge is False and off.iv is False
 
     corpus = tmp_path / "corpus" / "T-99-pinned"
     (corpus / "repo").mkdir(parents=True)
@@ -1616,12 +1824,12 @@ def test_sweep_exposes_and_forwards_the_judge_and_falsify_flags(tmp_path, monkey
     monkeypatch.setattr(v2_sweep, "run_once", fake_run_once)
     monkeypatch.setattr("sys.argv", ["v2_sweep", "--tasks", "all"])
     assert v2_sweep.main() == 0
-    assert seen == [{"use_judge": True, "use_falsify": True}]
+    assert seen == [{"use_judge": True, "use_iv": True}]
 
     seen.clear()
-    monkeypatch.setattr("sys.argv", ["v2_sweep", "--tasks", "all", "--no-judge", "--no-falsify"])
+    monkeypatch.setattr("sys.argv", ["v2_sweep", "--tasks", "all", "--no-judge", "--no-iv"])
     assert v2_sweep.main() == 0
-    assert seen == [{"use_judge": False, "use_falsify": False}]
+    assert seen == [{"use_judge": False, "use_iv": False}]
 
 
 def test_run_record_records_the_gate_report_evidence():

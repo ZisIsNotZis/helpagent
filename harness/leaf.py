@@ -38,19 +38,25 @@ Fixed contract points, each deliberate:
   file(s) with everything passed, and contain this run's random canary node id; any
   anomaly is RED and recorded as ``gate_report_anomaly``. A ``None`` exit (transport
   error), a policy-blocked shaped result, and a gate result with no report are all red.
-  The run's own ``run_tests`` is the only thing that can set ``claimed=True``. A model
+  The run's own ``run_tests`` green is the precondition for ANY claim; a model
   ``comment`` claiming green is irrelevant. A green that follows a judge-authorized
   test REWRITE never claims: it stops as ``green-after-test-rewrite`` (the
   implementation satisfied a replaced test — unverified).
-- **A claim needs an independent refutation pass (ticket 17 round 4).** When a
-  ``falsifier`` is injected (the ``--falsify`` driver default), ``claimed=True``
-  additionally requires one fresh-context call asked to REFUTE the fix, seeing the
-  goal, the ACs, the run's own test, and the source diff — never a grader path. A
-  concrete counterexample makes it the next attempt's failure context and the loop
-  CONTINUES; an approval lets the claim stand (``claimed_basis="own-test+falsified-check"``).
-  A falsification call that cannot be afforded or whose output is malformed leaves
-  ``claimed=False`` — never claim unverified. Without a ``falsifier`` the basis is the
-  run's own unmodified test (``claimed_basis="own-test"``).
+- **A claim needs an INDEPENDENT TEST (ticket 17 round 7, replacing the round-4
+  falsifier text opinion).** When an ``iv`` producer is injected (the ``--iv`` driver
+  default), ``claimed=True`` additionally requires a DETERMINISTIC two-gate check on a
+  fresh-context test the run never saw: the test must FAIL on a private copy of the
+  PRE-RUN source (``red on original``; a test that passes there is vacuous and rejected
+  with ``independent-test-not-red``) and PASS on a private copy of the FINAL source.
+  Both copies live in a ``tempfile`` directory outside the workdir, so the run can never
+  see the independent test; the model call sees the goal, the ACs, and the ORIGINAL and
+  FINAL source of the changed files, never the run's own test and never a grader path.
+  On either failure the test's output becomes the next attempt's failure context and the
+  loop CONTINUES; claimed is ``True`` only when both gates hold and the run's own test is
+  unmodified (``claimed_basis="own-test+independent-test"``). A test that cannot be
+  produced, afforded, or evaluated leaves ``claimed=False`` — never claim unverified.
+  Without an ``iv`` producer the basis is the run's own unmodified test
+  (``claimed_basis="own-test"``).
 - **A test may only be REPLACED, never weakened, and only with an independent
   judge.** The model's own "the test is wrong" claim is never enough: without an
   injected independent judge the claim is not credited and the failure is treated
@@ -73,10 +79,10 @@ Fixed contract points, each deliberate:
 
 from __future__ import annotations
 
-import difflib
 import inspect
 import json
 import re
+import tempfile
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -123,8 +129,9 @@ __all__ = [
     "LADDER",
     "STRATEGY_LAYER",
     "Escalation",
-    "FalsifyRequest",
-    "FalsifyVerdict",
+    "IndependentTestCandidate",
+    "IndependentTestRequest",
+    "IndependentTestVerdict",
     "JudgeRequest",
     "JudgeVerdict",
     "LeafOutcome",
@@ -132,6 +139,7 @@ __all__ = [
     "WriteShapeRefused",
     "apply_judge_filter",
     "escalate",
+    "evaluate_independent_test",
     "run_leaf",
 ]
 
@@ -170,7 +178,7 @@ STOP_REASONS: tuple[str, ...] = (
     "spec-bubble",      # the judge attributed the failure to the specification
     "no-red-target",    # the run's own test could not be made to fail on arrival
     "self-test",        # the run's own test could not be written at a safe path / could not run
-    "green",            # the run's own tests exited 0 (and, in falsify mode, were not refuted)
+    "green",            # the run's own tests exited 0 and the independent test approved
     "green-after-test-rewrite",  # a replaced test went green: unverified, never claimed
     "write-shape",      # a write target could not be normalized (NUL/long/dir/file-parent)
     "malformed-output", # a model envelope stayed malformed past its bounded retries
@@ -225,16 +233,17 @@ class LeafOutcome:
     """The two facts that matter — what the run CLAIMED and how it stopped — plus the
     evidence needed to audit the loop's honesty.
 
-    ``claimed`` is True only if the run's own tests exited 0 AND (when a falsifier
-    was injected) an independent refutation pass approved. ``stop_reason`` is the
-    single explicit stop (:data:`STOP_REASONS`); ``exhaustion_reason`` keeps the
-    human-readable detail. ``wasted_escalations`` surfaces refusals that were only
-    visible in the process-global ledger before. ``test_rewrites`` /
-    ``own_test_mutated`` record a judge-authorized replacement of the run's own test;
-    a green that follows one is ``green-after-test-rewrite`` and never claimed.
-    ``claimed_basis`` records whether the claim rested on the run's own test alone or
-    on the own test plus the independent falsified check; ``falsify_verdicts`` and
-    ``falsify_counterexample`` carry every refutation attempt.
+    ``claimed`` is True only if the run's own tests exited 0 AND (when an ``iv``
+    producer was injected) a fresh independent test FAILED on the pre-run source and
+    PASSED on the final source. ``stop_reason`` is the single explicit stop
+    (:data:`STOP_REASONS`); ``exhaustion_reason`` keeps the human-readable detail.
+    ``wasted_escalations`` surfaces refusals that were only visible in the
+    process-global ledger before. ``test_rewrites`` / ``own_test_mutated`` record a
+    judge-authorized replacement of the run's own test; a green that follows one is
+    ``green-after-test-rewrite`` and never claimed. ``claimed_basis`` records whether
+    the claim rested on the run's own test alone or on the own test plus the
+    independent test; ``iv_verdicts`` carries every independent-test evaluation and
+    the last verdict's source, node ids, and both gate reports for audit.
     """
 
     claimed: bool  # True ONLY if the run's own pytest exited 0
@@ -254,9 +263,17 @@ class LeafOutcome:
     needs_parent: bool = False  # a spec bubble: the parent owns the next move
     judge_verdicts: list[JudgeVerdict] = field(default_factory=list)  # every attribution,
     # raw + coerced, for calibrating the judge itself (also attached to its Attempt)
-    claimed_basis: str = "own-test"  # "own-test" | "own-test+falsified-check"
-    falsify_verdicts: list[FalsifyVerdict] = field(default_factory=list)
-    falsify_counterexample: str = ""  # the last concrete refutation, when one was given
+    claimed_basis: str = "own-test"  # "own-test" | "own-test+independent-test"
+    # The independent test the last IV evaluation produced, its node ids, both gate
+    # reports, and every verdict (for audit). ``independent_test_reason`` names why the
+    # last independent test stopped a claim ("" once one approved).
+    independent_test: str = ""
+    independent_test_path: str = ""
+    independent_test_node_ids: list[str] = field(default_factory=list)
+    iv_original_gate: GateReport | None = None
+    iv_final_gate: GateReport | None = None
+    iv_verdicts: list[IndependentTestVerdict] = field(default_factory=list)
+    independent_test_reason: str = ""
     # Every write-guard action (ticket 17 round 5): a refused self-test/source write or
     # a normalized landing spot. Persisted in the run record so a forged-green attempt
     # is visible after the fact.
@@ -284,28 +301,53 @@ class JudgeRequest:
 
 
 @dataclass(frozen=True)
-class FalsifyRequest:
-    """Everything the independent falsifier may see: never a grader path.
+class IndependentTestRequest:
+    """Everything the independent test author may see — never a grader path, never the
+    run's own test.
 
-    The blind view of the finished candidate — the goal, the acceptance criteria, the
-    run's OWN test, and the source diff (baseline ``spec.files`` → the current blind
-    source view). It is asked to REFUTE, not to bless: it returns a concrete
-    counterexample or an approval.
+    Only the files the run changed: their pre-run (``original``) and post-run
+    (``final``) source. The author writes a test that must FAIL on the original and PASS
+    on the final; it never learns what the run's own test asserts.
     """
 
     goal: str
     acs: list[str]
-    test_path: str
-    test_content: str
-    diff: str
+    original: dict[str, str]
+    final: dict[str, str]
 
 
 @dataclass(frozen=True)
-class FalsifyVerdict:
-    """The independent falsifier's answer: approval, or a concrete counterexample."""
+class IndependentTestCandidate:
+    """The independent test the model wrote: a path and its complete source."""
+
+    path: str
+    content: str
+    raw: str = ""
+
+
+@dataclass(frozen=True)
+class IndependentTestVerdict:
+    """The DETERMINISTIC two-gate verdict on one independent test.
+
+    ``approved`` is True only when the test FAILED on a private copy of the pre-run
+    source (``original_gate``) and PASSED on a private copy of the final source
+    (``final_gate``) with the canary and expected node ids satisfied. ``reason`` names a
+    rejection: ``independent-test-not-red`` (it passed on the original — vacuous),
+    ``independent-test-unobserved`` (no trustworthy report could be produced), or
+    ``independent-test-red-on-final`` (the fix is still wrong). ``content`` and the gate
+    reports are kept for the audit trail; ``output`` is the failure context the loop
+    feeds into the next attempt.
+    """
 
     approved: bool
-    counterexample: str = ""
+    reason: str = ""
+    detail: str = ""
+    path: str = ""
+    content: str = ""
+    node_ids: tuple[str, ...] = ()
+    original_gate: GateReport | None = None
+    final_gate: GateReport | None = None
+    output: tuple[str, ...] = ()
     raw: str = ""
 
 
@@ -698,56 +740,145 @@ async def _maybe_await(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any
     return result
 
 
-def _as_falsify_verdict(result: Any) -> FalsifyVerdict:
-    """Accept a structured verdict, a raw payload dict, or a bare response string
-    (hand-authored oracles in tests use the string form). Anything else is malformed
-    and must not be read as an approval (never claim unverified)."""
-    if isinstance(result, FalsifyVerdict):
+def _as_iv_candidate(result: Any) -> IndependentTestCandidate:
+    """Accept a structured candidate, a payload dict (``path``/``file_path`` +
+    ``content``), or a model envelope carrying ``file_path``/``content``. Anything
+    without usable content is malformed — never a claim (never claim unverified)."""
+    if isinstance(result, IndependentTestCandidate):
+        if not result.content:
+            raise ValueError("independent test candidate carries no content")
         return result
     if isinstance(result, Mapping):
-        return FalsifyVerdict(
-            approved=bool(result.get("approved", False)),
-            counterexample=str(result.get("counterexample", "")),
-            raw=str(result.get("raw", "")),
-        )
-    if isinstance(result, str):
-        lowered = result.strip().lower()
-        if lowered in {"approve", "approved", "accept", "accepted", "ok", "pass"}:
-            return FalsifyVerdict(approved=True, raw=result)
-        head, _, tail = result.partition(":")
-        if head.strip().lower() in {"reject", "rejected", "refute", "refuted", "fail"}:
-            return FalsifyVerdict(approved=False, counterexample=tail.strip(), raw=result)
+        content = str(result.get("content") or "")
+        if not content:
+            raise ValueError("independent test candidate carries no content")
+        return IndependentTestCandidate(
+            path=str(result.get("path") or result.get("file_path") or ""),
+            content=content, raw=str(result.get("raw", "")))
+    if getattr(result, "status", "ok") not in ("", "ok"):
+        raise ValueError(
+            f"independent test envelope status={getattr(result, 'status', 'unknown')!r}")
+    content = getattr(result, "content", "")
+    if isinstance(content, str) and content:
+        return IndependentTestCandidate(path=getattr(result, "file_path", "") or "",
+                                        content=content)
     raise ValueError(
-        f"falsifier returned {type(result).__name__}; expected an approval or a rejection "
-        "with a concrete counterexample")
+        f"independent test returned {type(result).__name__}; expected a test file "
+        "with non-empty content")
 
 
-async def _call_falsifier(
-    falsifier: Any, request: FalsifyRequest
-) -> FalsifyVerdict:
-    """One falsification call including verdict conversion — module-level so it can be
-    bound with :func:`functools.partial` (no loop-variable capture)."""
-    return _as_falsify_verdict(await _maybe_await(falsifier, request))
+async def _call_iv(iv: Any, request: IndependentTestRequest) -> IndependentTestCandidate:
+    """One independent-test authoring call including candidate conversion — a
+    module-level helper so it can be bound with :func:`functools.partial`."""
+    return _as_iv_candidate(await _maybe_await(iv, request))
 
 
-def _source_diff(spec: LeafSpec, workdir: Path,
-                 baseline: Mapping[str, str | None]) -> str:
-    """The blind source diff (baseline ``spec.files`` → the current source view) handed
-    to the falsifier. Test and grader paths never appear (``_repo_view`` filters test
-    paths; ``spec.files`` is already source-only)."""
-    current = _repo_view(spec, workdir, tuple(baseline))
-    chunks: list[str] = []
-    for rel in sorted(set(spec.files) | set(current)):
-        before = spec.files.get(rel)
-        after = current.get(rel)
-        if before == after:
-            continue
-        diff = difflib.unified_diff(
-            (before or "").splitlines(keepends=True),
-            (after or "").splitlines(keepends=True),
-            fromfile=f"a/{rel}", tofile=f"b/{rel}")
-        chunks.append("".join(diff))
-    return "\n".join(chunks) or "(no source changes)"
+def _iv_request(spec: LeafSpec, workdir: Path,
+                baseline: Mapping[str, str | None]) -> IndependentTestRequest:
+    """The blind independent-test view: the goal, the ACs, and the ORIGINAL and FINAL
+    source of exactly the files the run changed. The run's own test and every grader
+    path are filtered out by construction (``spec.files`` is source-only; ``_repo_view``
+    drops test paths)."""
+    original = dict(spec.files)
+    final = _repo_view(spec, workdir, tuple(baseline))
+    changed = sorted(rel for rel in set(original) | set(final)
+                     if original.get(rel) != final.get(rel))
+    return IndependentTestRequest(
+        goal=spec.goal,
+        acs=list(spec.acs),
+        original={rel: original.get(rel, "") for rel in changed},
+        final={rel: final.get(rel, "") for rel in changed},
+    )
+
+
+def _iv_safe_path(rel: str) -> str:
+    """Normalize a candidate test path into a collectible test file (parameter-layer
+    tolerance): a non-test or escaping landing spot is relocated under ``tests/``, since
+    the private copy is fully harness-controlled and intent is unambiguous."""
+    rel = (rel or "").strip().lstrip("/")
+    if rel and not _escapes_repo(rel) and is_test_path(rel):
+        return rel
+    name = Path(rel).name or "test_independent.py"
+    if not (name.startswith("test_") or name.endswith("_test.py")):
+        name = "test_independent.py"
+    return f"tests/{name}"
+
+
+async def _run_iv_gate(
+    run_tests: Callable[[Path], Awaitable[ShapedResult] | ShapedResult],
+    tree: Mapping[str, str], iv_path: str, iv_content: str,
+) -> tuple[ShapedResult, GateReport | None]:
+    """Run the existing report gate on a PRIVATE COPY of ``tree`` + the test.
+
+    The copy is a fresh ``tempfile`` directory OUTSIDE the workdir, so the run never sees
+    the independent test and the run's own test files are absent (the tree is the
+    source-only view). The directory is removed before returning.
+    """
+    with tempfile.TemporaryDirectory(prefix="helpagent-iv-") as tmp:
+        root = Path(tmp)
+        for rel, text in tree.items():
+            target = root / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text)
+        target = root / iv_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(iv_content)
+        res = await _maybe_await(run_tests, root)
+    return res, getattr(res, "gate", None)
+
+
+async def evaluate_independent_test(
+    candidate: IndependentTestCandidate,
+    original_tree: Mapping[str, str],
+    final_tree: Mapping[str, str],
+    run_tests: Callable[[Path], Awaitable[ShapedResult] | ShapedResult],
+) -> IndependentTestVerdict:
+    """The DETERMINISTIC claim condition (ticket 17 round 7): two report gates.
+
+    1. RED ON ORIGINAL: a private copy of the PRE-RUN source plus the test must run and
+       FAIL. A test that passes there does not exercise the failure (vacuous) and is
+       rejected with ``independent-test-not-red``.
+    2. GREEN ON FINAL: a private copy of the FINAL source plus the SAME test must run and
+       PASS with the canary and expected node ids satisfied.
+
+    Both snapshots come from the blind source view (``run_tests`` in production is
+    :func:`_default_run_tests`, which writes/requires the JUnit report and canary). A test
+    the gate cannot observe (no report) is rejected as unobserved.
+    """
+    iv_path = _iv_safe_path(candidate.path)
+    orig_res, orig_gate = await _run_iv_gate(run_tests, original_tree, iv_path, candidate.content)
+    orig_red = (orig_gate is not None and orig_gate.observed and not orig_gate.green
+                and orig_gate.anomaly == "tests-failed")
+    if not orig_red:
+        if orig_gate is not None and orig_gate.observed and orig_gate.green:
+            reason = "independent-test-not-red"
+            detail = "the independent test PASSED on the pre-run source: it does not pin the goal"
+        else:
+            reason = "independent-test-unobserved"
+            detail = (orig_gate.detail if orig_gate is not None else
+                      "the independent test produced no machine-readable report on the pre-run source")
+        return IndependentTestVerdict(
+            approved=False, reason=reason, detail=detail, path=iv_path,
+            content=candidate.content, raw=candidate.raw, original_gate=orig_gate,
+            output=tuple(getattr(orig_res, "excerpts", []) or ()))
+
+    final_res, final_gate = await _run_iv_gate(run_tests, final_tree, iv_path, candidate.content)
+    if final_gate is None or not final_gate.green:
+        detail = (final_gate.detail if final_gate is not None else
+                  "the independent test produced no machine-readable report on the final source")
+        return IndependentTestVerdict(
+            approved=False, reason="independent-test-red-on-final", detail=detail,
+            path=iv_path, content=candidate.content, raw=candidate.raw,
+            original_gate=orig_gate, final_gate=final_gate,
+            node_ids=tuple(final_gate.passed_ids) if final_gate is not None else (),
+            output=tuple(getattr(final_res, "excerpts", []) or ()))
+
+    return IndependentTestVerdict(
+        approved=True, path=iv_path, content=candidate.content, raw=candidate.raw,
+        node_ids=(tuple(nid for nid in final_gate.passed_ids
+                        if nid.startswith(f"{iv_path}::")) or tuple(final_gate.passed_ids)),
+        original_gate=orig_gate, final_gate=final_gate,
+        output=tuple(getattr(final_res, "excerpts", []) or ()))
 
 
 async def _default_run_tests(workdir: Path) -> ShapedResult:
@@ -1001,8 +1132,7 @@ async def run_leaf(
     *,
     judge: Callable[[JudgeRequest], Awaitable[JudgeVerdict | dict | str] | JudgeVerdict | dict | str]
     | None = None,
-    falsifier: Callable[[FalsifyRequest], Awaitable[FalsifyVerdict | dict | str]
-                        | FalsifyVerdict | dict | str] | None = None,
+    iv: Callable[[IndependentTestRequest], Any] | None = None,
     run_tests: Callable[[Path], Awaitable[ShapedResult] | ShapedResult] | None = None,
     now: Callable[[], float] | None = None,
     on_event: Callable[[str, dict], None] | None = None,
@@ -1015,10 +1145,11 @@ async def run_leaf(
     # ``JudgeVerdict`` (or a dict / bare attribution string); its ``tests`` claim is
     # still filtered by :func:`apply_judge_filter` before it is credited.
     attribution = judge
-    # ``falsifier=None`` is the own-test-only basis (``claimed_basis="own-test"``): the
-    # green is delivered on the run's own unmodified test. A provided falsifier adds an
-    # INDEPENDENT refutation pass that must approve before any claim (ticket 17 round 4);
-    # a missing/malformed falsification call never becomes a claim.
+    # ``iv=None`` is the own-test-only basis (``claimed_basis="own-test"``): the green
+    # is delivered on the run's own unmodified test. A provided ``iv`` producer adds an
+    # INDEPENDENT test whose deterministic two-gate check (red on original, green on
+    # final) must approve before any claim (ticket 17 round 7); a missing/malformed/
+    # unevaluable independent test never becomes a claim.
     workdir = Path(workdir)
     started = clock()
 
@@ -1039,7 +1170,8 @@ async def run_leaf(
     wasted_escalations: list[Escalation] = []
     test_rewrites = 0
     judge_verdicts: list[JudgeVerdict] = []
-    falsify_verdicts: list[FalsifyVerdict] = []
+    iv_verdicts: list[IndependentTestVerdict] = []
+    last_iv_reason = ""
     refusals: list[str] = []
     gate_anomalies: list[str] = []
     attempt_cap = min(9, 3 * max(1, len(spec.files)))
@@ -1159,6 +1291,10 @@ async def run_leaf(
         stop("honest-failure", f"{message}: {problem}", reason)
 
     def finish() -> LeafOutcome:
+        reason = exhaustion_reason
+        if last_iv_reason and not claimed:
+            reason = f"{reason}; independent-test {last_iv_reason}" if reason else f"independent-test {last_iv_reason}"
+        last = iv_verdicts[-1] if iv_verdicts else None
         return LeafOutcome(
             claimed=claimed,
             signal=signal,
@@ -1168,7 +1304,7 @@ async def run_leaf(
             self_test=self_test,
             questions=queue.all(),
             exhausted=node_exhausted,
-            exhaustion_reason=exhaustion_reason,
+            exhaustion_reason=reason,
             layers_used=list(dict.fromkeys(a.layer for a in attempts)),
             stop_reason=stop_reason,
             wasted_escalations=list(wasted_escalations),
@@ -1177,9 +1313,13 @@ async def run_leaf(
             needs_parent=needs_parent,
             judge_verdicts=list(judge_verdicts),
             claimed_basis=claimed_basis,
-            falsify_verdicts=list(falsify_verdicts),
-            falsify_counterexample=next(
-                (v.counterexample for v in reversed(falsify_verdicts) if v.counterexample), ""),
+            independent_test=(last.content if last is not None else ""),
+            independent_test_path=(last.path if last is not None else ""),
+            independent_test_node_ids=list(last.node_ids) if last is not None else [],
+            iv_original_gate=(last.original_gate if last is not None else None),
+            iv_final_gate=(last.final_gate if last is not None else None),
+            iv_verdicts=list(iv_verdicts),
+            independent_test_reason=last_iv_reason,
             refusals=list(refusals),
             gate_anomalies=list(gate_anomalies),
         )
@@ -1456,10 +1596,10 @@ async def run_leaf(
                 emit("leaf_green_after_test_rewrite", strategy=esc.strategy)
                 stop("green-after-test-rewrite", "", "green-after-test-rewrite")
                 break
-            if falsifier is None:
+            if iv is None:
                 # Own-test-only basis (conservative baseline): the run's OWN unmodified
-                # test went green. With --falsify the driver injects the refutation pass
-                # that must approve before any claim (finding 4).
+                # test went green. With --iv the driver injects the independent test that
+                # must pass its two-gate check before any claim (ticket 17 round 7).
                 claimed = True
                 claimed_basis = "own-test"
                 stop("green", "", "green")
@@ -1468,39 +1608,47 @@ async def run_leaf(
             if not can_afford(1):
                 stop("honest-failure", "call-budget", "calls")
                 break
-            fr = _falsify_request(spec, workdir, self_test, baseline)
-            raw_falsify, failure = await request_bounded(
-                partial(_call_falsifier, falsifier, fr), "falsify")
+            iv_request = _iv_request(spec, workdir, baseline)
+            original_tree = dict(spec.files)
+            final_tree = _repo_view(spec, workdir, tuple(baseline))
+            candidate_test, failure = await request_bounded(
+                partial(_call_iv, iv, iv_request), "independent-test")
             if failure == "calls":
                 stop("honest-failure", "call-budget", "calls")
                 break
             if failure:
-                # A refutation pass that could not be produced never becomes a claim.
-                stop("honest-failure", "falsification-unverified", "malformed-output")
+                # An independent test that could not be produced never becomes a claim.
+                stop("honest-failure", "independent-test-unverified", "malformed-output")
                 break
-            falsify_verdicts.append(raw_falsify)
-            emit("falsify_verdict", approved=raw_falsify.approved,
-                 counterexample=raw_falsify.counterexample, raw=raw_falsify.raw)
-            if raw_falsify.approved:
+            verdict = await _maybe_await(
+                evaluate_independent_test, candidate_test, original_tree, final_tree, tests)
+            iv_verdicts.append(verdict)
+            emit("independent_test_verdict", approved=verdict.approved,
+                 reason=verdict.reason, path=verdict.path,
+                 original_gate=(verdict.original_gate.anomaly
+                                if verdict.original_gate is not None else None),
+                 final_gate=(verdict.final_gate.anomaly
+                             if verdict.final_gate is not None else None),
+                 raw=verdict.raw)
+            if verdict.approved:
                 claimed = True
-                claimed_basis = "own-test+falsified-check"
+                claimed_basis = "own-test+independent-test"
                 stop("green", "", "green")
                 emit("leaf_green", strategy=esc.strategy, after_test_rewrite=False)
                 break
-            # Refuted: the counterexample becomes the next attempt's failure context
-            # and the loop CONTINUES (an escalation that adds information, §10.5).
-            last_excerpts = ([f"falsified: {raw_falsify.counterexample}"]
-                             if raw_falsify.counterexample else
-                             ["falsified: an independent check found a counterexample"])
+            # Rejected: the independent test's output is the next attempt's failure
+            # context and the loop CONTINUES (never a claim, never silently dropped).
+            last_iv_reason = f"{verdict.reason}: {verdict.detail}"
+            last_excerpts = [f"independent test rejected ({verdict.reason}): {verdict.detail}",
+                             *(verdict.output or ())]
             attempts.append(Attempt(
                 node_id="leaf", layer=esc.layer, strategy=esc.strategy or "L1-resample",
-                claimed_delta=(raw_falsify.counterexample
-                              or "the independent falsifier refuted the fix"),
+                claimed_delta=f"independent test: {verdict.reason}",
                 failure_signature=failure_signature(last_excerpts, last_excerpts),
                 touched_files=[source_rel] if wrote else [],
                 outcome="fail", verdict="novel"))
-            emit("falsified_attempt", strategy=esc.strategy,
-                 counterexample=raw_falsify.counterexample)
+            emit("independent_test_rejected", strategy=esc.strategy,
+                 reason=verdict.reason, detail=verdict.detail)
             rung += 1
             continue
 
@@ -1581,21 +1729,4 @@ def _judge_request(
         test_path=self_test or "",
         test_content=_read(workdir, self_test),
         files=files,
-    )
-
-
-def _falsify_request(
-    spec: LeafSpec,
-    workdir: Path,
-    self_test: str | None,
-    baseline: Mapping[str, str | None],
-) -> FalsifyRequest:
-    """Build the blind falsifier view (never a grader path): goal, ACs, the run's own
-    test, and the source diff. It is a REFUTATION context, not an author context."""
-    return FalsifyRequest(
-        goal=spec.goal,
-        acs=list(spec.acs),
-        test_path=self_test or "",
-        test_content=_read(workdir, self_test),
-        diff=_source_diff(spec, workdir, baseline),
     )
