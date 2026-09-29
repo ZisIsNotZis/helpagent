@@ -474,6 +474,54 @@ async def _request_write(model: Any, artifacts: dict[str, str], question: str) -
     return await llm_step(model, "write_test", artifacts=artifacts, question=question)
 
 
+def _normalize_test_path(rel: str, spec: LeafSpec, workdir: Path) -> tuple[str, str]:
+    """Parameter-layer tolerance (owner policy): a well-formed self-test envelope whose
+    ONLY defect is where it lands is normalized deterministically, never refused.
+
+    The grader's test files are withheld, so the model naturally reuses exactly those
+    names (first live run: it asked for the grader's own ``tests/test_pagination.py``
+    and the node died after one call). Intent is unambiguous — the step asks for a
+    test — so the path is a parameter: relocate to a free test path. Returns
+    ``(path, note)``; ``note`` is "" when nothing had to change.
+    """
+    if _escapes_repo(rel):
+        return rel, ""                       # logic-level: never silently relocate out
+    problem = _new_test_problem(rel, spec, workdir)
+    if not problem:
+        return rel, ""
+    if problem == "escapes the repository":
+        return rel, ""
+    stem = Path(rel).stem or "self"
+    suffix = Path(rel).suffix or ".py"
+    parent = Path(rel).parent
+    if not is_test_path(rel):
+        parent = Path("tests")
+    for n in range(0, 50):
+        candidate = str(parent / (f"{stem}_leaf{suffix}" if n == 0 else f"{stem}_leaf{n}{suffix}"))
+        if not _new_test_problem(candidate, spec, workdir):
+            return candidate, f"{rel} -> {candidate} ({problem})"
+    return rel, ""
+
+
+def _relocate_self_test(env: Any, spec: LeafSpec, workdir: Path, emit: Any) -> str | None:
+    """Return a usable self-test path for ``env``, normalizing a bad landing spot.
+
+    Returns None when the envelope is unusable at the logic level (not ok, no path,
+    or a path that escapes the repository).
+    """
+    if getattr(env, "status", "unable") != "ok" or not getattr(env, "file_path", ""):
+        return None
+    kind, problem = _self_test_problem(env, spec, workdir)
+    if not problem:
+        return env.file_path
+    normalized, note = _normalize_test_path(env.file_path, spec, workdir)
+    if not note:
+        return None
+    emit("self_test_relocated", detail=note, requested=env.file_path, used=normalized)
+    emit("tolerance_fired", aspect="self_test_path", requested=env.file_path, used=normalized)
+    return normalized
+
+
 def _self_test_problem(env: Any, spec: LeafSpec, workdir: Path) -> tuple[str, str]:
     """Classify a self-test envelope. Returns ``(ledger_kind, problem)``; ``problem``
     is "" when the envelope is a usable new test path."""
@@ -603,8 +651,9 @@ async def run_leaf(
         stop("honest-failure", "call-budget", "calls")
         return finish()
     self_env = await _request_write(model, _self_test_artifacts(spec), _SELF_TEST_QUESTION)
-    kind, problem = _self_test_problem(self_env, spec, workdir)
-    if problem:
+    normalized = _relocate_self_test(self_env, spec, workdir, emit)
+    if normalized is None:
+        kind, problem = _self_test_problem(self_env, spec, workdir)
         emit(kind, path=getattr(self_env, "file_path", ""), reason=problem)
         queue.open(
             f"self-test:{spec.goal[:40]}",
@@ -613,8 +662,8 @@ async def run_leaf(
         )
         stop("honest-failure", f"self-test-refused: {problem}", "self-test")
         return finish()
-    _write(workdir, self_env.file_path, self_env.content)
-    self_test = self_env.file_path
+    _write(workdir, normalized, self_env.content)
+    self_test = normalized
 
     res = await _maybe_await(tests, workdir)
     if _is_green(res):
@@ -633,13 +682,14 @@ async def run_leaf(
             _retry_self_test_artifacts(spec, previous_path, previous_content),
             _RETRY_SELF_TEST_QUESTION,
         )
-        kind, problem = _self_test_problem(retry_env, spec, workdir)
-        if problem:
+        normalized = _relocate_self_test(retry_env, spec, workdir, emit)
+        if normalized is None:
+            kind, problem = _self_test_problem(retry_env, spec, workdir)
             emit(kind, path=getattr(retry_env, "file_path", ""), reason=problem)
             stop("honest-failure", f"no-red-target: {problem}", "no-red-target")
             return finish()
-        _write(workdir, retry_env.file_path, retry_env.content)
-        self_test = retry_env.file_path
+        _write(workdir, normalized, retry_env.content)
+        self_test = normalized
         res = await _maybe_await(tests, workdir)
         if _is_green(res):
             emit("self_test_green_on_arrival", path=self_test)

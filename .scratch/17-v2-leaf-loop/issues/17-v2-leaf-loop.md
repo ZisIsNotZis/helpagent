@@ -161,3 +161,35 @@ Invariants to pin as tests (>= 12 cases):
   (transport error now stops as `self-test-unverified` and leaves no file), removed the
   bogus target left by a vacuous rewrite, pinned all three with tests. Suite **211 green**
   (`tests/unit/test_v2_leaf.py` = 31 cases).
+
+## First honest v2 measurement (2026-09-29, reference model, N=1)
+
+`bench/v2_sweep.py` (blind: source-only staging, grader run afterwards on a pristine copy).
+
+| quadrant | n | detail |
+| --- | --- | --- |
+| true success | 5 | T-02, T-03, T-05, T-14, A-02 |
+| missed success | 1 | T-31 — source correct, the run's own test disagreed |
+| honest failure | 2 | T-25 (envelope SchemaViolation at call 1), T-33 |
+| **false success** | **0** | never claimed a green the grader rejected |
+
+actual 6/8, claimed 5/8, ~30 model calls total (~3.8 per pass). Compare with the v1
+pipeline run blind the same day: 0/3 actual (and its contaminated numbers claimed ~93%).
+The suite was 211 green at the measuring commit.
+
+Two defects the live runs found, both parameter/logic-layer:
+
+1. **The model names its self-test after the withheld grader file** (T-02 asked for
+   `tests/test_pagination.py`, which exists only as the grader's copy), so the node died
+   after one call. Fixed by deterministic parameter-layer normalization: a well-formed
+   self-test envelope whose only defect is its landing spot is relocated to a free test
+   path with `tolerance_fired` + `self_test_relocated` recorded. Refusal now only covers
+   logic-level problems (escape, unusable envelope).
+2. **A malformed envelope crashed the run** (T-25, `SchemaViolation`) instead of being
+   retried or stopped honestly with a reason.
+
+Remaining gap: the driver passes `judge=None`, so the conservative policy holds and the
+model's own "the test is wrong" claim is never credited. T-02's second live run is the
+textbook case: the source fix was right, the self-test was wrong (it asserted every item
+appears on every page), and the leaf honestly reported exhaustion instead of claiming —
+a missed success that an independent test-side judgement would have converted.

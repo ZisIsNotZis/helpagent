@@ -235,13 +235,17 @@ def test_grader_paths_never_enter_prompts_and_cannot_be_written(tmp_path):
         write_env("tests/test_chain.py", "def test_cheat():\n    assert True\n"),
     ]})
     out = run_leaf_sync(model, spec, tmp_path,
-                        Budget(calls=5, deadline_ts=_FAR_FUTURE),
+                        Budget(calls=1, deadline_ts=_FAR_FUTURE),
                         run_tests=ScriptedTests([1]))
 
-    assert out.self_test is None
+    # Parameter-layer tolerance (live-run finding): the grader's names are withheld,
+    # so the model naturally reuses them; the path is a parameter and is relocated.
+    assert out.self_test == "tests/test_chain_leaf.py"
+    assert (tmp_path / out.self_test).exists()
     assert not (tmp_path / "tests/test_chain.py").exists()
     assert out.claimed is False
-    assert out.stop_reason == "self-test"
+    assert "self_test_relocated" in ledger_kinds()
+    assert "tolerance_fired" in ledger_kinds()
     for record in model.calls("write_test"):
         assert "tests/test_chain.py" not in record.prompt
 
@@ -253,30 +257,30 @@ def test_self_test_may_not_overwrite_an_existing_path(tmp_path):
         write_env("pkg/calc.py", "def result():\n    return 99\n"),
     ]})
     out = run_leaf_sync(model, spec, tmp_path,
-                        Budget(calls=5, deadline_ts=_FAR_FUTURE),
+                        Budget(calls=1, deadline_ts=_FAR_FUTURE),
                         run_tests=ScriptedTests([1]))
 
-    assert out.self_test is None
+    assert out.self_test == "tests/calc_leaf.py"          # relocated, never overwritten
     assert (tmp_path / "pkg/calc.py").read_text() == spec.files["pkg/calc.py"]
-    assert "self_test_refused" in ledger_kinds()
+    assert "self_test_relocated" in ledger_kinds()
 
 
-def test_non_test_self_test_path_is_refused(tmp_path):
-    """A self-test must be a test path (harness.staging.is_test_path); a plain source
-    path is refused even when it does not exist yet."""
+def test_non_test_self_test_path_is_relocated_into_tests(tmp_path):
+    """A self-test must be a test path; a non-test path is a naming slip, so it is
+    normalized into tests/ rather than killing the node."""
     spec = make_spec()
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [
         write_env("pkg/helper.py", "x = 1\n"),
     ]})
     out = run_leaf_sync(model, spec, tmp_path,
-                        Budget(calls=5, deadline_ts=_FAR_FUTURE),
+                        Budget(calls=1, deadline_ts=_FAR_FUTURE),
                         run_tests=ScriptedTests([1]))
 
-    assert out.self_test is None
+    assert out.self_test == "tests/helper_leaf.py"
     assert not (tmp_path / "pkg/helper.py").exists()
-    assert out.stop_reason == "self-test"
-    assert "self_test_refused" in ledger_kinds()
+    assert (tmp_path / out.self_test).exists()
+    assert "tolerance_fired" in ledger_kinds()
 
 
 def test_implement_cannot_write_a_test_or_grader_path(tmp_path):
