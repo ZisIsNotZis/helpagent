@@ -330,3 +330,30 @@ Stop point: the remaining weakness is the QUALITY of the independently written t
 same small model writes it), which is what keeps 12 of 20 graded successes unclaimed. That
 is a model-quality lever, not a rule we can tighten or loosen safely. The leaf is
 declared done; work moves to the node tree (ticket 18).
+
+## Matched comparison: traditional (own test) vs strict (independent test)
+
+Same 9 corpus tasks x N=2, same day, same fixed recognizer, blind, reference model:
+
+| claim rule | actual | claimed | true | missed | honest | false | calls |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| own test green => claim (traditional) | **14/18** | 10/18 | 9 | 5 | 3 | **1** | **83** |
+| own test + judge + independent test | 11/18 | 1/18 | 1 | 10 | 7 | **0** | 168 |
+
+The strict arm is WORSE on what it actually fixes (11 vs 14) and costs twice as much,
+because it frequently rejects work that is correct: of its 11 graded successes, 10 were
+unclaimed, and the blockers were defective tests rather than bad code —
+"independent-test-not-discriminating" 3, "independent-test-red-on-final" 3,
+"no independent-test call at all" 3 (the run's own test never went green),
+"not-red" 1. The independent test is authored by the same small model, so it is wrong
+in both directions, and every rejection burns an attempt.
+
+The 7 actual failures break down as: coordinated multi-site change the model does not
+complete (T-31 x2, T-14; T-05 partly), contract/edge semantics the request does not
+spell out (T-33 x2, T-05), and ONE harness defect — T-08 stopped after 2 calls with no
+attempts at all because its self-test was green on arrival twice (no-red-target), so it
+never even tried to implement. That dead end is ours to fix.
+
+Consequence for the design: `claimed` should become a claim WITH its verification
+status (verified | rejected-<reason> | unverified), so a consumer that cannot tolerate
+lies filters on `verified` while throughput uses all claims. This is an owner decision.
