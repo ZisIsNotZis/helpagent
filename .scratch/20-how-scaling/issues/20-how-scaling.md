@@ -98,3 +98,19 @@ An independent adversarial pass on the just-landed covenant found four concrete 
 Fixes 1-3 are inseparable from step 1 (review ANGLES with predefined weights and a
 critical-angle veto, a substantive reason check, a best-effort cap that flags a diluted
 run) and go in the same round; fix 4 is a one-line validation.
+
+## Gap: not yet wired (step 2a → step 2b)
+
+Step 2a landed the How machinery — `harness/how.py` (append-only `How`/`HowList`, the
+prior table, viability, the pure `select_key`, the manager loop, `NodeRecord`, and the
+candidate-directory copy/abandon/audit functions), the `how_list` envelope (SCHEMAS
+26 → 27, ENVELOPE_SCHEMAS §28, KERNEL_API §10), and `PlanNode.how_id` binding — with
+tests. It does NOT yet drive real runs:
+
+- `run_node` / `_attempt_internal` in `harness/tree_run.py` still call
+  `trajectory.reset_to(...)` (git checkpoints) for L6/L7. **The destructive reset path
+  remains until step 2b**, so candidate isolation is NOT in effect for real runs.
+- Nothing here is half-wired: no runtime module imports `harness.how`; there is no flag
+  or field that would read as "candidates used" while the runner still resets git.
+- Step 2b replaces the L6/L7 git-reset design with the candidate-directory path and
+  updates the tests that encode the old reset behaviour (`tests/unit/test_v2_tree.py`).

@@ -440,3 +440,49 @@ a failing verdict reopens its responsible writer descendants (bounded per node).
 <!-- DECISION: the structural close rule is deterministic (writing-descendant count), not
 an extra model call; an integration leaf that exposes no test artifact is not a verdict
 (no keys ⇒ no close). -->
+
+## 10. The How axis, selection, and the manager loop (ticket 20 step 2a)
+
+`harness/how.py` owns the pieces below. None is a seventh primitive: the How axis and the
+manager loop are composition over the six primitives (the first planning call is one
+`how_list` envelope; each explored How is one `plan_node` bound to its `how_id`).
+
+- **Hows are the diversity axis.** `HowList` is an APPEND-ONLY, frozen list of `How`
+  records `{id, text, rank, reason, prior, status}` with `status` one of `untried`,
+  `active`, `succeeded`, `failed`, `abandoned`. The content is immutable and a status
+  transition returns a NEW `How`; a failure never edits a How or its decomposition — it
+  appends a NEW How and marks the old one failed/abandoned.
+- **The prior is a scheduler hint, never evidence.** `prior_for_rank` is the default
+  geometric decay table (rank 1 ⇒ 0.5); `how_viability(prior, children)` is
+  `prior × best viable child value`, with failed/abandoned children removed. Success is
+  decided ONLY by hard evidence (tests / integration verification).
+- **The selection function** (`select_key`) is the pure, lexicographic, deterministic key
+  `(test score, review score, rank, cost)`. Test score =
+  `planned_test_score(planned, results)` = (planned points covered, pass rate over the
+  PLANNED points); no tests ⇒ 0. Review score = the predefined weighted angle aggregate
+  `combine_review_verdicts` with the critical-angle veto; no review ⇒ 0. Ties fall through
+  to rank, then to smaller cost. A negative review grade is an ACTION ITEM
+  (`Selection.repair_reason`), not merely a lost comparison.
+- **The manager loop** (`decide_after_failure`). When a How fails or exhausts, the node's
+  STRUCTURED RECORD (`NodeRecordView`: How list with statuses, each failure's evidence and
+  reason, which Hows remain untried) goes to the managing call, which returns ONE decision
+  plus a reason out of exactly four: `continue-with-next-how`, `author-a-new-how`,
+  `request-feasibility-review`, `escalate-or-park`. Automatic advance is allowed ONLY when
+  a feasibility review judged the How infeasible; otherwise the manager decides. Every
+  decision is recorded (`CandidateSet.decisions`).
+- **The node record area** (`NodeRecord`) is a model-maintained text record that is
+  REWRITTEN (not appended) and whose every update carries a reason. It is separate from
+  the ledger (harness-written, append-only, never in model context) and is NEVER evidence
+  (`IS_EVIDENCE = False`).
+- **No destructive reset (step-2a mechanism; NOT yet wired).** Each How candidate works
+  in its OWN isolated directory copied under the run's output area (`create_candidate` →
+  `<run_outdir>/candidates/<node>/<how>`). Abandoning a How discards its directory
+  (`abandon_candidate`) and appends a new How. There is no `git reset`/`git clean` on a
+  candidate path; the existing write-boundary audit is applied per-candidate-directory
+  (`audit_candidate_boundary`). Git worktrees are a later round. This is the step-2a
+  mechanism only: `run_node`/`_attempt_internal` still reset the node's subtree with
+  `trajectory.reset_to` (git checkpoints) for L6/L7, so candidate isolation is NOT in
+  effect for real runs until step 2b rewires the runner.
+- **Budget.** `how_exploration_limit(budget, n_hows)` bounds how many Hows a node may
+  explore: the non-reserve pool divided by `min_leaf_calls + 1` (one per-How decomposition
+  call plus a leaf's worth of work), capped by the number of Hows.

@@ -22,6 +22,8 @@ from harness.envelopes import (
     FindAmbiguities,
     FixAttempt,
     GateDecide,
+    HowEntry,
+    HowList,
     IdentifyBugs,
     Implement,
     Interface,
@@ -96,7 +98,7 @@ __all__ = [
     "Problem", "FailureJudge", "Bug", "IdentifyBugs", "ProposeProbe", "InterpretProbe",
     "Lesson", "LessonEnvelope", "RankedFix", "DebugJudge", "NewIssue", "FixAttempt", "JudgeAspect",
     "build_judge_aspect_model", "RunSummary", "GateDecide", "ProposedNode",
-    "ProposeGrowth", "ChildPlan", "PlanNode",
+    "ProposeGrowth", "ChildPlan", "PlanNode", "HowEntry", "HowList",
     # tree
     "TRANSITIONS", "StatusTransitionInvalid", "ArtifactRef", "ACEntry", "Node",
     "NodeHandle", "TaskTree", "Finding", "ValidationFindings", "CheckResults",

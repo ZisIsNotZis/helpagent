@@ -541,6 +541,7 @@ class PlanNode(Envelope):
     review_angles: list[str]       # implementation review angles (closed set)
     best_effort: bool              # PLAN-TIME opt-in
     best_effort_reason: str
+    how_id: str                    # the How this decomposition is bound to (ticket 20); "" = unbound
     children: list[ChildPlan]      # 0–15 — [] ⇒ this node is a LEAF
 ```
 
@@ -573,7 +574,7 @@ and never silently produces a child. Budget: ~500 tok.
 | Tier | Schemas | Budget | Note |
 | --- | --- | --- | --- |
 | Tiny ≤400 tok | find_ambiguities, revise_task_card, split_review, spec_review, failure_judge, propose_probe, interpret_probe, debug_judge, judge_aspects, run_summary, gate_decide, propose_growth, lesson, implement, fix_attempt | — | reports only — work happens via tool rounds |
-| Medium ≤800 tok | task_card, expand, draft_acs, test_plan, identify_bugs, write_spec, plan_node | — | no risk |
+| Medium ≤800 tok | task_card, expand, draft_acs, test_plan, identify_bugs, write_spec, plan_node, how_list | — | no risk |
 | **Ceiling-risk** | write_test (~2.5k) | — | the only content-emitting schema left; one case per call; overflow → file split-window (never truncate) |
 
 Every code-carrying schema declares its split path in advance (§4.2 bounded artifacts;
@@ -640,3 +641,45 @@ class VerifyRecord(Envelope):
 **Kernel validates:** `reason` is non-empty (grammar) and passes the length + activity +
 why + anti-boilerplate + anti-restatement + concrete-artifact checks
 (`harness.leaf.verification_reason_problem`). Budget: ~80 tok.
+
+---
+
+## 28. `how_list` — the How axis: N ranked approaches for one node (ticket 20 step 2a)
+
+The FIRST planning step of a node. Instead of planning one decomposition directly, the
+node lists the candidate APPROACHES (the diversity axis): each How is a short paragraph
+of how this would be done, a rank (1 = try first), and why it is worth a look. The model
+does NOT emit the prior — the harness derives it from the rank by the geometric decay
+table (`harness.how.prior_for_rank`), so the prior stays a deterministic scheduler hint
+and never becomes claimed evidence. The Harness then spends a per-How decomposition call
+(a `plan_node` envelope bound to that `how_id`) for each How the budget lets the node
+explore. Hows and their decompositions are immutable: a failure appends a NEW How and
+marks the old one `failed`/`abandoned`.
+
+```python
+class HowEntry(Base):
+    how_id: str                    # ^HOW-[0-9]{1,3}$
+    text: str                      # a short paragraph of HOW this would be done
+    rank: int                      # 1–15 — model priority order (1 = first)
+    reason: str                    # why this approach is worth a look
+
+class HowList(Envelope):
+    hows: list[HowEntry]           # 1–8; ranks unique and contiguous from 1; ids unique
+```
+
+```text
+how_list:
+  hows:
+    - how_id: > HOW-1   rank: 1   text: > clamp ttl at read time   reason: > smallest diff
+    - how_id: > HOW-2   rank: 2   text: > normalize ttl at write  reason: > fixes the root
+```
+
+**Kernel validates:** ranks unique and contiguous from 1, How ids unique (`HowList`
+validator); the harness fills `prior` from the rank. The prior is a SCHEDULER HINT only —
+success is decided only by hard evidence (tests / integration verification). Budget: ~250
+tok. See KERNEL_API §10 for the selection function, the manager loop, and candidate
+isolation.
+
+**Not yet wired (step 2a → 2b):** this schema and `harness/how.py` are additive; the tree
+runner still plans one `plan_node` per node and resets L6/L7 subtrees with git checkpoints.
+The How/candidate path is wired to real runs in step 2b.

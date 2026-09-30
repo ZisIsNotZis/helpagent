@@ -155,6 +155,9 @@ class NodeSpec:
     review_level: str = DEFAULT_REVIEW_LEVEL
     best_effort: bool = False
     best_effort_reason: str = ""
+    #: Ticket 20 step 2a: the How this spec's decomposition is bound to (``PlanNode.how_id``).
+    #: ``""`` keeps the legacy unbound plan (single-leaf / pre-How tree) valid.
+    how_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -164,6 +167,7 @@ class Decomposition:
     spec: NodeSpec
     children: tuple[NodeSpec, ...]
     signature: str
+    how_id: str = ""
 
 
 def decomposition_signature(children: Sequence[NodeSpec]) -> str:
@@ -213,9 +217,11 @@ def decomposition_from_envelope(env: PlanNode) -> Decomposition:
         review_angles=tuple(env.review_angles),
         best_effort=env.best_effort,
         best_effort_reason=env.best_effort_reason,
+        how_id=env.how_id,
     )
     return Decomposition(spec=spec, children=children,
-                         signature=decomposition_signature(children))
+                         signature=decomposition_signature(children),
+                         how_id=env.how_id)
 
 
 # ---------------------------------------------------------------------------

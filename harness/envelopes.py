@@ -781,7 +781,62 @@ class PlanNode(Envelope):
     review_angles: list[str] = Field(default_factory=list)   # closed per-level set
     best_effort: bool = False
     best_effort_reason: str = ""
+    #: Ticket 20 step 2a: the How this decomposition belongs to. A per-How
+    #: decomposition call is BOUND to one How id; ``""`` keeps the legacy unbound
+    #: call (single-leaf / pre-How tree) valid.
+    how_id: str = Field(default="", pattern=r"^(HOW-[0-9]{1,3})?$")
     children: list[ChildPlan] = req(max_length=15)  # [] ⇒ this node is a LEAF
+
+
+# ---------------------------------------------------------------------------
+# §28 how_list — the How axis: N ranked approaches for one node (ticket 20 step 2a)
+# ---------------------------------------------------------------------------
+
+
+class HowEntry(BaseModel):
+    """One ranked HOW for a node (ENVELOPE_SCHEMAS §28).
+
+    ``text`` is a short paragraph of HOW this would be done, ``reason`` why it is worth
+    a look; ``rank`` is the model's own priority order (1 = try first). The framework
+    PRIOR is derived from ``rank`` by the geometric decay table
+    (:func:`harness.how.prior_for_rank`) and is deliberately NOT a model field, so the
+    prior stays a deterministic scheduler hint and never becomes claimed evidence.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    how_id: str = req(pattern=r"^HOW-[0-9]{1,3}$")
+    text: str = req(min_length=1)
+    rank: int = req(ge=1, le=15)
+    reason: str = req(min_length=1)
+
+
+class HowList(Envelope):
+    """The FIRST planning step of a node: N ranked HOWs (ENVELOPE_SCHEMAS §28;
+    ticket 20 step 2a).
+
+    The Hows are the DIVERSITY AXIS: one call lists the candidate approaches, then each
+    How the budget lets the node explore gets its own per-How decomposition via
+    :class:`PlanNode` bound to that :attr:`HowEntry.how_id`. Ranks are unique and
+    contiguous from 1 (the deterministic prior table is keyed by rank).
+    """
+
+    hows: list[HowEntry] = req(min_length=1, max_length=8)
+
+    @model_validator(mode="after")
+    def _ranks_unique_contiguous(self) -> Self:
+        if self._unset(self.hows):
+            return self  # unable branch: payload absent
+        ranks = [h.rank for h in self.hows]
+        if len(set(ranks)) != len(ranks):
+            raise ValueError("How ranks must be unique (ENVELOPE_SCHEMAS §28)")
+        if sorted(ranks) != list(range(1, len(ranks) + 1)):
+            raise ValueError(
+                "How ranks must be contiguous starting at 1 (ENVELOPE_SCHEMAS §28)")
+        ids = [h.how_id for h in self.hows]
+        if len(set(ids)) != len(ids):
+            raise ValueError("How ids must be unique (ENVELOPE_SCHEMAS §28)")
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -855,8 +910,9 @@ SCHEMAS: dict[str, type[Envelope]] = {
     "gate_decide": GateDecide,  # §20
     "propose_growth": ProposeGrowth,  # §21
     "lesson": LessonEnvelope,  # §22 (standalone step; embedded form is Lesson)
-    "plan_node": PlanNode,  # §23 (fused decompose+specify, ticket 18)
+    "plan_node": PlanNode,  # §23 (fused decompose+specify, ticket 18; per-How in 20)
     "verify": VerifyRecord,  # §27 (written none+reason justification, ticket 20)
+    "how_list": HowList,  # §28 (the How axis, ticket 20 step 2a)
 }
 
 JUDGE_STEP_PREFIX = "judge_"

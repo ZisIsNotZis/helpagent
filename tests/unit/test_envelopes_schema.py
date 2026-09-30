@@ -39,7 +39,7 @@ def test_envelope_rejects_missing_self_summary():
 def test_unable_alternative_is_in_every_envelope_schema():
     """Iterate the per-leaf-type schema library; assert each has a discriminant
     accepting `unable: reason` — and that the unable alternative actually parses."""
-    assert len(SCHEMAS) == 26
+    assert len(SCHEMAS) == 27  # ticket 20 step 2a: +how_list
     for step_type, model in SCHEMAS.items():
         assert issubclass(model, Envelope), step_type
         values = get_args(model.model_fields["status"].annotation)
@@ -103,6 +103,12 @@ VALID_PAYLOADS = {
     "leaf_review": {"grade": "definitely-ok",
                     "evidence": "middleware/auth.py:42 implements AC-1"},
     "verify": {"reason": "no test can pin this timing-dependent warning and no reviewer was available"},
+    "how_list": {"hows": [
+        {"how_id": "HOW-1", "text": "clamp the ttl at read time", "rank": 1,
+         "reason": "smallest diff"},
+        {"how_id": "HOW-2", "text": "normalize the ttl at write time", "rank": 2,
+         "reason": "fixes the root"},
+    ]},
 }
 
 
