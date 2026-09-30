@@ -22,6 +22,7 @@ from harness.how import (
     NodeRecord,
     NodeRecordView,
     PRIOR_DECAY,
+    Selection,
     abandon_candidate,
     audit_candidate_boundary,
     candidate_dir,
@@ -31,6 +32,7 @@ from harness.how import (
     how_list_from_envelope,
     how_viability,
     make_how,
+    pick,
     planned_test_score,
     prior_for_rank,
     select_key,
@@ -128,6 +130,18 @@ def test_prior_table_is_geometric_decay():
         prior_for_rank(0)
 
 
+def test_prior_comes_from_the_rank_table_only():
+    # rank 15 must never out-viability rank 1, and NO caller can pass an arbitrary prior
+    rank1 = make_how("HOW-1", "a", 1, "r")
+    rank15 = make_how("HOW-15", "a", 15, "r")
+    assert (rank1.prior, rank15.prior) == (prior_for_rank(1), prior_for_rank(15))
+    assert rank15.prior < rank1.prior
+    with pytest.raises(TypeError):
+        make_how("HOW-1", "a", 1, "r", prior=10.0)  # the inflation seam is gone
+    with pytest.raises(ValueError):
+        How(id="HOW-2", text="a", rank=2, reason="r", prior=10.0)
+
+
 def test_how_viability_is_prior_times_best_viable_child():
     assert how_viability(0.5, []) == 0.5  # a leaf How carries its own prior
     assert how_viability(0.5, [("active", 0.4), ("untried", 0.25)]) == pytest.approx(0.2)
@@ -135,6 +149,23 @@ def test_how_viability_is_prior_times_best_viable_child():
     assert how_viability(0.5, [("failed", 9.0), ("active", 0.4)]) == pytest.approx(0.2)
     # children exist but NONE is viable -> not viable
     assert how_viability(0.5, [("failed", 0.4), ("abandoned", 0.9)]) == 0.0
+
+
+def test_how_viability_rejects_an_unrecognised_status():
+    # a typo such as "fail" must NEVER count as viable (it would mask a real failure)
+    with pytest.raises(ValueError):
+        how_viability(0.5, [("fail", 9.0)])
+    # the node's OWN status is validated against the closed set too
+    with pytest.raises(ValueError):
+        how_viability(0.5, [], status="finished")
+
+
+def test_how_viability_of_a_failed_or_abandoned_how_is_zero():
+    # the node's OWN status dominates: a failed/abandoned How is not viable even when its
+    # children are perfectly good (a failure is never rescued by its subtree)
+    assert how_viability(0.5, [("active", 0.9)], status="failed") == 0.0
+    assert how_viability(0.5, [("active", 0.9)], status="abandoned") == 0.0
+    assert how_viability(0.5, [], status="succeeded") == 0.5
 
 
 # ---------------------------------------------------------------------------
@@ -155,30 +186,50 @@ def test_planned_test_score_denominator_is_the_plan():
     assert planned_test_score(["t1"], None) == (0, 0.0)
 
 
-def test_selection_test_score_beats_review_score():
+def _selection(*, covered, rate, review_score, rank, cost):
+    return Selection(test_covered=covered, test_pass_rate=rate, review_score=review_score,
+                     rank=rank, cost=cost, review_ok=True, repair_reason="")
+
+
+def test_pick_maximises_test_score_above_every_other_component():
+    # a strictly better test score WINS even though review, rank and cost all favour the
+    # other candidate: the test component is the first, dominant key
+    better_tests = _selection(covered=2, rate=1.0, review_score=0, rank=9, cost=99)
+    better_rest = _selection(covered=1, rate=1.0, review_score=9, rank=1, cost=1)
+    assert pick([better_rest, better_tests]) is better_tests
+    assert pick([better_tests, better_rest]) is better_tests
+
+
+def test_pick_pass_rate_breaks_a_coverage_tie():
+    full = _selection(covered=1, rate=1.0, review_score=0, rank=9, cost=99)
+    partial = _selection(covered=1, rate=0.5, review_score=9, rank=1, cost=1)
+    assert pick([partial, full]) is full
+
+
+def test_pick_full_tie_break_chain_review_then_rank_then_cost():
+    # equal test score -> the higher review score wins even with a worse rank and cost
+    high_review = _selection(covered=1, rate=1.0, review_score=5, rank=9, cost=99)
+    high_rank = _selection(covered=1, rate=1.0, review_score=1, rank=1, cost=1)
+    assert pick([high_rank, high_review]) is high_review
+    # equal test + review -> the SMALLER rank wins even with a larger cost
+    low_rank = _selection(covered=1, rate=1.0, review_score=5, rank=1, cost=99)
+    high_rank2 = _selection(covered=1, rate=1.0, review_score=5, rank=2, cost=1)
+    assert pick([high_rank2, low_rank]) is low_rank
+    # equal through rank -> the SMALLER cost wins
+    cheap = _selection(covered=1, rate=1.0, review_score=5, rank=1, cost=1)
+    dear = _selection(covered=1, rate=1.0, review_score=5, rank=1, cost=99)
+    assert pick([dear, cheap]) is cheap
+
+
+def test_pick_uses_the_select_key_order_and_is_empty_safe():
     strong_review = select_key(planned_test_points=[], test_results={},
-                               review_verdicts=_positive_verdicts(),
-                               rank=2, cost=9)
-    weak_review_but_tests = select_key(
-        planned_test_points=["t1", "t2"], test_results={"t1": True, "t2": True},
-        review_verdicts=[], rank=1, cost=1)
-    # the test component is compared FIRST
-    assert weak_review_but_tests.key > strong_review.key
+                               review_verdicts=_positive_verdicts(), rank=1, cost=1)
+    strong_tests = select_key(planned_test_points=["t1", "t2"],
+                              test_results={"t1": True, "t2": True}, review_verdicts=[],
+                              rank=9, cost=99)
     assert strong_review.review_score > 0
-
-
-def test_selection_ties_fall_through_rank_then_cost():
-    a = select_key(planned_test_points=["t"], test_results={"t": True},
-                   review_verdicts=_positive_verdicts(), rank=1, cost=50)
-    b = select_key(planned_test_points=["t"], test_results={"t": True},
-                   review_verdicts=_positive_verdicts(), rank=2, cost=1)
-    assert a.key < b.key  # rank tie-break before cost
-    c = select_key(planned_test_points=["t"], test_results={"t": True},
-                   review_verdicts=_positive_verdicts(), rank=1, cost=50)
-    d = select_key(planned_test_points=["t"], test_results={"t": True},
-                   review_verdicts=_positive_verdicts(), rank=1, cost=5)
-    assert d.key < c.key  # same rank -> smaller cost wins
-    assert a.key == c.key
+    assert pick([strong_review, strong_tests]) is strong_tests
+    assert pick([]) is None
 
 
 def test_negative_review_is_an_action_item_not_just_a_lost_comparison():
@@ -280,6 +331,25 @@ def test_node_record_is_rewritten_with_a_reason_and_is_never_evidence():
         record.rewrite("no reason", "   ")
 
 
+def test_no_verification_or_claim_input_can_carry_a_node_record():
+    from harness.leaf import JudgeRequest, LeafSpec, ReviewRequest, VerificationRecord
+
+    record = NodeRecord(node_id="N1", text="scratchpad", last_reason="plan")
+    # every evidence input rejects a node record, top-level OR nested in the blind view
+    with pytest.raises(ValueError):
+        LeafSpec(goal="g", files={"a.py": record}, acs=[], interfaces=[])
+    with pytest.raises(ValueError):
+        ReviewRequest(goal="g", acs=[], original={}, final={"a.py": record})
+    with pytest.raises(ValueError):
+        JudgeRequest(goal="g", failure="f", test_path="t", test_content="c",
+                     files={"a.py": record}, acs=[])
+    with pytest.raises(ValueError):
+        VerificationRecord(wrote_code=True, tier="test", reason_problem=record)
+    # the selection key may not read a node record either
+    with pytest.raises(ValueError):
+        select_key(planned_test_points=[], test_results={}, rank=record, cost=1)
+
+
 # ---------------------------------------------------------------------------
 # Candidate isolation (a copy, not a git worktree; no destructive reset)
 # ---------------------------------------------------------------------------
@@ -320,3 +390,33 @@ def test_how_exploration_limit_bounds_the_hows_a_node_may_open():
     assert how_exploration_limit(Budget(calls=4, deadline_ts=1e12), 5,
                                  min_leaf_calls=3) == 0
     assert how_exploration_limit(budget, 2, min_leaf_calls=3) == 2
+
+
+def test_the_audit_key_and_the_picker_agree_on_rank_and_cost_ties():
+    """Regression pin: the audit key once stored rank/cost UNSIGNED, so
+    ``max(key=Selection.key)`` picked the OPPOSITE candidate on a rank/cost tie while
+    the picker picked the documented winner - the same contradiction twice over."""
+    low_rank = _selection(covered=1, rate=1.0, review_score=5, rank=1, cost=99)
+    high_rank = _selection(covered=1, rate=1.0, review_score=5, rank=2, cost=1)
+    assert pick([high_rank, low_rank]) is low_rank
+    assert max([high_rank, low_rank], key=lambda s: s.key) is low_rank
+    assert max([high_rank, low_rank], key=lambda s: s.order) is low_rank
+
+    cheap = _selection(covered=1, rate=1.0, review_score=5, rank=1, cost=1)
+    dear = _selection(covered=1, rate=1.0, review_score=5, rank=1, cost=99)
+    assert pick([dear, cheap]) is cheap
+    assert max([dear, cheap], key=lambda s: s.key) is cheap
+
+
+def test_a_nan_or_mistyped_selection_field_is_rejected_not_compared():
+    """A NaN pass rate made the winner depend on input order (NaN compares false with
+    everything); a string rank failed lazily only when compared."""
+    import pytest as _pytest
+
+    for kwargs in ({"rate": float("nan")}, {"review_score": float("inf")},
+                   {"rank": "1"}, {"rank": 0}, {"rank": True}, {"cost": -1},
+                   {"cost": None}, {"covered": -1}):
+        base = dict(covered=1, rate=1.0, review_score=5, rank=1, cost=1)
+        base.update(kwargs)
+        with _pytest.raises(ValueError):
+            _selection(**base)

@@ -160,7 +160,7 @@ import re
 import tempfile
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, fields, replace
 from functools import partial
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -668,6 +668,48 @@ class DeclaredTestCase:
     names: tuple[str, ...] = ()      # test function names that must exist and pass
 
 
+#: Marker attribute set on :class:`harness.how.NodeRecord`. The node record is the
+#: model's rewritten scratchpad and is NEVER evidence; the guard below makes that
+#: STRUCTURAL rather than a flag. A plain class attribute keeps leaf.py independent of
+#: how.py (which imports leaf), so the check is not defeated by an import cycle.
+NODE_RECORD_MARKER = "__helpagent_node_record__"
+
+
+def _is_node_record(value: Any) -> bool:
+    return getattr(type(value), NODE_RECORD_MARKER, False) is True
+
+
+def _contains_node_record(value: Any, _depth: int = 0) -> bool:
+    if _depth > 4:
+        return False
+    if _is_node_record(value):
+        return True
+    if isinstance(value, Mapping):
+        return any(_contains_node_record(k, _depth + 1)
+                   or _contains_node_record(v, _depth + 1) for k, v in value.items())
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return any(_contains_node_record(item, _depth + 1) for item in value)
+    return False
+
+
+def reject_node_record(value: Any, *, owner: str) -> None:
+    """Raise when a node record reaches an evidence input it may never enter.
+
+    "The node record is never evidence" is STRUCTURAL, not a flag a caller can ignore:
+    it is a model-maintained scratchpad, so no verification/claim input (LeafSpec,
+    VerificationRecord, ReviewRequest, JudgeRequest, the selection key) may carry one.
+    """
+    if _contains_node_record(value):
+        raise ValueError(
+            f"{owner} may not carry a NodeRecord: a node record is never evidence")
+
+
+def reject_node_record_fields(instance: Any) -> None:
+    """Reject a node record in ANY field of a dataclass instance (the input guard)."""
+    for f in fields(instance):
+        reject_node_record(getattr(instance, f.name), owner=type(instance).__name__)
+
+
 @dataclass(frozen=True)
 class LeafSpec:
     """The blind leaf contract.
@@ -707,6 +749,9 @@ class LeafSpec:
     review_level: str = DEFAULT_REVIEW_LEVEL
     best_effort: bool = False
     best_effort_reason: str = ""
+
+    def __post_init__(self) -> None:
+        reject_node_record_fields(self)
 
 
 @dataclass(frozen=True)
@@ -895,6 +940,9 @@ class JudgeRequest:
     files: dict[str, str]
     acs: list[str] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        reject_node_record_fields(self)
+
 
 @dataclass(frozen=True)
 class IndependentTestRequest:
@@ -1004,6 +1052,9 @@ class ReviewRequest:
     #: angle, its own fixed prompt); the driver builds the angle-specific question from it.
     angle: str = ""
 
+    def __post_init__(self) -> None:
+        reject_node_record_fields(self)
+
 
 @dataclass(frozen=True)
 class ReviewVerdict:
@@ -1059,6 +1110,9 @@ class VerificationRecord:
     best_effort: bool = False
     downgraded: bool = False
     downgrade_reason: str = ""
+
+    def __post_init__(self) -> None:
+        reject_node_record_fields(self)
 
     @property
     def verified(self) -> bool:

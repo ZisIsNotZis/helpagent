@@ -15,12 +15,13 @@ the pieces the tree runner builds on:
   never evidence. The default table is geometric decay by rank; a How's viability is its
   own prior times the best VIABLE child value, with failed/abandoned children removed.
   Success is decided ONLY by hard evidence (tests / integration verification).
-- :func:`select_key` — the lexicographic, deterministic selection function
-  ``(test score, review score, rank, cost)``. Test score = (planned test points covered,
-  pass rate over the PLANNED points); no tests ⇒ 0. Review score = the predefined
-  weighted angle aggregate with the critical-angle veto; no review ⇒ 0. Ties fall through
-  to rank, then cost. A NEGATIVE review grade is an ACTION ITEM (the node keeps working),
-  never just a lost comparison.
+- :func:`select_key` — the lexicographic, deterministic selection key
+  ``(test score, review score, rank, cost)`` for ONE candidate. Test score = (planned test
+  points covered, pass rate over the PLANNED points); no tests ⇒ 0. Review score = the
+  predefined weighted angle aggregate with the critical-angle veto; no review ⇒ 0. A
+  NEGATIVE review grade is an ACTION ITEM (the node keeps working), never just a lost
+  comparison. :func:`pick` is the ONE picker across candidates: maximise (covered, pass
+  rate) and review score, then MINIMISE rank, then MINIMISE cost.
 - :func:`decide_after_failure` — the manager loop. On a failed/exhausted How the node's
   STRUCTURED RECORD (How list with statuses, each failure's evidence and reason, which
   Hows remain untried) goes to the node's managing call, which returns ONE decision plus a
@@ -53,6 +54,7 @@ from harness.leaf import (
     ReviewVerdict,
     combine_review_verdicts,
     effective_review_angles,
+    reject_node_record_fields,
 )
 from harness.node import MIN_LEAF_CALLS
 
@@ -60,6 +62,7 @@ __all__ = [
     "HOW_STATUSES",
     "MANAGER_DECISIONS",
     "PRIOR_DECAY",
+    "SELECTION_ORDER",
     "CandidateSet",
     "CandidateWorkspace",
     "How",
@@ -78,6 +81,8 @@ __all__ = [
     "decide_after_failure",
     "how_exploration_limit",
     "how_viability",
+    "make_how",
+    "pick",
     "planned_test_score",
     "prior_for_rank",
     "select_key",
@@ -117,8 +122,9 @@ class How:
     """One approach for a node: ``{id, text, rank, reason, prior, status}``.
 
     ``text`` is a short paragraph of how this would be done, ``reason`` why it is worth a
-    look, ``rank`` the model's priority order, ``prior`` the deterministic scheduler hint
-    from :func:`prior_for_rank`. The CONTENT (id/text/rank/reason/prior) is immutable; only
+    look, ``rank`` the model's priority order. ``prior`` is NOT a settable field: it is
+    DERIVED from ``rank`` by :func:`prior_for_rank`, so neither the model nor a caller can
+    inflate the scheduler hint. The CONTENT (id/text/rank/reason/prior) is immutable; only
     ``status`` is a lifecycle marker, and a transition produces a NEW frozen How — the
     original object is never edited.
     """
@@ -127,7 +133,7 @@ class How:
     text: str
     rank: int
     reason: str
-    prior: float
+    prior: float | None = None  # derived from rank in __post_init__; never settable
     status: HowStatus = "untried"
 
     def __post_init__(self) -> None:
@@ -139,16 +145,27 @@ class How:
             raise ValueError("How reason must be non-empty")
         if self.status not in HOW_STATUSES:
             raise ValueError(f"How status {self.status!r} not in {HOW_STATUSES}")
+        expected = prior_for_rank(self.rank)
+        if self.prior is not None and self.prior != expected:
+            raise ValueError(
+                f"How prior comes from the rank table only: rank {self.rank} implies "
+                f"{expected}, got {self.prior} (a prior is a scheduler hint, never "
+                "evidence)")
+        object.__setattr__(self, "prior", expected)
 
     def with_status(self, status: HowStatus) -> "How":
         """A NEW frozen How with only ``status`` changed (content is never edited)."""
         return replace(self, status=status)
 
 
-def make_how(id: str, text: str, rank: int, reason: str, *, prior: float | None = None) -> How:
-    """Build a How with the default prior table unless a calibration overrides it."""
-    return How(id=id, text=text, rank=rank, reason=reason,
-               prior=prior if prior is not None else prior_for_rank(rank))
+def make_how(id: str, text: str, rank: int, reason: str) -> How:
+    """Build a How; the prior always comes from the rank table (:func:`prior_for_rank`).
+
+    There is deliberately NO ``prior`` argument: the prior is a scheduling hint that must
+    never be settable (by the model or by a caller), so a high rank can never be inflated
+    into out-ranking a better one.
+    """
+    return How(id=id, text=text, rank=rank, reason=reason)
 
 
 @dataclass(frozen=True)
@@ -222,15 +239,28 @@ def how_list_from_envelope(env) -> HowList:
 # ---------------------------------------------------------------------------
 
 
-def how_viability(prior: float, children: Sequence[tuple[str, float]]) -> float:
-    """``own prior × best viable child value``, failed/abandoned children removed.
+def how_viability(prior: float, children: Sequence[tuple[str, float]], *,
+                  status: HowStatus = "untried") -> float:
+    """``own prior × best viable child value``; failed/abandoned nodes are not viable.
 
-    ``children`` is ``(status, value)`` per child How. A How with no children is a leaf
-    and its viability is its own prior. A How whose children are ALL failed/abandoned is
-    not viable (0.0). This value only ORDERS exploration; it never decides success.
+    ``status`` is the node's OWN lifecycle marker: a failed or abandoned How is not
+    viable (0.0) regardless of its children. ``children`` is ``(status, value)`` per
+    child How. Every status is validated against the closed :data:`HOW_STATUSES`, so an
+    UNRECOGNISED or misspelled status (e.g. ``"fail"``) is rejected loudly instead of
+    silently counting as viable. A How with no children is a leaf and its viability is
+    its own prior; a How whose children are ALL failed/abandoned is 0.0. This value only
+    ORDERS exploration; it never decides success.
     """
-    viable = [value for status, value in children
-              if status not in ("failed", "abandoned")]
+    if status not in HOW_STATUSES:
+        raise ValueError(f"How status {status!r} not in {HOW_STATUSES}")
+    if status in ("failed", "abandoned"):
+        return 0.0
+    for child_status, _ in children:
+        if child_status not in HOW_STATUSES:
+            raise ValueError(
+                f"child How status {child_status!r} not in {HOW_STATUSES}")
+    viable = [value for child_status, value in children
+              if child_status not in ("failed", "abandoned")]
     if not children:
         return prior
     if not viable:
@@ -259,14 +289,23 @@ def planned_test_score(planned: Sequence[str],
     return (covered, passed / len(planned))
 
 
+#: The ONE lexicographic selection ORDER, best-first. ``test_covered`` and
+#: ``test_pass_rate`` are MAXIMISED, then ``review_score`` is MAXIMISED, then ``rank``
+#: and ``cost`` are MINIMISED. :attr:`Selection.order` is the single tuple encoding it, so
+#: the order cannot drift; :func:`pick` is the only picker.
+SELECTION_ORDER: tuple[str, ...] = (
+    "test_covered", "test_pass_rate", "review_score", "rank", "cost")
+
+
 @dataclass(frozen=True)
 class Selection:
-    """The selection key plus the review-action verdict for ONE candidate.
+    """The per-candidate key plus the review-action verdict for ONE candidate.
 
-    ``key`` is the lexicographic tuple ``((covered, pass_rate), review_score, rank, cost)``.
-    ``repair_reason`` is non-empty when a NEGATIVE (or vetoing critical) review grade makes
-    this an ACTION ITEM — the node keeps working rather than treating it as a lost
-    comparison.
+    ``key`` records the raw components for the audit record, in the documented order:
+    ``((test_covered, test_pass_rate), review_score, rank, cost)``. ``order`` is the ONE
+    comparator tuple :func:`pick` maximises (rank and cost negated). ``repair_reason`` is
+    non-empty when a NEGATIVE (or vetoing critical) review grade makes this an ACTION
+    ITEM — the node keeps working rather than treating it as a lost comparison.
     """
 
     test_covered: int
@@ -277,10 +316,44 @@ class Selection:
     review_ok: bool
     repair_reason: str = ""
 
+    def __post_init__(self) -> None:
+        reject_node_record_fields(self)
+        # A NaN or a non-integer rank/cost would make the comparison input-order
+        # dependent (NaN compares false against everything) - reject loudly instead.
+        if not isinstance(self.rank, int) or isinstance(self.rank, bool) or self.rank < 1:
+            raise ValueError(f"rank must be a positive int, got {self.rank!r}")
+        if not isinstance(self.cost, int) or isinstance(self.cost, bool) or self.cost < 0:
+            raise ValueError(f"cost must be a non-negative int, got {self.cost!r}")
+        if not isinstance(self.test_covered, int) or isinstance(self.test_covered, bool) \
+                or self.test_covered < 0:
+            raise ValueError(f"test_covered must be a non-negative int, got {self.test_covered!r}")
+        for name in ("test_pass_rate", "review_score"):
+            value = getattr(self, name)
+            if isinstance(value, float) and (value != value or value in (float("inf"), float("-inf"))):
+                raise ValueError(f"{name} must be finite, got {value!r}")
+
     @property
     def key(self) -> tuple:
+        """The ONE comparable tuple, in best-first order.
+
+        Rank and cost are stored NEGATED so that ``max(key=Selection.key)`` IS the
+        documented order (maximise test coverage/rate, then review score, then
+        minimise rank, then minimise cost). An unsigned tuple was a trap: the audit
+        ``key`` and the picker disagreed on rank/cost ties even though both claimed to
+        encode the same order. There is now exactly one tuple to compare.
+        """
         return ((self.test_covered, self.test_pass_rate), self.review_score,
-                self.rank, self.cost)
+                -self.rank, -self.cost)
+
+    @property
+    def order(self) -> tuple:
+        """The ONE comparator tuple: tests/review MAXIMISED, rank/cost MINIMISED.
+
+        Derived from :attr:`key` so the two cannot drift; ``max(candidates,
+        key=Selection.order)`` is exactly the documented order and the one comparator
+        :func:`pick` uses.
+        """
+        return self.key
 
     @property
     def needs_repair(self) -> bool:
@@ -315,6 +388,19 @@ def select_key(*, planned_test_points: Sequence[str],
                      review_score=score if ok else 0,
                      rank=rank, cost=cost, review_ok=ok,
                      repair_reason="" if ok else reason)
+
+
+def pick(candidates: Sequence[Selection]) -> Selection | None:
+    """The ONE deterministic picker: the best candidate under the documented order.
+
+    Order (best-first): maximise (``test_covered``, ``test_pass_rate``), then maximise
+    ``review_score``, then MINIMISE ``rank``, then MINIMISE ``cost``. An empty pool
+    returns ``None``; a full tie keeps the first candidate, so the pick is deterministic.
+    """
+    pool = list(candidates)
+    if not pool:
+        return None
+    return max(pool, key=lambda candidate: candidate.order)
 
 
 # ---------------------------------------------------------------------------
@@ -423,6 +509,10 @@ class NodeRecord:
 
     #: Explicit, load-bearing: a node record is a scratchpad, never tournament evidence.
     IS_EVIDENCE = False
+
+    #: The STRUCTURAL marker the leaf's input guard keys on: no verification/claim input
+    #: may carry a node record (``harness.leaf.reject_node_record_fields``).
+    __helpagent_node_record__ = True
 
     def rewrite(self, text: str, reason: str) -> tuple[str, str]:
         """Rewrite the record, requiring a reason; return the previous (text, reason)."""
