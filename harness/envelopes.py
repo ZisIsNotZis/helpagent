@@ -21,7 +21,7 @@ at decode time via the generated grammar).
 from __future__ import annotations
 
 import re
-from typing import Any, Literal, Self, Sequence
+from typing import Any, ClassVar, Literal, Self, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
@@ -81,6 +81,58 @@ def _candidate_files(ctx: dict) -> set[str]:
             elif isinstance(scope, (list, tuple, set)):
                 files.update(scope)
     return files
+
+
+class NestedModel(BaseModel):
+    """Base for the NESTED payload models (children of an envelope, §0).
+
+    Nested models do NOT inherit :class:`Envelope`'s REQUIRED-sentinel grammar guard, and
+    pydantic does not enforce presence for a field whose default IS the sentinel (the
+    default satisfies pydantic's own required check). So a payload that omits a :func:`req`
+    field validates, leaves the sentinel in place, and the sentinel later reaches harness
+    code and crashes the whole run (ticket 20 step 2b-iii: a ``ChildPlan`` without ``what``
+    reached :func:`harness.node.decomposition_signature` and killed three of six live runs).
+    This base makes every nested model reject a missing REQUIRED field at DECODE time, so
+    the kernel's bounded repair re-asks the model instead of losing the run.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    #: Label used in the schema-violation message; defaults to the class name. Set it on a
+    #: subclass to keep a historical message stable (e.g. "child fill").
+    _missing_label: ClassVar[str] = ""
+
+    @model_validator(mode="after")
+    def _all_required_fields_present(self) -> Self:
+        missing = sorted(
+            name for name in type(self).model_fields
+            if getattr(self, name, None) is REQUIRED
+        )
+        if missing:
+            label = type(self)._missing_label or type(self).__name__
+            raise ValueError(
+                f"{label} requires fields: {missing} (ENVELOPE_SCHEMAS §0)")
+        return self
+
+    @classmethod
+    def __get_pydantic_json_schema__(cls, core_schema: Any, handler: Any) -> dict[str, Any]:
+        """Keep the GENERATED GRAMMAR in step with the runtime guard (ENVELOPE_SCHEMAS §0).
+
+        A :func:`req` field's DEFAULT is the sentinel, so pydantic does not list it as
+        ``required`` in the JSON schema. The server's constrained-decoding grammar is
+        generated from that schema, so it treated those fields as OPTIONAL and the model
+        omitted them — the sentinel then reached harness code and crashed the run. Marking
+        every sentinel field ``required`` makes the decode grammar demand exactly what the
+        runtime guard enforces (ticket 20 step 2b-iii).
+        """
+        json_schema = handler(core_schema)
+        required = list(json_schema.get("required", []))
+        for name, info in cls.model_fields.items():
+            if info.default is REQUIRED and name not in required:
+                required.append(name)
+        if required:
+            json_schema["required"] = sorted(required)
+        return json_schema
 
 
 class Envelope(BaseModel):
@@ -152,8 +204,7 @@ class TaskCard(Envelope):
 # ---------------------------------------------------------------------------
 
 
-class Ambiguity(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class Ambiguity(NestedModel):
 
     kind: Literal["needs-user", "self-answerable"] = req()
     topic: Literal["requirement", "domain", "environment", "conflict"] = req()
@@ -184,22 +235,14 @@ class ReviseTaskCard(Envelope):
 # ---------------------------------------------------------------------------
 
 
-class ChildFill(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class ChildFill(NestedModel):
+    _missing_label = "child fill"
 
     seam_id: str = req(min_length=1)
     what: str = req(min_length=1)
     why: str = req(min_length=1)
     leaf: bool = req()
     est_rounds: int = req(ge=1, le=10)  # drives per-step budget = estimate × 1.5 (§4)
-
-    @model_validator(mode="after")
-    def _all_required_fields_present(self) -> Self:
-        # Nested models do not inherit Envelope's REQUIRED-sentinel guard.
-        missing = sorted(set(type(self).model_fields) - self.model_fields_set)
-        if missing:
-            raise ValueError(f"child fill requires fields: {missing} (ENVELOPE_SCHEMAS §4)")
-        return self
 
     @field_validator("seam_id")
     @classmethod
@@ -252,8 +295,7 @@ class Expand(Envelope):
 # ---------------------------------------------------------------------------
 
 
-class SplitIssue(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class SplitIssue(NestedModel):
 
     kind: Literal["overlap", "missing-piece", "wrong-seam", "too-big", "unclear-ac"] = req()
     target: str = req(min_length=1)  # child id or "parent" — kernel resolves post-hoc (§24)
@@ -281,8 +323,7 @@ class SplitReview(Envelope):
 # ---------------------------------------------------------------------------
 
 
-class DraftAC(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class DraftAC(NestedModel):
 
     ac_id: str = req(pattern=r"^AC-[0-9]{1,3}$")
     statement: str = req(min_length=1)
@@ -328,8 +369,7 @@ class DraftACs(Envelope):
 # ---------------------------------------------------------------------------
 
 
-class Interface(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class Interface(NestedModel):
 
     name: str = req(min_length=1)  # LSP-checked against injected ground truth (kernel post-hoc, §24)
     signature: str = req(min_length=1)
@@ -360,8 +400,7 @@ class WriteSpec(Envelope):
 # ---------------------------------------------------------------------------
 
 
-class SpecIssue(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class SpecIssue(NestedModel):
 
     severity: Literal["blocking", "minor"] = req()
     location: str = req(min_length=1)  # kernel resolves post-hoc (§24)
@@ -386,8 +425,7 @@ class SpecReview(Envelope):
 # ---------------------------------------------------------------------------
 
 
-class TestCase(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class TestCase(NestedModel):
 
     case_id: str = req(pattern=r"^TC-[0-9]{1,3}$")
     ac_id: str = req(min_length=1)
@@ -437,8 +475,7 @@ class Implement(Envelope):
 # ---------------------------------------------------------------------------
 
 
-class Problem(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class Problem(NestedModel):
 
     side: Literal["code", "test", "spec"] = req()
     description: str = req(min_length=1)
@@ -455,8 +492,7 @@ class FailureJudge(Envelope):
 # ---------------------------------------------------------------------------
 
 
-class Bug(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class Bug(NestedModel):
 
     symptom: str = req(min_length=1)
     evidence: str = req(min_length=1)
@@ -486,12 +522,10 @@ class ProposeProbe(Envelope):
 # ---------------------------------------------------------------------------
 
 
-class Lesson(BaseModel):
+class Lesson(NestedModel):
     """§22 fill-in form — embedded via InterpretProbe.lesson. Topic key is 1–6
     normalized AND-terms (deterministic matcher — exact term presence); provenance is
     mandatory (governance pipeline, DESIGN §4.4)."""
-
-    model_config = ConfigDict(extra="forbid")
 
     line: str = req(min_length=1)
     topic_key: list[str] = req(min_length=1, max_length=6)
@@ -547,8 +581,7 @@ class InterpretProbe(Envelope):
 # ---------------------------------------------------------------------------
 
 
-class RankedFix(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class RankedFix(NestedModel):
 
     rank: int = req(ge=1, le=5)  # grammar-enforced range (§16)
     approach: str = req(min_length=1)
@@ -578,8 +611,7 @@ class DebugJudge(Envelope):
 # ---------------------------------------------------------------------------
 
 
-class NewIssue(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class NewIssue(NestedModel):
 
     keywords: str = req(pattern=r"^[a-z0-9_-]+( [a-z0-9_-]+){0,3}$")  # 1–4 space-separated terms
     description: str = req(min_length=1)
@@ -695,8 +727,7 @@ class GateDecide(Envelope):
 # ---------------------------------------------------------------------------
 
 
-class ProposedNode(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class ProposedNode(NestedModel):
 
     kind: Literal["ticket", "decision"] = req()  # decision ⇒ marked needs-user (D9 rule)
     what: str = req(min_length=1)
@@ -715,26 +746,22 @@ class ProposeGrowth(Envelope):
 # ---------------------------------------------------------------------------
 
 
-class DeclaredTest(BaseModel):
+class DeclaredTest(NestedModel):
     """One DECLARED test case (ENVELOPE_SCHEMAS §23; ticket 19 D): the test FILE and the
     test FUNCTION NAMES a planner expects for one acceptance criterion. The harness
     verifies mechanically from the report that the file exists and every name is a
     collected, passing node id; a missing file/name is a distinct repairable failure."""
-
-    model_config = ConfigDict(extra="forbid")
 
     ac_id: str = req(pattern=r"^AC-[0-9]{1,3}$")
     file: str = req(min_length=1)
     names: list[str] = req(min_length=1, max_length=8)
 
 
-class ChildPlan(BaseModel):
+class ChildPlan(NestedModel):
     """One child of a decomposition (ENVELOPE_SCHEMAS §23): goal + boundary + ACs +
     the DECLARED test cases + a budget weight. ``what``/``why``/``kind``/``est_calls`` are
     REQUIRED; ``files``/``acs``/``interfaces``/``test_cases`` default to empty (a leaf
     child's AC map is enforced by :func:`harness.node.validate_decomposition`, not here)."""
-
-    model_config = ConfigDict(extra="forbid")
 
     what: str = req(min_length=1)                 # child goal (one line)
     why: str = req(min_length=1)
@@ -793,7 +820,7 @@ class PlanNode(Envelope):
 # ---------------------------------------------------------------------------
 
 
-class HowEntry(BaseModel):
+class HowEntry(NestedModel):
     """One ranked HOW for a node (ENVELOPE_SCHEMAS §28).
 
     ``text`` is a short paragraph of HOW this would be done, ``reason`` why it is worth
@@ -804,25 +831,10 @@ class HowEntry(BaseModel):
     are all framework-owned, never model output.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    _missing_label = "how entry"
 
     text: str = req(min_length=1)
     reason: str = req(min_length=1)
-
-    @model_validator(mode="after")
-    def _all_required_fields_present(self) -> Self:
-        """Nested models do not inherit Envelope's REQUIRED-sentinel guard.
-
-        Without this, a model that omits how_id/text leaves the REQUIRED sentinel in
-        place, validation passes, and the runner silently discards every How (the How
-        axis then never runs at all - found by a live measurement, ticket 20 step 2b-ii).
-        Raising here turns it into a schema violation, so the kernel's bounded repair
-        re-asks the model instead of losing the whole planning step.
-        """
-        missing = sorted(set(type(self).model_fields) - self.model_fields_set)
-        if missing:
-            raise ValueError(f"how entry requires fields: {missing} (ENVELOPE_SCHEMAS §28)")
-        return self
 
 
 class HowList(Envelope):

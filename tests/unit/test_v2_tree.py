@@ -2127,16 +2127,21 @@ def test_model_manager_decides_from_the_structured_record():
     assert "tests=2" in call.question
 
 
-def test_model_manager_fails_safe_to_park_on_an_unusable_decision():
-    """A manager that cannot decide must never silently advance: the safe default is
-    ``escalate-or-park`` (the same default as no manager injected)."""
+def test_model_manager_reports_an_unusable_envelope_as_unavailable_not_a_decision():
+    """Ticket 20 step 2b-iii: a manager reply whose envelope status is blocked/unable is
+    the manager FAILING TO DECIDE. It must surface as ``ManagerUnavailable`` (the runner
+    records ``manager_unavailable`` and parks) and must NEVER be dressed up as one of the
+    four decisions --- the live failure read "the managing call returned status='blocked'"
+    as a manager decision."""
     from bench import v2_tree
+    from harness.how import ManagerUnavailable
 
     fake = FakeModelRunner({
         "manager_decision": [{"status": "unable", "comment": "cannot decide",
                               "unable_reason": "no evidence"}]})
     view = NodeRecordView(node_id="N1", hows=(), untried=())
-    assert asyncio.run(v2_tree.model_manager(fake, view)).decision == "escalate-or-park"
+    with pytest.raises(ManagerUnavailable):
+        asyncio.run(v2_tree.model_manager(fake, view))
 
 
 def test_candidate_selection_scores_the_declared_plan_before_review(tmp_path, monkeypatch):
@@ -2296,3 +2301,125 @@ def test_a_raising_manager_parks_instead_of_crashing(tmp_path, monkeypatch):
                  for d in (out.root.manager_decisions or [])]
     assert "escalate-or-park" in decisions
     assert "manager_unavailable" in ledger_kinds()
+
+
+# ---------------------------------------------------------------------------
+# Ticket 20 step 2b-iii: the leaf-How path, the non-decision manager, and no-crash plan
+# ---------------------------------------------------------------------------
+
+
+def test_a_zero_child_decomposition_is_a_leaf_how_that_actually_runs(tmp_path, monkeypatch):
+    """Ticket 20 step 2b-iii (B): ``children == []`` is a legitimate LEAF How ("do it
+    here"), not a failure. Before this, ``_apply_decomposition`` required a child, so every
+    How was recorded failed with "the How produced no decomposition" and the leaf NEVER
+    RAN. Here the leaf runs inside the How's candidate directory and its outcome is the
+    candidate's selection."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([leaf_outcome(claimed=True)])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("do the whole change here in one place")])],
+        "plan_node": [plan_env([], files=("pkg/a.py", "pkg/b.py"),
+                               acs=[ac("the change holds")])],
+    })
+    run_outdir = tmp_path / "out"
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=run_outdir)
+
+    assert out.claimed, "the leaf-How must EXECUTE the leaf, not park"
+    assert fake.calls == 1                                  # the leaf actually ran
+    record = out.root.candidates[0]
+    assert record.how_case == "leaf-How"
+    assert record.status == "succeeded"
+    assert out.root.winner == "HOW-1"
+    # the leaf ran INSIDE the How's candidate copy, and the How text rode along as context
+    cand_dir = run_outdir / "candidates" / out.root.node_id / "HOW-1"
+    assert cand_dir.is_dir()
+    assert "do the whole change here in one place" in fake.specs[0].goal
+
+
+def test_a_how_with_no_usable_decomposition_is_a_failed_how(tmp_path, monkeypatch):
+    """Only an INVALID/unable How counts as failed (ticket 20 step 2b-iii): an ``unable``
+    plan (both attempts) records ``how_case == "failed-How"`` and consults the manager."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf()
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("an unusable approach")])],
+        "plan_node": [
+            {"status": "unable", "comment": "cannot plan", "unable_reason": "no seam"},
+            {"status": "unable", "comment": "cannot plan", "unable_reason": "no seam"},
+        ],
+    })
+
+    def manager(view):
+        return ManagerDecision("escalate-or-park", "no usable decomposition exists")
+
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                        manager=manager)
+    assert not out.claimed and out.root.stop_reason == "parked"
+    assert fake.calls == 0                                  # no leaf ran for an invalid How
+    assert out.root.candidates[0].how_case == "failed-How"
+    assert [d["decision"] for d in out.root.manager_decisions] == ["escalate-or-park"]
+
+
+def test_a_manager_that_does_not_decide_parks_as_manager_unavailable(tmp_path, monkeypatch):
+    """Ticket 20 step 2b-iii (C): a manager whose envelope status is blocked/unable is NOT
+    a decision. Through the REAL driver manager the node parks and the run record keeps it
+    in ``manager_unavailable`` --- never in ``manager_decisions`` (the observed live failure
+    read the non-decision as the manager's second decision)."""
+    from bench import v2_tree
+
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([leaf_outcome(claimed=False, signal="exhausted", stop="attempts",
+                                  exhausted=True, exhaustion_reason="node exhausted")])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("first approach"), how("second approach")])],
+        "plan_node": [plan_env([child("do the work", ["pkg/a.py"])],
+                               files=("pkg/a.py", "pkg/b.py"))],
+        "manager_decision": [{"status": "blocked", "comment": "I did not decide",
+                              "decision": "escalate-or-park", "reason": "unsure"}],
+    })
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                        run_tests=Gates(green=True),
+                        manager=lambda record: v2_tree.model_manager(model, record))
+
+    assert out.claimed is False and out.root.stop_reason == "parked"
+    assert out.root.manager_decisions == []                 # a non-decision is NOT a decision
+    assert out.root.manager_unavailable                     # recorded as manager_unavailable
+    assert "manager_unavailable" in ledger_kinds()
+
+
+def test_a_raise_while_translating_a_plan_becomes_a_force_leaf_not_a_crash(monkeypatch):
+    """Ticket 20 step 2b-iii (D): no model output may crash the run. A raise inside the
+    plan translation/validation (the live sentinel crash in ``decomposition_signature``)
+    becomes a recorded ``plan_node_malformed`` event and a force-leaf, never an exception
+    out of :func:`harness.node.plan_node`."""
+    import harness.node as node_mod
+
+    def boom(env):
+        raise RuntimeError("sentinel reached decomposition_signature")
+
+    monkeypatch.setattr(node_mod, "decomposition_from_envelope", boom)
+    events: list = []
+    model = FakeModelRunner({"plan_node": [
+        plan_env([], files=("pkg/a.py",), acs=[ac("holds")])]})
+    decomp = asyncio.run(node_mod.plan_node(
+        model, goal="g", boundary={"pkg/a.py"}, candidate_files={"pkg/a.py"}, depth=0,
+        budget=Budget(calls=5, deadline_ts=_FAR),
+        on_event=lambda kind, data: events.append((kind, data))))
+
+    assert decomp is None                                   # a force-leaf, not a crash
+    assert any(kind == "plan_node_malformed" for kind, _ in events)

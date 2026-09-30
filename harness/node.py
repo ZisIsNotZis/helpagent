@@ -466,7 +466,15 @@ def _plan_node_question(evidence: str, depth: int) -> str:
         ("Decompose and specify THIS node in one call. Return the node's own goal, "
          "behavior, implementation_notes, files, acs, interfaces and test_cases, plus "
          "its children. Return children=[] to declare this node a LEAF (then its acs "
-         "MUST be non-empty)."),
+         "MUST be non-empty and its files MUST be non-empty)."),
+        ("Return EVERY field, always present (a missing field is rejected): status, "
+         "comment, goal, behavior, implementation_notes, files, acs, interfaces, "
+         "test_cases, children. Sub-fields: each acs entry = {ac_id: 'AC-1', "
+         "statement: '<the criterion>', check_kind: 'test'}; each interfaces entry = "
+         "{name, signature, contract}; each test_cases entry = {ac_id, file, names}; "
+         "each children entry = {what, why, kind: 'leaf' or 'internal', files, acs, "
+         "interfaces, test_cases, est_calls}. A leaf child MUST have a NON-EMPTY files "
+         "list and a NON-EMPTY acs list."),
         f"DEPTH: {depth} (a child must be at depth {depth + 1}).",
         ("Split by REQUIREMENT / acceptance criterion, NOT by file: give each child "
          "one requirement (or one coherent requirement group). Two children MAY declare "
@@ -527,17 +535,39 @@ async def plan_node(
         try:
             env = await llm_step(model, "plan_node", artifacts=artifacts, question=question)
         except Exception as exc:  # noqa: BLE001 — a model failure is data, not a crash
+            detail = f"{type(exc).__name__}: {exc}"
             if on_event is not None:
                 on_event("plan_node_malformed",
-                         {"attempt": attempt + 1, "detail": f"{type(exc).__name__}: {exc}"})
+                         {"attempt": attempt + 1, "detail": detail})
+            if attempt == 0:
+                # (A)/(D): a REQUIRED-sentinel omission is now a SCHEMA VIOLATION instead
+                # of a silently bad payload, so it takes the SAME bounded one-shot re-ask
+                # the findings path uses — with the missing subfields spelled out — rather
+                # than losing the planning step (and the run) on the first malformed reply.
+                feedback = (
+                    "your previous plan was REJECTED as invalid; return EVERY required "
+                    "field. Each ac needs ac_id + statement + check_kind; each interface "
+                    "needs name + signature + contract; each test_case needs ac_id + file "
+                    "+ names; each child needs what + why + kind + est_calls. Rejection: "
+                    + detail)
+                continue
             return None
         if getattr(env, "status", "unable") == "unable":
             feedback = f"the decomposer returned unable: {env.unable_reason}"
             continue
-        decomp = decomposition_from_envelope(env)
-        findings = validate_decomposition(
-            decomp, parent_files=boundary, candidate_files=candidate_files,
-            depth=depth, depth_cap=depth_cap, max_children=max_children)
+        try:
+            decomp = decomposition_from_envelope(env)
+            findings = validate_decomposition(
+                decomp, parent_files=boundary, candidate_files=candidate_files,
+                depth=depth, depth_cap=depth_cap, max_children=max_children)
+        except Exception as exc:  # noqa: BLE001 — malformed output is data, not a crash
+            # NO model output may crash the run: a raise while translating/validating a
+            # schema-valid envelope (ticket 20 step 2b-iii: a sentinel reaching
+            # decomposition_signature) becomes a recorded malformed step and a force-leaf.
+            if on_event is not None:
+                on_event("plan_node_malformed",
+                         {"attempt": attempt + 1, "detail": f"{type(exc).__name__}: {exc}"})
+            return None
         if findings.ok:
             return decomp
         feedback = "plan_node findings: " + "; ".join(

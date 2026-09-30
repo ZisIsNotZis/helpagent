@@ -113,6 +113,7 @@ from harness.how import (
     How,
     HowList,
     ManagerDecision,
+    ManagerUnavailable,
     Selection,
     TestPoint,
     abandon_candidate,
@@ -171,10 +172,23 @@ class CandidateRecord:
     #: candidate was scored against — and any EXTRA tests it collected beyond them.
     planned_points: list[dict] = field(default_factory=list)
     deviations: list[str] = field(default_factory=list)
+    #: Ticket 20 step 2b-iii: which case this How turned out to be — ``"leaf-How"``
+    #: (the decomposition declared zero children, so the leaf ran in this candidate's own
+    #: directory), ``"decomposed-How"`` (it split into children), or ``"failed-How"``
+    #: (no runnable decomposition). Only INVALID/unable counts as a failed How.
+    how_case: str = ""
+    #: Ticket 20 step 2b-iii: the leaf outcome this candidate's own How produced (its
+    #: stop reason + signal), for a leaf-How; empty otherwise. This is the evidence that a
+    #: LEAF actually EXECUTED.
+    leaf_stop_reason: str = ""
+    leaf_signal: str = ""
 
     def to_dict(self) -> dict:
         return {
             "how_id": self.how_id, "rank": self.rank, "status": self.status,
+            "how_case": self.how_case,
+            "leaf_stop_reason": self.leaf_stop_reason,
+            "leaf_signal": self.leaf_signal,
             "directory": self.directory,
             "selection": (list(self.selection.key) if self.selection is not None else None),
             "test_covered": (self.selection.test_covered
@@ -221,6 +235,10 @@ class NodeOutcome:
     hows: list[dict] = field(default_factory=list)
     candidates: list[CandidateRecord] = field(default_factory=list)
     manager_decisions: list[dict] = field(default_factory=list)
+    #: Ticket 20 step 2b-iii: managing calls that returned NO usable decision (a
+    #: blocked/unable envelope). These are not decisions; the node parks on them and the
+    #: run record keeps them separate from ``manager_decisions``.
+    manager_unavailable: list[dict] = field(default_factory=list)
     winner: str = ""
     #: Which close rule the deterministic structural gate applied (ticket 18 gap 1):
     #: ``integration`` (≥2 writing descendants, a passing report-gated integration
@@ -1087,7 +1105,12 @@ async def _plan_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
 
 async def _plan_how(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget: Budget,
                     how: How) -> Decomposition | None:
-    """Plan ONE How's decomposition, bound to ``how.id`` (``PlanNode.how_id``)."""
+    """Plan ONE How's decomposition, bound to ``how.id`` (``PlanNode.how_id``).
+
+    Returns ``None`` only when the How is INVALID/unable (the model produced no usable
+    decomposition). A decomposition with ZERO children is a legitimate LEAF How ("do it
+    here") and is returned as-is: the caller runs the leaf for it (ticket 20 step 2b-iii).
+    """
     before = budget.spent_calls
     evidence = f"How {how.id}: {how.text}\nWhy this approach: {how.reason}"
     decomp = await plan_node(
@@ -1096,7 +1119,7 @@ async def _plan_how(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
         depth_cap=ctx.depth_cap, max_children=ctx.max_children,
         budget=budget, on_event=ctx.on_event)
     ctx.total_calls += budget.spent_calls - before
-    if decomp is None or not decomp.children:
+    if decomp is None:
         return None
     return replace(decomp, how_id=how.id, spec=replace(decomp.spec, how_id=how.id))
 
@@ -1176,15 +1199,20 @@ async def _apply_decomposition(ctx: _TreeContext, node: NodeHandle, spec: NodeSp
 
 
 async def _manager_decision(view: Any, *, manager: Any = None,
-                            feasibility: str = "unknown") -> ManagerDecision:
+                            feasibility: str = "unknown") -> ManagerDecision | None:
     """Resolve the injected manager (SYNC or ASYNC) and then apply the pure decision rule.
 
     ``decide_after_failure`` is deliberately synchronous and pure, but the product
     manager is an async model call. Passing the coroutine straight in crashed every run
     the moment a How failed (``'coroutine' object has no attribute 'decision'``) - the
     live-manager path had never worked end to end. Resolving here keeps the rule pure and
-    supports both callable shapes; an unusable manager falls back to the safe default
-    (the node parks).
+    supports both callable shapes.
+
+    Returns ``None`` when the managing call produced NO usable decision (ticket 20 step
+    2b-iii): a ``blocked``/``unable`` envelope raises :class:`ManagerUnavailable`, which is
+    recorded as ``manager_unavailable`` and parks the node. ``None`` is deliberately NOT a
+    decision, so it never reads as one in the run record. A manager that RAISES is data,
+    not a crash: the safe default ``escalate-or-park`` is returned and recorded.
     """
     resolved = None
     if manager is not None:
@@ -1192,6 +1220,9 @@ async def _manager_decision(view: Any, *, manager: Any = None,
             resolved = manager(view)
             if inspect.isawaitable(resolved):
                 resolved = await resolved
+        except ManagerUnavailable as exc:
+            note("manager_unavailable", detail=f"{exc}; parking")
+            return None
         except Exception as exc:  # noqa: BLE001 - a manager failure is data, not a crash
             note("manager_unavailable",
                  detail=f"the manager call failed ({type(exc).__name__}); parking")
@@ -1202,6 +1233,32 @@ async def _manager_decision(view: Any, *, manager: Any = None,
     return decide_after_failure(
         view, feasibility=feasibility,
         manager=None if resolved is None else (lambda _record: resolved))
+
+
+async def _consult_manager(ctx: _TreeContext, cs: CandidateSet, node_id: str, how: How,
+                           *, feasibility: str = "unknown") -> ManagerDecision | None:
+    """Consult the manager and RECORD the outcome correctly (ticket 20 step 2b-iii).
+
+    A real decision is appended to ``cs.decisions``. A ``None`` (blocked/unable envelope,
+    i.e. :class:`ManagerUnavailable`) is NOT a decision: it is appended to
+    ``cs.manager_unavailable`` and emitted as ``manager_unavailable``, so the run record
+    can never present a non-decision as a manager decision.
+    """
+    decision = await _manager_decision(
+        cs.manager_view(current_how_id=how.id), manager=ctx.manager,
+        feasibility=feasibility)
+    if decision is None:
+        detail = "the managing call returned no usable decision; parking"
+        cs.manager_unavailable.append({"how_id": how.id, "detail": detail})
+        ctx.emit("manager_unavailable", node=node_id, how=how.id, detail=detail)
+        return None
+    cs.record(decision)
+    event = {"node": node_id, "how": how.id, "decision": decision.decision,
+             "reason": decision.reason}
+    if feasibility != "unknown":
+        event["feasibility"] = feasibility
+    ctx.emit("manager_decision", **event)
+    return decision
 
 
 async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget: Budget,
@@ -1237,6 +1294,7 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
     refusal = ""
     reuse_handles: list[NodeHandle] = []
     explored = 0
+    last_leaf: LeafOutcome | None = None
     stop = False
     reviewed_feasibility: set[str] = set()
     while not stop and not ctx.expired(budget):
@@ -1251,11 +1309,22 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
         before = budget.spent_calls
         decomp = await _plan_how(ctx, node, spec, budget, how)
         result: NodeOutcome | None = None
+        how_case = "failed-How"
         if decomp is not None and decomp.children:
             applied = await _apply_decomposition(ctx, node, spec, budget, decomp,
                                                  reuse_handles, ws.path)
             if applied is not None:
                 result, reuse_handles = applied
+                how_case = "decomposed-How"
+        elif decomp is not None:
+            # A decomposition with ZERO children is a legitimate LEAF How ("do it
+            # here"): run the leaf for THIS How inside its own candidate directory and
+            # score its outcome (ticket 20 step 2b-iii; the How's own spec carries
+            # goal/behavior/files/acs/test_cases, and the How text rides as context).
+            how_case = "leaf-How"
+            result = await _run_leaf_node(ctx, node, decomp.spec, budget, ws.path, how=how)
+            if result.leaf is not None:
+                last_leaf = result.leaf
         cost = budget.spent_calls - before
         # Ticket 20 step 2b-ii: the candidate's plan-time test list is its contract. Its
         # DEVIATIONS (extra tests beyond the declared points) do not score, but are
@@ -1273,7 +1342,11 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
                 test_results=point_results(points, leaves))
             record = CandidateRecord(how.id, how.rank, "succeeded", str(ws.path), selection,
                                      planned_points=plan_dicts,
-                                     deviations=list(deviations))
+                                     deviations=list(deviations), how_case=how_case,
+                                     leaf_stop_reason=(result.leaf.stop_reason
+                                                       if result.leaf is not None else ""),
+                                     leaf_signal=(result.leaf.signal
+                                                  if result.leaf is not None else ""))
             records.append(record)
             cs.record_selection(how.id, selection)
             if selection.needs_repair:
@@ -1289,18 +1362,28 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
                 closed.append((record, result))
             continue
         # Failure: the structured evidence + reason go to the manager loop.
-        evidence = (result.evidence if result is not None
-                    else "the How produced no decomposition")
         stop_reason = result.stop_reason if result is not None else "no-decomposition"
+        if result is None:
+            evidence = "the How produced no decomposition"
+        else:
+            evidence = result.evidence or (
+                (result.leaf.exhaustion_reason if result.leaf is not None else "")
+                or f"the leaf did not close (stop_reason={stop_reason})")
         cs.fail(how.id, evidence=evidence, reason=stop_reason)
         records.append(CandidateRecord(how.id, how.rank, "failed", str(ws.path), None,
                                        evidence, planned_points=plan_dicts,
-                                       deviations=list(deviations)))
-        decision = await _manager_decision(cs.manager_view(current_how_id=how.id),
-                                           manager=ctx.manager)
-        cs.record(decision)
-        ctx.emit("manager_decision", node=nid, how=how.id,
-                 decision=decision.decision, reason=decision.reason)
+                                       deviations=list(deviations), how_case=how_case,
+                                       leaf_stop_reason=(result.leaf.stop_reason
+                                                         if result is not None
+                                                         and result.leaf is not None else ""),
+                                       leaf_signal=(result.leaf.signal
+                                                    if result is not None
+                                                    and result.leaf is not None else "")))
+        decision = await _consult_manager(ctx, cs, nid, how)
+        if decision is None:
+            refusal = "manager unavailable: the managing call returned no usable decision"
+            stop = True
+            continue
         if decision.decision == "request-feasibility-review" \
                 and how.id not in reviewed_feasibility:
             # Wire the dead decision (D4): run the PLAN-level feasibility review and feed
@@ -1309,13 +1392,11 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
             reviewed_feasibility.add(how.id)
             feasibility = await _run_feasibility_review(
                 ctx, nid, spec, budget, how, decomp, evidence)
-            decision = await _manager_decision(
-                cs.manager_view(current_how_id=how.id),
-                manager=ctx.manager, feasibility=feasibility)
-            cs.record(decision)
-            ctx.emit("manager_decision", node=nid, how=how.id,
-                     decision=decision.decision, reason=decision.reason,
-                     feasibility=feasibility)
+            decision = await _consult_manager(ctx, cs, nid, how, feasibility=feasibility)
+            if decision is None:
+                refusal = ("manager unavailable after the feasibility review; parking")
+                stop = True
+                continue
         if decision.decision == "author-a-new-how":
             try:
                 appended = await _author_how(ctx, node, spec, budget, cs, evidence)
@@ -1341,11 +1422,12 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
                 abandon_candidate(ws)
         evidence = repair_action or refusal or "no candidate closed"
         parked = _parked(nid, "parked", round(ctx.now() - started, 3),
-                         evidence=f"no How candidate closed: {evidence}")
+                         evidence=f"no How candidate closed: {evidence}", leaf=last_leaf)
         parked.hows = [_how_dict(h) for h in cs.hows]
         parked.candidates = records
         parked.manager_decisions = [{"decision": d.decision, "reason": d.reason}
                                     for d in cs.decisions]
+        parked.manager_unavailable = list(cs.manager_unavailable)
         return parked
 
     # SELECTION DRIVES THE OUTCOME: the ONE picker, never a model vote.
@@ -1372,6 +1454,7 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
     winner_outcome.candidates = records
     winner_outcome.manager_decisions = [{"decision": d.decision, "reason": d.reason}
                                         for d in cs.decisions]
+    winner_outcome.manager_unavailable = list(cs.manager_unavailable)
     winner_outcome.winner = winner_record.how_id
     return winner_outcome
 
@@ -1607,8 +1690,13 @@ async def run_node(ctx: _TreeContext, node: NodeHandle, budget: Budget,
 
 
 async def _run_leaf_node(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
-                         budget: Budget, workdir: Path) -> NodeOutcome:
+                         budget: Budget, workdir: Path, *,
+                         how: How | None = None) -> NodeOutcome:
     """Execute one node as a leaf through :func:`run_leaf` (the single work primitive).
+
+    ``how`` is set only on the How path (a zero-child LEAF How): the How text and reason
+    ride along as context on the leaf's goal, so the implementer knows the planned
+    approach while the leaf contract stays the decomposition's own spec.
 
     The write boundary is AUDITED, not trusted (ticket 18 gap A): the work tree is
     snapshotted before ``run_leaf`` and resnapshotted after, and any path that changed
@@ -1619,6 +1707,11 @@ async def _run_leaf_node(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
     """
     leaf_spec = leaf_spec_from(spec, workdir, root_grader_paths=ctx.root_grader_paths,
                                candidate_files=tuple(sorted(ctx.candidate_files)))
+    if how is not None:
+        leaf_spec = replace(
+            leaf_spec,
+            goal=(f"{leaf_spec.goal}\n\nApproach (How {how.id}): {how.text}\n"
+                  f"Why this approach: {how.reason}"))
     before_state = snapshot_workdir(workdir)
     before = budget.spent_calls
     outcome = await run_leaf(

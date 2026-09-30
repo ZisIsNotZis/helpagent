@@ -81,6 +81,7 @@ __all__ = [
     "HowStatus",
     "ManagerDecision",
     "ManagerDecisionValue",
+    "ManagerUnavailable",
     "NodeRecord",
     "NodeRecordView",
     "Selection",
@@ -592,6 +593,16 @@ class ManagerDecision:
             raise ValueError("a manager decision must carry a reason")
 
 
+class ManagerUnavailable(RuntimeError):
+    """The managing call returned NO usable decision (ticket 20 step 2b-iii).
+
+    A model reply whose envelope status is ``blocked``/``unable`` (or an otherwise
+    unusable payload) is NOT one of the four decisions: the manager did not decide. The
+    runner records it as ``manager_unavailable`` and parks, so a non-decision can never
+    read as a decision in the run record.
+    """
+
+
 #: The managing call the node hands its structured record to.
 ManagerCall = Callable[[NodeRecordView], ManagerDecision]
 
@@ -759,6 +770,10 @@ class CandidateSet:
     deviations: list[str] = field(default_factory=list)
     #: Ticket 20 step 2b-ii: each closed candidate's selection key, keyed by its How id.
     selections: dict[str, Selection] = field(default_factory=dict)
+    #: Ticket 20 step 2b-iii: managing calls that returned NO usable decision (a
+    #: blocked/unable envelope). These are NOT decisions, so they are kept OUT of
+    #: ``decisions`` and the node parks on them.
+    manager_unavailable: list[dict] = field(default_factory=list)
 
     def add_how(self, how: How, *, mark: tuple[str, HowStatus] | None = None) -> How:
         """Append a How (optionally marking a prior one failed/abandoned)."""

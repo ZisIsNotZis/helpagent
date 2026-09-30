@@ -56,7 +56,12 @@ from bench.v2_leaf import (  # noqa: E402
     model_review,
 )
 from harness.budget import Budget, default_deadline  # noqa: E402
-from harness.how import MANAGER_DECISIONS, ManagerDecision, NodeRecordView  # noqa: E402
+from harness.how import (  # noqa: E402
+    MANAGER_DECISIONS,
+    ManagerDecision,
+    ManagerUnavailable,
+    NodeRecordView,
+)
 from harness.leaf import covenant_diluted  # noqa: E402
 from harness.model import LlamaServerRunner  # noqa: E402
 from harness.runner import llm_step  # noqa: E402
@@ -113,7 +118,9 @@ def _manager_question(record: NodeRecordView) -> str:
         f"{deviations}\n"
         "A decision is an ACTION, never evidence. Give the decision and a REQUIRED "
         "reason that names the concrete How and the concrete failure or deviation that "
-        "drove it."
+        "drove it.\n"
+        "Reply with envelope status 'ok' (NOT blocked/unable) and the REQUIRED decision "
+        "and reason fields; a non-ok status is a manager that did not decide."
     )
 
 
@@ -124,9 +131,12 @@ async def model_manager(model: Any, record: NodeRecordView) -> ManagerDecision:
     It sees no chat history and no conversation --- only the How list with statuses, each
     failure's evidence and reason, the untried Hows, and any test deviations --- and
     returns ONE decision plus a reason out of exactly the four
-    (:data:`harness.how.MANAGER_DECISIONS`). A malformed or unavailable call falls back to
-    the SAFE default ``escalate-or-park``: a manager that cannot decide must never
-    silently advance.
+    (:data:`harness.how.MANAGER_DECISIONS`).
+
+    A non-``ok`` envelope status (the model NOT deciding) or an unusable payload raises
+    :class:`harness.how.ManagerUnavailable`: that is not a decision, so the runner records
+    it as ``manager_unavailable`` and parks (ticket 20 step 2b-iii). A model-call failure
+    (the call itself raising) falls back to the SAFE default ``escalate-or-park``.
     """
     try:
         env = await llm_step(model, "manager_decision", artifacts={},
@@ -137,16 +147,15 @@ async def model_manager(model: Any, record: NodeRecordView) -> ManagerDecision:
             f"the managing call was unavailable ({type(exc).__name__}: {exc}); "
             "parking conservatively")
     if env.status != "ok":
-        return ManagerDecision(
-            "escalate-or-park",
-            f"the managing call returned status={env.status!r}; parking conservatively")
+        # A blocked/unable envelope is the manager FAILING TO DECIDE, not a decision.
+        raise ManagerUnavailable(
+            f"the managing call returned status={env.status!r}, not a decision")
     decision = getattr(env, "decision", "")
     reason = getattr(env, "reason", "")
     if (not isinstance(decision, str) or decision not in MANAGER_DECISIONS
             or not isinstance(reason, str) or not reason.strip()):
-        return ManagerDecision(
-            "escalate-or-park",
-            "the managing call returned no usable decision; parking conservatively")
+        raise ManagerUnavailable(
+            "the managing call returned no usable decision")
     return ManagerDecision(decision, reason.strip())
 
 
@@ -228,6 +237,9 @@ def node_record(outcome: NodeOutcome, *, diluted: bool = False) -> dict:
         "hows": list(outcome.hows),
         "candidates": [c.to_dict() for c in outcome.candidates],
         "manager_decisions": list(outcome.manager_decisions),
+        # Ticket 20 step 2b-iii: managing calls that returned no usable decision (a
+        # blocked/unable envelope). Kept SEPARATE so a non-decision never reads as one.
+        "manager_unavailable": list(outcome.manager_unavailable),
         "winner": outcome.winner,
         "children": [node_record(c, diluted=diluted) for c in outcome.children],
     }

@@ -395,3 +395,148 @@ def test_how_list_rejects_duplicate_texts():
             "status": "ok", "comment": "duplicate approaches",
             "hows": [{"text": "clamp the ttl at read time", "reason": "r1"},
                      {"text": "clamp the ttl at read time", "reason": "r2"}]})
+
+
+# ---------------------------------------------------------------------------
+# generic audit (ticket 20 step 2b-iii): EVERY nested model rejects a missing field
+# ---------------------------------------------------------------------------
+
+
+def _nested_model_types(annotation):
+    """The nested ``BaseModel`` classes referenced by ``annotation`` (through lists)."""
+    import typing
+
+    from pydantic import BaseModel
+
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return [annotation]
+    found = []
+    for arg in typing.get_args(annotation):
+        found.extend(_nested_model_types(arg))
+    return found
+
+
+def _nested_models_across_schemas():
+    """Every nested model reachable in ONE hop from a registered envelope schema.
+
+    ``Envelope`` subclasses (a nested envelope such as ``ReviseTaskCard.card: TaskCard``)
+    are excluded: the bug class here is a nested model that does NOT inherit the
+    ``Envelope`` grammar guard.
+    """
+    found: dict[str, type] = {}
+    for _step_type, schema in SCHEMAS.items():
+        for field in schema.model_fields.values():
+            for model in _nested_model_types(field.annotation):
+                if issubclass(model, Envelope):
+                    continue
+                found[model.__name__] = model
+    return found
+
+
+#: A minimal VALID payload for every nested model (ticket 20 step 2b-iii). The audit
+#: refuses to run if a nested model is discovered without an entry here, so a new nested
+#: model cannot be added without a presence-check fixture.
+NESTED_VALID_PAYLOADS: dict[str, dict] = {
+    "Ambiguity": {"kind": "needs-user", "topic": "requirement", "question": "q"},
+    "ChildFill": {"seam_id": "seam-1", "what": "w", "why": "y", "leaf": True,
+                  "est_rounds": 3},
+    "SplitIssue": {"kind": "overlap", "target": "child-1", "description": "d"},
+    "DraftAC": {"ac_id": "AC-1", "statement": "s", "check_kind": "test"},
+    "Interface": {"name": "expire()", "signature": "expire() -> None", "contract": "c"},
+    "SpecIssue": {"severity": "blocking", "location": "pkg/a.py:1", "description": "d"},
+    "TestCase": {"case_id": "TC-1", "ac_id": "AC-1", "kind": "unit", "description": "d"},
+    "Problem": {"side": "code", "description": "d", "evidence": "e", "confidence": "low"},
+    "Bug": {"symptom": "s", "evidence": "e", "location": "pkg/a.py:1",
+            "severity": "critical", "reproducible": True},
+    "Lesson": {"line": "l", "topic_key": ["python"], "provenance_task_id": "N-1",
+               "provenance_ref": "ledger:fp-1"},
+    "RankedFix": {"rank": 1, "approach": "a", "how": "h"},
+    "NewIssue": {"keywords": "one two", "description": "d", "blocked": False},
+    "ProposedNode": {"kind": "ticket", "what": "w", "why": "y"},
+    "DeclaredTest": {"ac_id": "AC-1", "file": "tests/test_auth.py",
+                     "names": ["test_ac1_expiry"]},
+    "ChildPlan": {"what": "w", "why": "y", "kind": "leaf", "est_calls": 1},
+    "HowEntry": {"text": "t", "reason": "r"},
+}
+
+
+def test_every_nested_model_rejects_a_missing_required_field():
+    """GENERIC AUDIT (ticket 20 step 2b-iii): walk the nested models of EVERY envelope
+    schema and assert each one REJECTS a payload that omits a REQUIRED-sentinel field.
+
+    The sentinel omission shipped twice because only the nested models the runner
+    happened to touch were guarded; a model that cannot reject a missing field lets the
+    sentinel reach harness code and crash the whole run (the ``ChildPlan`` /
+    ``decomposition_signature`` crash that killed three of six live runs). Because the
+    walk DISCOVERS the models, a new nested model is covered too — and the fixture check
+    makes an un-fixtured model a loud failure, not a silent skip.
+    """
+    from harness.envelopes import REQUIRED
+
+    nested = _nested_models_across_schemas()
+    assert nested, "the walk found no nested models — the audit would be vacuous"
+    unlisted = sorted(name for name in nested if name not in NESTED_VALID_PAYLOADS)
+    assert not unlisted, (
+        "nested envelope models with no valid-payload fixture: " + ", ".join(unlisted))
+    stale = sorted(name for name in NESTED_VALID_PAYLOADS if name not in nested)
+    assert not stale, (
+        "valid-payload fixtures for models no longer nested in any schema: "
+        + ", ".join(stale))
+
+    for name, model in nested.items():
+        base = NESTED_VALID_PAYLOADS[name]
+        model.model_validate(base)  # the fixture itself must be valid
+        required = sorted(
+            field_name for field_name, info in model.model_fields.items()
+            if info.default is REQUIRED)
+        assert required, f"{name} declares no REQUIRED-sentinel field"
+        for field_name in required:
+            payload = {k: v for k, v in base.items() if k != field_name}
+            with pytest.raises(ValidationError) as exc:
+                model.model_validate(payload)
+            message = str(exc.value)
+            assert "requires fields" in message, (name, field_name, message)
+            assert field_name in message, (name, field_name, message)
+
+
+def test_child_plan_missing_what_is_a_schema_violation_before_it_reaches_the_runner():
+    """The exact regression (ticket 20 step 2b-iii): a ``ChildPlan`` without ``what`` must
+    fail DECODE, so :func:`harness.node.decomposition_from_envelope` never sees the
+    sentinel and the live run no longer crashes inside ``decomposition_signature``."""
+    from harness import PlanNode
+
+    payload = {
+        "status": "ok", "comment": "planned", "goal": "g", "behavior": "b",
+        "implementation_notes": "n", "files": ["pkg/a.py"], "acs": [], "interfaces": [],
+        "children": [{"why": "y", "kind": "leaf", "files": ["pkg/a.py"],
+                      "acs": [{"ac_id": "AC-1", "statement": "s", "check_kind": "test"}],
+                      "est_calls": 1}],
+    }
+    with pytest.raises(ValidationError, match="ChildPlan requires fields"):
+        PlanNode.model_validate(payload)
+
+
+def test_nested_model_json_schema_marks_required_sentinel_fields():
+    """Ticket 20 step 2b-iii: the real server's decode grammar is generated from the
+    model's JSON schema, and pydantic omits a sentinel-default field from ``required``
+    unless the model adds it. Without this the grammar told the model those fields were
+    OPTIONAL, so it omitted them and the runtime guard rejected every plan. The generated
+    grammar must demand exactly what the runtime guard enforces."""
+    from harness import ChildPlan, DraftAC, Interface, PlanNode
+
+    import warnings
+
+    with warnings.catch_warnings():
+        # ``req`` defaults are sentinels, so pydantic warns that the default is not
+        # JSON-serializable; the field is dropped from defaults and added to ``required``.
+        warnings.simplefilter("ignore")
+        schemas = {model: model.model_json_schema()
+                   for model in (ChildPlan, DraftAC, Interface, PlanNode)}
+    for model, expected in ((ChildPlan, {"what", "why", "kind"}),
+                            (DraftAC, {"ac_id", "statement", "check_kind"}),
+                            (Interface, {"name", "signature", "contract"})):
+        required = set(schemas[model].get("required", []))
+        assert expected <= required, (model.__name__, sorted(required))
+    # the nested refs carry the same requiredness into the top-level envelope grammar
+    child_required = set(schemas[PlanNode]["$defs"]["ChildPlan"].get("required", []))
+    assert {"what", "why", "kind"} <= child_required

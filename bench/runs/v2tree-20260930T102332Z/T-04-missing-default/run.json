@@ -1,0 +1,241 @@
+{
+ "task": "T-04-missing-default",
+ "goal": "Setting up a staging deployment of the mailer with just the host in the settings file,\nand sending the test email crashes with \"KeyError: 'retries'\". The docs say every option\nexcept the host is optional and falls back to a sane default — we shouldn't have to spell\nout every key just to send one email. Please make optional settings actually optional.\n",
+ "acs": [
+  "Setting up a staging deployment of the mailer with just the host in the settings file, and sending the test email crashes with \"KeyError: 'retries'\".",
+  "The docs say every option except the host is optional and falls back to a sane default — we shouldn't have to spell out every key just to send one email.",
+  "Please make optional settings actually optional."
+ ],
+ "withheld_grader_paths": [
+  "pyproject.toml",
+  "tests/test_config.py"
+ ],
+ "judge": true,
+ "iv": true,
+ "review": true,
+ "claimed": true,
+ "actual": true,
+ "quadrant": "true-success",
+ "verified_quadrant": "verified-success",
+ "best_effort_declared": 0,
+ "verification_downgrades": 0,
+ "covenant_weakened": 0,
+ "covenant_nodes": 1,
+ "covenant_diluted": false,
+ "calls": 12,
+ "tree_wall_s": 56.19,
+ "run_wall_s": 56.2,
+ "budget": {
+  "calls": 28,
+  "deadline_ts": 1790764712.323679,
+  "reserve_fraction": 0.25,
+  "spent_calls": 12,
+  "grants": []
+ },
+ "checkpoints": {
+  "N-1": "a4a13637e6957ff7d5b50f71100c0c8ebed8a51c"
+ },
+ "split_history": {},
+ "nodes": {
+  "node": "N-1",
+  "claimed": true,
+  "stop_reason": "closed",
+  "calls": 3,
+  "wall_s": 13.722,
+  "leaf_signal": "green",
+  "leaf_stop_reason": "green",
+  "self_test": "tests/test_config_optional.py",
+  "claimed_basis": "own-test+independent-test",
+  "verification_basis": "test",
+  "verified": true,
+  "claim_status": "verified-success",
+  "verification": {
+   "wrote_code": true,
+   "tier": "test",
+   "reason": "",
+   "reason_problem": "",
+   "reviews": [],
+   "review_angles": [
+    "ac-correctness",
+    "contract-compat"
+   ],
+   "review_level": "implementation",
+   "review_score": 0,
+   "required": "test",
+   "best_effort": false,
+   "downgraded": false,
+   "downgrade_reason": ""
+  },
+  "needs_user": false,
+  "review_verdicts": [],
+  "coverage": [
+   {
+    "index": 1,
+    "statement": "Optional settings in mailer config must automatically resolve to sane defaults without requiring explicit user input, preventing KeyError crashes.",
+    "files": [],
+    "symbols": [],
+    "missing": []
+   }
+  ],
+  "coverage_missing": [],
+  "coverage_unresolved": [],
+  "test_case_problems": [],
+  "malformed_steps": [],
+  "judge_unavailable": 0,
+  "judge_verdicts": [],
+  "integration_verdicts": {},
+  "close_rule": "",
+  "integration_reopen_rounds": 0,
+  "boundary_audit": {
+   "clean": true,
+   "boundary": [
+    "mailer/config.py"
+   ],
+   "violations": [],
+   "restored": [],
+   "removed": [],
+   "restore_refused": [],
+   "metadata": [],
+   "links": {},
+   "skipped": []
+  },
+  "hows": [
+   {
+    "how_id": "HOW-1",
+    "text": "Approach 1: Implement a robust default fallback mechanism in mailer/config.py. Define a centralized dictionary of default values for all optional settings (like 'retries') and use .get() to safely retrieve them, ensuring missing keys automatically resolve to sane defaults without requiring explicit user input.",
+    "rank": 1,
+    "reason": "This directly addresses the crash by making optional settings truly optional, aligning perfectly with the node goal of avoiding the KeyError and reducing required configuration.",
+    "prior": 0.5,
+    "status": "succeeded"
+   },
+   {
+    "how_id": "HOW-2",
+    "text": "Approach 2: Refactor the configuration loading logic to use a flexible, dynamic settings parser. Instead of hardcoding required keys, parse the settings file to dynamically merge user-provided values with a predefined, comprehensive set of default values for all mailer options.",
+    "rank": 2,
+    "reason": "This approach provides a highly flexible and resilient configuration system that guarantees all necessary keys are present with sane defaults, preventing crashes and simplifying the staging deployment.",
+    "prior": 0.25,
+    "status": "failed"
+   }
+  ],
+  "candidates": [
+   {
+    "how_id": "HOW-1",
+    "rank": 1,
+    "status": "succeeded",
+    "how_case": "leaf-How",
+    "leaf_stop_reason": "green",
+    "leaf_signal": "green",
+    "directory": "/home/z/vibe/helpagent/bench/runs/v2tree-20260930T102332Z/T-04-missing-default/candidates/N-1/HOW-1",
+    "selection": [
+     [
+      1,
+      1.0
+     ],
+     0,
+     -1,
+     -4
+    ],
+    "test_covered": 1,
+    "test_pass_rate": 1.0,
+    "review_score": 0,
+    "needs_repair": false,
+    "repair_reason": "",
+    "evidence": "",
+    "won": true,
+    "planned_points": [
+     {
+      "name": "test_ac1_optional_settings_defaults",
+      "file": "tests/test_config_optional.py",
+      "verifies": "Optional settings in mailer config must automatically resolve to sane defaults without requiring explicit user input, preventing KeyError crashes.",
+      "ac_id": "AC-1",
+      "id": "tests/test_config_optional.py::test_ac1_optional_settings_defaults"
+     }
+    ],
+    "deviations": []
+   },
+   {
+    "how_id": "HOW-2",
+    "rank": 2,
+    "status": "failed",
+    "how_case": "leaf-How",
+    "leaf_stop_reason": "verification-required",
+    "leaf_signal": "honest-failure",
+    "directory": "/home/z/vibe/helpagent/bench/runs/v2tree-20260930T102332Z/T-04-missing-default/candidates/N-1/HOW-2",
+    "selection": null,
+    "test_covered": 0,
+    "test_pass_rate": 0.0,
+    "review_score": 0,
+    "needs_repair": false,
+    "repair_reason": "",
+    "evidence": "verification-required; independent-test independent-test-not-discriminating: the independent test does not pin the goal for every acceptance criterion: the node selection for AC1 still PASSES on the pre-run source",
+    "won": false,
+    "planned_points": [
+     {
+      "name": "test_ac1_dynamic_merge_defaults",
+      "file": "tests/test_config.py",
+      "verifies": "Dynamic settings parser merges user-provided values with sane defaults for all mailer options.",
+      "ac_id": "AC-1",
+      "id": "tests/test_config.py::test_ac1_dynamic_merge_defaults"
+     },
+     {
+      "name": "test_ac2_optional_retries_default",
+      "file": "tests/test_config.py",
+      "verifies": "Optional settings (e.g., retries) fall back to sane defaults without requiring explicit spelling.",
+      "ac_id": "AC-2",
+      "id": "tests/test_config.py::test_ac2_optional_retries_default"
+     }
+    ],
+    "deviations": []
+   }
+  ],
+  "manager_decisions": [
+   {
+    "decision": "continue-with-next-how",
+    "reason": "HOW-2 failed due to a non-discriminating independent test that does not pin the goal for every acceptance criterion, so the manager selects the untried HOW-1."
+   }
+  ],
+  "manager_unavailable": [],
+  "winner": "HOW-1",
+  "children": []
+ },
+ "produced": [
+  "README.md",
+  "mailer/__init__.py",
+  "mailer/config.py",
+  "tests/test_config_optional.py"
+ ],
+ "grader_exit": 0,
+ "grader_notes": [
+  "== checks: T-04-missing-default ==",
+  "[tests]    OK (python -m pytest in repo/)",
+  "[contract] OK (4 untouched paths byte-identical)",
+  "result: PASS"
+ ],
+ "grader_restored": [
+  "README.md: restored from the pristine copy",
+  "mailer/__init__.py: restored from the pristine copy",
+  "tests/test_config_optional.py: kept pristine (grader-owned; nothing to restore)"
+ ],
+ "grader_shadowed": [],
+ "grader_report_gate": {
+  "report_path": "/tmp/helpagent-gate-report-_4e77xoe/report.xml",
+  "process_exit": 0,
+  "canary": "71894b3cc5fbf5802f0372d55902efc4",
+  "expected_files": [
+   "tests/test_config.py"
+  ],
+  "n_tests": 3,
+  "n_failed": 0,
+  "n_errors": 0,
+  "passed_ids": [
+   "tests/test_config.py::test_missing_optional_keys_fall_back_to_defaults",
+   "tests/test_config.py::test_explicit_values_win",
+   "tests/test_gate_canary_71894b3cc5fbf5802f0372d55902efc4.py::test_gate_canary_71894b3cc5fbf5802f0372d55902efc4"
+  ],
+  "failed_ids": [],
+  "missing": [],
+  "observed": true,
+  "anomaly": "",
+  "detail": ""
+ }
+}

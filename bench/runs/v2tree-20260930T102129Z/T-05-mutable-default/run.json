@@ -1,0 +1,265 @@
+{
+ "task": "T-05-mutable-default",
+ "goal": "Something's wrong with our note tagging — tags keep bleeding between notes. I tagged one\nnote \"errand\" this morning and now a completely unrelated note shows the same tag, even\nthough I never tagged it. Tags are supposed to stick to the note they were added to;\nnotes are independent. Can you fix the tagger?\n",
+ "acs": [
+  "Something's wrong with our note tagging — tags keep bleeding between notes.",
+  "I tagged one note \"errand\" this morning and now a completely unrelated note shows the same tag, even though I never tagged it.",
+  "Tags are supposed to stick to the note they were added to; notes are independent.",
+  "Can you fix the tagger?"
+ ],
+ "withheld_grader_paths": [
+  "pyproject.toml",
+  "tests/test_notes.py"
+ ],
+ "judge": true,
+ "iv": true,
+ "review": true,
+ "claimed": false,
+ "actual": false,
+ "quadrant": "honest-failure",
+ "verified_quadrant": "verified-failure",
+ "best_effort_declared": 0,
+ "verification_downgrades": 0,
+ "covenant_weakened": 0,
+ "covenant_nodes": 1,
+ "covenant_diluted": false,
+ "calls": 26,
+ "tree_wall_s": 101.055,
+ "run_wall_s": 101.2,
+ "budget": {
+  "calls": 14,
+  "deadline_ts": 1790764589.6505227,
+  "reserve_fraction": 0.25,
+  "spent_calls": 26,
+  "grants": []
+ },
+ "checkpoints": {
+  "N-1": "d8ecb71e44e4e3863d675a814f97cb71487fcec7"
+ },
+ "split_history": {},
+ "nodes": {
+  "node": "N-1",
+  "claimed": false,
+  "stop_reason": "parked",
+  "calls": 0,
+  "wall_s": 98.188,
+  "leaf_signal": "honest-failure",
+  "leaf_stop_reason": "ladder",
+  "self_test": "tests/test_tag_isolation.py",
+  "claimed_basis": "own-test",
+  "verification_basis": "test",
+  "verified": true,
+  "claim_status": "verified-failure",
+  "verification": {
+   "wrote_code": true,
+   "tier": "test",
+   "reason": "",
+   "reason_problem": "",
+   "reviews": [],
+   "review_angles": [
+    "ac-correctness",
+    "contract-compat"
+   ],
+   "review_level": "implementation",
+   "review_score": 0,
+   "required": "test",
+   "best_effort": false,
+   "downgraded": false,
+   "downgrade_reason": ""
+  },
+  "needs_user": false,
+  "review_verdicts": [],
+  "coverage": [],
+  "coverage_missing": [],
+  "coverage_unresolved": [],
+  "test_case_problems": [],
+  "malformed_steps": [],
+  "judge_unavailable": 0,
+  "judge_verdicts": [],
+  "integration_verdicts": {},
+  "close_rule": "",
+  "integration_reopen_rounds": 0,
+  "boundary_audit": null,
+  "hows": [
+   {
+    "how_id": "HOW-1",
+    "text": "Implement a strict, isolated tagging mechanism in tagger/notes.py that enforces per-note tag isolation, preventing tags from bleeding across unrelated notes.",
+    "rank": 1,
+    "reason": "This directly addresses the core issue of tags bleeding between notes by enforcing a strict isolation boundary at the code level, ensuring tags remain confined to their specific notes.",
+    "prior": 0.5,
+    "status": "failed"
+   },
+   {
+    "how_id": "HOW-2",
+    "text": "Audit and restructure the tagging workflow by reviewing all tag assignments and implementing a dedicated, isolated tagging directory or module to separate tag management from other note operations.",
+    "rank": 2,
+    "reason": "This approach tackles the problem by physically or logically isolating the tagging process, reducing the risk of cross-contamination and ensuring tags are managed independently.",
+    "prior": 0.25,
+    "status": "failed"
+   },
+   {
+    "how_id": "HOW-3",
+    "text": "new approach after failure: attempt-cap",
+    "rank": 3,
+    "reason": "no fresh model How was available; append one so the node can retry",
+    "prior": 0.125,
+    "status": "failed"
+   }
+  ],
+  "candidates": [
+   {
+    "how_id": "HOW-1",
+    "rank": 1,
+    "status": "failed",
+    "how_case": "leaf-How",
+    "leaf_stop_reason": "attempts",
+    "leaf_signal": "exhausted",
+    "directory": "/home/z/vibe/helpagent/bench/runs/v2tree-20260930T102129Z/T-05-mutable-default/candidates/N-1/HOW-1",
+    "selection": null,
+    "test_covered": 0,
+    "test_pass_rate": 0.0,
+    "review_score": 0,
+    "needs_repair": false,
+    "repair_reason": "",
+    "evidence": "same-verdict tail across layers [implementation,sampling,spec]",
+    "won": false,
+    "planned_points": [
+     {
+      "name": "test_ac1_no_tag_bleed_between_notes",
+      "file": "tests/test_tag_isolation.py",
+      "verifies": "Enforce strict per-note tag isolation to prevent tags from bleeding across unrelated notes.",
+      "ac_id": "AC-1",
+      "id": "tests/test_tag_isolation.py::test_ac1_no_tag_bleed_between_notes"
+     }
+    ],
+    "deviations": []
+   },
+   {
+    "how_id": "HOW-2",
+    "rank": 2,
+    "status": "failed",
+    "how_case": "leaf-How",
+    "leaf_stop_reason": "attempts",
+    "leaf_signal": "honest-failure",
+    "directory": "/home/z/vibe/helpagent/bench/runs/v2tree-20260930T102129Z/T-05-mutable-default/candidates/N-1/HOW-2",
+    "selection": null,
+    "test_covered": 0,
+    "test_pass_rate": 0.0,
+    "review_score": 0,
+    "needs_repair": false,
+    "repair_reason": "",
+    "evidence": "attempt-cap",
+    "won": false,
+    "planned_points": [
+     {
+      "name": "test_ac1_tag_isolation",
+      "file": "tests/test_tag_isolation.py",
+      "verifies": "Isolate tag management into a dedicated module to prevent tags from leaking between notes.",
+      "ac_id": "AC-1",
+      "id": "tests/test_tag_isolation.py::test_ac1_tag_isolation"
+     },
+     {
+      "name": "test_ac1_no_cross_contamination",
+      "file": "tests/test_tag_isolation.py",
+      "verifies": "Isolate tag management into a dedicated module to prevent tags from leaking between notes.",
+      "ac_id": "AC-1",
+      "id": "tests/test_tag_isolation.py::test_ac1_no_cross_contamination"
+     },
+     {
+      "name": "test_ac2_tag_bound_to_note",
+      "file": "tests/test_tag_isolation.py",
+      "verifies": "Ensure tags remain strictly bound to their assigned note without bleeding into unrelated notes.",
+      "ac_id": "AC-2",
+      "id": "tests/test_tag_isolation.py::test_ac2_tag_bound_to_note"
+     },
+     {
+      "name": "test_ac2_unrelated_note_has_no_tags",
+      "file": "tests/test_tag_isolation.py",
+      "verifies": "Ensure tags remain strictly bound to their assigned note without bleeding into unrelated notes.",
+      "ac_id": "AC-2",
+      "id": "tests/test_tag_isolation.py::test_ac2_unrelated_note_has_no_tags"
+     }
+    ],
+    "deviations": []
+   },
+   {
+    "how_id": "HOW-3",
+    "rank": 3,
+    "status": "failed",
+    "how_case": "leaf-How",
+    "leaf_stop_reason": "ladder",
+    "leaf_signal": "honest-failure",
+    "directory": "/home/z/vibe/helpagent/bench/runs/v2tree-20260930T102129Z/T-05-mutable-default/candidates/N-1/HOW-3",
+    "selection": null,
+    "test_covered": 0,
+    "test_pass_rate": 0.0,
+    "review_score": 0,
+    "needs_repair": false,
+    "repair_reason": "",
+    "evidence": "ladder-exhausted",
+    "won": false,
+    "planned_points": [
+     {
+      "name": "test_ac1_no_bleed_between_notes",
+      "file": "tests/test_tag_isolation.py",
+      "verifies": "Isolate tagging logic to prevent tags from bleeding between unrelated notes.",
+      "ac_id": "AC-1",
+      "id": "tests/test_tag_isolation.py::test_ac1_no_bleed_between_notes"
+     },
+     {
+      "name": "test_ac1_tag_specific_to_target",
+      "file": "tests/test_tag_isolation.py",
+      "verifies": "Isolate tagging logic to prevent tags from bleeding between unrelated notes.",
+      "ac_id": "AC-1",
+      "id": "tests/test_tag_isolation.py::test_ac1_tag_specific_to_target"
+     },
+     {
+      "name": "test_ac2_tag_attached_to_target_note",
+      "file": "tests/test_tag_isolation.py",
+      "verifies": "Ensure tags are strictly applied to the specific note they are added to.",
+      "ac_id": "AC-2",
+      "id": "tests/test_tag_isolation.py::test_ac2_tag_attached_to_target_note"
+     }
+    ],
+    "deviations": []
+   }
+  ],
+  "manager_decisions": [
+   {
+    "decision": "continue-with-next-how",
+    "reason": "HOW-1 failed with a resplit verdict due to same-verdict tail across layers; HOW-2 is untried and addresses the tag isolation issue."
+   },
+   {
+    "decision": "author-a-new-how",
+    "reason": "HOW-2 failed due to attempts (attempt-cap); no untried Hows remain, so a new How must be appended."
+   },
+   {
+    "decision": "escalate-or-park",
+    "reason": "HOW-3 ladder-exhausted; no untried Hows remain to retry."
+   }
+  ],
+  "manager_unavailable": [],
+  "winner": "",
+  "children": []
+ },
+ "produced": [
+  "README.md",
+  "tagger/__init__.py",
+  "tagger/notes.py"
+ ],
+ "grader_exit": 1,
+ "grader_notes": [
+  "           tests/test_notes.py:17: AssertionError",
+  "           =========================== short test summary info ============================",
+  "           FAILED tests/test_notes.py::test_notes_do_not_share_tags - AssertionError: as...",
+  "           1 failed, 1 passed in 0.02s",
+  "[contract] OK (4 untouched paths byte-identical)",
+  "result: FAIL"
+ ],
+ "grader_restored": [
+  "README.md: restored from the pristine copy",
+  "tagger/__init__.py: restored from the pristine copy"
+ ],
+ "grader_shadowed": [],
+ "grader_report_gate": null
+}
