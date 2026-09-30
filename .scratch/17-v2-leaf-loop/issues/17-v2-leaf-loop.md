@@ -357,3 +357,37 @@ never even tried to implement. That dead end is ours to fix.
 Consequence for the design: `claimed` should become a claim WITH its verification
 status (verified | rejected-<reason> | unverified), so a consumer that cannot tolerate
 lies filters on `verified` while throughput uses all claims. This is an owner decision.
+
+## The honest agent baseline (owner correction, 2026-09-30)
+
+The owner rejected the earlier "bare" driver: a single write action with no feedback is not
+a bare agent, it is a crippled one. `bench/v2_agent.py` is the fair comparison — a plain
+tool loop (list / read / write / run / done) over a free-form chat protocol (no kernel
+envelope, so the baseline does not inherit our schema shape), sandboxed, with the grader's
+tests and test infrastructure withheld by `stage_blind`.
+
+Six of the hardest corpus tasks, same reference model, scored by the grader afterwards:
+
+| baseline | actual |
+| --- | --- |
+| plain agent loop (14 turns) | **0/6** |
+| agent loop + explicit "you may not finish until you have written a test, run it and seen it pass" (16 turns) | **0/6** |
+| our leaf, own-test rule | 5/6 on this subset |
+| our leaf, strict rule | 3/6 on this subset |
+
+What the baseline actually does (from the action logs): it reads a couple of files, writes
+ONE file, and declares itself done. Across both regimes it wrote **zero test files and ran
+**zero** commands**; T-08 rewrote the same file 14 times in a row; T-31 emitted the literal
+placeholder `read <path>` seven times. It does not verify, and it does not follow the
+instruction to verify when told.
+
+Conclusion: the failures are NOT caused by our flow restricting the model. Left alone the
+same model does less and fails more; the harness's forced steps (write a test that must
+fail first, run it, read the failure, try again) are what supply behaviour the model does
+not produce by itself. The remaining failures are coverage/refinement (a requirement's
+declared artifact never gets touched), which is what ticket 19's per-requirement coverage
+and requirement-based decomposition are for.
+
+Caveat: this is one scaffold (a simple ACTION protocol with two prompt regimes). A
+different scaffold (native tool-call JSON, plan-then-act, few-shot) could do better; the
+0-test-files / 0-commands result was stable across both regimes tried.

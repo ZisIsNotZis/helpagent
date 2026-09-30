@@ -1,0 +1,10 @@
+[project]
+name = "33serializercontract"
+version = "0.1.0"
+description = "Fix the JSON serializer's documented roundtrip contract."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

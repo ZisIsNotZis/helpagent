@@ -1,0 +1,10 @@
+[project]
+name = "tagger"
+version = "0.1.0"
+description = "Note tagging helpers."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
