@@ -1175,6 +1175,35 @@ async def _apply_decomposition(ctx: _TreeContext, node: NodeHandle, spec: NodeSp
                                    reuse_handles, workdir)
 
 
+async def _manager_decision(view: Any, *, manager: Any = None,
+                            feasibility: str = "unknown") -> ManagerDecision:
+    """Resolve the injected manager (SYNC or ASYNC) and then apply the pure decision rule.
+
+    ``decide_after_failure`` is deliberately synchronous and pure, but the product
+    manager is an async model call. Passing the coroutine straight in crashed every run
+    the moment a How failed (``'coroutine' object has no attribute 'decision'``) - the
+    live-manager path had never worked end to end. Resolving here keeps the rule pure and
+    supports both callable shapes; an unusable manager falls back to the safe default
+    (the node parks).
+    """
+    resolved = None
+    if manager is not None:
+        try:
+            resolved = manager(view)
+            if inspect.isawaitable(resolved):
+                resolved = await resolved
+        except Exception as exc:  # noqa: BLE001 - a manager failure is data, not a crash
+            note("manager_unavailable",
+                 detail=f"the manager call failed ({type(exc).__name__}); parking")
+            return ManagerDecision(
+                "escalate-or-park",
+                f"the manager call failed ({type(exc).__name__}); parking on the safe "
+                "default (a manager failure never advances or closes a node)")
+    return decide_after_failure(
+        view, feasibility=feasibility,
+        manager=None if resolved is None else (lambda _record: resolved))
+
+
 async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget: Budget,
                     workdir: Path, hows: HowList, *,
                     source: Path | None = None) -> NodeOutcome:
@@ -1267,8 +1296,8 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
         records.append(CandidateRecord(how.id, how.rank, "failed", str(ws.path), None,
                                        evidence, planned_points=plan_dicts,
                                        deviations=list(deviations)))
-        decision = decide_after_failure(cs.manager_view(current_how_id=how.id),
-                                        manager=ctx.manager)
+        decision = await _manager_decision(cs.manager_view(current_how_id=how.id),
+                                           manager=ctx.manager)
         cs.record(decision)
         ctx.emit("manager_decision", node=nid, how=how.id,
                  decision=decision.decision, reason=decision.reason)
@@ -1280,8 +1309,9 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
             reviewed_feasibility.add(how.id)
             feasibility = await _run_feasibility_review(
                 ctx, nid, spec, budget, how, decomp, evidence)
-            decision = decide_after_failure(cs.manager_view(current_how_id=how.id),
-                                            feasibility=feasibility, manager=ctx.manager)
+            decision = await _manager_decision(
+                cs.manager_view(current_how_id=how.id),
+                manager=ctx.manager, feasibility=feasibility)
             cs.record(decision)
             ctx.emit("manager_decision", node=nid, how=how.id,
                      decision=decision.decision, reason=decision.reason,

@@ -2229,3 +2229,70 @@ def test_test_deviations_are_reported_to_the_manager_and_recorded(tmp_path, monk
     assert "test_deviation" in ledger_kinds()
     by_how = {record.how_id: record for record in out.root.candidates}
     assert by_how["HOW-1"].to_dict()["deviations"] == ["tests/test_a.py::test_ac1_extra"]
+
+
+def test_an_async_manager_is_actually_awaited_and_recorded(tmp_path, monkeypatch):
+    """Regression pin for a shipped crash: the PRODUCT manager is an async model call,
+    but the failure loop passed it straight into a synchronous decision helper, so every
+    run died with "'coroutine' object has no attribute 'decision'" the moment a How
+    failed — the live-manager path had never worked end to end, and no test drove it."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([leaf_outcome(claimed=False, signal="exhausted", stop="attempts",
+                                  exhausted=True, exhaustion_reason="node exhausted"),
+                     leaf_outcome(claimed=True)])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("first approach"), how("second approach")])],
+        "plan_node": [plan_env([child("do the work", ["pkg/a.py"])],
+                               files=("pkg/a.py", "pkg/b.py")),
+                      plan_env([child("do the work", ["pkg/b.py"])],
+                               files=("pkg/a.py", "pkg/b.py"))],
+    })
+    seen: list[str] = []
+
+    async def async_manager(view):
+        seen.append(view.current_how_id or "")
+        return ManagerDecision("continue-with-next-how", "the second approach may work")
+
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                        run_tests=Gates(green=True), manager=async_manager)
+
+    assert seen, "the injected async manager was never awaited/consulted"
+    decisions = [d["decision"] if isinstance(d, dict) else d
+                 for d in (out.root.manager_decisions or [])]
+    assert "continue-with-next-how" in decisions
+    assert out.claimed
+
+
+def test_a_raising_manager_parks_instead_of_crashing(tmp_path, monkeypatch):
+    """A manager that blows up is data, not a crash: the node parks."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([leaf_outcome(claimed=False, signal="exhausted", stop="attempts",
+                                  exhausted=True, exhaustion_reason="node exhausted")])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("first approach"), how("second approach")])],
+        "plan_node": [plan_env([child("do the work", ["pkg/a.py"])],
+                               files=("pkg/a.py", "pkg/b.py"))],
+    })
+
+    async def broken(view):
+        raise RuntimeError("the manager model is unavailable")
+
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                        run_tests=Gates(green=True), manager=broken)
+
+    assert out.claimed is False
+    assert out.root.stop_reason == "parked"
+    decisions = [d["decision"] if isinstance(d, dict) else d
+                 for d in (out.root.manager_decisions or [])]
+    assert "escalate-or-park" in decisions
+    assert "manager_unavailable" in ledger_kinds()
