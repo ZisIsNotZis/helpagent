@@ -62,6 +62,18 @@ def quadrant(claimed: bool, actual: bool) -> str:
     return "honest-failure"
 
 
+def verified_quadrant(claimed: bool, actual: bool, verified: bool) -> str:
+    """The four-way separation the verification covenant requires (ticket 20).
+
+    A claim whose evidence tier is ``none+reason`` is UNVERIFIED and must never be mixed
+    into verified claims: ``verified`` is True only for a ``test``/``review`` tier. The
+    scoring layer reads this separately so a verified success, an unverified success, a
+    verified failure, and an unverified failure are distinguishable.
+    """
+    strength = "verified" if verified else "unverified"
+    return f"{strength}-{'success' if actual else 'failure'}"
+
+
 def run_once(task: Path, out_dir: Path, run_idx: int, server: str) -> dict:
     cmd = [sys.executable, str(ROOT / "bench" / "golden_bugfix.py"),
            "--task", str(task), "--blind", "--server", server]

@@ -217,11 +217,13 @@ __all__ = [
     "JudgeVerdict",
     "LeafOutcome",
     "LeafSpec",
+    "VerificationRecord",
     "WriteShapeRefused",
     "apply_judge_filter",
     "escalate",
     "evaluate_independent_test",
     "run_leaf",
+    "verification_reason_problem",
 ]
 
 #: The in-node escalation ladder (DESIGN §10.4 L1–L5). L6–L8 restructure the tree
@@ -277,7 +279,61 @@ STOP_REASONS: tuple[str, ...] = (
     "green",            # the run's own tests exited 0 and the claim held
     "green-after-test-rewrite",  # a replaced test went green: unverified, never claimed
     "write-shape",      # a write target could not be normalized (NUL/long/dir/file-parent)
+    "verification-required",  # the plan's verification tier was not met and no best_effort
+    "unverified",       # the run claimed at the none+reason tier (best_effort)
 )
+
+#: The ORDERED verification-strength tiers (ticket 20): the strongest evidence a node
+#: that WROTE CODE can carry is a real discriminating TEST, next one or more independent
+#: REVIEWS, and last NO test and NO review with a REQUIRED written reason. The strength
+#: is a total order (``test`` > ``review`` > ``none``); a claim's tier is enforced
+#: against the plan's declared requirement.
+VERIFICATION_TIERS: tuple[str, ...] = ("test", "review", "none")
+
+#: The declared requirement domain a plan may set per node (ticket 20).
+VERIFICATION_REQUIREMENTS: tuple[str, ...] = ("test", "review", "any")
+
+_TIER_RANK: dict[str, int] = {"test": 2, "review": 1, "none": 0}
+#: The floor each declared requirement imposes on a claim. ``any`` imposes no verified
+#: floor, but the ``none+reason`` tier is NEVER a normal claim: it always needs the
+#: ``best_effort`` opt-in plus a valid written reason (see :func:`verification_reason_problem`).
+_REQUIRED_FLOOR: dict[str, int] = {"test": 2, "review": 1, "any": 0}
+
+#: The minimum length of a ``none+reason`` written reason (ticket 20).
+MIN_VERIFICATION_REASON = 24
+#: The reason must NAME the activity it is about ...
+_REASON_ACTIVITY: tuple[str, ...] = (
+    "test", "tests", "testing", "review", "reviews", "reviewing", "verif")
+#: ... and state WHY testing or reviewing was not possible or not warranted.
+_REASON_WHY: tuple[str, ...] = (
+    "cannot", "can not", "can't", "unable", "not able", "impossible",
+    "not possible", "not feasible", "infeasible", "not warranted",
+    "not applicable", "no test", "no review", "without", "not worth", "no way",
+    "unsafe", "not sensible", "not meaningful", "not amenable")
+
+
+def verification_reason_problem(reason: str) -> str:
+    """DETERMINISTICALLY check a ``none+reason`` justification (ticket 20).
+
+    Returns "" when the reason is acceptable, else a short problem describing the first
+    failure. A reason is accepted only when it is non-empty, at least
+    :data:`MIN_VERIFICATION_REASON` characters long, mentions testing or reviewing, AND
+    says why testing or reviewing was not possible or not warranted. The check is not
+    decorative: an empty, terse, or off-topic reason blocks the claim.
+    """
+    text = " ".join((reason or "").split())
+    if not text:
+        return "empty reason"
+    if len(text) < MIN_VERIFICATION_REASON:
+        return f"reason shorter than {MIN_VERIFICATION_REASON} characters"
+    lowered = text.lower()
+    if not any(term in lowered for term in _REASON_ACTIVITY):
+        return "reason does not mention testing or reviewing"
+    if not any(term in lowered for term in _REASON_WHY):
+        return ("reason does not say why testing or reviewing was not possible or "
+                "not warranted")
+    return ""
+
 
 #: Bounded retries for a malformed/unparseable model envelope (owner direction: no
 #: model failure may crash the leaf). One initial attempt plus this many retries; a
@@ -314,6 +370,17 @@ _MISSING_TEST_CASES_QUESTION = (
     "Your current test does not expose the DECLARED test cases for this node. Rewrite "
     "the complete test file so the declared test functions exist at the declared path and "
     "pass. Keep the test discriminating. Reply with the file path and complete content."
+)
+
+#: Ticket 20: the bounded envelope that asks for the WRITTEN ``none+reason``
+#: justification when neither a discriminating test nor an independent review can carry a
+#: node's claim. The reason is checked deterministically (length + why testing/reviewing
+#: was not possible or not warranted), so a terse or off-topic answer cannot carry it.
+_VERIFICATION_REASON_QUESTION = (
+    "No test can carry verification for this node and no independent review is available "
+    "(or a review is not warranted). In one or two sentences, explain IN WRITING why "
+    "testing or reviewing was not possible or not warranted for this change, naming the "
+    "concrete reason. Reply with reason=<your explanation>."
 )
 
 _TEST_BLAME_PHRASES = (
@@ -368,6 +435,13 @@ class LeafSpec:
     #: projection of the whole repo the requirement text can reference; defaults to the
     #: blind view's keys when empty.
     candidate_files: tuple[str, ...] = ()
+    #: Ticket 20 planning-time covenant: the verification the plan requires of this node
+    #: (``test`` | ``review`` | ``any``), how many INDEPENDENT review rounds the review
+    #: tier needs (1..3), and whether a weaker tier is an accepted best-effort fallback.
+    #: Defaults preserve the pre-ticket-20 policy (any tier, one review, no fallback).
+    verification_required: str = "any"
+    review_rounds: int = 1
+    best_effort: bool = False
 
 
 @dataclass(frozen=True)
@@ -528,6 +602,17 @@ class LeafOutcome:
     # Ticket 19 A: an environment_broken judge verdict parks the node needs-user without
     # burning the remaining budget (distinct from a spec bubble, which needs the parent).
     needs_user: bool = False
+    # Ticket 20: the explicit verification record EVERY node that wrote code carries, with
+    # an ORDERED strength tier (test > review > none+reason), the plan's declaration, and
+    # any recorded best-effort downgrade. ``None`` when the node wrote no code.
+    verification: VerificationRecord | None = None
+    #: Ticket 20: True when the terminal evidence is a VERIFIED tier (``test`` or
+    #: ``review``). A ``none+reason`` claim is UNVERIFIED and never mixed into verified
+    #: claims by the scoring layer.
+    verified: bool = False
+    #: Ticket 20: the four-way separation the scoring layer reads — ``verified-success``,
+    #: ``unverified-success``, ``verified-failure``, or ``unverified-failure``.
+    claim_status: str = ""
 
 
 @dataclass(frozen=True)
@@ -668,6 +753,42 @@ class ReviewVerdict:
     raw: str = ""
     coerced: bool = False
     coercion_reason: str = ""
+
+
+@dataclass(frozen=True)
+class VerificationRecord:
+    """The explicit verification a node that WROTE CODE carries (ticket 20).
+
+    ``tier`` is one of the ORDERED :data:`VERIFICATION_TIERS` (``test`` > ``review`` >
+    ``none``): a real discriminating test, one or more independent fresh-context reviews,
+    or neither with a REQUIRED written reason. ``reason`` is the written justification
+    for the ``none`` tier and ``reason_problem`` is the deterministic check's verdict on
+    it (empty when the reason is acceptable). ``required``/``review_rounds``/
+    ``best_effort`` echo the plan's declaration; ``downgraded``/``downgrade_reason``
+    record a best-effort claim at a weaker tier than the plan required. ``reviews``
+    keeps every independent review verdict (with its evidence).
+    """
+
+    wrote_code: bool
+    tier: str
+    reason: str = ""
+    reason_problem: str = ""
+    reviews: tuple[ReviewVerdict, ...] = ()
+    review_rounds: int = 1
+    required: str = "any"
+    best_effort: bool = False
+    downgraded: bool = False
+    downgrade_reason: str = ""
+
+    @property
+    def verified(self) -> bool:
+        """True only for a VERIFIED tier (``test`` or ``review``)."""
+        return self.tier in ("test", "review")
+
+    @property
+    def reason_ok(self) -> bool:
+        """True only when the ``none`` tier's written reason passed the check."""
+        return self.reason_problem == ""
 
 
 @dataclass(frozen=True)
@@ -2234,10 +2355,19 @@ async def run_leaf(
     # At K=2 the judge is consulted proactively (with the run's own test, the failing
     # output, and the diff as evidence).
     red_code_changes = 0
-    # Ticket 19 B/C: REVIEW-BASED verification state.
+    # Ticket 19 B/C: REVIEW-BASED verification state. Ticket 20 adds ``reason`` mode (a
+    # best-effort node with no test and no reviewer) and tracks the terminal tier.
     verification_basis = "test"
     review_verdicts: list[ReviewVerdict] = []
     review_reason = ""
+    review_approved = False
+    # Ticket 20: the claim tier the loop actually reached, the written ``none+reason``
+    # justification and its deterministic check, and any best-effort downgrade.
+    verification_tier = ""
+    verification_reason = ""
+    verification_reason_problem_text = ""
+    verification_downgraded = False
+    verification_downgrade_reason = ""
     # Ticket 19 D/E coverage evidence from the LAST claim evaluation.
     coverage: list[RequirementCoverage] = []
     coverage_missing: list[str] = []
@@ -2378,17 +2508,23 @@ async def run_leaf(
                          if verdict.final_gate is not None else None),
              raw=verdict.raw)
 
-    async def run_review(reason: str) -> tuple[ReviewVerdict | None, str]:
+    async def run_review(reason: str, round_index: int = 0
+                         ) -> tuple[ReviewVerdict | None, str]:
         """Author and FILTER one fresh-context review of the final diff (ticket 19 B).
 
         The reviewer sees the goal, the ACs, and the changed files' original and final
         source — never a grader path and never the run's own test. Its verdict is put
         through :func:`apply_review_filter`, so only a pass WITH concrete evidence
-        (a changed file or line reference) can carry a claim. Returns ``(verdict, "")``
+        (a changed file or line reference) can carry a claim. Each call is a SEPARATE
+        fresh-context review (ticket 20, item 5): ``round_index`` only names the round in
+        the request so the independent verdicts are auditable. Returns ``(verdict, "")``
         or ``(None, failure_reason)`` where ``failure_reason`` is ``"calls"`` or
         ``"malformed-output"``.
         """
-        request = _review_request(spec, workdir, baseline, reason or review_reason)
+        note_text = reason or review_reason
+        if round_index:
+            note_text = f"{note_text} (independent review round {round_index + 1})"
+        request = _review_request(spec, workdir, baseline, note_text)
         raw, failure = await request_bounded(
             partial(_call_review, review, request), "review")
         if failure:
@@ -2396,39 +2532,137 @@ async def run_leaf(
         verdict = apply_review_filter(raw, request)
         review_verdicts.append(verdict)
         emit("review_verdict", approved=verdict.approved, evidence=verdict.evidence,
-             detail=verdict.detail, coerced=verdict.coerced)
+             detail=verdict.detail, coerced=verdict.coerced, round=round_index + 1)
         if verdict.coerced:
             emit("review_coerced", reason=verdict.coercion_reason)
         return verdict, ""
+
+    def _declared_review_rounds() -> int:
+        """The plan's review rounds, clamped to the declared 1..3 domain (ticket 20)."""
+        try:
+            rounds = int(spec.review_rounds)
+        except (TypeError, ValueError):
+            rounds = 1
+        return max(1, min(3, rounds))
+
+    async def run_reviews(reason: str) -> tuple[bool | None, str]:
+        """Ticket 20 (item 5): run the declared INDEPENDENT reviews and combine them.
+
+        One fresh-context review call per round, with no shared history; the deterministic
+        combination is ALL-must-approve for the review tier. Any rejection (or a malformed
+        round) returns ``(False, why)`` so the loop CONTINUES the work; every verdict is
+        recorded with its evidence (``review_verdicts``). ``(None, "calls")`` means the
+        call budget ran out.
+        """
+        rounds = _declared_review_rounds()
+        for round_index in range(rounds):
+            verdict, failure = await run_review(reason, round_index)
+            if failure == "calls":
+                return None, "calls"
+            if failure:
+                return False, "review envelope stayed malformed after bounded retries"
+            if not verdict.approved:
+                return False, (verdict.detail or verdict.evidence
+                               or "review did not approve")
+        return True, ""
+
+    async def obtain_verification_reason() -> tuple[str, str]:
+        """Ask the model for the WRITTEN ``none+reason`` justification (ticket 20).
+
+        Returns ``(reason, "")`` on a returned envelope (the reason may still fail the
+        deterministic check) or ``(\"\", failure)`` where ``failure`` is ``"calls"``
+        or ``"malformed-output"``.
+        """
+        async def call() -> Any:
+            return await llm_step(model, "verify", artifacts={
+                "goal": spec.goal,
+                "acceptance_criteria": "\n".join(f"- {a}" for a in spec.acs),
+            }, question=_VERIFICATION_REASON_QUESTION)
+        raw, failure = await request_bounded(call, "verification-reason")
+        if failure:
+            return "", failure
+        reason = getattr(raw, "reason", "") if getattr(raw, "status", "") == "ok" else ""
+        return (reason if isinstance(reason, str) else ""), ""
+
+    def _required_tier() -> str:
+        required = spec.verification_required
+        return required if required in VERIFICATION_REQUIREMENTS else "any"
+
+    async def enforce_verification(tier: str) -> tuple[bool, str]:
+        """Enforce the plan's verification covenant for a claim at ``tier`` (ticket 20).
+
+        The declaration is enforced, not advisory: a VERIFIED tier at or above the
+        declared floor is a normal claim. A weaker VERIFIED tier (e.g. ``review`` when
+        ``test`` was required) is allowed ONLY with ``best_effort``, and the downgrade is
+        recorded. The ``none`` tier needs a valid written reason AND ``best_effort``; a
+        reason that fails :func:`verification_reason_problem` blocks the claim. Returns
+        ``(True, "")`` when the claim may proceed, ``(False, "calls")`` when the call
+        budget ran out, and ``(False, "blocked")`` otherwise.
+        """
+        nonlocal verification_tier, verification_reason
+        nonlocal verification_reason_problem_text, verification_downgraded
+        nonlocal verification_downgrade_reason
+        verification_tier = tier
+        required = _required_tier()
+        floor = _REQUIRED_FLOOR[required]
+        if tier == "none":
+            if not spec.best_effort:
+                return False, "blocked"
+            reason, failure = await obtain_verification_reason()
+            if failure:
+                return False, failure
+            verification_reason = reason
+            verification_reason_problem_text = verification_reason_problem(reason)
+            if verification_reason_problem_text:
+                return False, "blocked"
+            verification_downgraded = True
+            verification_downgrade_reason = (
+                f"best_effort: no test and no review could carry verification; claimed "
+                f"at the none+reason tier instead of the required {required!r} tier")
+            emit("verification_unverified", required=required, reason=reason)
+            return True, ""
+        if _TIER_RANK[tier] >= floor:
+            return True, ""
+        if not spec.best_effort:
+            return False, "blocked"
+        verification_downgraded = True
+        verification_downgrade_reason = (
+            f"best_effort: the required verification tier {required!r} could not be met; "
+            f"claimed at the weaker {tier!r} tier")
+        emit("verification_downgraded", required=required, attained=tier)
+        return True, ""
 
     async def review_blocker(reason: str, unavailable_reason: str) -> bool:
         """Ticket 19 round 3 (FIX 1): route a claim blocker that more implementation
         cannot clear — an unresolvable criterion, or a missing/non-discriminating declared
         test case — into the owner's REVIEW path ("a test cannot carry the verification").
 
-        Returns True ONLY when a grounded review pass allows the claim (the caller then
-        claims on ``verification_basis="review"``). False means this attempt may not
-        claim: no reviewer was injected (an honest stop, recorded with
-        ``unavailable_reason`` — never a ladder burn), the review was unaffordable (a
-        ``calls`` stop), it stayed malformed, or it rejected the diff (the review becomes
-        the next attempt's context). A blocker may spend at most ONE review call: once
-        review is entered, ``verification_basis == "review"`` and the ordinary
-        per-attempt review loop owns every later evaluation.
+        Returns True ONLY when the claim may proceed (a grounded review pass, or — ticket
+        20 — a best-effort ``reason`` mode where the written reason is checked at the
+        claim gate). False means this attempt may not claim: no reviewer was injected and
+        no ``best_effort`` opt-in (an honest stop, recorded with ``unavailable_reason`` —
+        never a ladder burn), the review was unaffordable (a ``calls`` stop), it stayed
+        malformed, or it rejected the diff (the review becomes the next attempt's
+        context). A blocker may spend at most the declared review rounds: once review is
+        entered, ``verification_basis == "review"`` and the ordinary per-attempt review
+        loop owns every later evaluation.
         """
-        nonlocal last_excerpts
+        nonlocal last_excerpts, review_approved
         if not enter_review(reason):
             stop("honest-failure", unavailable_reason, unavailable_reason)
             return False
-        verdict, failure = await run_review(reason)
-        if failure == "calls":
+        if verification_basis == "reason":
+            # best_effort with no reviewer: the written-reason claim is decided at the
+            # claim gate (enforce_verification).
+            return True
+        status, why = await run_reviews(reason)
+        if status is None:
             stop("honest-failure", "call-budget", "calls")
             return False
-        if failure:
-            last_excerpts = ["review envelope stayed malformed after bounded retries"]
+        if not status:
+            last_excerpts = [f"review did not approve: {why}"]
             return False
-        if not verdict.approved:
-            last_excerpts = [f"review rejected: {verdict.detail or verdict.evidence}"]
-            return False
+        review_approved = True
         return True
 
     async def consult_judge(jr: JudgeRequest) -> tuple[JudgeVerdict | None, str]:
@@ -2642,11 +2876,49 @@ async def run_leaf(
             )
         stop("honest-failure", f"{message}: {problem}", reason)
 
+    def _wrote_code() -> bool:
+        """True when the run wrote source (a non-owned path) in any attempt."""
+        return any(not owned_paths(rel) for attempt in attempts
+                   for rel in attempt.touched_files)
+
+    def _terminal_tier() -> str:
+        """The strongest VERIFIED evidence the terminal state actually rested on.
+
+        A claim's tier is set by :func:`enforce_verification`. For a non-claim the
+        terminal evidence is the run's own discriminating test (``test``) when one was
+        observed red, else a performed review (``review``), else ``none``.
+        """
+        if self_test is not None and test_rewrites == 0:
+            return "test"
+        if review_verdicts:
+            return "review"
+        return "none"
+
     def finish() -> LeafOutcome:
         reason = exhaustion_reason
         if last_iv_reason and not claimed:
             reason = f"{reason}; independent-test {last_iv_reason}" if reason else f"independent-test {last_iv_reason}"
         last = iv_verdicts[-1] if iv_verdicts else None
+        tier = verification_tier or (_terminal_tier() if not claimed else "none")
+        wrote = _wrote_code()
+        record = None
+        if wrote:
+            record = VerificationRecord(
+                wrote_code=True, tier=tier, reason=verification_reason,
+                reason_problem=verification_reason_problem_text,
+                reviews=tuple(review_verdicts), review_rounds=_declared_review_rounds(),
+                required=_required_tier(), best_effort=bool(spec.best_effort),
+                downgraded=verification_downgraded,
+                downgrade_reason=verification_downgrade_reason)
+        verified = tier in ("test", "review")
+        if claimed and verified:
+            claim_status = "verified-success"
+        elif claimed:
+            claim_status = "unverified-success"
+        elif verified:
+            claim_status = "verified-failure"
+        else:
+            claim_status = "unverified-failure"
         return LeafOutcome(
             claimed=claimed,
             signal=signal,
@@ -2691,17 +2963,29 @@ async def run_leaf(
             malformed_steps=list(malformed_steps),
             judge_unavailable=judge_unavailable,
             needs_user=needs_user,
+            verification=record,
+            verified=verified,
+            claim_status=claim_status,
         )
 
     def enter_review(why: str) -> bool:
-        """Switch to mandatory REVIEW-BASED verification (ticket 19 B).
+        """Switch to mandatory REVIEW-BASED verification (ticket 19 B), or — ticket 20 —
+        to best-effort ``reason`` mode when no reviewer was injected.
 
-        Returns False when no ``review`` producer was injected (the leaf then keeps its
-        conservative honest stop, since nothing can verify the diff).
+        Returns False when no ``review`` producer was injected AND the plan did not opt
+        into ``best_effort`` (the leaf then keeps its conservative honest stop, since
+        nothing can verify the diff). With ``best_effort`` set, ``reason`` mode lets the
+        loop proceed and the written-reason claim gate decide; the claim is recorded as
+        UNVERIFIED.
         """
         nonlocal verification_basis, review_reason
         if review is None:
-            return False
+            if not spec.best_effort:
+                return False
+            verification_basis = "reason"
+            review_reason = why
+            emit("verification_reason_mode", reason=why)
+            return True
         verification_basis = "review"
         review_reason = why
         emit("review_verification", reason=why)
@@ -2743,7 +3027,7 @@ async def run_leaf(
         else:
             self_test = normalized
 
-    if verification_basis != "review":
+    if verification_basis == "test":
         res = await _maybe_await(tests, workdir)
         gate = record_gate(res)
         if _is_green(res):
@@ -2786,7 +3070,7 @@ async def run_leaf(
                     self_test = normalized
                     res = await _maybe_await(tests, workdir)
                     gate = record_gate(res)
-        if verification_basis != "review" and (
+        if verification_basis == "test" and (
                 _exit_code(res) is None or (gate is not None and not gate.observed)):
             # We could not trust an observation of the run's own tests: a transport error /
             # sandbox block, or a gate report that is missing or holds no testcase. Nothing
@@ -2796,7 +3080,7 @@ async def run_leaf(
             self_test = None
             stop("honest-failure", "self-test-unverified", "self-test")
             return finish()
-        if verification_basis != "review" and _is_green(res):
+        if verification_basis == "test" and _is_green(res):
             # The one re-ask was green too: no red target. Ticket 19 A: consult the judge
             # IMMEDIATELY (spec / environment are actionable here); ticket 19 B: otherwise
             # switch to mandatory review verification when a reviewer is injected.
@@ -2821,7 +3105,7 @@ async def run_leaf(
             if not enter_review("the run's own test could not be made to fail on arrival"):
                 stop("honest-failure", "no-red-target", "no-red-target")
                 return finish()
-        if verification_basis != "review":
+        if verification_basis == "test":
             last_excerpts = excerpts_of(res)
             emit("self_test_written", path=self_test, red=True)
 
@@ -2858,6 +3142,7 @@ async def run_leaf(
         mode = _mode(attempts)
         pending_verdict: JudgeVerdict | None = None
         judge_attempted = False   # FIX 2: at most one judge consultation per attempt
+        review_approved = False   # ticket 20: recomputed each attempt (review rounds)
         emit("leaf_attempt", n=len(attempts) + 1, strategy=esc.strategy, layer=esc.layer,
              mode=mode)
         if mode == "M1":
@@ -2961,26 +3246,27 @@ async def run_leaf(
 
         # Ticket 19 round 2 (F2): an EMPTY acceptance-criteria list cannot be carried by
         # the run's own test alone; review (with the grounded evidence of F1) is mandatory.
-        if not spec.acs and verification_basis != "review" and wrote and source_rel:
+        if not spec.acs and verification_basis == "test" and wrote and source_rel:
             enter_review("the acceptance-criteria list is empty: a test basis alone "
                          "cannot carry the claim")
-        # Ticket 19 B: when no test can carry verification, the reviewer is the gate.
-        review_verdict: ReviewVerdict | None = None
+        # Ticket 19 B / ticket 20: when no test can carry verification, the declared number
+        # of INDEPENDENT reviews is the gate (ALL must approve).
         if verification_basis == "review" and wrote and source_rel:
-            review_verdict, failure = await run_review(review_reason)
-            if failure == "calls":
+            status, why = await run_reviews(review_reason)
+            if status is None:
                 stop("honest-failure", "call-budget", "calls")
                 break
-            if failure:
-                # F5: a malformed review is recorded; without an approval the attempt
-                # cannot pass and the loop continues.
-                last_excerpts = ["review envelope stayed malformed after bounded retries"]
-            elif not review_verdict.approved:
-                last_excerpts = [f"review rejected: {review_verdict.detail or review_verdict.evidence}"]
+            review_approved = bool(status)
+            if not review_approved:
+                last_excerpts = [f"review did not approve: {why}"]
 
         signature = failure_signature(last_excerpts, last_excerpts)
         if verification_basis == "review":
-            approved = bool(review_verdict is not None and review_verdict.approved)
+            approved = review_approved
+        elif verification_basis == "reason":
+            # best_effort with no test and no reviewer: the model's completed write is the
+            # only completion signal; the written-reason claim gate below decides the tier.
+            approved = bool(wrote and source_rel)
         else:
             approved = _is_green(res)
         candidate = Attempt(
@@ -2999,7 +3285,7 @@ async def run_leaf(
             candidate.verdict = prefilter(attempts, candidate)
 
         if candidate.outcome == "pass":
-            if not spec.acs and verification_basis != "review":
+            if not spec.acs and verification_basis == "test":
                 # Ticket 19 round 2 (F2): with no acceptance criteria a test basis alone
                 # can never carry the claim. A reviewer would have switched the run to
                 # review above; without one there is no claim route, so stop honestly
@@ -3009,7 +3295,7 @@ async def run_leaf(
                 stop("honest-failure", "no-acceptance-criteria", "no-acceptance-criteria")
                 break
             report = getattr(res, "gate", None)
-            if test_rewrites and verification_basis != "review":
+            if test_rewrites and verification_basis == "test":
                 # A green after the run REPLACED its own test is not a claim: the
                 # implementation satisfied a substituted test, so the result is
                 # unverified (ticket 17 round 4).
@@ -3039,7 +3325,7 @@ async def run_leaf(
             # that only asserts ``True`` is green there and cannot carry it. Without one
             # the node may not claim (a distinct, recorded reason).
             unresolved: list[str] = []
-            if verification_basis != "review":
+            if verification_basis == "test":
                 declared_by_index: dict[int, list[DeclaredTestCase]] = {}
                 for case in spec.test_cases:
                     case_index = _declared_case_index(case)
@@ -3080,7 +3366,7 @@ async def run_leaf(
                 coverage_unresolved = []
             # Ticket 19 D: the DECLARED test-case contract, verified mechanically from
             # the report. A missing file/name is a distinct, repairable failure.
-            tc_problems = ([] if verification_basis == "review"
+            tc_problems = ([] if verification_basis != "test"
                            else _declared_test_case_problems(report, spec.test_cases))
             if tc_problems and test_case_repairs < 1 and self_test and can_afford(1):
                 emit("test_case_repair", problems=tc_problems)
@@ -3151,10 +3437,13 @@ async def run_leaf(
                 test_case_problems = []
             attempts.append(candidate)
             # Ticket 19 C: the independent test is an EXTRA LABEL, never the veto. Its
-            # verdict is recorded (with its one bounded repair) but never stands between
-            # the run and a claim authorised by the run's own discriminating test.
+            # verdict is recorded (with its one bounded repair) but never stands between the
+            # run and a claim authorised by the run's own discriminating test. Ticket 20
+            # (item 7): where it is injected it is the STRONG-evidence route — an approved
+            # independent discriminator upgrades the claim to the ``test`` tier, including
+            # when review was the basis (it never overrides a REJECTED review).
             iv_approved = False
-            if verification_basis != "review" and iv is not None and can_afford(1):
+            if iv is not None and can_afford(1):
                 iv_request = _iv_request(spec, workdir, baseline)
                 original_tree = dict(spec.files)
                 final_tree = _repo_view(spec, workdir, tuple(baseline))
@@ -3177,12 +3466,48 @@ async def run_leaf(
                     iv_approved = label.approved
                     if not label.approved:
                         last_iv_reason = f"{label.reason}: {label.detail}"
+            # --- ticket 20: the ORDERED verification tier + covenant enforcement ---
+            if iv_approved:
+                # An independently authored, red-on-pristine/green-on-final test is the
+                # top (``test``) tier wherever it is available.
+                tier = "test"
+            elif verification_basis == "review":
+                tier = "review" if review_approved else "none"
+            elif verification_basis == "reason":
+                tier = "none"
+            elif self_test is not None and test_rewrites == 0:
+                tier = "test"
+            else:
+                tier = "none"
+            allowed, tier_failure = await enforce_verification(tier)
+            if not allowed:
+                if tier_failure == "calls":
+                    stop("honest-failure", "call-budget", "calls")
+                else:
+                    emit("verification_claim_blocked", tier=tier,
+                         required=_required_tier(),
+                         reason=verification_reason_problem_text)
+                    stop("honest-failure", "verification-required",
+                         "verification-required")
+                break
             claimed = True
-            claimed_basis = ("review" if verification_basis == "review"
-                             else "own-test+independent-test" if iv_approved
-                             else "own-test")
-            stop("green", "", "green")
-            emit("leaf_green", strategy=esc.strategy, after_test_rewrite=False)
+            if verification_basis == "review":
+                claimed_basis = "review+independent-test" if iv_approved else "review"
+            elif tier == "none":
+                claimed_basis = "reason"
+            elif iv_approved and verification_basis == "reason":
+                claimed_basis = "independent-test"
+            elif iv_approved:
+                claimed_basis = "own-test+independent-test"
+            else:
+                claimed_basis = "own-test"
+            if tier == "none":
+                stop("unverified", "", "unverified")
+                emit("leaf_unverified_claim", tier=tier, required=_required_tier(),
+                     reason=verification_reason)
+            else:
+                stop("green", "", "green")
+                emit("leaf_green", strategy=esc.strategy, after_test_rewrite=False)
             break
 
         attempts.append(candidate)

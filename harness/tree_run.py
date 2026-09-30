@@ -621,6 +621,9 @@ def leaf_spec_from(spec: NodeSpec, workdir: Path, *,
         write_boundary=boundary,
         test_cases=tuple(spec.test_cases),
         candidate_files=tuple(candidate_files),
+        verification_required=spec.verification_required,
+        review_rounds=spec.review_rounds,
+        best_effort=spec.best_effort,
     )
 
 
@@ -834,6 +837,12 @@ async def _plan(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget: Bud
     return decomp
 
 
+def _strongest_requirement(values: Sequence[str]) -> str:
+    """The strongest declared verification requirement across ``values`` (ticket 20)."""
+    ranked = {"any": 0, "review": 1, "test": 2}
+    return max(values, key=lambda value: ranked.get(value, 0), default="any")
+
+
 def _merge_children(children: Sequence[NodeSpec],
                     groups: Sequence[Sequence[int]]) -> list[NodeSpec]:
     """Union the children a merge group covers into one child (design §2)."""
@@ -851,6 +860,12 @@ def _merge_children(children: Sequence[NodeSpec],
             interfaces=tuple(i for s in specs for i in s.interfaces),
             kind="leaf",
             est_calls=sum(s.est_calls for s in specs),
+            # Ticket 20: the merged child carries the STRONGEST requirement and the most
+            # review rounds of its parts, and is best-effort only when every part was.
+            verification_required=_strongest_requirement(s.verification_required
+                                                         for s in specs),
+            review_rounds=max(s.review_rounds for s in specs),
+            best_effort=all(s.best_effort for s in specs),
         ))
     return merged
 

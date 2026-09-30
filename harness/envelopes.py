@@ -745,6 +745,12 @@ class ChildPlan(BaseModel):
     #: Ticket 19 D: per-criterion expected test cases (file + function names).
     test_cases: list[DeclaredTest] = Field(default_factory=list)
     est_calls: int = Field(ge=1, le=8)            # budget-allocation weight
+    # Ticket 20 planning-time covenant: the verification this child's leaf must carry
+    # (``test`` > ``review`` > ``any``), how many INDEPENDENT review rounds the review
+    # tier needs, and whether a weaker tier is an accepted best-effort fallback.
+    verification_required: Literal["test", "review", "any"] = "any"
+    review_rounds: int = Field(default=1, ge=1, le=3)
+    best_effort: bool = False
 
 
 class PlanNode(Envelope):
@@ -767,6 +773,10 @@ class PlanNode(Envelope):
     acs: list[DraftAC] = req(max_length=10)       # THIS node's AC map (leaf mandatory)
     interfaces: list[Interface] = req(max_length=8)
     test_cases: list[DeclaredTest] = Field(default_factory=list, max_length=10)  # 19 D
+    # Ticket 20 planning-time covenant for THIS node (when it runs as a leaf).
+    verification_required: Literal["test", "review", "any"] = "any"
+    review_rounds: int = Field(default=1, ge=1, le=3)
+    best_effort: bool = False
     children: list[ChildPlan] = req(max_length=15)  # [] ⇒ this node is a LEAF
 
 
@@ -800,6 +810,19 @@ class LeafReview(Envelope):
     evidence: str = req(min_length=1)
 
 
+class VerifyRecord(Envelope):
+    """The WRITTEN ``none+reason`` justification (ticket 20, ENVELOPE_SCHEMAS §27).
+
+    Used ONLY when a node wrote code and neither a discriminating test nor an independent
+    review can carry its claim. ``reason`` states why testing or reviewing was not
+    possible or not warranted; the harness checks it deterministically (non-empty, a
+    minimum length, and it must name the activity and the why), so a terse or off-topic
+    answer cannot carry a claim. A ``none+reason`` claim is recorded as UNVERIFIED.
+    """
+
+    reason: str = req(min_length=1)
+
+
 SCHEMAS: dict[str, type[Envelope]] = {
     "task_card": TaskCard,  # §1
     "fix_plan": FixPlan,  # §2.2 guided implement (ticket 05 A/B)
@@ -826,6 +849,7 @@ SCHEMAS: dict[str, type[Envelope]] = {
     "propose_growth": ProposeGrowth,  # §21
     "lesson": LessonEnvelope,  # §22 (standalone step; embedded form is Lesson)
     "plan_node": PlanNode,  # §23 (fused decompose+specify, ticket 18)
+    "verify": VerifyRecord,  # §27 (written none+reason justification, ticket 20)
 }
 
 JUDGE_STEP_PREFIX = "judge_"

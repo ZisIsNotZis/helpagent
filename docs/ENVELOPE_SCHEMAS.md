@@ -519,6 +519,9 @@ class ChildPlan(Base):
     interfaces: list[Interface]
     test_cases: list[DeclaredTest] # per-criterion expected test cases (ticket 19 D)
     est_calls: int                 # 1–8 — weight for the budget split
+    verification_required: Literal["test","review","any"]  # ticket 20 covenant
+    review_rounds: int             # 1–3 independent review rounds
+    best_effort: bool              # opt-in to a weaker tier with a recorded reason
 
 class DeclaredTest(Base):          # ticket 19 D
     ac_id: str                     # ^AC-[0-9]{1,3}$ — one of the node's ACs
@@ -533,6 +536,9 @@ class PlanNode(Envelope):
     acs: list[DraftAC]             # 0–10 — THIS node's AC map (leaf mandatory)
     interfaces: list[Interface]    # 0–8
     test_cases: list[DeclaredTest] # 0–10 — this node's declared test cases
+    verification_required: Literal["test","review","any"]  # ticket 20 covenant
+    review_rounds: int             # 1–3
+    best_effort: bool
     children: list[ChildPlan]      # 0–15 — [] ⇒ this node is a LEAF
 ```
 
@@ -602,3 +608,24 @@ class LeafReview(Envelope):
 
 **Kernel validates:** `evidence` is non-empty (grammar) and, for a `pass`, names a changed
 file or a line reference (post-hoc deterministic filter). Budget: ~120 tok.
+
+---
+
+## 27. `verify` — the written `none+reason` justification (ticket 20)
+
+Used ONLY when a node WROTE CODE and neither a discriminating test nor an independent
+review can carry its claim. With the plan's `best_effort` opt-in, the node may claim at the
+weakest (`none+reason`) tier — but only when this WRITTEN reason passes the deterministic
+check. The reason must be non-empty, at least `MIN_VERIFICATION_REASON` (24) characters,
+name testing or reviewing, AND say why testing or reviewing was not possible or not
+warranted; a terse or off-topic reason blocks the claim (an honest
+`verification-required` stop). A claim that survives is recorded as an UNVERIFIED claim
+(`verified=False`, `claim_status="unverified-success"`), never mixed into verified claims.
+
+```python
+class VerifyRecord(Envelope):
+    reason: str                    # why testing/reviewing was not possible or not warranted
+```
+
+**Kernel validates:** `reason` is non-empty (grammar) and passes the length + activity +
+why checks (`harness.leaf.verification_reason_problem`). Budget: ~80 tok.

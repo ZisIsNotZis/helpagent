@@ -39,7 +39,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from bench.blind_run import produced_files, quadrant  # noqa: E402
+from bench.blind_run import produced_files, quadrant, verified_quadrant  # noqa: E402
 from bench.external_score import ExternalScore, external_score, untouched_paths  # noqa: E402
 from bench.v2_leaf import (  # noqa: E402
     extract_acs,
@@ -103,6 +103,11 @@ def node_record(outcome: NodeOutcome) -> dict:
         # results, declared-case problems, attribution labels, and needs-user flag.
         "claimed_basis": (leaf.claimed_basis if leaf is not None else None),
         "verification_basis": (leaf.verification_basis if leaf is not None else None),
+        # Ticket 20: the explicit verification record + four-way claim status per node.
+        "verified": (leaf.verified if leaf is not None else False),
+        "claim_status": (leaf.claim_status if leaf is not None else ""),
+        "verification": (dataclasses.asdict(leaf.verification)
+                         if leaf is not None and leaf.verification is not None else None),
         "needs_user": (leaf.needs_user if leaf is not None else False),
         "review_verdicts": ([dataclasses.asdict(v) for v in leaf.review_verdicts]
                             if leaf is not None else []),
@@ -127,10 +132,37 @@ def node_record(outcome: NodeOutcome) -> dict:
     }
 
 
+def _tree_verified(outcome: NodeOutcome) -> bool:
+    """The tree's terminal verification strength (ticket 20): every terminal leaf's
+    evidence is a VERIFIED tier (``test`` or ``review``)."""
+    if outcome.leaf is not None:
+        return outcome.leaf.verified
+    if not outcome.children:
+        return False
+    return all(_tree_verified(child) for child in outcome.children)
+
+
+def _verification_tally(outcome: NodeOutcome) -> tuple[int, int]:
+    """The run-level ``(best_effort_declared, downgrades)`` count across the tree
+    (ticket 20 item 4): how many code-writing nodes opted into a weaker tier, and how
+    many actually claimed below their required tier."""
+    declared = downgrades = 0
+    if outcome.leaf is not None and outcome.leaf.verification is not None:
+        record = outcome.leaf.verification
+        declared += 1 if record.best_effort else 0
+        downgrades += 1 if record.downgraded else 0
+    for child in outcome.children:
+        child_declared, child_downgrades = _verification_tally(child)
+        declared += child_declared
+        downgrades += child_downgrades
+    return declared, downgrades
+
+
 def build_record(task_id: str, goal: str, outcome: TreeOutcome, *, withheld: list[str],
                  produced: dict[str, str], score: ExternalScore, quad: str,
                  run_wall_s: float, judge_enabled: bool, iv_enabled: bool,
-                 review_enabled: bool, acs: list[str]) -> dict:
+                 review_enabled: bool, acs: list[str], verified_quad: str = "") -> dict:
+    declared, downgrades = _verification_tally(outcome.root)
     """Assemble the persisted run record (nodes, budgets, stop reasons, split history)."""
     return {
         "task": task_id,
@@ -143,6 +175,10 @@ def build_record(task_id: str, goal: str, outcome: TreeOutcome, *, withheld: lis
         "claimed": outcome.claimed,
         "actual": score.passed,
         "quadrant": quad,
+        "verified_quadrant": verified_quad,
+        # Ticket 20 item 4: the run-level declaration + downgrade counters.
+        "best_effort_declared": declared,
+        "verification_downgrades": downgrades,
         "calls": outcome.calls,
         "tree_wall_s": outcome.wall_s,
         "run_wall_s": run_wall_s,
@@ -195,11 +231,13 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     produced = produced_files(workdir)
     score = external_score(task_dir, produced, out_dir / "grade")
     quad = quadrant(outcome.claimed, score.passed)
+    vquad = verified_quadrant(outcome.claimed, score.passed, _tree_verified(outcome.root))
 
     record = build_record(
         task["task_id"], root.goal, outcome, withheld=withheld, produced=produced,
         score=score, quad=quad, run_wall_s=wall, judge_enabled=use_judge,
-        iv_enabled=use_iv, review_enabled=use_review, acs=list(root.acs))
+        iv_enabled=use_iv, review_enabled=use_review, acs=list(root.acs),
+        verified_quad=vquad)
 
     print(f"== v2 tree: {task['task_id']} ==")
     print(f"[judge]  {'on' if use_judge else 'off (conservative baseline)'}")
@@ -210,6 +248,7 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
           f"calls={outcome.calls} budget_left={outcome.budget.calls}")
     print(f"[actual] grader_passed={score.passed} exit={score.exit}")
     print(f"[quadrant] {quad}  (tree_wall={outcome.wall_s}s run_wall={wall}s)")
+    print(f"[verification] verified={_tree_verified(outcome.root)} -> {vquad}")
     return record
 
 

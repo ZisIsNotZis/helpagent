@@ -94,12 +94,17 @@ async def llm(step_type: str,
   schema validation; ledger/stats recording; budget accounting; erasure — the failed
   attempt's text is never returned to a later invocation, only a failure summary.
 - **Schema library.** `harness/envelopes.SCHEMAS` holds one grammar envelope per
-  `step_type` (ENVELOPE_SCHEMAS §0–§23, §26), **25 registered** as of ticket 19. Ticket 18's
+  `step_type` (ENVELOPE_SCHEMAS §0–§23, §26, §27), **26 registered** as of ticket 20. Ticket 18's
   newest was `plan_node` (ENVELOPE_SCHEMAS §23): the node tree's ONE fused
   decompose+specify call — a node's `children` plus its own goal/behavior/files/ACs plus the
-  declared per-criterion test cases (`test_cases`, ticket 19 D) in a single invocation.
+  declared per-criterion test cases (`test_cases`, ticket 19 D) and the per-node verification
+  covenant (`verification_required`/`review_rounds`/`best_effort`, ticket 20) in a single
+  invocation.
   Ticket 19 adds `leaf_review` (ENVELOPE_SCHEMAS §26): the review-based verification verdict
   used when no test can carry verification (goal + ACs + final diff → pass/fail + evidence).
+  Ticket 20 adds `verify` (ENVELOPE_SCHEMAS §27): the WRITTEN `none+reason` justification used
+  only when the plan opted into `best_effort` and neither a discriminating test nor an
+  independent review could carry the claim; a claim that survives it is recorded UNVERIFIED.
 
 ### 3.2 `exec`
 

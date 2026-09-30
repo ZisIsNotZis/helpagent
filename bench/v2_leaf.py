@@ -45,7 +45,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from bench.blind_run import produced_files, quadrant  # noqa: E402
+from bench.blind_run import produced_files, quadrant, verified_quadrant  # noqa: E402
 from bench.external_score import (  # noqa: E402
     ExternalScore,
     external_score,
@@ -247,7 +247,7 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
                  produced: dict[str, str], score: ExternalScore, quad: str,
                  run_wall_s: float, judge_enabled: bool = False,
                  iv_enabled: bool = False, review_enabled: bool = False,
-                 acs: list[str] | None = None) -> dict:
+                 acs: list[str] | None = None, verified_quad: str = "") -> dict:
     """Assemble the persisted run record. One place, so the JSON that lands in
     ``run.json`` and the shape the tests pin cannot drift apart — including the
     wasted escalations that used to live only in the process-global ledger, every
@@ -268,6 +268,19 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         "claimed": outcome.claimed,
         "claimed_basis": outcome.claimed_basis,
         "verification_basis": outcome.verification_basis,
+        # Ticket 20: the explicit verification record (ordered tier, written reason and
+        # its deterministic check, the independent review verdicts, and any recorded
+        # best-effort downgrade), plus the four-way claim status the scoring layer reads.
+        "verified": outcome.verified,
+        "claim_status": outcome.claim_status,
+        "verification": (dataclasses.asdict(outcome.verification)
+                         if outcome.verification is not None else None),
+        # Ticket 20 item 4: the run-level record of the best_effort declaration and the
+        # downgrade count, so an "everywhere best_effort" plan cannot stay a silent escape.
+        "best_effort_declared": bool(outcome.verification is not None
+                                     and outcome.verification.best_effort),
+        "verification_downgrades": (1 if outcome.verification is not None
+                                    and outcome.verification.downgraded else 0),
         "review_verdicts": [dataclasses.asdict(v) for v in outcome.review_verdicts],
         # Ticket 19 E/D: per-requirement artifact coverage and the declared test-case
         # contract failures that blocked a claim.
@@ -280,6 +293,7 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         "needs_user": outcome.needs_user,
         "actual": score.passed,
         "quadrant": quad,
+        "verified_quadrant": verified_quad,
         "signal": outcome.signal,
         "stop_reason": outcome.stop_reason,
         "exhausted": outcome.exhausted,
@@ -596,11 +610,12 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     produced = produced_files(workdir)
     score = external_score(task_dir, produced, out_dir / "grade")
     quad = quadrant(outcome.claimed, score.passed)
+    vquad = verified_quadrant(outcome.claimed, score.passed, outcome.verified)
 
     record = build_record(
         task["task_id"], spec.goal, outcome, withheld=withheld, produced=produced,
         score=score, quad=quad, run_wall_s=wall, judge_enabled=use_judge,
-        iv_enabled=use_iv, review_enabled=use_review, acs=spec.acs)
+        iv_enabled=use_iv, review_enabled=use_review, acs=spec.acs, verified_quad=vquad)
 
     print(f"== v2 leaf: {task['task_id']} ==")
     print(f"[judge]  {'on' if use_judge else 'off (conservative baseline)'} "
@@ -615,6 +630,9 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     print(f"[actual] grader_passed={score.passed} exit={score.exit} "
           f"suspected_contaminated={score.suspected_contaminated_grade}")
     print(f"[quadrant] {quad}  (calls={outcome.calls} wall={outcome.wall_s}s)")
+    print(f"[verification] basis={outcome.verification_basis} "
+          f"tier={getattr(outcome.verification, 'tier', None)} "
+          f"verified={outcome.verified} status={outcome.claim_status} -> {vquad}")
     print(f"[self_test] {outcome.self_test or 'none'}  withheld={len(withheld)} grader path(s)")
     return record
 

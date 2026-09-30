@@ -35,7 +35,7 @@ from typing import Any, Literal
 
 from harness.budget import Budget, group_weights
 from harness.envelopes import ChildPlan, PlanNode, file_tokens
-from harness.leaf import DeclaredTestCase
+from harness.leaf import VERIFICATION_REQUIREMENTS, DeclaredTestCase
 from harness.runner import llm_step
 from harness.tree import Finding, ValidationFindings
 
@@ -140,6 +140,12 @@ class NodeSpec:
     #: Ticket 19 D: the DECLARED per-criterion test cases (file + function names) the
     #: node's leaf must expose and pass. Empty when the plan declared none.
     test_cases: tuple[DeclaredTestCase, ...] = ()
+    #: Ticket 20 planning-time covenant: the verification the plan requires of this node's
+    #: leaf (``test`` | ``review`` | ``any``), how many INDEPENDENT review rounds the
+    #: review tier needs (1..3), and whether a weaker tier is an accepted fallback.
+    verification_required: str = "any"
+    review_rounds: int = 1
+    best_effort: bool = False
 
 
 @dataclass(frozen=True)
@@ -174,6 +180,9 @@ def _child_spec_from(child: ChildPlan) -> NodeSpec:
         est_calls=child.est_calls,
         test_cases=tuple(DeclaredTestCase(t.ac_id, t.file, tuple(t.names))
                          for t in child.test_cases),
+        verification_required=child.verification_required,
+        review_rounds=child.review_rounds,
+        best_effort=child.best_effort,
     )
 
 
@@ -190,6 +199,9 @@ def decomposition_from_envelope(env: PlanNode) -> Decomposition:
         implementation_notes=env.implementation_notes,
         test_cases=tuple(DeclaredTestCase(t.ac_id, t.file, tuple(t.names))
                          for t in env.test_cases),
+        verification_required=env.verification_required,
+        review_rounds=env.review_rounds,
+        best_effort=env.best_effort,
     )
     return Decomposition(spec=spec, children=children,
                          signature=decomposition_signature(children))
@@ -209,6 +221,28 @@ def _canon_set(paths: Sequence[str], add, label: str) -> set[str]:
         else:
             out.add(canonical)
     return out
+
+
+def _verification_findings(label: str, files: Sequence[str], required: str,
+                            review_rounds: Any, kind: NodeKind, add,
+                            *, leaf_kind: str = "leaf-empty-files") -> None:
+    """Ticket 20 STRUCTURAL hard checks, applied at plan construction (never later).
+
+    A LEAF node MUST have a non-empty file list (a leaf writes code); a non-leaf node MAY
+    have code, and if it does it must declare that file list. The declared verification
+    requirement and review-round count are validated against their closed domains here so
+    an out-of-domain declaration invalidates the node at construction.
+    """
+    if kind == "leaf" and not files:
+        add(leaf_kind,
+            f"{label} is a leaf with an empty file list (a leaf must write code)")
+    if required not in VERIFICATION_REQUIREMENTS:
+        add("bad-verification-required",
+            f"{label} verification_required={required!r} not in {VERIFICATION_REQUIREMENTS}")
+    if not isinstance(review_rounds, int) or isinstance(review_rounds, bool) \
+            or not 1 <= review_rounds <= 3:
+        add("bad-review-rounds",
+            f"{label} review_rounds={review_rounds!r} must be an integer in 1..3")
 
 
 def validate_decomposition(
@@ -242,6 +276,8 @@ def validate_decomposition(
         add("child-count", f"{len(d.children)} children exceeds max_children {max_children}")
 
     _canon_set(node.files, add, "node")
+    _verification_findings("node", node.files, node.verification_required,
+                           node.review_rounds, node.kind, add)
 
     if node.kind == "leaf":
         if d.children:
@@ -256,6 +292,9 @@ def validate_decomposition(
 
     for i, child in enumerate(d.children):
         cset = _canon_set(child.files, add, f"child {i}")
+        _verification_findings(f"child {i}", child.files, child.verification_required,
+                               child.review_rounds, child.kind, add,
+                               leaf_kind="leaf-child-empty-files")
         outside = sorted(cset - parent_canon)
         if outside:
             add("child-outside-boundary",
@@ -392,6 +431,12 @@ def _plan_node_question(evidence: str, depth: int) -> str:
          "the ac_id, the test FILE, and the test FUNCTION NAMES that must exist and "
          "pass. The harness verifies these mechanically from the report, so name them "
          "concretely (e.g. ac_id AC-1, file tests/test_x.py, names [test_ac1_goal])."),
+        ("DECLARE the verification each node must carry: verification_required is "
+         "'test' when a discriminating test MUST carry the claim, 'review' when an "
+         "independent review is enough, or 'any' for either. review_rounds (1-3) is how "
+         "many INDEPENDENT reviews the review tier needs; best_effort=true is an EXPLICIT "
+         "opt-in to a weaker tier (recorded and counted) when the requirement genuinely "
+         "cannot be tested or reviewed. Do NOT set best_effort everywhere."),
     ]
     if evidence:
         lines.append("PRIOR ATTEMPT WAS REJECTED — use this as evidence and differ:\n"

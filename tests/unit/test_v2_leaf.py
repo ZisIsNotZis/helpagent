@@ -33,6 +33,7 @@ from harness.fake_model import FakeModelRunner, schema_violation
 from harness.gate_report import GateReport
 from harness.leaf import (
     LADDER,
+    VERIFICATION_TIERS,
     DeclaredTestCase,
     Escalation,
     IndependentTestCandidate,
@@ -44,6 +45,7 @@ from harness.leaf import (
     LeafSpec,
     ReviewRequest,
     ReviewVerdict,
+    VerificationRecord,
     _criterion_unresolved,
     _declared_test_case_problems,
     _requirement_coverage,
@@ -52,6 +54,7 @@ from harness.leaf import (
     escalate,
     evaluate_independent_test,
     run_leaf,
+    verification_reason_problem,
 )
 from harness.runner import SchemaViolation, ledger_entries, reset_ledger_for_tests
 
@@ -3480,3 +3483,265 @@ def test_malformed_steps_are_recorded_on_the_run_record():
                           quad="missed-success", run_wall_s=1.0)
     assert record["malformed_steps"] == ["self-test", "implement"]
     json.dumps(record)
+
+
+# ===========================================================================
+# ticket 20: the verification covenant (ordered tiers, checked reason, reviews)
+# ===========================================================================
+
+
+def verify_env(reason: str, status: str = "ok") -> dict:
+    return {"status": status, "comment": "justify", "reason": reason}
+
+
+GOOD_REASON = ("no test can pin this timing-dependent warning and no reviewer was "
+               "available to check the diff")
+
+
+class ScriptedReview:
+    """A stateful reviewer: one verdict per call, the last repeating."""
+
+    def __init__(self, verdicts):
+        self._verdicts = list(verdicts)
+        self.calls = 0
+
+    def __call__(self, request: ReviewRequest) -> ReviewVerdict:
+        verdict = self._verdicts[min(self.calls, len(self._verdicts) - 1)]
+        self.calls += 1
+        return verdict(request) if callable(verdict) else verdict
+
+
+def _passing_review(request: ReviewRequest) -> ReviewVerdict:
+    changed = next(iter(request.final), "pkg/calc.py")
+    return ReviewVerdict(approved=True, evidence=f"{changed}:1 implements the goal")
+
+
+def _rejecting_review(request: ReviewRequest) -> ReviewVerdict:
+    return ReviewVerdict(approved=False, detail="the goal is not met")
+
+
+def test_verification_tier_order_is_test_review_none():
+    """The ORDERED tier list, and the deterministic check on the ``none+reason`` text."""
+    assert VERIFICATION_TIERS == ("test", "review", "none")
+    # empty / too short / off-topic all fail
+    assert verification_reason_problem("") != ""
+    assert verification_reason_problem("too short") != ""
+    assert verification_reason_problem("nothing to say here at all really") != ""
+    # names the activity but not WHY
+    assert verification_reason_problem("we did not run a test for this helper function") != ""
+    # says WHY but names no activity
+    assert verification_reason_problem("cannot fix this properly right now, sorry about that") != ""
+    # names the activity AND the why: accepted
+    assert verification_reason_problem(
+        "testing is not possible because the clock value is only injected in production") == ""
+    assert verification_reason_problem(GOOD_REASON) == ""
+
+
+def test_discriminating_own_test_claims_at_the_test_tier_verified(tmp_path):
+    """The strong-evidence route: a red-on-arrival own test that greens unmodified claims
+    at the ``test`` tier and is a VERIFIED success."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=4, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 0]))
+
+    assert out.claimed is True and out.stop_reason == "green"
+    assert out.verification is not None and out.verification.wrote_code is True
+    assert out.verification.tier == "test"
+    assert out.verification.verified is True and out.verification.reason == ""
+    assert out.verified is True and out.claim_status == "verified-success"
+
+
+def test_review_tier_claim_records_the_independent_review(tmp_path):
+    """A claim on the review route carries a ``review`` tier and every independent verdict."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        review=_passing_review, run_tests=ScriptedTests([0, 0, 0]))
+
+    assert out.claimed is True and out.verification_basis == "review"
+    assert out.verified is True and out.claim_status == "verified-success"
+    assert out.verification.tier == "review" and out.verification.verified is True
+    assert len(out.verification.reviews) == 1 and out.verification.review_rounds == 1
+    assert out.verification.reviews[0].evidence
+
+
+def test_review_rounds_require_every_independent_review_to_approve(tmp_path):
+    """Ticket 20 item 5: ``review_rounds`` separate fresh-context reviews combine ALL-must-
+    approve. A rejection on the second round continues the work; every verdict recorded."""
+    spec = dataclasses.replace(make_spec(), review_rounds=2)
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST, SELF_TEST_ALT,
+        impl("def result():\n    return 1\n"),
+        impl("def result():\n    return 42\n"),
+    ]})
+    review = ScriptedReview([_passing_review, _rejecting_review,
+                             _passing_review, _passing_review])
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=14, deadline_ts=_FAR_FUTURE),
+                        review=review, run_tests=ScriptedTests([0, 0, 0, 0]))
+
+    assert out.claimed is True and out.verification_basis == "review"
+    assert review.calls == 4                      # 2 rounds rejected + 2 rounds approved
+    assert [v.approved for v in out.review_verdicts] == [True, False, True, True]
+    assert out.verification.review_rounds == 2
+    assert out.verification.tier == "review"
+
+
+def test_best_effort_none_reason_claims_unverified(tmp_path):
+    """Items 2-3: no test, no reviewer, ``best_effort`` + a substantive written reason
+    claims at the ``none+reason`` tier and is recorded as an UNVERIFIED success."""
+    spec = dataclasses.replace(make_spec(), best_effort=True)
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({
+        "write_test": [SELF_TEST, SELF_TEST_ALT, impl()],
+        "verify": [verify_env(GOOD_REASON)]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=10, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([0, 0, 0]))
+
+    assert out.claimed is True and out.stop_reason == "unverified"
+    assert out.signal == "unverified" and out.claimed_basis == "reason"
+    assert out.verified is False and out.claim_status == "unverified-success"
+    assert out.verification.tier == "none"
+    assert out.verification.reason == GOOD_REASON and out.verification.reason_ok is True
+    assert out.verification.best_effort is True and out.verification.downgraded is True
+    assert "verification_reason_mode" in ledger_kinds()
+    assert "leaf_unverified_claim" in ledger_kinds()
+
+
+def test_best_effort_invalid_reason_blocks_the_claim(tmp_path):
+    """Item 2: a terse/off-topic reason is CHECKED, not decorative — no claim, honest stop."""
+    spec = dataclasses.replace(make_spec(), best_effort=True)
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({
+        "write_test": [SELF_TEST, SELF_TEST_ALT, impl()],
+        "verify": [verify_env("nope")]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=10, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([0, 0, 0]))
+
+    assert out.claimed is False and out.stop_reason == "verification-required"
+    assert out.verified is False and out.claim_status == "unverified-failure"
+    assert out.verification.tier == "none"
+    assert out.verification.reason == "nope"
+    assert out.verification.reason_problem != ""
+    assert "verification_claim_blocked" in ledger_kinds()
+
+
+def test_best_effort_missing_reason_envelope_blocks_the_claim(tmp_path):
+    """An ``unable`` verify envelope yields no reason ⇒ the same honest stop."""
+    spec = dataclasses.replace(make_spec(), best_effort=True)
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({
+        "write_test": [SELF_TEST, SELF_TEST_ALT, impl()],
+        "verify": [{"status": "unable", "comment": "cannot", "unable_reason": "no reason"}]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=10, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([0, 0, 0]))
+
+    assert out.claimed is False and out.stop_reason == "verification-required"
+    assert out.verification.reason == "" and out.verification.reason_problem != ""
+
+
+def test_no_reviewer_without_best_effort_keeps_the_conservative_stop(tmp_path):
+    """Item 4: ``best_effort`` is the ONLY opt-in to ``reason`` mode; absent it, no
+    reviewer keeps the pre-ticket-20 honest stop."""
+    spec = make_spec()          # best_effort defaults False
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([0, 0]))
+
+    assert out.claimed is False and out.stop_reason == "no-red-target"
+    assert out.verification_basis == "test"     # never entered review/reason mode
+    assert out.verification is None             # no code was written
+
+
+def test_required_test_met_only_by_review_without_best_effort_blocks(tmp_path):
+    """Item 4: the declared tier is ENFORCED — a review-tier claim cannot satisfy a
+    ``test`` requirement without the recorded best-effort downgrade."""
+    spec = dataclasses.replace(make_spec(), verification_required="test")
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        review=_passing_review, run_tests=ScriptedTests([0, 0, 0]))
+
+    assert out.claimed is False and out.stop_reason == "verification-required"
+    assert out.verification.tier == "review"
+    assert out.verified is True and out.claim_status == "verified-failure"
+    assert out.verification.downgraded is False
+
+
+def test_required_test_with_best_effort_records_the_downgrade(tmp_path):
+    """Item 4: with ``best_effort`` the weaker VERIFIED (review) tier is allowed, and the
+    downgrade declaration + reason are recorded."""
+    spec = dataclasses.replace(make_spec(), verification_required="test", best_effort=True)
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        review=_passing_review, run_tests=ScriptedTests([0, 0, 0]))
+
+    assert out.claimed is True and out.verification_basis == "review"
+    assert out.verification.required == "test" and out.verification.tier == "review"
+    assert out.verified is True and out.claim_status == "verified-success"
+    assert out.verification.downgraded is True
+    assert "test" in out.verification.downgrade_reason
+    assert "verification_downgraded" in ledger_kinds()
+
+
+def test_run_record_carries_the_verification_record_and_status():
+    """Item 3: the persisted record carries the record, the verified flag, the four-way
+    claim status, and the separate verified-quadrant."""
+    from bench.external_score import ExternalScore
+    from bench.v2_leaf import build_record
+
+    outcome = LeafOutcome(
+        claimed=True, signal="unverified", attempts=[], calls=3, wall_s=1.0,
+        self_test=None, questions=[], exhausted=False, exhaustion_reason="",
+        layers_used=[], stop_reason="unverified", verified=False,
+        claim_status="unverified-success",
+        verification=VerificationRecord(
+            wrote_code=True, tier="none", reason=GOOD_REASON, review_rounds=2,
+            required="test", best_effort=True, downgraded=True,
+            downgrade_reason="best_effort: the required tier 'test' could not be met"))
+    score = ExternalScore(passed=True, exit=0, notes=[], work_root="", applied=[], skipped=[])
+
+    record = build_record("T-x", "goal", outcome, withheld=[], produced={}, score=score,
+                          quad="true-success", run_wall_s=1.0,
+                          verified_quad="unverified-success")
+    assert record["verified"] is False
+    assert record["claim_status"] == "unverified-success"
+    assert record["verification"]["tier"] == "none"
+    assert record["verification"]["reason"] == GOOD_REASON
+    assert record["verification"]["required"] == "test"
+    assert record["verified_quadrant"] == "unverified-success"
+    assert record["best_effort_declared"] is True
+    assert record["verification_downgrades"] == 1
+    json.dumps(record)
+
+
+def test_verified_quadrant_separates_unverified_claims():
+    """Item 3: the scoring layer can separate the four outcomes."""
+    from bench.blind_run import verified_quadrant
+
+    assert verified_quadrant(True, True, True) == "verified-success"
+    assert verified_quadrant(True, True, False) == "unverified-success"
+    assert verified_quadrant(True, False, True) == "verified-failure"
+    assert verified_quadrant(True, False, False) == "unverified-failure"
+
+
+def test_review_route_is_upgraded_to_the_test_tier_by_an_independent_test(tmp_path):
+    """Item 7: the independent test is the strong-evidence route — an approved
+    red-on-pristine/green-on-final test upgrades a review-mode claim to the test tier."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
+                        review=_passing_review, iv=lambda request: iv_candidate(),
+                        run_tests=ScriptedTests([0, 0, 0, 1, 0]))
+
+    assert out.claimed is True and out.verification_basis == "review"
+    assert out.iv_verdicts[-1].approved is True
+    assert out.claimed_basis == "review+independent-test"
+    assert out.verification.tier == "test" and out.verified is True
+    assert out.claim_status == "verified-success"

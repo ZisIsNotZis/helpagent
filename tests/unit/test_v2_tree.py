@@ -1513,3 +1513,121 @@ def test_tree_run_record_carries_the_new_leaf_fields():
     assert node_rec["coverage"][0]["files"] == ("pkg/a.py",)
     assert node_rec["judge_verdicts"][0]["implementation_wrong"] is True
     assert node_rec["needs_user"] is False
+
+
+# ===========================================================================
+# ticket 20: the verification covenant (structural hard checks + plan wiring)
+# ===========================================================================
+
+
+def _findings(spec, children=(), *, parent=("pkg/a.py",), depth=0, cap=4, max_children=15):
+    d = Decomposition(spec=spec, children=tuple(children), signature="sig")
+    return validate_decomposition(d, parent_files=set(parent), candidate_files=set(parent),
+                                  depth=depth, depth_cap=cap, max_children=max_children).items
+
+
+def test_leaf_node_without_files_is_invalid_at_construction():
+    """Item 6: a LEAF that declares no file list (writes no code) is invalid at plan
+    construction, never later."""
+    findings = _findings(NodeSpec(goal="root", files=(), acs=("c",), kind="leaf"))
+    assert any(f.kind == "leaf-empty-files" for f in findings)
+
+
+def test_non_leaf_node_may_declare_or_omit_a_file_list():
+    """Item 6: a non-leaf node MAY have code (a file list) and is not invalidated when it
+    omits one."""
+    with_code = _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=(), kind="internal"),
+                          [NodeSpec(goal="one", files=("pkg/a.py",), acs=("c",))])
+    without = _findings(NodeSpec(goal="root", files=(), acs=(), kind="internal"),
+                        [NodeSpec(goal="one", files=("pkg/a.py",), acs=("c",))])
+    assert not any(f.kind == "leaf-empty-files" for f in (*with_code, *without))
+    assert not any(f.kind == "internal-without-children" for f in (*with_code, *without))
+
+
+def test_leaf_child_without_files_is_invalid_at_construction():
+    findings = _findings(
+        NodeSpec(goal="root", files=("pkg/a.py",), acs=(), kind="internal"),
+        [NodeSpec(goal="one", files=(), acs=("c",), kind="leaf")])
+    assert any(f.kind == "leaf-child-empty-files" for f in findings)
+
+
+def test_out_of_domain_verification_declaration_invalidates_the_node():
+    """Item 4/6: the declared tier and review rounds are validated at construction."""
+    findings = _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",), kind="leaf",
+                                  verification_required="sometimes"))
+    assert any(f.kind == "bad-verification-required" for f in findings)
+    rounds = _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",), kind="leaf",
+                                review_rounds=9))
+    assert any(f.kind == "bad-review-rounds" for f in rounds)
+
+
+def test_covenant_valid_leaf_declaration_has_no_findings():
+    assert _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",), kind="leaf",
+                              verification_required="test", review_rounds=3,
+                              best_effort=True)) == []
+
+
+def test_plan_node_carries_the_verification_covenant():
+    """Item 4: the fused plan envelope carries the per-node covenant and it survives the
+    translation into a :class:`Decomposition` (both the node and its children)."""
+    base = plan_env([{**child("one", ["pkg/a.py"]),
+                      "verification_required": "test", "review_rounds": 2,
+                      "best_effort": True}],
+                    files=("pkg/a.py",))
+    payload = {"status": "ok", "comment": "c", **base,
+               "verification_required": "review", "review_rounds": 3, "best_effort": True}
+    decomp = decomposition_from_envelope(PlanNode.model_validate(payload))
+    assert (decomp.spec.verification_required, decomp.spec.review_rounds,
+            decomp.spec.best_effort) == ("review", 3, True)
+    assert (decomp.children[0].verification_required, decomp.children[0].review_rounds,
+            decomp.children[0].best_effort) == ("test", 2, True)
+
+
+def test_plan_node_envelope_enforces_the_covenant_domain():
+    base = plan_env([child("one", ["pkg/a.py"])], files=("pkg/a.py",))
+    with pytest.raises(ValidationError):
+        PlanNode.model_validate({"status": "ok", "comment": "c", **base,
+                                 "verification_required": "maybe"})
+    with pytest.raises(ValidationError):
+        PlanNode.model_validate({"status": "ok", "comment": "c", **base, "review_rounds": 0})
+    with pytest.raises(ValidationError):
+        PlanNode.model_validate({"status": "ok", "comment": "c", **base, "review_rounds": 4})
+
+
+def test_leaf_spec_from_carries_the_verification_covenant(tmp_path):
+    """Item 4 wiring: the node's declaration reaches the leaf's ``LeafSpec``."""
+    from harness.tree_run import leaf_spec_from
+
+    spec = NodeSpec(goal="g", files=("pkg/a.py",), acs=("c",), kind="leaf",
+                    verification_required="test", review_rounds=2, best_effort=True)
+    leaf_spec = leaf_spec_from(spec, tmp_path, root_grader_paths=(_GRADER,))
+    assert leaf_spec.verification_required == "test"
+    assert leaf_spec.review_rounds == 2
+    assert leaf_spec.best_effort is True
+
+
+def test_planner_guidance_declares_the_verification_covenant():
+    """Item 4: the PlanNode prompt asks the planner for the per-node verification tier,
+    the review rounds, and the best-effort opt-in."""
+    from harness.node import _plan_node_question
+
+    question = _plan_node_question("", 0)
+    assert "verification_required" in question
+    assert "review_rounds" in question
+    assert "best_effort" in question
+
+
+def test_tree_run_record_counts_best_effort_declarations_and_downgrades():
+    """Item 4: the run-level counters make an 'everywhere best_effort' plan auditable."""
+    from bench.v2_tree import _verification_tally
+    from harness.leaf import VerificationRecord
+    from harness.tree_run import NodeOutcome
+
+    record = VerificationRecord(wrote_code=True, tier="review", required="test",
+                                best_effort=True, downgraded=True,
+                                downgrade_reason="best_effort: met 'review', required 'test'")
+    leaf = leaf_outcome(verification=record, verified=True,
+                        claim_status="verified-success")
+    root = NodeOutcome(node_id="root", claimed=True, stop_reason="closed", children=[
+        NodeOutcome(node_id="n", claimed=True, stop_reason="closed", leaf=leaf)])
+    assert _verification_tally(root) == (1, 1)
