@@ -114,12 +114,16 @@ from harness.how import (
     HowList,
     ManagerDecision,
     Selection,
+    TestPoint,
     abandon_candidate,
     decide_after_failure,
+    extra_test_points,
     how_exploration_limit,
     how_list_from_envelope,
     make_how,
     pick,
+    planned_test_points,
+    point_results,
     select_key,
 )
 from harness.runner import llm_step, note
@@ -162,16 +166,29 @@ class CandidateRecord:
     selection: Selection | None = None
     evidence: str = ""
     won: bool = False
+    #: Ticket 20 step 2b-ii: the DECLARED test points this candidate's plan named
+    #: (``{name, file, verifies, ac_id}``) — the run-record copy of the contract the
+    #: candidate was scored against — and any EXTRA tests it collected beyond them.
+    planned_points: list[dict] = field(default_factory=list)
+    deviations: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
             "how_id": self.how_id, "rank": self.rank, "status": self.status,
             "directory": self.directory,
             "selection": (list(self.selection.key) if self.selection is not None else None),
+            "test_covered": (self.selection.test_covered
+                             if self.selection is not None else 0),
+            "test_pass_rate": (self.selection.test_pass_rate
+                               if self.selection is not None else 0.0),
+            "review_score": (self.selection.review_score
+                             if self.selection is not None else 0),
             "needs_repair": bool(self.selection is not None and self.selection.needs_repair),
             "repair_reason": (self.selection.repair_reason
                               if self.selection is not None else ""),
             "evidence": self.evidence, "won": self.won,
+            "planned_points": list(self.planned_points),
+            "deviations": list(self.deviations),
         }
 
 
@@ -979,19 +996,44 @@ def _leaf_outcomes(outcome: NodeOutcome):
         yield from _leaf_outcomes(child)
 
 
-def _candidate_selection(outcome: NodeOutcome, how: How, cost: int,
-                         planned_test_points: Sequence[str] = ()) -> Selection:
-    """The ONE selection key for a candidate outcome (ticket 20 step 2b).
+def _candidate_test_points(decomp: Decomposition | None) -> tuple[TestPoint, ...]:
+    """The DECLARED test points a candidate's plan names (node spec + its children).
 
-    The plan-time test list with two-way deviation reporting is the NEXT round, so the
-    planned points and test results are empty here: the test component is ``(0, 0.0)``,
-    the review component is the subtree's review verdicts, and the tie-break chain is
-    rank then cost. A negative/vetoed review surfaces as ``needs_repair`` (an ACTION
-    ITEM).
+    Ticket 20 step 2b-ii: the plan-time test list is the contract a candidate is scored
+    against. A candidate's plan is its How's decomposition, so the points are the node's
+    own declared cases plus its children's, de-duplicated by ``file::name``. Empty when
+    the plan declared none — the test component stays ``(0, 0.0)`` as before.
+    """
+    if decomp is None:
+        return ()
+    points: list[TestPoint] = []
+    seen: set[str] = set()
+    for candidate_spec in (decomp.spec, *decomp.children):
+        for point in planned_test_points(candidate_spec):
+            if point.id in seen:
+                continue
+            seen.add(point.id)
+            points.append(point)
+    return tuple(points)
+
+
+def _candidate_selection(outcome: NodeOutcome, how: How, cost: int, *,
+                         planned_points: Sequence[TestPoint] = (),
+                         test_results: Mapping[str, bool] | None = None) -> Selection:
+    """The ONE selection key for a candidate outcome (ticket 20 step 2b-ii).
+
+    The test component is scored over the candidate's DECLARED test points, never the
+    tests it invented: ``(points covered, pass rate over the declared points)`` from
+    :func:`harness.how.point_results`, which reads the candidate subtree's own-test gate
+    reports. The review component is the subtree's review verdicts, and the tie-break
+    chain is rank then cost. A negative/vetoed review surfaces as ``needs_repair`` (an
+    ACTION ITEM). With no declared points the test component is ``(0, 0.0)`` and the
+    comparison falls through to review, exactly as before.
     """
     verdicts = [v for leaf in _leaf_outcomes(outcome)
                 for v in (getattr(leaf, "review_verdicts", ()) or ())]
-    return select_key(planned_test_points=tuple(planned_test_points), test_results=None,
+    return select_key(planned_test_points=tuple(p.id for p in planned_points),
+                      test_results=test_results,
                       review_verdicts=verdicts, rank=how.rank, cost=cost)
 
 
@@ -1184,10 +1226,25 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
             if applied is not None:
                 result, reuse_handles = applied
         cost = budget.spent_calls - before
+        # Ticket 20 step 2b-ii: the candidate's plan-time test list is its contract. Its
+        # DEVIATIONS (extra tests beyond the declared points) do not score, but are
+        # reported to the managing call; the candidate is scored over the declared points.
+        points = _candidate_test_points(decomp)
+        plan_dicts = [point.to_dict() for point in points]
+        leaves = list(_leaf_outcomes(result)) if result is not None else []
+        deviations = extra_test_points(points, leaves)
+        if deviations:
+            cs.record_deviations(deviations)
+            ctx.emit("test_deviation", node=nid, how=how.id, extra=list(deviations))
         if result is not None and result.claimed and result.stop_reason == "closed":
-            selection = _candidate_selection(result, how, cost)
-            record = CandidateRecord(how.id, how.rank, "succeeded", str(ws.path), selection)
+            selection = _candidate_selection(
+                result, how, cost, planned_points=points,
+                test_results=point_results(points, leaves))
+            record = CandidateRecord(how.id, how.rank, "succeeded", str(ws.path), selection,
+                                     planned_points=plan_dicts,
+                                     deviations=list(deviations))
             records.append(record)
+            cs.record_selection(how.id, selection)
             if selection.needs_repair:
                 # A negative review is an ACTION ITEM, not a lost comparison: do not
                 # accept it; keep working on the remaining Hows.
@@ -1206,7 +1263,8 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
         stop_reason = result.stop_reason if result is not None else "no-decomposition"
         cs.fail(how.id, evidence=evidence, reason=stop_reason)
         records.append(CandidateRecord(how.id, how.rank, "failed", str(ws.path), None,
-                                       evidence))
+                                       evidence, planned_points=plan_dicts,
+                                       deviations=list(deviations)))
         decision = decide_after_failure(cs.manager_view(current_how_id=how.id),
                                         manager=ctx.manager)
         cs.record(decision)

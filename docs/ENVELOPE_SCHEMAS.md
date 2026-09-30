@@ -573,7 +573,7 @@ and never silently produces a child. Budget: ~500 tok.
 
 | Tier | Schemas | Budget | Note |
 | --- | --- | --- | --- |
-| Tiny ≤400 tok | find_ambiguities, revise_task_card, split_review, spec_review, failure_judge, propose_probe, interpret_probe, debug_judge, judge_aspects, run_summary, gate_decide, propose_growth, lesson, implement, fix_attempt | — | reports only — work happens via tool rounds |
+| Tiny ≤400 tok | find_ambiguities, revise_task_card, split_review, spec_review, failure_judge, propose_probe, interpret_probe, debug_judge, judge_aspects, run_summary, gate_decide, propose_growth, lesson, implement, fix_attempt, manager_decision | — | reports only — work happens via tool rounds |
 | Medium ≤800 tok | task_card, expand, draft_acs, test_plan, identify_bugs, write_spec, plan_node, how_list | — | no risk |
 | **Ceiling-risk** | write_test (~2.5k) | — | the only content-emitting schema left; one case per call; overflow → file split-window (never truncate) |
 
@@ -680,6 +680,41 @@ success is decided only by hard evidence (tests / integration verification). Bud
 tok. See KERNEL_API §10 for the selection function, the manager loop, and candidate
 isolation.
 
-**Not yet wired (step 2a → 2b):** this schema and `harness/how.py` are additive; the tree
-runner still plans one `plan_node` per node and resets L6/L7 subtrees with git checkpoints.
-The How/candidate path is wired to real runs in step 2b.
+**Wired (step 2b):** the tree runner plans How-first — ONE `how_list` call, one candidate
+COPY per affordable How, each bound to its `how_id` by a `plan_node` call, and the winner
+picked by `harness.how.pick`. There is no `git reset`/`git clean` on the candidate path.
+Step **2b-ii** adds the model-backed managing call (§29) and makes the plan-time test list
+the scoring contract.
+
+---
+
+## 29. `manager_decision` — the node's managing call: ONE decision + reason (ticket 20
+step 2b-ii)
+
+The `failure → manager` loop. When a How fails or exhausts, the node's MANAGING CALL
+receives the node's STRUCTURED RECORD — no chat history and no conversation: the How list
+with statuses, the current and untried Hows, each failure's evidence and reason, and any
+test DEVIATIONS (extra tests beyond the declared plan). It returns exactly ONE `decision`
+from the closed four plus a REQUIRED `reason`. Automatic advance to the next How is allowed
+ONLY when a plan-level feasibility review judged the How `infeasible`
+(`harness.how.decide_after_failure`); otherwise the manager — not the framework — owns the
+move, and with no manager injected the safe default is `escalate-or-park`.
+
+```python
+class ManagerDecision(Envelope):
+    decision: Literal["continue-with-next-how", "author-a-new-how",
+                      "request-feasibility-review", "escalate-or-park"]
+    reason: str                    # why this move, naming the How and the concrete failure
+```
+
+```text
+manager_decision:
+  decision: [author-a-new-how]
+  reason:   > HOW-1 conflicts with the stated constraint; append a new approach.
+```
+
+**Kernel validates:** `decision` is a closed four-way enum and `reason` is non-empty
+(grammar); every decision is recorded (`CandidateSet.decisions`) and the driver's default
+managing call is `bench/v2_tree.model_manager` (a fresh-context call that falls back to
+`escalate-or-park` when the model is unavailable). The decision is an ACTION, never
+evidence. Budget: ~120 tok.

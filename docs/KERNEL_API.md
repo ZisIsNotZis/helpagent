@@ -94,7 +94,7 @@ async def llm(step_type: str,
   schema validation; ledger/stats recording; budget accounting; erasure — the failed
   attempt's text is never returned to a later invocation, only a failure summary.
 - **Schema library.** `harness/envelopes.SCHEMAS` holds one grammar envelope per
-  `step_type` (ENVELOPE_SCHEMAS §0–§23, §26, §27), **26 registered** as of ticket 20. Ticket 18's
+  `step_type` (ENVELOPE_SCHEMAS §0–§23, §26–§29), **28 registered** as of ticket 20. Ticket 18's
   newest was `plan_node` (ENVELOPE_SCHEMAS §23): the node tree's ONE fused
   decompose+specify call — a node's `children` plus its own goal/behavior/files/ACs plus the
   declared per-criterion test cases (`test_cases`, ticket 19 D) and the per-node verification
@@ -106,6 +106,10 @@ async def llm(step_type: str,
   Ticket 20 adds `verify` (ENVELOPE_SCHEMAS §27): the WRITTEN `none+reason` justification used
   only when the plan opted into `best_effort` and neither a discriminating test nor an
   independent review could carry the claim; a claim that survives it is recorded UNVERIFIED.
+  Ticket 20 step 2a adds `how_list` (ENVELOPE_SCHEMAS §28): the node's FIRST planning step,
+  N ranked approaches. Ticket 20 step 2b-ii adds `manager_decision` (ENVELOPE_SCHEMAS §29):
+  the node's managing call — ONE decision from the closed four plus a required reason over
+  the node's structured record.
 
 ### 3.2 `exec`
 
@@ -441,7 +445,7 @@ a failing verdict reopens its responsible writer descendants (bounded per node).
 an extra model call; an integration leaf that exposes no test artifact is not a verdict
 (no keys ⇒ no close). -->
 
-## 10. The How axis, selection, and the manager loop (ticket 20 step 2a)
+## 10. The How axis, selection, and the manager loop (ticket 20 steps 2a/2b-ii)
 
 `harness/how.py` owns the pieces below. None is a seventh primitive: the How axis and the
 manager loop are composition over the six primitives (the first planning call is one
@@ -456,33 +460,48 @@ manager loop are composition over the six primitives (the first planning call is
   geometric decay table (rank 1 ⇒ 0.5); `how_viability(prior, children)` is
   `prior × best viable child value`, with failed/abandoned children removed. Success is
   decided ONLY by hard evidence (tests / integration verification).
+- **The plan-time test list is the contract.** The planning step declares each test point
+  as a `harness.how.TestPoint` — its NAME, the FILE it lives in, WHAT it verifies (the AC
+  statement it serves), and the acceptance criterion it serves. `planned_test_points(spec)`
+  reads it from the plan's declared test cases; the list flows into the run record (the
+  candidate's `planned_points`) and into the selection key. `point_results(points, leaves)`
+  reads a candidate's own-test gate reports: an UNOBSERVED declared point is uncovered (it
+  never counts as a pass). `extra_test_points(points, leaves)` names the two-way DEVIATION —
+  extra tests beyond the plan do NOT score; they ride the node's structured record to the
+  manager, which decides whether the plan under-specified or the implementation is padding.
 - **The selection function** (`select_key`) is the pure, lexicographic, deterministic key
   `(test score, review score, rank, cost)`. Test score =
   `planned_test_score(planned, results)` = (planned points covered, pass rate over the
-  PLANNED points); no tests ⇒ 0. Review score = the predefined weighted angle aggregate
+  PLANNED points); no tests ⇒ 0. The points are the candidate's DECLARED points, never the
+  tests it invented. Review score = the predefined weighted angle aggregate
   `combine_review_verdicts` with the critical-angle veto; no review ⇒ 0. Ties fall through
   to rank, then to smaller cost. A negative review grade is an ACTION ITEM
   (`Selection.repair_reason`), not merely a lost comparison.
 - **The manager loop** (`decide_after_failure`). When a How fails or exhausts, the node's
   STRUCTURED RECORD (`NodeRecordView`: How list with statuses, each failure's evidence and
-  reason, which Hows remain untried) goes to the managing call, which returns ONE decision
-  plus a reason out of exactly four: `continue-with-next-how`, `author-a-new-how`,
-  `request-feasibility-review`, `escalate-or-park`. Automatic advance is allowed ONLY when
-  a feasibility review judged the How infeasible; otherwise the manager decides. Every
-  decision is recorded (`CandidateSet.decisions`).
+  reason, which Hows remain untried, and the test DEVIATIONS) goes to the managing call,
+  which returns ONE decision plus a reason out of exactly four:
+  `continue-with-next-how`, `author-a-new-how`, `request-feasibility-review`,
+  `escalate-or-park`. Automatic advance is allowed ONLY when a feasibility review judged
+  the How infeasible; otherwise the manager decides. Every decision is recorded
+  (`CandidateSet.decisions`). The REAL manager is a fresh-context model call
+  (`bench/v2_tree.model_manager`, ENVELOPE_SCHEMAS §29) wired into the product tree driver;
+  with no manager injected the node parks.
+- **The plan-time test list flows to the leaf.** A child's declared test cases ride its
+  `NodeSpec.test_cases` into `leaf_spec_from`'s `LeafSpec.test_cases` unchanged, so the leaf
+  that implements the tests verifies the declared file/function contract mechanically
+  (`_declared_test_case_problems`); a missing point blocks the claim.
+- **No destructive reset.** Each How candidate works in its OWN isolated directory copied
+  under the run's output area (`create_candidate` → `<run_outdir>/candidates/<node>/<how>`).
+  Abandoning a How discards its directory (`abandon_candidate`) and appends a new How. There
+  is no `git reset`/`git clean` on a candidate path; the existing write-boundary audit is
+  applied per-candidate-directory (`audit_candidate_boundary`). Git worktrees are a later
+  round. This is WIRED: `run_node`/`_attempt_internal` no longer reset the node's subtree
+  with `trajectory.reset_to` for L6/L7.
 - **The node record area** (`NodeRecord`) is a model-maintained text record that is
   REWRITTEN (not appended) and whose every update carries a reason. It is separate from
   the ledger (harness-written, append-only, never in model context) and is NEVER evidence
   (`IS_EVIDENCE = False`).
-- **No destructive reset (step-2a mechanism; NOT yet wired).** Each How candidate works
-  in its OWN isolated directory copied under the run's output area (`create_candidate` →
-  `<run_outdir>/candidates/<node>/<how>`). Abandoning a How discards its directory
-  (`abandon_candidate`) and appends a new How. There is no `git reset`/`git clean` on a
-  candidate path; the existing write-boundary audit is applied per-candidate-directory
-  (`audit_candidate_boundary`). Git worktrees are a later round. This is the step-2a
-  mechanism only: `run_node`/`_attempt_internal` still reset the node's subtree with
-  `trajectory.reset_to` (git checkpoints) for L6/L7, so candidate isolation is NOT in
-  effect for real runs until step 2b rewires the runner.
 - **Budget.** `how_exploration_limit(budget, n_hows)` bounds how many Hows a node may
   explore: the non-reserve pool divided by `min_leaf_calls + 1` (one per-How decomposition
   call plus a leaf's worth of work), capped by the number of Hows.

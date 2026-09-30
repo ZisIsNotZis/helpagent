@@ -912,6 +912,11 @@ class LeafOutcome:
     # Ticket 19 A: an environment_broken judge verdict parks the node needs-user without
     # burning the remaining budget (distinct from a spec bubble, which needs the parent).
     needs_user: bool = False
+    # Ticket 20 step 2b-ii: the run's OWN-test gate report from the last claim evaluation,
+    # so the tree can score a candidate against the node's DECLARED test points (which of
+    # them the candidate collected + passed) instead of the tests the candidate invented.
+    # ``None`` when the run never produced a report (e.g. it entered review mode).
+    own_test_gate: GateReport | None = None
     # Ticket 20: the explicit verification record EVERY node that wrote code carries, with
     # an ORDERED strength tier (test > review > none+reason), the plan's declaration, and
     # any recorded best-effort downgrade. ``None`` when the node wrote no code.
@@ -2742,6 +2747,9 @@ async def run_leaf(
     coverage_unresolved: list[str] = []
     test_case_problems: list[str] = []
     test_case_repairs = 0
+    # Ticket 20 step 2b-ii: the last own-test gate report, surfaced on the outcome so the
+    # tree can score the candidate over the DECLARED test points.
+    own_test_report: GateReport | None = None
     attempt_cap = min(9, 3 * max(1, len(spec.files)))
 
     def emit(kind: str, **data: Any) -> None:
@@ -3377,6 +3385,7 @@ async def run_leaf(
             coverage_missing=list(coverage_missing),
             coverage_unresolved=list(coverage_unresolved),
             test_case_problems=list(test_case_problems),
+            own_test_gate=own_test_report,
             malformed_steps=list(malformed_steps),
             judge_unavailable=judge_unavailable,
             needs_user=needs_user,
@@ -3712,6 +3721,7 @@ async def run_leaf(
                 stop("honest-failure", "no-acceptance-criteria", "no-acceptance-criteria")
                 break
             report = getattr(res, "gate", None)
+            own_test_report = report
             if test_rewrites and verification_basis == "test":
                 # A green after the run REPLACED its own test is not a claim: the
                 # implementation satisfied a substituted test, so the result is
@@ -3815,6 +3825,7 @@ async def run_leaf(
                     record_gate(rres)
                     res = rres
                     report = getattr(rres, "gate", None)
+                    own_test_report = report
                     tc_problems = _declared_test_case_problems(report, spec.test_cases)
                     if _is_green(rres) and not tc_problems:
                         # The repair replaced the run's own test AFTER the red observation,

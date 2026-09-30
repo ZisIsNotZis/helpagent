@@ -35,7 +35,13 @@ from harness.envelopes import PlanNode
 from harness.exec import ShapedResult
 from harness.fake_model import FakeModelRunner
 from harness.gate_report import GateReport
-from harness.how import ManagerDecision
+from harness.how import (
+    HowFailure,
+    ManagerDecision,
+    NodeRecordView,
+    Selection,
+    make_how,
+)
 from harness.leaf import (
     DeclaredTestCase,
     LeafOutcome,
@@ -920,10 +926,13 @@ def test_v2_tree_driver_builds_the_root_and_withholds_grader_paths():
     args = v2_tree.build_parser().parse_args(["--task", "x"])
     assert args.judge is True and args.iv is True             # independent machinery ON
     assert args.review is True                                # review verification ON
+    assert args.manager is True                               # model manager wired in
     off = v2_tree.build_parser().parse_args(["--task", "x", "--no-judge", "--no-iv"])
     assert off.judge is False and off.iv is False
     assert v2_tree.build_parser().parse_args(
         ["--task", "x", "--no-review"]).review is False
+    assert v2_tree.build_parser().parse_args(
+        ["--task", "x", "--no-manager"]).manager is False
 
 
 # ---------------------------------------------------------------------------
@@ -2057,3 +2066,163 @@ def test_the_exploration_cap_is_computed_once_and_cannot_be_raised(tmp_path, mon
                         manager=manager)
     assert out.claimed
     assert seen == [None]          # computed exactly ONCE, budget-only (never the list)
+
+
+# ---------------------------------------------------------------------------
+# Ticket 20 step 2b-ii: the model-backed manager and the plan-time test list
+# ---------------------------------------------------------------------------
+
+
+def _pass_gate(*ids) -> GateReport:
+    return GateReport(report_path="(scripted)", process_exit=0, canary="scripted",
+                      expected_files=(), n_tests=len(ids), n_failed=0, n_errors=0,
+                      passed_ids=tuple(ids), failed_ids=(), missing=(), observed=True)
+
+
+def _plan_with_declared_tests(names, *, goal="root goal", child_goal="fix one") -> dict:
+    """A decomposition whose single leaf child DECLARES ``names`` as its test points.
+
+    ``child_goal`` must DIFFER between candidates, or the second plan is the same
+    decomposition signature and is refused as ``wasted``.
+    """
+    plan = plan_env([child(child_goal, ["pkg/a.py"])],
+                    files=("pkg/a.py", "pkg/b.py"), goal=goal)
+    plan["children"][0]["acs"] = [ac("criterion one", "AC-1")]
+    plan["children"][0]["test_cases"] = [
+        {"ac_id": "AC-1", "file": "tests/test_a.py", "names": list(names)}]
+    return plan
+
+
+def test_model_manager_decides_from_the_structured_record():
+    """Ticket 20 step 2b-ii: the managing call is a FRESH-CONTEXT model call over the
+    node's structured record (Hows + statuses, failures' evidence/reason, untried Hows,
+    and test deviations) and returns ONE decision plus a reason."""
+    from bench import v2_tree
+
+    fake = FakeModelRunner({
+        "manager_decision": [{"status": "ok", "comment": "decided",
+                              "decision": "author-a-new-how",
+                              "reason": "HOW-1 conflicts with the stated constraint"}],
+    })
+    view = NodeRecordView(
+        node_id="N1",
+        hows=(make_how("HOW-1", "clamp the ttl at read time", 1, "smallest diff"),
+              make_how("HOW-2", "normalize the ttl at write time", 2, "fixes the root")),
+        failures=(HowFailure("HOW-1", "3 tests failed", "clamp broke AC-1"),),
+        untried=("HOW-2",), current_how_id="HOW-1",
+        deviations=("tests/test_a.py::test_ac1_extra",),
+        selections=(("HOW-2", Selection(test_covered=2, test_pass_rate=1.0,
+                                        review_score=0, rank=2, cost=5, review_ok=True)),))
+    decision = asyncio.run(v2_tree.model_manager(fake, view))
+    assert decision.decision == "author-a-new-how"
+    assert "constraint" in decision.reason
+    # the record rode the prompt verbatim (fresh context), incl. deviation + selections
+    call = fake.calls("manager_decision")[0]
+    assert call.fresh is True
+    assert "HOW-1" in call.question and "clamp broke AC-1" in call.question
+    assert "tests/test_a.py::test_ac1_extra" in call.question
+    assert "tests=2" in call.question
+
+
+def test_model_manager_fails_safe_to_park_on_an_unusable_decision():
+    """A manager that cannot decide must never silently advance: the safe default is
+    ``escalate-or-park`` (the same default as no manager injected)."""
+    from bench import v2_tree
+
+    fake = FakeModelRunner({
+        "manager_decision": [{"status": "unable", "comment": "cannot decide",
+                              "unable_reason": "no evidence"}]})
+    view = NodeRecordView(node_id="N1", hows=(), untried=())
+    assert asyncio.run(v2_tree.model_manager(fake, view)).decision == "escalate-or-park"
+
+
+def test_candidate_selection_scores_the_declared_plan_before_review(tmp_path, monkeypatch):
+    """Ticket 20 step 2b-ii (item 4): a candidate that COVERS more DECLARED test points
+    wins on the first key, even when the other candidate has a better review score. Before
+    this the planned-point fields were always empty, so the comparison fell straight
+    through to review."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([
+        # HOW-1 declares and covers TWO points, with no review at all
+        leaf_outcome(claimed=True, own_test_gate=_pass_gate(
+            "tests/test_a.py::test_ac1_one", "tests/test_a.py::test_ac1_two")),
+        # HOW-2 declares and covers ONE point, but carries a clean positive review
+        leaf_outcome(claimed=True, own_test_gate=_pass_gate(
+            "tests/test_a.py::test_ac1_one"),
+            review_verdicts=[
+                ReviewVerdict(angle="ac-correctness", grade="definitely-ok",
+                              evidence="pkg/a.py:1 implements AC-1"),
+                ReviewVerdict(angle="contract-compat", grade="definitely-ok",
+                              evidence="pkg/a.py:2 keeps the contract")]),
+    ])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("HOW-1", "two-point approach", 1),
+                              how("HOW-2", "one-point approach", 2)])],
+        "plan_node": [_plan_with_declared_tests(["test_ac1_one", "test_ac1_two"],
+                                                child_goal="two-point fix"),
+                      _plan_with_declared_tests(["test_ac1_one"],
+                                                child_goal="one-point fix")],
+    })
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                        run_tests=Gates(green=True))
+
+    assert out.claimed and out.root.winner == "HOW-1"
+    by_how = {record.how_id: record for record in out.root.candidates}
+    assert by_how["HOW-1"].selection.test_covered == 2
+    assert by_how["HOW-1"].selection.test_pass_rate == 1.0
+    assert by_how["HOW-2"].selection.test_covered == 1
+    # the review score favours HOW-2, so coverage really is what decided the pick
+    assert by_how["HOW-1"].selection.review_score == 0
+    assert by_how["HOW-2"].selection.review_score > 0
+    # the DECLARED test list (name + file + what it verifies + AC) is in the run record
+    planned = by_how["HOW-1"].to_dict()["planned_points"]
+    assert [p["name"] for p in planned] == ["test_ac1_one", "test_ac1_two"]
+    assert planned[0]["file"] == "tests/test_a.py"
+    assert planned[0]["verifies"] == "criterion one"
+    assert planned[0]["ac_id"] == "AC-1"
+
+
+def test_test_deviations_are_reported_to_the_manager_and_recorded(tmp_path, monkeypatch):
+    """Ticket 20 step 2b-ii (item 3): an EXTRA test beyond the declared plan does not
+    score, but is a recorded DEVIATION reported to the node's manager through its
+    structured record."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([
+        # HOW-1's leaf collected the declared point PLUS an extra test, then parked
+        leaf_outcome(claimed=False, signal="honest-failure", stop="calls",
+                     own_test_gate=_pass_gate("tests/test_a.py::test_ac1_one",
+                                              "tests/test_a.py::test_ac1_extra")),
+        # HOW-2 covers exactly the declared point and closes
+        leaf_outcome(claimed=True, own_test_gate=_pass_gate(
+            "tests/test_a.py::test_ac1_one")),
+    ])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("HOW-1", "first", 1), how("HOW-2", "second", 2)])],
+        "plan_node": [_plan_with_declared_tests(["test_ac1_one"], child_goal="first fix"),
+                      _plan_with_declared_tests(["test_ac1_one"], child_goal="second fix")],
+    })
+    seen: list = []
+
+    def manager(view):
+        seen.append(view)
+        return ManagerDecision("continue-with-next-how", "try the next approach")
+
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                        manager=manager, run_tests=Gates(green=True))
+
+    assert out.claimed and out.root.winner == "HOW-2"
+    assert len(seen) == 1
+    assert seen[0].deviations == ("tests/test_a.py::test_ac1_extra",)
+    assert "test_deviation" in ledger_kinds()
+    by_how = {record.how_id: record for record in out.root.candidates}
+    assert by_how["HOW-1"].to_dict()["deviations"] == ["tests/test_a.py::test_ac1_extra"]

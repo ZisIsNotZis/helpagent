@@ -840,6 +840,29 @@ class HowList(Envelope):
 
 
 # ---------------------------------------------------------------------------
+# §29 manager_decision — the node's managing call: ONE decision + reason (ticket 20
+# step 2b-ii)
+# ---------------------------------------------------------------------------
+
+
+class ManagerDecisionEnvelope(Envelope):
+    """The node's MANAGING CALL decision after a How failed or exhausted (ENVELOPE_SCHEMAS
+    §29; ticket 20 step 2b-ii).
+
+    A FRESH-CONTEXT call over the node's STRUCTURED RECORD (`harness.how.NodeRecordView`:
+    the How list with statuses, each failure's evidence and reason, the untried Hows, and
+    any test deviations) returns exactly ONE ``decision`` from the closed four
+    (``harness.how.MANAGER_DECISIONS``) plus a REQUIRED ``reason``. The node's manager —
+    not the framework — owns the move; automatic advance is allowed only after an
+    ``infeasible`` feasibility review (``harness.how.decide_after_failure``).
+    """
+
+    decision: Literal["continue-with-next-how", "author-a-new-how",
+                      "request-feasibility-review", "escalate-or-park"] = req()
+    reason: str = req(min_length=1)
+
+
+# ---------------------------------------------------------------------------
 # Registry: {step_type: model} — the per-leaf-type schema library (DESIGN §4.2:
 # selected, never authored by the model). ``judge_<aspect>`` step types resolve via
 # the runner's wildcard prefix to the generic JudgeAspect entry.
@@ -913,6 +936,7 @@ SCHEMAS: dict[str, type[Envelope]] = {
     "plan_node": PlanNode,  # §23 (fused decompose+specify, ticket 18; per-How in 20)
     "verify": VerifyRecord,  # §27 (written none+reason justification, ticket 20)
     "how_list": HowList,  # §28 (the How axis, ticket 20 step 2a)
+    "manager_decision": ManagerDecisionEnvelope,  # §29 (the node's managing call, ticket 20 step 2b-ii)
 }
 
 JUDGE_STEP_PREFIX = "judge_"

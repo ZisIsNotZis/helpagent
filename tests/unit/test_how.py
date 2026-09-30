@@ -8,11 +8,13 @@ reset).
 """
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from harness.budget import Budget
 from harness.envelopes import SCHEMAS, HowList, PlanNode
+from harness.gate_report import GateReport
 from harness.how import (
     MANAGER_DECISIONS,
     How,
@@ -23,22 +25,27 @@ from harness.how import (
     NodeRecordView,
     PRIOR_DECAY,
     Selection,
+    TestPoint,
     abandon_candidate,
     audit_candidate_boundary,
     candidate_dir,
     create_candidate,
     decide_after_failure,
+    extra_test_points,
     how_exploration_limit,
     how_list_from_envelope,
     how_viability,
     make_how,
     pick,
+    planned_test_points,
     planned_test_score,
+    point_results,
     prior_for_rank,
     select_key,
     snapshot_candidate,
 )
-from harness.leaf import ReviewVerdict
+from harness.leaf import DeclaredTestCase, ReviewVerdict
+from harness.node import NodeSpec
 
 
 # ---------------------------------------------------------------------------
@@ -104,7 +111,7 @@ def test_how_list_envelope_ranks_contiguous_and_prior_from_rank():
 
 def test_plan_node_binds_result_to_a_how_id():
     assert SCHEMAS["how_list"] is HowList
-    assert len(SCHEMAS) == 27
+    assert len(SCHEMAS) == 28  # ticket 20 step 2b-ii: +manager_decision
     bound = PlanNode.model_validate({
         "status": "ok", "comment": "one how",
         "goal": "g", "behavior": "b", "implementation_notes": "n",
@@ -184,6 +191,86 @@ def test_planned_test_score_denominator_is_the_plan():
     assert planned_test_score([], {}) == (0, 0.0)
     assert planned_test_score(["t1", "t2", "t3", "t4"], {"t1": True, "t2": True}) == (2, 0.5)
     assert planned_test_score(["t1"], None) == (0, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# The plan-time test list (name + file + what it verifies + the AC it serves)
+# ---------------------------------------------------------------------------
+
+
+def _own_gate(*, passed=(), failed=()):
+    return GateReport(report_path="(scripted)", process_exit=0, canary="c",
+                      expected_files=(), n_tests=len(passed) + len(failed),
+                      n_failed=len(failed), n_errors=0,
+                      passed_ids=tuple(passed), failed_ids=tuple(failed),
+                      missing=(), observed=True)
+
+
+def _leaf_with_gate(*, passed=(), failed=()):
+    return SimpleNamespace(own_test_gate=_own_gate(passed=passed, failed=failed))
+
+
+def test_planned_test_point_declares_name_file_verifies_and_ac():
+    spec = NodeSpec(goal="g", acs=("sessions expire per ttl",), kind="leaf",
+                    files=("a.py",),
+                    test_cases=(DeclaredTestCase("AC-1", "tests/test_a.py",
+                                                 ("test_ac1_expiry",)),))
+    points = planned_test_points(spec)
+    assert len(points) == 1
+    point = points[0]
+    assert (point.name, point.file, point.verifies, point.ac_id) == (
+        "test_ac1_expiry", "tests/test_a.py", "sessions expire per ttl", "AC-1")
+    assert point.id == "tests/test_a.py::test_ac1_expiry"
+    assert point.to_dict() == {"name": "test_ac1_expiry", "file": "tests/test_a.py",
+                               "verifies": "sessions expire per ttl", "ac_id": "AC-1",
+                               "id": "tests/test_a.py::test_ac1_expiry"}
+    # no declaration => no points (the pre-plan behaviour, test component (0, 0.0))
+    assert planned_test_points(NodeSpec(goal="g", files=("a.py",), kind="leaf",
+                                        acs=("c",))) == ()
+
+
+def test_point_results_score_the_declared_points_only():
+    points = (TestPoint("t1", "tests/test_a.py", "v", "AC-1"),
+              TestPoint("t2", "tests/test_a.py", "v", "AC-1"),
+              TestPoint("t3", "tests/test_a.py", "v", "AC-1"))
+    # t1 passed, t2 failed, t3 never observed; a test the candidate INVENTED is not a point
+    leaves = [_leaf_with_gate(passed=("tests/test_a.py::t1", "tests/test_a.py::invented"),
+                              failed=("tests/test_a.py::t2",))]
+    results = point_results(points, leaves)
+    assert results == {"tests/test_a.py::t1": True, "tests/test_a.py::t2": False}
+    assert planned_test_score([p.id for p in points], results) == (2, 1 / 3)
+    # a pytest class-method node id is matched on its final segment
+    assert point_results(points, [_leaf_with_gate(passed=("tests/test_a.py::TestX::t1",))]) \
+        == {"tests/test_a.py::t1": True}
+
+
+def test_extra_test_points_are_a_reported_deviation_but_never_score():
+    points = (TestPoint("t1", "tests/test_a.py", "v", "AC-1"),)
+    leaves = [_leaf_with_gate(passed=("tests/test_a.py::t1",
+                                      "tests/test_a.py::TestX::t2",
+                                      "tests/other.py::t9"))]
+    # an extra in a DECLARED file is a deviation; one in an unrelated file is not
+    assert extra_test_points(points, leaves) == ("tests/test_a.py::t2",)
+    # extras never enter the plan denominator
+    assert planned_test_score([p.id for p in points],
+                              point_results(points, leaves)) == (1, 1.0)
+
+
+def test_manager_view_carries_the_test_deviations_and_candidate_selections():
+    from harness.how import CandidateSet
+
+    cs = CandidateSet(node_id="N1", run_outdir=Path("/tmp/x"), source=Path("/tmp/y"))
+    cs.add_how(make_how("HOW-1", "a", 1, "r"))
+    cs.add_how(make_how("HOW-2", "b", 2, "r"))
+    cs.record_deviations(["tests/test_a.py::t1", "tests/test_a.py::t1"])
+    cs.record_deviations(["tests/test_a.py::t2"])
+    cs.record_selection("HOW-2", Selection(test_covered=2, test_pass_rate=1.0,
+                                            review_score=0, rank=2, cost=5,
+                                            review_ok=True))
+    view = cs.manager_view(current_how_id="HOW-1")
+    assert view.deviations == ("tests/test_a.py::t1", "tests/test_a.py::t2")
+    assert [how_id for how_id, _ in view.selections] == ["HOW-2"]
+    assert view.selections[0][1].test_covered == 2
 
 
 def _selection(*, covered, rate, review_score, rank, cost):

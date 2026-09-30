@@ -15,6 +15,12 @@ the pieces the tree runner builds on:
   never evidence. The default table is geometric decay by rank; a How's viability is its
   own prior times the best VIABLE child value, with failed/abandoned children removed.
   Success is decided ONLY by hard evidence (tests / integration verification).
+- :class:`TestPoint` / :func:`planned_test_points` / :func:`point_results` — the
+  PLAN-TIME TEST LIST is the CONTRACT. The planning step declares each point by NAME,
+  FILE, WHAT it verifies, and the acceptance criterion it serves; the candidate is scored
+  over the DECLARED points (never over tests it invented). :func:`extra_test_points`
+  names the two-way DEVIATION: extra tests beyond the plan do not score, but are reported
+  to the node's manager.
 - :func:`select_key` — the lexicographic, deterministic selection key
   ``(test score, review score, rank, cost)`` for ONE candidate. Test score = (planned test
   points covered, pass rate over the PLANNED points); no tests ⇒ 0. Review score = the
@@ -32,8 +38,9 @@ the pieces the tree runner builds on:
   and whose every update carries a reason. It is separate from the ledger and is NEVER
   evidence.
 
-Scope discipline: the plan-time test list with two-way deviation reporting is the NEXT
-round; the leaf's claim rules, the review angles, and the covenant are untouched here.
+Scope discipline: the leaf's claim rules, the review angles, and the covenant are
+untouched here. The plan-time test list and its two-way deviation reporting are wired in
+step 2b-ii (:class:`TestPoint` and the ``deviations`` on the structured record).
 
 WIRED (step 2b): :mod:`harness.tree_run` now plans How-first — ``run_node`` calls
 ``how_list``, opens one candidate copy per affordable How, binds each decomposition to
@@ -49,16 +56,17 @@ from __future__ import annotations
 import shutil
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Callable, Literal, Mapping, Sequence
+from typing import Any, Callable, Literal, Mapping, Sequence
 
 from harness.leaf import (
     DEFAULT_REVIEW_LEVEL,
     ReviewVerdict,
+    _declared_case_index,
     combine_review_verdicts,
     effective_review_angles,
     reject_node_record_fields,
 )
-from harness.node import MIN_LEAF_CALLS
+from harness.node import MIN_LEAF_CALLS, NodeSpec
 
 __all__ = [
     "HOW_STATUSES",
@@ -76,16 +84,20 @@ __all__ = [
     "NodeRecord",
     "NodeRecordView",
     "Selection",
+    "TestPoint",
     "abandon_candidate",
     "audit_candidate_boundary",
     "candidate_dir",
     "create_candidate",
     "decide_after_failure",
+    "extra_test_points",
     "how_exploration_limit",
     "how_viability",
     "make_how",
     "pick",
+    "planned_test_points",
     "planned_test_score",
+    "point_results",
     "prior_for_rank",
     "select_key",
     "snapshot_candidate",
@@ -271,6 +283,119 @@ def how_viability(prior: float, children: Sequence[tuple[str, float]], *,
 
 
 # ---------------------------------------------------------------------------
+# The plan-time test list (the contract a candidate is scored against)
+# ---------------------------------------------------------------------------
+
+
+def _normalize_test_node_id(node_id: str) -> str:
+    """``file::Class::test`` ⇒ ``file::test`` (the declared point's spelling).
+
+    pytest node ids for a method carry the class in the middle; a declared point names
+    only the FILE and the function, so the middle segments are dropped before matching.
+    """
+    file, _, rest = node_id.partition("::")
+    if not rest:
+        return node_id
+    return f"{file}::{rest.split('::')[-1]}"
+
+
+@dataclass(frozen=True)
+class TestPoint:
+    """One PLAN-TIME test point: the declared contract a candidate is scored against.
+
+    ``name`` is the declared test FUNCTION, ``file`` the file it lives in, ``verifies``
+    WHAT it checks (the acceptance-criterion statement it serves), and ``ac_id`` which
+    acceptance criterion it serves. ``id`` is the ``file::name`` node id the machine-
+    readable report uses, so a point can be matched against a candidate's own-test gate.
+    """
+
+    #: Not a pytest test class (the ``Test`` prefix is conceptual, not a collectable test).
+    __test__ = False
+
+    name: str
+    file: str
+    verifies: str
+    ac_id: str
+
+    @property
+    def id(self) -> str:
+        return f"{self.file}::{self.name}"
+
+    def to_dict(self) -> dict:
+        return {"name": self.name, "file": self.file,
+                "verifies": self.verifies, "ac_id": self.ac_id, "id": self.id}
+
+
+def planned_test_points(spec: NodeSpec) -> tuple[TestPoint, ...]:
+    """The node plan's DECLARED test points (its scoring contract), in declared order.
+
+    One point per declared test FUNCTION name. ``verifies`` is the statement of the
+    acceptance criterion the case serves (looked up by the case's ``AC-<n>`` index in
+    the spec's OWN ``acs``), or the ``ac_id`` itself when the criterion is not
+    resolvable. Empty when the plan declared no test cases — then the test component is
+    ``(0, 0.0)`` exactly as before the plan was wired in.
+    """
+    statements = {i: statement for i, statement in enumerate(spec.acs, 1)}
+    points: list[TestPoint] = []
+    seen: set[str] = set()
+    for case in spec.test_cases:
+        index = _declared_case_index(case)
+        verifies = statements.get(index, case.ac_id) if index is not None else case.ac_id
+        for name in case.names:
+            point = TestPoint(name=name, file=case.file, verifies=verifies, ac_id=case.ac_id)
+            if point.id in seen:
+                continue
+            seen.add(point.id)
+            points.append(point)
+    return tuple(points)
+
+
+def point_results(points: Sequence[TestPoint], leaves: Sequence[Any]) -> dict[str, bool]:
+    """Per declared point, PASS/FAIL from the candidate's own-test gate reports.
+
+    The result is keyed by the point id and holds a key ONLY for a point a report
+    OBSERVED: an unobserved declared point is absent, so it counts as UNCOVERED
+    (:func:`planned_test_score` never credits a point the candidate did not run). A
+    missing declared point is a separate claim blocker, so a claimed candidate covers
+    its whole declared list, but a candidate that closed on another basis (e.g. a
+    reviewer) legitimately covers fewer points and is scored lower for it.
+    """
+    passed: set[str] = set()
+    failed: set[str] = set()
+    for leaf in leaves:
+        gate = getattr(leaf, "own_test_gate", None)
+        if gate is None:
+            continue
+        passed.update(_normalize_test_node_id(nid) for nid in gate.passed_ids)
+        failed.update(_normalize_test_node_id(nid) for nid in gate.failed_ids)
+    return {point.id: True for point in points if point.id in passed} | {
+        point.id: False for point in points if point.id in failed}
+
+
+def extra_test_points(points: Sequence[TestPoint],
+                      leaves: Sequence[Any]) -> tuple[str, ...]:
+    """The EXTRA tests a candidate collected in a DECLARED file but the plan did not declare.
+
+    These do NOT score (:func:`planned_test_score` has the plan as its denominator); they
+    are a two-way DEVIATION reported to the node's manager, which decides whether the
+    plan under-specified or the implementation is padding. Only tests in a file the plan
+    already declares count: a test in some unrelated file is not part of this node's
+    contract at all.
+    """
+    declared = {point.id for point in points}
+    declared_files = {point.file for point in points}
+    collected: set[str] = set()
+    for leaf in leaves:
+        gate = getattr(leaf, "own_test_gate", None)
+        if gate is None:
+            continue
+        collected.update(_normalize_test_node_id(nid) for nid in gate.passed_ids)
+        collected.update(_normalize_test_node_id(nid) for nid in gate.failed_ids)
+    return tuple(sorted(nid for nid in collected
+                        if nid not in declared and nid.partition("::")[0] in declared_files))
+
+
+# ---------------------------------------------------------------------------
 # The selection function (lexicographic, deterministic)
 # ---------------------------------------------------------------------------
 
@@ -433,6 +558,13 @@ class NodeRecordView:
     failures: tuple[HowFailure, ...] = ()
     untried: tuple[str, ...] = ()
     current_how_id: str = ""
+    #: Ticket 20 step 2b-ii: the two-way test deviation — extra tests a candidate
+    #: collected beyond the plan's declared points. They never score; the manager
+    #: decides whether the plan under-specified or the implementation is padding.
+    deviations: tuple[str, ...] = ()
+    #: Ticket 20 step 2b-ii: each candidate How's selection key ``(how_id, Selection)``,
+    #: so the manager sees what the closed candidates scored on before it decides.
+    selections: tuple[tuple[str, Selection], ...] = ()
 
     @property
     def failed(self) -> tuple[str, ...]:
@@ -620,6 +752,11 @@ class CandidateSet:
     workspaces: dict[str, CandidateWorkspace] = field(default_factory=dict)
     failures: list[HowFailure] = field(default_factory=list)
     decisions: list[ManagerDecision] = field(default_factory=list)
+    #: Ticket 20 step 2b-ii: every test deviation observed across the node's candidates
+    #: (extra tests beyond the declared plan), surfaced to the managing call.
+    deviations: list[str] = field(default_factory=list)
+    #: Ticket 20 step 2b-ii: each closed candidate's selection key, keyed by its How id.
+    selections: dict[str, Selection] = field(default_factory=dict)
 
     def add_how(self, how: How, *, mark: tuple[str, HowStatus] | None = None) -> How:
         """Append a How (optionally marking a prior one failed/abandoned)."""
@@ -643,6 +780,15 @@ class CandidateSet:
         self.failures.append(failure)
         return failure
 
+    def record_deviations(self, deviations: Sequence[str]) -> None:
+        """Record test deviations (extra tests beyond the plan), de-duplicated in order."""
+        if deviations:
+            self.deviations = list(dict.fromkeys([*self.deviations, *deviations]))
+
+    def record_selection(self, how_id: str, selection: Selection) -> None:
+        """Record one candidate's selection key so the managing call can see it."""
+        self.selections[how_id] = selection
+
     def abandon(self, how_id: str, *, reason: str) -> None:
         """Discard the candidate directory and mark the How ``abandoned``."""
         ws = self.workspaces.pop(how_id, None)
@@ -661,4 +807,6 @@ class CandidateSet:
         return NodeRecordView(
             node_id=self.node_id, hows=self.hows.hows,
             failures=tuple(self.failures), untried=tuple(h.id for h in self.hows.untried()),
-            current_how_id=current_how_id)
+            current_how_id=current_how_id, deviations=tuple(self.deviations),
+            selections=tuple((h.id, self.selections[h.id]) for h in self.hows.hows
+                             if h.id in self.selections))

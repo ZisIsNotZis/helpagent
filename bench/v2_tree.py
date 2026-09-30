@@ -19,6 +19,12 @@ The independent attribution judge and the independent test are ON by default and
 through to every leaf (``--no-judge`` / ``--no-iv`` to disable). ``grader_paths`` are
 injected from the ROOT only, so no child can widen its withheld set.
 
+The MODEL-BACKED MANAGING CALL is wired in too (ticket 20 step 2b-ii, ``--no-manager`` to
+disable): when a How fails the node's structured record drives a fresh-context decision
+out of the closed four, so a failed How can lead to a new How or a feasibility review
+instead of parking immediately. The manager falls back to the safe ``escalate-or-park``
+when the model is unavailable.
+
 Usage:
   uv run python bench/v2_tree.py --task bench/corpus/T-31-parameter-threading \
       --calls 48 --deadline-hours 6 [--no-judge] [--no-iv]
@@ -50,8 +56,10 @@ from bench.v2_leaf import (  # noqa: E402
     model_review,
 )
 from harness.budget import Budget, default_deadline  # noqa: E402
+from harness.how import MANAGER_DECISIONS, ManagerDecision, NodeRecordView  # noqa: E402
 from harness.leaf import covenant_diluted  # noqa: E402
 from harness.model import LlamaServerRunner  # noqa: E402
+from harness.runner import llm_step  # noqa: E402
 from harness.node import (  # noqa: E402
     MIN_LEAF_CALLS,
     MIN_LEAF_CALLS_WITH_JUDGE,
@@ -61,9 +69,85 @@ from harness.staging import excluded_paths, source_only, stage_blind  # noqa: E4
 from harness.tree import TaskTree  # noqa: E402
 from harness.tree_run import NodeOutcome, TreeOutcome, run_tree  # noqa: E402
 
-__all__ = ["build_parser", "build_record", "build_root", "main", "node_record", "run_once"]
+__all__ = ["build_parser", "build_record", "build_root", "main", "model_manager",
+           "node_record", "run_once"]
 
 DEFAULT_SERVER = "http://127.0.0.1:8833"
+
+
+def _manager_question(record: NodeRecordView) -> str:
+    """The managing call's prompt: the node's STRUCTURED RECORD, never its chat memory.
+
+    It carries the How list with statuses, the current and untried Hows, every failure's
+    evidence and reason, and the test deviations observed so far. ``fresh=True`` means the
+    runner injects no author-context artifacts, so the record rides the question verbatim.
+    """
+    hows = "\n".join(
+        f"- {h.id} (rank {h.rank}, status {h.status}): {h.text} [why: {h.reason}]"
+        for h in record.hows) or "(no Hows)"
+    failures = "\n".join(
+        f"- {f.how_id}: reason={f.reason}; evidence={f.evidence}"
+        for f in record.failures) or "(none)"
+    untried = ", ".join(record.untried) or "(none)"
+    selections = "\n".join(
+        f"- {how_id}: score(tests={sel.test_covered}/{sel.test_pass_rate:.2f}, "
+        f"review={sel.review_score}, rank={sel.rank}, cost={sel.cost})"
+        for how_id, sel in record.selections) or "(none closed)"
+    deviations = "\n".join(f"- {d}" for d in record.deviations) or "(none)"
+    return (
+        "You are the MANAGING AGENT for ONE node of a work tree. You see ONLY the "
+        "node's STRUCTURED RECORD below --- no chat history and no conversation. A How "
+        "(an approach) failed or exhausted. Decide the node's NEXT move, exactly one of:\n"
+        "- continue-with-next-how: try the next untried How;\n"
+        "- author-a-new-how: the existing Hows are exhausted or wrong; append a NEW How;\n"
+        "- request-feasibility-review: have the plan-level review judge a How's "
+        "feasibility before spending more;\n"
+        "- escalate-or-park: stop and hand the node back to the owner.\n"
+        f"NODE: {record.node_id}\n"
+        f"HOWS:\n{hows}\n"
+        f"CURRENT HOW: {record.current_how_id or '(none)'}\n"
+        f"UNTRIED HOWS: {untried}\n"
+        f"CANDIDATE SELECTIONS:\n{selections}\n"
+        f"FAILURES:\n{failures}\n"
+        "TEST DEVIATIONS (extra tests beyond the declared plan; they never score):\n"
+        f"{deviations}\n"
+        "A decision is an ACTION, never evidence. Give the decision and a REQUIRED "
+        "reason that names the concrete How and the concrete failure or deviation that "
+        "drove it."
+    )
+
+
+async def model_manager(model: Any, record: NodeRecordView) -> ManagerDecision:
+    """The driver's DEFAULT managing call (ticket 20 step 2b-ii): a FRESH-CONTEXT model
+    call over the node's structured record.
+
+    It sees no chat history and no conversation --- only the How list with statuses, each
+    failure's evidence and reason, the untried Hows, and any test deviations --- and
+    returns ONE decision plus a reason out of exactly the four
+    (:data:`harness.how.MANAGER_DECISIONS`). A malformed or unavailable call falls back to
+    the SAFE default ``escalate-or-park``: a manager that cannot decide must never
+    silently advance.
+    """
+    try:
+        env = await llm_step(model, "manager_decision", artifacts={},
+                             question=_manager_question(record), fresh=True)
+    except Exception as exc:  # noqa: BLE001 --- a model failure must never crash the node
+        return ManagerDecision(
+            "escalate-or-park",
+            f"the managing call was unavailable ({type(exc).__name__}: {exc}); "
+            "parking conservatively")
+    if env.status != "ok":
+        return ManagerDecision(
+            "escalate-or-park",
+            f"the managing call returned status={env.status!r}; parking conservatively")
+    decision = getattr(env, "decision", "")
+    reason = getattr(env, "reason", "")
+    if (not isinstance(decision, str) or decision not in MANAGER_DECISIONS
+            or not isinstance(reason, str) or not reason.strip()):
+        return ManagerDecision(
+            "escalate-or-park",
+            "the managing call returned no usable decision; parking conservatively")
+    return ManagerDecision(decision, reason.strip())
 
 
 def build_root(task: dict) -> tuple[NodeSpec, tuple[str, ...]]:
@@ -254,7 +338,7 @@ def build_record(task_id: str, goal: str, outcome: TreeOutcome, *, withheld: lis
 
 def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
              deadline_hours: float, use_judge: bool = True, use_iv: bool = True,
-             use_review: bool = True) -> dict:
+             use_review: bool = True, use_manager: bool = True) -> dict:
     task = load_task(task_dir)
     root, grader_paths = build_root(task)
 
@@ -270,6 +354,9 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     judge = (lambda request: model_judge(model, request)) if use_judge else None
     iv = (lambda request: model_independent_test(model, request)) if use_iv else None
     review = (lambda request: model_review(model, request)) if use_review else None
+    # Ticket 20 step 2b-ii: the REAL model-backed managing call. Without it a failed How
+    # parks immediately; with it the node's structured record drives the four-way decision.
+    manager = (lambda record: model_manager(model, record)) if use_manager else None
     # The higher per-leaf floor when the independent machinery is on (design §2).
     min_leaf_calls = (MIN_LEAF_CALLS_WITH_JUDGE if (use_judge and use_iv)
                       else MIN_LEAF_CALLS)
@@ -279,7 +366,7 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     outcome = asyncio.run(run_tree(
         model, root, tree, workdir, budget, root_grader_paths=grader_paths,
         judge=judge, iv=iv, review=review, min_leaf_calls=min_leaf_calls,
-        run_outdir=out_dir))
+        run_outdir=out_dir, manager=manager))
     wall = round(time.monotonic() - started, 1)
 
     produced = produced_files(workdir)
@@ -301,6 +388,7 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     print(f"[judge]  {'on' if use_judge else 'off (conservative baseline)'}")
     print(f"[iv]  {'on' if use_iv else 'off (own-test basis)'} "
           f"min_leaf_calls={min_leaf_calls}")
+    print(f"[manager]  {'on (model-backed)' if use_manager else 'off (park-only default)'}")
     print(f"[acs]  {len(root.acs)} extracted from the request")
     print(f"[claim]  claimed={outcome.claimed} root={outcome.root.stop_reason} "
           f"calls={outcome.calls} budget_left={outcome.budget.calls}")
@@ -324,6 +412,9 @@ def build_parser() -> argparse.ArgumentParser:
                         help="run the independent test per leaf (default ON)")
     parser.add_argument("--review", action=argparse.BooleanOptionalAction, default=True,
                         help="run the mandatory review verification per leaf (default ON)")
+    parser.add_argument("--manager", action=argparse.BooleanOptionalAction, default=True,
+                        help="wire the model-backed managing call into the failure loop "
+                             "(default ON); --no-manager restores the safe park-only default")
     return parser
 
 
@@ -336,7 +427,8 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     record = run_once(task_dir, out_dir, args.server, args.calls, args.deadline_hours,
-                      use_judge=args.judge, use_iv=args.iv, use_review=args.review)
+                      use_judge=args.judge, use_iv=args.iv, use_review=args.review,
+                      use_manager=args.manager)
     record_path = out_dir / "run.json"
     record_path.write_text(json.dumps(record, indent=1, ensure_ascii=False))
     print(f"[persist] {record_path}")
