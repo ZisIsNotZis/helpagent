@@ -137,9 +137,14 @@ def node_record(outcome: NodeOutcome, *, diluted: bool = False) -> dict:
         "integration_reopen_rounds": outcome.integration_reopen_rounds,
         "boundary_audit": (outcome.boundary_audit.to_dict()
                            if outcome.boundary_audit is not None else None),
-        "reset_to": outcome.reset_to,
-        "resplit_rounds": outcome.resplit_rounds,
-        "respec_rounds": outcome.respec_rounds,
+        # Ticket 20 step 2b: the How axis — the node's Hows with statuses, its per-
+        # candidate audit records (isolated directory + Selection + evidence + who won),
+        # the manager-loop decisions, and the winning How id. Empty for a legacy single-
+        # plan node (one that could not plan Hows).
+        "hows": list(outcome.hows),
+        "candidates": [c.to_dict() for c in outcome.candidates],
+        "manager_decisions": list(outcome.manager_decisions),
+        "winner": outcome.winner,
         "children": [node_record(c, diluted=diluted) for c in outcome.children],
     }
 
@@ -273,7 +278,8 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     started = time.monotonic()
     outcome = asyncio.run(run_tree(
         model, root, tree, workdir, budget, root_grader_paths=grader_paths,
-        judge=judge, iv=iv, review=review, min_leaf_calls=min_leaf_calls))
+        judge=judge, iv=iv, review=review, min_leaf_calls=min_leaf_calls,
+        run_outdir=out_dir))
     wall = round(time.monotonic() - started, 1)
 
     produced = produced_files(workdir)

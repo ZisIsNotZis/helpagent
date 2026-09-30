@@ -50,13 +50,21 @@ intact. What the tree adds:
 - **The integration verdict FAILS CLOSED (ticket 18 gap B).** A verdict is ``pass`` only
   when the machine-readable report gate is green for that check; a missing gate, a
   missing report, or an anomalous report is a failure, and no keys means no close.
-- **Restructuring.** L6 (a leaf that stopped ``signal == "exhausted"`` re-splits into
-  smaller children) and L7 (a leaf that stopped ``needs_parent`` / ``spec-bubble`` sends
-  the owning parent back to its own pre-checkpoint) each reset that node's own subtree
-  via :meth:`harness.trajectory.Trajectory.reset_to` and re-run ``plan_node`` with the
-  failure as evidence. A re-split whose signature is unchanged AND that does not shrink
-  the unit is refused as ``wasted`` (:class:`harness.node.SplitHistory`), so the T-31
-  "nine identical retries" defect cannot recur here.
+- **How-first planning (ticket 20 step 2b).** A node that can decompose is planned
+  HOW-first: ONE ``how_list`` call lists the ranked approaches (``HOW-1``…), then each
+  How the budget lets the node explore opens its OWN isolated candidate COPY under the
+  run output area (``candidate_dir``) and gets its own ``plan_node`` bound to that
+  ``how_id``; the How's children run INSIDE its candidate copy. The winner among closed
+  candidates is chosen by :func:`harness.how.pick` (tests, then review, then rank, then
+  cost) — never a model vote. A candidate whose review is negative is an ACTION ITEM,
+  not a lost comparison.
+- **NO destructive reset.** The L6 (exhausted leaf) and L7 (spec bubble) cases no longer
+  reset a node's subtree with ``git reset --hard`` / ``git clean``. A failed/exhausted
+  approach goes through the manager loop (:func:`harness.how.decide_after_failure`) and
+  the node appends a NEW How and switches to a fresh candidate copy; with no manager
+  injected the safe default is to park. A repeated decomposition that neither differs nor
+  shrinks is refused as ``wasted`` (:class:`harness.node.SplitHistory`), so the T-31
+  "nine identical retries" defect cannot recur.
 - **Shared deadline — the final stop.** The wall-clock deadline is never hard-split per
   child; when it passes, no new node starts and the checkpoints are kept for resume.
 """
@@ -92,7 +100,20 @@ from harness.node import (
     plan_node,
     split_weighted,
 )
-from harness.runner import note
+from harness.how import (
+    CandidateSet,
+    How,
+    HowList,
+    Selection,
+    abandon_candidate,
+    decide_after_failure,
+    how_exploration_limit,
+    how_list_from_envelope,
+    make_how,
+    pick,
+    select_key,
+)
+from harness.runner import llm_step, note
 from harness.staging import is_test_path, owned_paths
 from harness.trajectory import Trajectory
 from harness.tree import ACEntry, CheckResults, NodeHandle, TaskTree
@@ -109,14 +130,40 @@ __all__ = [
     "snapshot_workdir",
 ]
 
-#: Bound on L6 (re-split) / L7 (parent spec) rounds per node before the node parks as
-#: ``needs-user`` (design §5). Two rounds is enough to try a genuinely different plan.
-_MAX_RESTRUCTURE = 2
-
 #: Bound on integration-verdict reopen rounds per node (ticket 18 gap 2): a failing
 #: integration check reopens its responsible writers at most this many times before the
 #: node parks with ``needs-integration``, so the reopen cannot loop forever.
 _MAX_INTEGRATION_REOPEN = 2
+
+
+@dataclass
+class CandidateRecord:
+    """One How candidate's audit record on a node (ticket 20 step 2b).
+
+    Carries the candidate's How id and rank, its lifecycle status, the ISOLATED
+    directory it ran in, its :class:`harness.how.Selection` (the pick key + any repair
+    action item), the failure evidence, and whether it won the :func:`harness.how.pick`
+    comparison. It is what the tree run record persists per candidate.
+    """
+
+    how_id: str
+    rank: int
+    status: str
+    directory: str
+    selection: Selection | None = None
+    evidence: str = ""
+    won: bool = False
+
+    def to_dict(self) -> dict:
+        return {
+            "how_id": self.how_id, "rank": self.rank, "status": self.status,
+            "directory": self.directory,
+            "selection": (list(self.selection.key) if self.selection is not None else None),
+            "needs_repair": bool(self.selection is not None and self.selection.needs_repair),
+            "repair_reason": (self.selection.repair_reason
+                              if self.selection is not None else ""),
+            "evidence": self.evidence, "won": self.won,
+        }
 
 
 @dataclass
@@ -139,10 +186,16 @@ class NodeOutcome:
     calls: int = 0
     wall_s: float = 0.0
     integration_verdicts: dict[str, str] = field(default_factory=dict)
-    reset_to: str | None = None
     resplit_rounds: int = 0
     respec_rounds: int = 0
     evidence: str = ""
+    #: Ticket 20 step 2b: the Hows the node planned (``{id,text,rank,reason,prior,status}``),
+    #: the per-candidate audit records, the manager-loop decisions, and the winning How
+    #: id. All empty for a legacy single-plan node (one that could not plan Hows).
+    hows: list[dict] = field(default_factory=list)
+    candidates: list[CandidateRecord] = field(default_factory=list)
+    manager_decisions: list[dict] = field(default_factory=list)
+    winner: str = ""
     #: Which close rule the deterministic structural gate applied (ticket 18 gap 1):
     #: ``integration`` (≥2 writing descendants, a passing report-gated integration
     #: verdict), ``close_single_writer`` (≤1 writing descendant — nothing to integrate),
@@ -698,6 +751,10 @@ class _TreeContext:
     split_history: dict[str, SplitHistory] = field(default_factory=dict)
     split_pool: dict[str, int] = field(default_factory=dict)
     total_calls: int = 0
+    #: Ticket 20 step 2b: the manager call the failure loop consults (``None`` => the
+    #: safe default ``escalate-or-park``) and the run output area candidate copies live in.
+    manager: Any = None
+    run_outdir: Path = field(default_factory=lambda: Path("."))
 
     def emit(self, kind: str, **data: Any) -> None:
         note(kind, **data)
@@ -887,29 +944,329 @@ def _merge_children(children: Sequence[NodeSpec],
 
 def _parked(node_id: str, reason: str, wall_s: float, *, evidence: str = "",
             children: list[NodeOutcome] | None = None,
-            leaf: LeafOutcome | None = None, reset_to: str | None = None,
+            leaf: LeafOutcome | None = None,
             resplit_rounds: int = 0, respec_rounds: int = 0,
             close_rule: str = "", integration_reopen_rounds: int = 0,
             integration_verdicts: dict[str, str] | None = None) -> NodeOutcome:
     return NodeOutcome(node_id=node_id, claimed=False, stop_reason="parked",
                        leaf=leaf, children=children or [], wall_s=wall_s,
-                       reset_to=reset_to, evidence=evidence or reason,
+                       evidence=evidence or reason,
                        resplit_rounds=resplit_rounds, respec_rounds=respec_rounds,
                        close_rule=close_rule,
                        integration_reopen_rounds=integration_reopen_rounds,
                        integration_verdicts=dict(integration_verdicts or {}))
 
 
-async def run_node(ctx: _TreeContext, node: NodeHandle, budget: Budget) -> NodeOutcome:
-    """Run one node: decompose if it can afford to, else execute it as a leaf.
+def _how_dict(how: How) -> dict:
+    return {"how_id": how.id, "text": how.text, "rank": how.rank,
+            "reason": how.reason, "prior": how.prior, "status": how.status}
 
-    L6 (its own leaf exhausted) and L7 (a child's spec bubbled) both reset THIS node's
-    subtree to its pre-checkpoint and re-run ``plan_node`` with the failure as evidence,
-    bounded to :data:`_MAX_RESTRUCTURE` rounds before the node parks.
+
+def _leaf_outcomes(outcome: NodeOutcome):
+    """Every leaf outcome in a node's subtree (for selection / review verdicts)."""
+    if outcome.leaf is not None:
+        yield outcome.leaf
+    for child in outcome.children:
+        yield from _leaf_outcomes(child)
+
+
+def _candidate_selection(outcome: NodeOutcome, how: How, cost: int,
+                         planned_test_points: Sequence[str] = ()) -> Selection:
+    """The ONE selection key for a candidate outcome (ticket 20 step 2b).
+
+    The plan-time test list with two-way deviation reporting is the NEXT round, so the
+    planned points and test results are empty here: the test component is ``(0, 0.0)``,
+    the review component is the subtree's review verdicts, and the tie-break chain is
+    rank then cost. A negative/vetoed review surfaces as ``needs_repair`` (an ACTION
+    ITEM).
+    """
+    verdicts = [v for leaf in _leaf_outcomes(outcome)
+                for v in (getattr(leaf, "review_verdicts", ()) or ())]
+    return select_key(planned_test_points=tuple(planned_test_points), test_results=None,
+                      review_verdicts=verdicts, rank=how.rank, cost=cost)
+
+
+async def _plan_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
+                     budget: Budget, *, evidence: str = "") -> HowList | None:
+    """The FIRST planning step: ONE ``how_list`` call producing the node's ranked Hows.
+
+    Returns ``None`` when the node cannot afford the call, the model is unable, or the
+    output is malformed — the caller then falls back to the legacy unbound plan. The
+    prior always comes from the rank table (:func:`harness.how.how_list_from_envelope`).
+    """
+    before = budget.spent_calls
+    if budget.calls < 1:
+        return None
+    budget.take(1)
+    artifacts = {
+        "node_goal": spec.goal,
+        "write_boundary": "\n".join(spec.files) or "(none: this node owns no files)",
+        "candidate_files": "\n".join(sorted(ctx.candidate_files)),
+        "depth": str(ctx.depths[node.id]),
+    }
+    question = (
+        "List the candidate APPROACHES (Hows) for THIS node in one call: one paragraph "
+        "of how it would be done, a unique rank (1 = try first), a reason why it is "
+        "worth a look, and a unique HOW-<n> id. Diversity comes from the How, not from "
+        "resampling one prompt. Each How the budget lets the node explore gets its own "
+        "decomposition and its own isolated candidate directory; a failed How is "
+        "abandoned and a NEW one appended, never edited.")
+    if evidence:
+        question += "\nPRIOR ATTEMPT REJECTED — offer genuinely different Hows:\n" + evidence
+    try:
+        env = await llm_step(ctx.model, "how_list", artifacts=artifacts,
+                             question=question)
+    except Exception:  # noqa: BLE001 — a model failure is data, not a crash
+        ctx.total_calls += budget.spent_calls - before
+        return None
+    ctx.total_calls += budget.spent_calls - before
+    if env is None or getattr(env, "status", "unable") == "unable":
+        return None
+    try:
+        hows = how_list_from_envelope(env)
+    except Exception:  # noqa: BLE001 — malformed output → legacy fallback
+        return None
+    if len(hows) == 0:
+        return None
+    ctx.emit("how_list", node=node.id, hows=[h.id for h in hows])
+    return hows
+
+
+async def _plan_how(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget: Budget,
+                    how: How) -> Decomposition | None:
+    """Plan ONE How's decomposition, bound to ``how.id`` (``PlanNode.how_id``)."""
+    before = budget.spent_calls
+    evidence = f"How {how.id}: {how.text}\nWhy this approach: {how.reason}"
+    decomp = await plan_node(
+        ctx.model, goal=spec.goal, evidence=evidence, boundary=set(spec.files),
+        candidate_files=ctx.candidate_files, depth=ctx.depths[node.id],
+        depth_cap=ctx.depth_cap, max_children=ctx.max_children,
+        budget=budget, on_event=ctx.on_event)
+    ctx.total_calls += budget.spent_calls - before
+    if decomp is None or not decomp.children:
+        return None
+    return replace(decomp, how_id=how.id, spec=replace(decomp.spec, how_id=how.id))
+
+
+async def _author_how(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget: Budget,
+                      cs: CandidateSet, evidence: str) -> How | None:
+    """Author a NEW How after a failure (append-only; the old How is never edited)."""
+    fresh = await _plan_hows(ctx, node, spec, budget, evidence=evidence)
+    if fresh is not None:
+        for how in fresh:
+            if cs.hows.get(how.id) is None:
+                return how
+    # No fresh model How: append a synthetic one so the node retries with a genuinely new
+    # candidate instead of editing the failed plan.
+    rank = len(cs.hows.hows) + 1
+    return make_how(
+        f"HOW-{rank}",
+        f"new approach after failure: {(evidence or 'prior attempt failed')[:120]}",
+        rank,
+        "no fresh model How was available; append one so the node can retry")
+
+
+async def _apply_decomposition(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
+                               budget: Budget, decomp: Decomposition,
+                               reuse_handles: Sequence[NodeHandle], workdir: Path,
+                               ) -> tuple[NodeOutcome, list[NodeHandle]] | None:
+    """Split the budget, apply the repeat-refusal rule, and run the children.
+
+    ``None`` means the decomposition cannot be run (too small to fund, an identical
+    non-shrinking repeat, or a smaller re-plan than the existing subtree). The children
+    run inside ``workdir`` — the candidate's OWN isolated copy in the How path, or the
+    run's workdir in the legacy single-plan path.
+    """
+    nid = node.id
+    weights = [c.est_calls for c in decomp.children]
+    spendable = int(budget.calls * (1.0 - budget.reserve_fraction))
+    groups = group_weights(weights, spendable=spendable, min_each=ctx.min_leaf_calls)
+    if groups is None:
+        return None  # cannot fund two leaves → force a leaf
+    merged = _merge_children(decomp.children, groups)
+    # The shrink comparison uses a STABLE pool (the node's first non-reserve pool), so a
+    # repeated decomposition is recognized even though running children changed the live
+    # budget.
+    pool = ctx.split_pool.setdefault(nid, int(budget.calls * (1.0 - budget.reserve_fraction)))
+    total_weight = max(1, sum(weights))
+    max_child_budget = max(
+        (pool * sum(weights[i] for i in g)) // total_weight for g in groups)
+    hist = ctx.split_history.setdefault(nid, SplitHistory())
+    if not hist.accept(decomp.signature, n_children=len(merged),
+                       max_child_budget=max_child_budget):
+        ctx.emit("split_wasted", node=nid, signature=decomp.signature, wasted=hist.wasted)
+        return None
+    needed = len(merged) + 1
+    if reuse_handles and needed < len(reuse_handles):
+        return None
+    try:
+        budgets = split_weighted(budget, weights, min_leaf_calls=ctx.min_leaf_calls)
+    except BudgetError:
+        return None
+    return await _attempt_internal(ctx, node, spec, merged, budgets, budget,
+                                   reuse_handles, workdir)
+
+
+async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget: Budget,
+                    workdir: Path, hows: HowList) -> NodeOutcome:
+    """Explore the node's How candidates, pick the winner, with NO destructive reset.
+
+    Each How gets its OWN isolated candidate copy (never a git worktree / reset) and its
+    own decomposition; the How's children run inside that copy. Every model call any
+    candidate makes is charged to the node's budget: child budgets are split from the
+    node pool per candidate and released exactly once, so a candidate that cannot afford
+    its next call does not open and its unused budget returns. On failure the structured
+    record goes to the manager loop; a negative review is an ACTION ITEM.
+    """
+    nid = node.id
+    started = ctx.now()
+    cs = CandidateSet(node_id=nid, run_outdir=ctx.run_outdir, source=workdir)
+    for how in hows:
+        cs.add_how(how)
+    records: list[CandidateRecord] = []
+    closed: list[tuple[CandidateRecord, NodeOutcome]] = []
+    repair_action = ""
+    reuse_handles: list[NodeHandle] = []
+    explored = 0
+    stop = False
+    while not stop and not ctx.expired(budget):
+        # The bound is rebuilt each round over the CURRENT How list (an appended How raises
+        # the pool, while the shrinking budget lowers it), so a node can open at most
+        # ``how_exploration_limit`` candidates for the Hows it actually holds.
+        if explored >= how_exploration_limit(budget, len(cs.hows),
+                                             min_leaf_calls=ctx.min_leaf_calls):
+            break
+        untried = list(cs.hows.untried())
+        if not untried:
+            break
+        how = untried[0]
+        explored += 1
+        ws = cs.open(how.id)
+        before = budget.spent_calls
+        decomp = await _plan_how(ctx, node, spec, budget, how)
+        result: NodeOutcome | None = None
+        if decomp is not None and decomp.children:
+            applied = await _apply_decomposition(ctx, node, spec, budget, decomp,
+                                                 reuse_handles, ws.path)
+            if applied is not None:
+                result, reuse_handles = applied
+        cost = budget.spent_calls - before
+        if result is not None and result.claimed and result.stop_reason == "closed":
+            selection = _candidate_selection(result, how, cost)
+            record = CandidateRecord(how.id, how.rank, "succeeded", str(ws.path), selection)
+            records.append(record)
+            if selection.needs_repair:
+                # A negative review is an ACTION ITEM, not a lost comparison: do not
+                # accept it; keep working on the remaining Hows.
+                repair_action = selection.repair_reason
+                record.status = "abandoned"
+                cs.hows = cs.hows.with_status(how.id, "abandoned")
+                ctx.emit("candidate_repair", node=nid, how=how.id,
+                         reason=selection.repair_reason)
+            else:
+                cs.succeed(how.id)
+                closed.append((record, result))
+            continue
+        # Failure: the structured evidence + reason go to the manager loop.
+        evidence = (result.evidence if result is not None
+                    else "the How produced no decomposition")
+        stop_reason = result.stop_reason if result is not None else "no-decomposition"
+        cs.fail(how.id, evidence=evidence, reason=stop_reason)
+        records.append(CandidateRecord(how.id, how.rank, "failed", str(ws.path), None,
+                                       evidence))
+        decision = decide_after_failure(cs.manager_view(current_how_id=how.id),
+                                        manager=ctx.manager)
+        cs.record(decision)
+        ctx.emit("manager_decision", node=nid, how=how.id,
+                 decision=decision.decision, reason=decision.reason)
+        if decision.decision == "author-a-new-how":
+            appended = await _author_how(ctx, node, spec, budget, cs, evidence)
+            if appended is not None:
+                cs.add_how(appended)
+                ctx.emit("how_appended", node=nid, how=appended.id)
+        elif decision.decision == "continue-with-next-how":
+            continue
+        else:
+            stop = True
+
+    if not closed:
+        # Nothing qualifies: abandon every remaining candidate directory and park. No
+        # git reset is involved — the candidate copies are simply discarded.
+        for how in list(cs.hows):
+            ws = cs.workspaces.pop(how.id, None)
+            if ws is not None:
+                abandon_candidate(ws)
+        evidence = repair_action or "no candidate closed"
+        parked = _parked(nid, "parked", round(ctx.now() - started, 3),
+                         evidence=f"no How candidate closed: {evidence}")
+        parked.hows = [_how_dict(h) for h in cs.hows]
+        parked.candidates = records
+        parked.manager_decisions = [{"decision": d.decision, "reason": d.reason}
+                                    for d in cs.decisions]
+        return parked
+
+    # SELECTION DRIVES THE OUTCOME: the ONE picker, never a model vote.
+    winner_selection = pick([record.selection for record, _ in closed])
+    winner_record, winner_outcome = next(
+        (record, outcome) for record, outcome in closed
+        if record.selection is winner_selection)
+    winner_record.won = True
+    _merge_candidate(Path(winner_record.directory), workdir)
+    for record, _ in closed:
+        if record is not winner_record:
+            record.status = "abandoned"
+            cs.hows = cs.hows.with_status(record.how_id, "abandoned")
+    for how in list(cs.hows):
+        ws = cs.workspaces.pop(how.id, None)
+        if ws is not None and how.id != winner_record.how_id:
+            abandon_candidate(ws)
+    ctx.emit("node_hows_selected", node=nid, winner=winner_record.how_id,
+             candidates=len(records), decisions=len(cs.decisions))
+    winner_outcome.hows = [_how_dict(h) for h in cs.hows]
+    winner_outcome.candidates = records
+    winner_outcome.manager_decisions = [{"decision": d.decision, "reason": d.reason}
+                                        for d in cs.decisions]
+    winner_outcome.winner = winner_record.how_id
+    return winner_outcome
+
+
+def _merge_candidate(source: Path, workdir: Path) -> None:
+    """Copy a winning candidate's files back into the node's workdir (no git).
+
+    The candidate was a COPY of the workdir, so writing every non-git, non-cache file
+    back leaves the workdir at the winning candidate's state without any branch switch
+    or reset.
+    """
+    source = Path(source)
+    workdir = Path(workdir)
+    for path in sorted(source.rglob("*")):
+        rel = path.relative_to(source)
+        if ".git" in rel.parts or "__pycache__" in rel.parts \
+                or path.suffix in (".pyc", ".pyo") or path.is_symlink():
+            continue
+        dest = workdir / rel
+        if path.is_dir():
+            dest.mkdir(parents=True, exist_ok=True)
+        elif path.is_file():
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(path.read_bytes())
+
+
+async def run_node(ctx: _TreeContext, node: NodeHandle, budget: Budget,
+                   workdir: Path | None = None) -> NodeOutcome:
+    """Run one node: plan Hows first, decompose, else execute it as a leaf.
+
+    Ticket 20 step 2b: planning is HOW-first. A node that can decompose lists its Hows
+    (``how_list``) and explores the affordable ones as candidate copies; the winner is
+    chosen by :func:`harness.how.pick`. A failed candidate goes through the manager loop
+    and the node appends a NEW How — there is NO ``git reset --hard`` / ``git clean``
+    anywhere. A node that cannot plan Hows falls back to the legacy unbound plan; on
+    exhaustion or a spec bubble it parks instead of resetting.
     """
     nid = node.id
     spec = ctx.specs[nid]
     depth = ctx.depths[nid]
+    workdir = Path(workdir) if workdir is not None else ctx.workdir
     started = ctx.now()
 
     if ctx.expired(budget) or budget.calls < 1:
@@ -917,105 +1274,46 @@ async def run_node(ctx: _TreeContext, node: NodeHandle, budget: Budget) -> NodeO
         ctx.emit("node_parked", node=nid, reason=reason)
         return _parked(nid, reason, round(ctx.now() - started, 3))
 
-    checkpoint = ctx.trajectory.checkpoint(nid)
-    ctx.checkpoints[nid] = checkpoint
+    if workdir == ctx.workdir:
+        # A resume marker only; nothing resets it (ticket 20 step 2b).
+        ctx.checkpoints[nid] = ctx.trajectory.checkpoint(nid)
 
-    evidence = ""
-    l6_rounds = 0
-    l7_rounds = 0
-    force_plan = False
-    reuse_handles: list[NodeHandle] = []
-
-    while True:
-        can_plan = (spec.kind == "internal" or force_plan)
-        plan = None
-        if can_plan and depth < ctx.depth_cap and can_decompose(
-                budget, 2, min_leaf_calls=ctx.min_leaf_calls):
-            plan = await _plan(ctx, node, spec, budget, evidence)
-
+    if spec.kind == "internal" and depth < ctx.depth_cap and can_decompose(
+            budget, 2, min_leaf_calls=ctx.min_leaf_calls):
+        hows = await _plan_hows(ctx, node, spec, budget)
+        if hows:
+            return await _run_hows(ctx, node, spec, budget, workdir, hows)
+        # Legacy fallback: no Hows available → the single unbound plan.
+        plan = await _plan(ctx, node, spec, budget, "")
         if plan is not None:
-            decomp = plan
-            weights = [c.est_calls for c in decomp.children]
-            spendable = int(budget.calls * (1.0 - budget.reserve_fraction))
-            groups = group_weights(weights, spendable=spendable, min_each=ctx.min_leaf_calls)
-            budgets: list[Budget] | None = None
-            merged: list[NodeSpec] = []
-            if groups is not None:
-                merged = _merge_children(decomp.children, groups)
-                # The shrink comparison uses a STABLE pool (the node's first non-reserve
-                # pool), so an identical re-split is recognized even though running the
-                # children changed the live budget. "Did this decomposition allocate
-                # smaller pieces than the last one?" is a fact about the decomposition.
-                pool = ctx.split_pool.setdefault(
-                    nid, int(budget.calls * (1.0 - budget.reserve_fraction)))
-                total_weight = max(1, sum(weights))
-                max_child_budget = max(
-                    (pool * sum(weights[i] for i in g)) // total_weight for g in groups)
-                hist = ctx.split_history.setdefault(nid, SplitHistory())
-                if not hist.accept(decomp.signature, n_children=len(merged),
-                                   max_child_budget=max_child_budget):
-                    ctx.emit("split_wasted", node=nid, signature=decomp.signature,
-                             wasted=hist.wasted)
-                    return _parked(nid, "wasted-resplit", round(ctx.now() - started, 3),
-                                   evidence="identical re-split refused as wasted",
-                                   reset_to=checkpoint, resplit_rounds=l6_rounds,
-                                   respec_rounds=l7_rounds)
-                # Every internal attempt inserts its children plus one dedicated
-                # integration leaf (ticket 18 gap 1), so a re-plan reuses that many.
-                needed = len(merged) + 1
-                if reuse_handles and needed < len(reuse_handles):
-                    return _parked(nid, "restructure-too-small",
-                                   round(ctx.now() - started, 3),
-                                   evidence="the re-plan produced fewer children than the "
-                                            "existing subtree; cannot restructure in place",
-                                   reset_to=checkpoint, resplit_rounds=l6_rounds,
-                                   respec_rounds=l7_rounds)
-                try:
-                    budgets = split_weighted(budget, weights, min_leaf_calls=ctx.min_leaf_calls)
-                except BudgetError:
-                    budgets = None  # second line of defense → force a leaf
-            if budgets is not None:
-                result, handles = await _attempt_internal(
-                    ctx, node, spec, merged, budgets, budget, reuse_handles)
-                if result.stop_reason == "respec" and l7_rounds < _MAX_RESTRUCTURE:
-                    l7_rounds += 1
-                    ctx.trajectory.reset_to(checkpoint, reason="L7",
-                                            detail=result.evidence)
-                    for handle in handles:
-                        _reset_handle(ctx, handle)
-                    reuse_handles = handles
-                    evidence = result.evidence
-                    ctx.emit("l7_respec", node=nid, round=l7_rounds, evidence=evidence)
-                    continue
+            applied = await _apply_decomposition(ctx, node, spec, budget, plan, (),
+                                                 workdir)
+            if applied is not None:
+                result, _handles = applied
                 if result.stop_reason == "respec":
                     return _parked(nid, "needs-user", round(ctx.now() - started, 3),
-                                   evidence="L7 round bound reached: the parent spec still "
-                                            "does not close",
-                                   children=result.children, reset_to=checkpoint,
-                                   respec_rounds=l7_rounds)
-                result.reset_to = result.reset_to or (
-                    checkpoint if result.stop_reason == "parked" else None)
+                                   evidence="spec bubble: no reset; append a How via the "
+                                            "How path to try a new approach",
+                                   children=result.children)
                 return result
 
-        # Leaf path.
-        result = await _run_leaf_node(ctx, node, spec, budget)
-        if result.stop_reason == "resplit" and l6_rounds < _MAX_RESTRUCTURE:
-            l6_rounds += 1
-            ctx.trajectory.reset_to(checkpoint, reason="L6", detail=result.evidence)
-            evidence = result.evidence
-            force_plan = True
-            ctx.emit("l6_resplit", node=nid, round=l6_rounds, evidence=evidence)
-            continue
-        if result.stop_reason == "resplit":
-            return _parked(nid, "needs-user", round(ctx.now() - started, 3),
-                           evidence="L6 round bound reached: the node keeps exhausting",
-                           leaf=result.leaf, reset_to=checkpoint, resplit_rounds=l6_rounds)
-        result.reset_to = checkpoint if result.leaf is not None and not result.claimed else None
-        return result
+    # Leaf path (a declared leaf, or a node that could not afford to decompose).
+    result = await _run_leaf_node(ctx, node, spec, budget, workdir)
+    if result.stop_reason == "resplit":
+        # L6 replacement: append a How and switch candidate instead of resetting git.
+        hows = await _plan_hows(ctx, node, spec, budget, evidence=result.evidence)
+        if hows:
+            return await _run_hows(ctx, node, spec, budget, workdir, hows)
+        return _parked(nid, "needs-user", round(ctx.now() - started, 3),
+                       evidence="node exhausted; no new How available (no destructive "
+                                "reset)", leaf=result.leaf)
+    # A spec bubble ("respec") is NOT handled here: it propagates UP to the owning node,
+    # whose candidate loop consults the manager and appends a new How (no reset).
+    return result
 
 
 async def _run_leaf_node(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
-                         budget: Budget) -> NodeOutcome:
+                         budget: Budget, workdir: Path) -> NodeOutcome:
     """Execute one node as a leaf through :func:`run_leaf` (the single work primitive).
 
     The write boundary is AUDITED, not trusted (ticket 18 gap A): the work tree is
@@ -1025,15 +1323,15 @@ async def _run_leaf_node(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
     (``stop_reason == "boundary-escape"``) so the node never closes on code that wrote
     outside its boundary.
     """
-    leaf_spec = leaf_spec_from(spec, ctx.workdir, root_grader_paths=ctx.root_grader_paths,
+    leaf_spec = leaf_spec_from(spec, workdir, root_grader_paths=ctx.root_grader_paths,
                                candidate_files=tuple(sorted(ctx.candidate_files)))
-    before_state = snapshot_workdir(ctx.workdir)
+    before_state = snapshot_workdir(workdir)
     before = budget.spent_calls
     outcome = await run_leaf(
-        ctx.model, leaf_spec, ctx.workdir, budget, judge=ctx.judge, iv=ctx.iv,
+        ctx.model, leaf_spec, workdir, budget, judge=ctx.judge, iv=ctx.iv,
         review=ctx.review, run_tests=ctx.run_tests, now=ctx.now, on_event=ctx.on_event)
     ctx.total_calls += budget.spent_calls - before
-    audit = audit_leaf_boundary(ctx.workdir, before_state,
+    audit = audit_leaf_boundary(workdir, before_state,
                                 leaf_spec.write_boundary or ())
     if not audit.clean:
         ctx.emit("boundary_escape", node=node.id, violations=list(audit.violations),
@@ -1087,7 +1385,7 @@ async def _run_leaf_node(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
 
 
 async def _run_integration_leaf(ctx: _TreeContext, integration_handle: NodeHandle,
-                               budget: Budget) -> list[str]:
+                               budget: Budget, workdir: Path) -> list[str]:
     """Run the dedicated integration leaf on the parent's reserve; return its check keys.
 
     Integration work draws on the parent's reserve (DESIGN §10.2), not the children's
@@ -1102,7 +1400,7 @@ async def _run_integration_leaf(ctx: _TreeContext, integration_handle: NodeHandl
     child_budget = Budget(calls=calls, deadline_ts=budget.deadline_ts,
                           reserve_fraction=budget.reserve_fraction)
     try:
-        await run_node(ctx, integration_handle, child_budget)
+        await run_node(ctx, integration_handle, child_budget, workdir)
     finally:
         budget.release(child_budget)
     return [e.key for e in integration_handle.ac_test_map]
@@ -1155,6 +1453,7 @@ async def _attempt_internal(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
                             children: Sequence[NodeSpec], budgets: Sequence[Budget],
                             budget: Budget,
                             reuse_handles: Sequence[NodeHandle],
+                            workdir: Path,
                             ) -> tuple[NodeOutcome, list[NodeHandle]]:
     """Insert children plus one dedicated integration leaf, run them, apply the close rule.
 
@@ -1200,7 +1499,7 @@ async def _attempt_internal(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
             for i in active:
                 child_budget = source_budgets[i]
                 assert child_budget is not None
-                outcome = await run_node(ctx, source_handles[i], child_budget)
+                outcome = await run_node(ctx, source_handles[i], child_budget, workdir)
                 budget.release(child_budget)
                 released.add(i)
                 outcomes[i] = outcome
@@ -1209,8 +1508,7 @@ async def _attempt_internal(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
                                         stop_reason=outcome.stop_reason,
                                         children=[o for o in outcomes if o is not None],
                                         wall_s=round(ctx.now() - started, 3),
-                                        evidence=outcome.evidence,
-                                        reset_to=outcome.reset_to), handles)
+                                        evidence=outcome.evidence), handles)
         finally:
             # A short-circuit (a bubbling/parked child) must still return the unspent
             # pool of the children that never ran, or the parent leaks budget across
@@ -1236,7 +1534,7 @@ async def _attempt_internal(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
                                     integration_reopen_rounds=reopen_rounds)
 
         if reopen_rounds == 0:
-            keys = await _run_integration_leaf(ctx, integration_handle, budget)
+            keys = await _run_integration_leaf(ctx, integration_handle, budget, workdir)
             if keys:
                 # The integration leaf's job is to EXPOSE the check; the verdict is the
                 # parent's report-gated re-run of it, so the leaf is done once it produced
@@ -1253,7 +1551,7 @@ async def _attempt_internal(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
                 integration_reopen_rounds=reopen_rounds), handles
 
         node.set_ac_test_map(_integration_map(integration_spec.acs, keys))
-        results = await integration_verdicts(ctx.tree, node, ctx.run_tests, ctx.workdir)
+        results = await integration_verdicts(ctx.tree, node, ctx.run_tests, workdir)
         failed = [k for k, v in results.verdicts.items() if v != "pass"]
         if not failed:
             return _finish_internal(ctx, node, outcomes, results=results, rule="integration",
@@ -1324,12 +1622,17 @@ async def run_tree(
     max_children: int = 15,
     min_leaf_calls: int = MIN_LEAF_CALLS,
     trajectory: Trajectory | None = None,
+    run_outdir: Path | None = None,
+    manager: Any = None,
 ) -> TreeOutcome:
     """Run the whole tree over an already-built :class:`TaskTree` and root :class:`NodeSpec`.
 
     ``run_leaf`` is called verbatim for every leaf; ``root_grader_paths`` is the single
     grader set every descendant leaf inherits; the shared ``budget`` deadline is the
-    final stop (no new node starts once it passes).
+    final stop (no new node starts once it passes). ``run_outdir`` is the run output area
+    How candidate copies live under (ticket 20 step 2b); ``manager`` is the node's
+    managing call the failure loop consults (``None`` ⇒ the safe default
+    ``escalate-or-park``).
     """
     workdir = Path(workdir)
     trajectory = trajectory or Trajectory(workdir)
@@ -1340,7 +1643,9 @@ async def run_tree(
         root_grader_paths=tuple(root_grader_paths),
         candidate_files=set(_source_only_view(workdir)),
         judge=judge, iv=iv, review=review, run_tests=run_tests, now=clock, on_event=on_event,
-        depth_cap=depth_cap, max_children=max_children, min_leaf_calls=min_leaf_calls)
+        depth_cap=depth_cap, max_children=max_children, min_leaf_calls=min_leaf_calls,
+        run_outdir=Path(run_outdir) if run_outdir is not None else workdir.parent,
+        manager=manager)
     ctx.specs[tree.root_id] = root
     ctx.depths[tree.root_id] = 0
     started = clock()

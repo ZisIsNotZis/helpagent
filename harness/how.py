@@ -35,11 +35,13 @@ the pieces the tree runner builds on:
 Scope discipline: the plan-time test list with two-way deviation reporting is the NEXT
 round; the leaf's claim rules, the review angles, and the covenant are untouched here.
 
-NOT YET WIRED (step 2b): this module is additive and no runtime module imports it. The
-old tree runner still uses `trajectory.reset_to(...)` (git checkpoints) for L6/L7, so the
-candidate-directory isolation below is a tested mechanism, NOT yet in effect for real
-runs; the destructive reset path remains until step 2b replaces it. Nothing here should
-be read as "candidates were used" on an existing run.
+WIRED (step 2b): :mod:`harness.tree_run` now plans How-first — ``run_node`` calls
+``how_list``, opens one candidate copy per affordable How, binds each decomposition to
+its ``how_id``, and chooses the winner with :func:`pick`. The old
+``trajectory.reset_to`` (``git reset --hard`` / ``git clean``) path is GONE from the
+runner and from :class:`harness.trajectory.Trajectory`; a failed/exhausted approach
+appends a new How through the :func:`decide_after_failure` manager loop. The candidate
+copies are the only rollback mechanism now.
 """
 
 from __future__ import annotations

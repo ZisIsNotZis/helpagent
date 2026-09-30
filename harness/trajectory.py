@@ -40,22 +40,17 @@ class SnapshotRecord:
 
 
 @dataclass
-class DiscardedCommit:
-    """One commit thrown away by a subtree reset (DESIGN §10.1 step 7). Recorded
-    BEFORE ``reset --hard`` so the discarded work is auditable after the fact."""
-
-    sha: str
-    reason: str
-    note: str = ""
-
-
-@dataclass
 class Trajectory:
-    """Append-only per-step snapshot record over one workdir (git-init'd on first use)."""
+    """Append-only per-step snapshot record over one workdir (git-init'd on first use).
+
+    Ticket 20 step 2b: the DESTRUCTIVE per-node subtree reset is gone. A failed
+    approach is no longer rolled back with ``git reset --hard`` / ``git clean``; the
+    runner abandons the candidate's own isolated copy instead
+    (:mod:`harness.how`). The trajectory keeps its snapshot/diff/checkpoint roles.
+    """
 
     workdir: Path
     records: list[SnapshotRecord] = field(default_factory=list)
-    discarded: list[DiscardedCommit] = field(default_factory=list)
 
     # -- git plumbing -----------------------------------------------------------
 
@@ -115,15 +110,19 @@ class Trajectory:
             [r.__dict__ for r in self.records], indent=1, ensure_ascii=False
         )
 
-    # -- per-node checkpoints (ticket 18, DESIGN §10.1 step 7) -------------------
+    # -- per-node checkpoints (resume state; ticket 20 step 2b) ------------------
 
     def checkpoint(self, node_id: str) -> str:
         """Commit the current work tree and return the checkpoint SHA.
 
-        One commit per node, taken BEFORE the node's first mutation, so an L6/L7
-        subtree reset can return to exactly this node's starting point. ``--allow-empty``
+        One commit per node, taken BEFORE the node's first mutation, so a run's state
+        stays resumable and every node's starting point is named. ``--allow-empty``
         keeps the checkpoint well-defined when nothing changed. Inside the
         harness-owned throwaway workdir only (the user's repo is never touched).
+
+        Ticket 20 step 2b: checkpoints are a resume/audit marker only. Nothing resets
+        them — a discarded approach is an abandoned candidate DIRECTORY, so there is no
+        ``git reset --hard``/``git clean`` in the runner anymore.
         """
         self.ensure_git()
         _git(self.workdir, "add", "-A")
@@ -131,29 +130,6 @@ class Trajectory:
         sha = _git(self.workdir, "rev-parse", "HEAD").strip()
         note("node_checkpoint", node=node_id, sha=sha)
         return sha
-
-    def reset_to(self, sha: str, *, reason: str, detail: str = "") -> list[str]:
-        """Discard every commit after ``sha`` and hard-reset the work tree to it.
-
-        The discarded SHAs are ledger-recorded FIRST (append-only — the work is
-        auditable after the reset), then ``git reset --hard <sha>`` and ``git clean -fdq``
-        remove the node's own uncommitted/untracked output. ``-x`` is deliberately
-        omitted so ignored files are kept. Returns the discarded SHAs, newest first.
-        """
-        self.ensure_git()
-        head = _git(self.workdir, "rev-parse", "HEAD").strip()
-        if head != sha:
-            out = _git(self.workdir, "rev-list", f"{sha}..HEAD").split()
-            for discarded in out:  # newest first (rev-list order) — ledger first
-                self.discarded.append(
-                    DiscardedCommit(sha=discarded, reason=reason, note=detail))
-                note("checkpoint_discarded", sha=discarded, reason=reason, detail=detail)
-        else:
-            out = []
-        _git(self.workdir, "reset", "--hard", sha)
-        _git(self.workdir, "clean", "-fdq")
-        note("subtree_reset", sha=sha, reason=reason, discarded=len(out))
-        return out
 
     # -- user-edit conflict rule --------------------------------------------------
 

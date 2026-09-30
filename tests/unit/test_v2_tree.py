@@ -9,10 +9,11 @@ PlanNode / ``validate_decomposition`` contract, all against
 
 Covered: sibling disjointness (incl. canonicalization evasion), budget-1 cannot split,
 reserve/release conservation, an internal node cannot close without a passing
-integration verdict, root grader-path inheritance, L7 (spec bubble → subtree reset +
-re-plan), L6 (exhausted leaf → re-split), the identical-re-split refusal, subtree reset
-leaving siblings untouched, the shared-deadline stop, and that the tree calls
-``run_leaf`` unchanged.
+integration verdict, root grader-path inheritance, and the ticket-20-step-2b How path:
+a resplit appends a How and switches candidate (no git reset), a spec bubble appends a
+new How at the owning node through the manager loop, an identical re-split is still
+refused as ``wasted``, no ``git reset``/``git clean`` is ever invoked on a candidate
+path, the shared-deadline stop, and that the tree calls ``run_leaf`` unchanged.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from harness import trajectory as trajectory_mod
 from harness import tree_run
 from harness.attempts import Attempt
 from harness.budget import Budget, BudgetError
@@ -33,6 +35,7 @@ from harness.envelopes import PlanNode
 from harness.exec import ShapedResult
 from harness.fake_model import FakeModelRunner
 from harness.gate_report import GateReport
+from harness.how import ManagerDecision
 from harness.leaf import DeclaredTestCase, LeafOutcome, LeafSpec, _source_write_problem
 from harness.node import (
     Decomposition,
@@ -72,6 +75,15 @@ def plan_env(children, *, files, goal: str = "root goal", acs=(), behavior: str 
     return {"status": "ok", "comment": "planned", "goal": goal, "behavior": behavior,
             "implementation_notes": notes, "files": list(files), "acs": list(acs),
             "interfaces": [], "children": list(children)}
+
+
+def how(how_id: str = "HOW-1", text: str = "try the direct fix", rank: int = 1,
+        reason: str = "smallest diff") -> dict:
+    return {"how_id": how_id, "text": text, "rank": rank, "reason": reason}
+
+
+def how_env(hows) -> dict:
+    return {"status": "ok", "comment": "ranked approaches", "hows": list(hows)}
 
 
 def leaf_outcome(claimed: bool = True, signal: str = "green", stop: str = "green",
@@ -340,52 +352,16 @@ def test_leaf_inherits_root_grader_paths(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# 7. a spec bubble triggers L7: reset the parent subtree and re-plan
+# 7. the How path: a resplit appends a How and switches candidate (no git reset)
 # ---------------------------------------------------------------------------
 
 
-def test_spec_bubble_triggers_l7_and_resets_subtree(tmp_path, monkeypatch):
-    """A child ``needs_parent``/``spec-bubble`` sends the owning parent back to its
-    checkpoint and re-runs ``plan_node`` with the failure as evidence — never a fresh
-    ``run_leaf`` on the unchanged spec."""
-    stage(tmp_path)
-    fake = FakeLeaf([
-        leaf_outcome(claimed=False, signal="bubble", stop="spec-bubble", needs_parent=True,
-                     exhaustion_reason="the parent spec contradicts the goal"),
-    ])
-    monkeypatch.setattr(tree_run, "run_leaf", fake)
-    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
-                    kind="internal")
-    model = FakeModelRunner({"plan_node": [
-        plan_env([child("fix one", ["pkg/a.py"]), child("fix two", ["pkg/b.py"])],
-                 files=("pkg/a.py", "pkg/b.py")),
-        plan_env([child("fix one corrected", ["pkg/a.py"]),
-                  child("fix two corrected", ["pkg/b.py"])],
-                 files=("pkg/a.py", "pkg/b.py"), goal="root goal corrected",
-                 behavior="the corrected contract"),
-    ]})
-    out = run_tree_sync(model, root, make_tree(), tmp_path,
-                        Budget(calls=40, deadline_ts=_FAR))
-
-    assert out.claimed
-    assert len(model.calls("plan_node")) == 2                  # re-planned once
-    resets = ledger_with("subtree_reset")
-    assert resets and resets[0]["reason"] == "L7"
-    assert "l7_respec" in ledger_kinds()
-    goals = [spec.goal.splitlines()[0] for spec in fake.specs]
-    assert goals == ["fix one", "fix one corrected", "fix two corrected"]
-    assert goals.count("fix one") == 1                         # the bubbled spec never re-ran
-
-
-# ---------------------------------------------------------------------------
-# 8. an exhausted leaf triggers L6: re-split into smaller children
-# ---------------------------------------------------------------------------
-
-
-def test_exhausted_child_triggers_l6_resplit(tmp_path, monkeypatch):
-    """``signal == "exhausted"`` restores the node's own checkpoint and re-plans it into
-    smaller children (which then run)."""
-    stage(tmp_path)
+def test_resplit_appends_a_how_and_switches_candidate(tmp_path, monkeypatch):
+    """Ticket 20 step 2b: an exhausted leaf NO LONGER resets git. It authors a NEW How
+    (append-only) and runs the next candidate in its OWN isolated copy, so the winning
+    approach is a candidate directory — never a rolled-back work tree."""
+    workdir = tmp_path / "work"
+    stage(workdir)
     fake = FakeLeaf([
         leaf_outcome(claimed=False, signal="exhausted", stop="attempts", exhausted=True,
                      exhaustion_reason="node exhausted"),
@@ -393,31 +369,95 @@ def test_exhausted_child_triggers_l6_resplit(tmp_path, monkeypatch):
     monkeypatch.setattr(tree_run, "run_leaf", fake)
     root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
                     kind="internal")
-    model = FakeModelRunner({"plan_node": [
-        plan_env([child("fix the whole working set", ["pkg/a.py", "pkg/b.py"])],
-                 files=("pkg/a.py", "pkg/b.py")),
-        plan_env([child("fix part one", ["pkg/a.py"]), child("fix part two", ["pkg/b.py"])],
-                 files=("pkg/a.py", "pkg/b.py"), goal="fix the whole working set"),
-    ]})
-    out = run_tree_sync(model, root, make_tree(), tmp_path,
-                        Budget(calls=40, deadline_ts=_FAR), run_tests=Gates(green=True))
+    model = FakeModelRunner({
+        "how_list": [
+            how_env([how("HOW-1", "one-shot whole-set edit", 1)]),
+            how_env([how("HOW-2", "split into two smaller edits", 1)]),
+        ],
+        "plan_node": [
+            plan_env([child("fix the whole working set", ["pkg/a.py", "pkg/b.py"])],
+                     files=("pkg/a.py", "pkg/b.py")),
+            plan_env([child("fix part one", ["pkg/a.py"]),
+                      child("fix part two", ["pkg/b.py"])],
+                     files=("pkg/a.py", "pkg/b.py"), goal="fix the whole working set"),
+        ],
+    })
+    run_outdir = tmp_path / "out"
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=run_outdir,
+                        run_tests=Gates(green=True))
 
-    assert "l6_resplit" in ledger_kinds()
-    assert len(model.calls("plan_node")) == 2
-    goals = [spec.goal.splitlines()[0] for spec in fake.specs]
-    assert goals[0] == "fix the whole working set"             # exhausted first
-    assert "fix part one" in goals and "fix part two" in goals  # re-split children ran
     assert out.claimed
+    # the resplit authored a NEW How (append-only) and switched candidate
+    assert len(model.calls("how_list")) == 2
+    child_outcome = out.root.children[0]
+    assert child_outcome.winner == "HOW-2"
+    assert [h["how_id"] for h in child_outcome.hows] == ["HOW-2"]
+    assert "how_list" in ledger_kinds()
+    # the candidate lives in its own directory under the run output area
+    cand_dir = run_outdir / "candidates" / child_outcome.node_id / "HOW-2"
+    assert cand_dir.is_dir()
+    # and NO destructive reset/clean was ever invoked
+    assert "subtree_reset" not in ledger_kinds()
+    assert "checkpoint_discarded" not in ledger_kinds()
 
 
 # ---------------------------------------------------------------------------
-# 9. an identical re-split is refused as wasted
+# 8. the How path: a spec bubble appends a new How at the owning node
+# ---------------------------------------------------------------------------
+
+
+def test_spec_bubble_appends_a_new_how_at_the_owning_node(tmp_path, monkeypatch):
+    """Ticket 20 step 2b: a child ``spec-bubble`` is no longer an L7 git reset. The
+    owning node consults the manager loop, appends a NEW How (append-only), and re-plans
+    bound to it — the old How is marked failed, never edited, and no work tree is reset."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([
+        leaf_outcome(claimed=False, signal="bubble", stop="spec-bubble", needs_parent=True,
+                     exhaustion_reason="the parent spec contradicts the goal"),
+    ])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [
+            how_env([how("HOW-1", "the approach whose spec bubbled", 1)]),
+            how_env([how("HOW-2", "a corrected approach", 1)]),
+        ],
+        "plan_node": [
+            plan_env([child("fix one", ["pkg/a.py"])], files=("pkg/a.py", "pkg/b.py")),
+            plan_env([child("fix two", ["pkg/b.py"])], files=("pkg/a.py", "pkg/b.py")),
+        ],
+    })
+
+    def manager(view):
+        assert view.failed == ("HOW-1",)
+        return ManagerDecision("author-a-new-how", "the bubble needs a different approach")
+
+    run_outdir = tmp_path / "out"
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=run_outdir,
+                        manager=manager)
+
+    assert out.claimed
+    assert len(model.calls("how_list")) == 2                  # a NEW How was authored
+    assert out.root.winner == "HOW-2"
+    statuses = {h["how_id"]: h["status"] for h in out.root.hows}
+    assert statuses["HOW-1"] == "failed" and statuses["HOW-2"] == "succeeded"
+    assert [d["decision"] for d in out.root.manager_decisions] == ["author-a-new-how"]
+    assert "subtree_reset" not in ledger_kinds()
+
+
+# ---------------------------------------------------------------------------
+# 9. an identical re-split is refused as wasted (still, without a reset)
 # ---------------------------------------------------------------------------
 
 
 def test_identical_resplit_is_refused_as_wasted(tmp_path, monkeypatch):
-    """The T-31 "nine identical retries" defect: a re-split with the same signature and
-    no shrink is recorded ``wasted`` and refused."""
+    """The T-31 "nine identical retries" defect still cannot recur: a second How whose
+    decomposition repeats the first with no shrink is refused as ``wasted`` and fails the
+    candidate, so the node keeps the first candidate rather than looping."""
     history = SplitHistory()
     assert history.accept("sig", n_children=2, max_child_budget=5)
     assert not history.accept("sig", n_children=2, max_child_budget=5)   # identical
@@ -426,57 +466,71 @@ def test_identical_resplit_is_refused_as_wasted(tmp_path, monkeypatch):
     assert history.accept("sig", n_children=3, max_child_budget=3)       # more children: shrink
     assert history.accept("other", n_children=2, max_child_budget=9)     # new signature
 
-    # tree-level: an L7 re-plan that returns the identical decomposition parks the node
-    stage(tmp_path)
-    fake = FakeLeaf([
-        leaf_outcome(claimed=False, signal="bubble", stop="spec-bubble", needs_parent=True,
-                     exhaustion_reason="spec is wrong"),
-    ])
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf()
     monkeypatch.setattr(tree_run, "run_leaf", fake)
     root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
                     kind="internal")
     same = plan_env([child("fix one", ["pkg/a.py"]), child("fix two", ["pkg/b.py"])],
                     files=("pkg/a.py", "pkg/b.py"))
-    model = FakeModelRunner({"plan_node": [same, same]})
-    out = run_tree_sync(model, root, make_tree(), tmp_path,
-                        Budget(calls=40, deadline_ts=_FAR))
-    assert not out.claimed
-    assert out.root.stop_reason == "parked"
+    model = FakeModelRunner({
+        "how_list": [how_env([how("HOW-1", "a", 1), how("HOW-2", "b", 2)])],
+        "plan_node": [same, same],
+    })
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR),
+                        run_outdir=tmp_path / "out")
+    assert out.claimed                                             # the first candidate closes
+    assert out.root.winner == "HOW-1"
     assert "split_wasted" in ledger_kinds()
 
 
 # ---------------------------------------------------------------------------
-# 10. a subtree reset leaves siblings untouched and records the discarded SHAs
+# 10. no git reset/clean is ever invoked on (or for) a candidate path
 # ---------------------------------------------------------------------------
 
 
-def test_subtree_reset_leaves_siblings_untouched(tmp_path):
-    """L6/L7 reset restores only the node's own branch (its post-checkpoint commits),
-    keeps committed sibling work, removes untracked output, and ledgers every discarded
-    SHA BEFORE the hard reset."""
+def test_no_git_reset_or_clean_on_a_candidate_path(tmp_path, monkeypatch):
+    """The candidate path is a COPY with no ``.git``: the runner must never run
+    ``git reset``/``git clean``, and must never point a git command at a candidate
+    directory (ticket 20 step 2b removed the destructive reset entirely)."""
     workdir = tmp_path / "work"
-    workdir.mkdir()
-    (workdir / "base.py").write_text("base = 1\n")
-    traj = Trajectory(workdir)
-    traj.ensure_git()
-    reset_ledger_for_tests()
+    stage(workdir)
+    fake = FakeLeaf()
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
 
-    (workdir / "sibling.py").write_text("kept\n")
-    traj.checkpoint("sibling")
-    checkpoint = traj.checkpoint("N-2")                    # N-2's pre-checkpoint
-    (workdir / "node_work.py").write_text("discard me\n")
-    work_sha = traj.checkpoint("N-2-work")
-    (workdir / "scratch.py").write_text("untracked\n")     # never committed
+    git_calls: list[tuple[str, tuple]] = []
+    real_git = trajectory_mod._git
 
-    discarded = traj.reset_to(checkpoint, reason="L6", detail="node exhausted")
+    def spy(workdir_arg, *args, **kwargs):
+        git_calls.append((str(workdir_arg), args))
+        return real_git(workdir_arg, *args, **kwargs)
 
-    assert discarded == [work_sha]
-    assert (workdir / "sibling.py").read_text() == "kept\n"   # sibling branch untouched
-    assert not (workdir / "node_work.py").exists()            # node commit discarded
-    assert not (workdir / "scratch.py").exists()              # untracked output cleaned
-    assert traj.discarded[-1].sha == work_sha
-    entries = ledger_with("checkpoint_discarded")
-    assert entries and entries[0]["sha"] == work_sha          # ledgered before reset
+    monkeypatch.setattr(trajectory_mod, "_git", spy)
+    run_outdir = tmp_path / "out"
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("HOW-1", "direct", 1), how("HOW-2", "indirect", 2)])],
+        "plan_node": [
+            plan_env([child("fix one", ["pkg/a.py"])], files=("pkg/a.py", "pkg/b.py")),
+            plan_env([child("fix two", ["pkg/b.py"])], files=("pkg/a.py", "pkg/b.py")),
+        ],
+    })
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=run_outdir)
+
+    assert out.claimed
+    assert git_calls, "the harness must still checkpoint the workdir for resume"
+    for _path, args in git_calls:
+        joined = " ".join(args)
+        assert "reset" not in joined
+        assert "clean" not in joined
+    cand_root = str(run_outdir / "candidates")
+    assert not any(path.startswith(cand_root) for path, _ in git_calls)
+    # both candidates were actually opened (the check is not vacuous)
+    assert (run_outdir / "candidates" / out.root.node_id).is_dir()
 
 
 # ---------------------------------------------------------------------------
