@@ -259,7 +259,9 @@ STRATEGY_LAYER: dict[str, str] = {
 #: ``coverage_missing``/``requirement_uncovered`` — not a stop of its own. Round 2 adds
 #: ``no-acceptance-criteria`` (an empty criteria list cannot be carried by the test basis
 #: alone) and REMOVES ``malformed-output``: a malformed envelope no longer ends the node
-#: (ticket 19 round 2, F5).
+#: (ticket 19 round 2, F5). Round 3 adds ``criterion-unresolved``: an unresolvable
+#: criterion with no declared discriminating test AND no reviewer is an honest stop (a
+#: reviewer would have carried the claim on the review basis — FIX 1).
 STOP_REASONS: tuple[str, ...] = (
     "calls",            # the call budget is spent
     "deadline",         # the wall-clock window closed (handover)
@@ -268,6 +270,7 @@ STOP_REASONS: tuple[str, ...] = (
     "spec-bubble",      # the judge attributed the failure to the specification
     "environment",      # the judge attributed the failure to a broken environment
     "test-cases",       # a declared test case is still missing/unpassed (no claim)
+    "criterion-unresolved",  # an unresolvable criterion with no reviewer (no claim)
     "no-acceptance-criteria",  # an empty criteria list cannot claim on the test basis
     "no-red-target",    # the run's own test could not be made to fail on arrival
     "self-test",        # the run's own test could not be written at a safe path / could not run
@@ -281,6 +284,15 @@ STOP_REASONS: tuple[str, ...] = (
 #: persistent failure is RECORDED and the node continues (ticket 19 round 2, F5) — it
 #: never raises, and it never ends the node.
 ENVELOPE_RETRIES = 2
+
+#: Bounded retries for the JUDGE specifically (ticket 19 round 3, FIX 2). The judge is
+#: consulted on a red report and a malformed judge used to burn the generic
+#: :data:`ENVELOPE_RETRIES` (three calls) before the node moved on, and the same
+#: iteration could consult it twice. One retry (two calls) is enough to ride out a
+#: transient format slip; the driver's own two-shape fallback covers the systematic
+#: ones, and the leaf then records the deterministic "attribution unavailable"
+#: fallback instead of retrying forever.
+JUDGE_RETRIES = 1
 
 _SELF_TEST_QUESTION = (
     "Write the run's OWN test file that pins the goal. Reply with a NEW file path "
@@ -488,6 +500,11 @@ class LeafOutcome:
     # recorded here, and the loop continues (bounded by the call budget / attempt cap /
     # ladder stops).
     malformed_steps: list[str] = field(default_factory=list)
+    # Ticket 19 round 3 (FIX 2): how many judge consultations ended in the deterministic
+    # "attribution unavailable" fallback (a judge that stayed malformed past
+    # :data:`JUDGE_RETRIES`). The node then continues on the existing red path and makes
+    # no further judge call for the same attempt.
+    judge_unavailable: int = 0
     # Ticket 19 B/C: REVIEW-BASED verification. ``verification_basis`` is "test" when the
     # claim could rest on the run's own discriminating test, or "review" when no test could
     # carry verification (the test was green on arrival past the bounded re-ask, the judge's
@@ -1267,9 +1284,32 @@ def apply_judge_filter(verdict: JudgeVerdict, request: JudgeRequest) -> JudgeVer
     return verdict
 
 
+def _plain_attribution(text: str) -> str:
+    """Ticket 19 round 3 (FIX 2): the deterministic plain-text fallback parse.
+
+    A judge that answers with prose instead of an envelope (or an oracle that returns a
+    bare string) is mapped onto the canonical attribution domain by the FIRST canonical
+    attribution word it names, word-boundary aware so ``latest`` never means ``test``.
+    Returns "" when no attribution word is present, so the caller can keep the raw text
+    and let :func:`apply_judge_filter` apply the conservative implementation default.
+    """
+    normalized = _norm(text)
+    best: tuple[int, str] | None = None
+    for token, canonical in ATTRIBUTION_ALIASES.items():
+        match = re.search(rf"(?<![0-9a-z_]){re.escape(token)}(?![0-9a-z_])", normalized)
+        if match and (best is None or match.start() < best[0]):
+            best = (match.start(), canonical)
+    return best[1] if best else ""
+
+
 def _as_verdict(result: Any) -> JudgeVerdict:
     """Accept a structured verdict, a raw payload dict (single-label or multi-label), or
-    a bare attribution string (hand-authored oracles in tests use the string form)."""
+    a bare attribution string (hand-authored oracles in tests use the string form).
+
+    Ticket 19 round 3 (FIX 2): a plain-text verdict — prose a judge produced instead of
+    a parseable envelope — is parsed deterministically for its attribution word and
+    carried as ``reason``/``defect`` so the existing :func:`apply_judge_filter` still
+    decides whether the label is earned."""
     if isinstance(result, JudgeVerdict):
         return result
     if isinstance(result, Mapping):
@@ -1285,7 +1325,9 @@ def _as_verdict(result: Any) -> JudgeVerdict:
             raw=str(result.get("raw", "")),
         )
     if isinstance(result, str):
-        return JudgeVerdict(attribution=result, raw=result)
+        attribution = _plain_attribution(result) or result
+        return JudgeVerdict(attribution=attribution, reason=result, defect=result,
+                            raw=result)
     raise TypeError(
         f"judge returned {type(result).__name__}; expected a verdict, dict, or attribution")
 
@@ -2184,6 +2226,10 @@ async def run_leaf(
     gate_anomalies: list[str] = []
     # Ticket 19 round 2 (F5): every envelope step that stayed malformed past its retries.
     malformed_steps: list[str] = []
+    # Ticket 19 round 3 (FIX 2): the judge is consulted at most ONCE per attempt and its
+    # malformed fallback is counted here so the cost is auditable.
+    judge_attempted = False
+    judge_unavailable = 0
     # Ticket 19 A: consecutive RED attempts in which the run materially changed the code.
     # At K=2 the judge is consulted proactively (with the run's own test, the failing
     # output, and the diff as evidence).
@@ -2218,18 +2264,20 @@ async def run_leaf(
         never escape mid-run (owner policy)."""
         return budget.calls >= n
 
-    async def request_bounded(call: Callable[[], Awaitable[Any]], label: str
+    async def request_bounded(call: Callable[[], Awaitable[Any]], label: str,
+                              retries: int = ENVELOPE_RETRIES
                               ) -> tuple[Any | None, str]:
         """Run one envelope request with a bounded malformed-output retry.
 
         No model failure may crash the leaf: a schema violation, a transport error, or
-        any other exception raised by the model/envelope is retried up to
-        :data:`ENVELOPE_RETRIES` times. Persistent failure returns reason
-        ``"malformed-output"`` and RECORDS the step (ticket 19 round 2, F5); an
-        unaffordable retry returns ``"calls"``. The caller decides how to continue —
-        this helper never stops the node.
+        any other exception raised by the model/envelope is retried up to ``retries``
+        times (the JUDGE passes :data:`JUDGE_RETRIES`, ticket 19 round 3 FIX 2, so a
+        malformed judge does not consume the generic envelope budget). Persistent
+        failure returns reason ``"malformed-output"`` and RECORDS the step (ticket 19
+        round 2, F5); an unaffordable retry returns ``"calls"``. The caller decides
+        how to continue — this helper never stops the node.
         """
-        for attempt in range(ENVELOPE_RETRIES + 1):
+        for attempt in range(retries + 1):
             if not spend():
                 return None, "calls"
             try:
@@ -2352,6 +2400,63 @@ async def run_leaf(
         if verdict.coerced:
             emit("review_coerced", reason=verdict.coercion_reason)
         return verdict, ""
+
+    async def review_blocker(reason: str, unavailable_reason: str) -> bool:
+        """Ticket 19 round 3 (FIX 1): route a claim blocker that more implementation
+        cannot clear — an unresolvable criterion, or a missing/non-discriminating declared
+        test case — into the owner's REVIEW path ("a test cannot carry the verification").
+
+        Returns True ONLY when a grounded review pass allows the claim (the caller then
+        claims on ``verification_basis="review"``). False means this attempt may not
+        claim: no reviewer was injected (an honest stop, recorded with
+        ``unavailable_reason`` — never a ladder burn), the review was unaffordable (a
+        ``calls`` stop), it stayed malformed, or it rejected the diff (the review becomes
+        the next attempt's context). A blocker may spend at most ONE review call: once
+        review is entered, ``verification_basis == "review"`` and the ordinary
+        per-attempt review loop owns every later evaluation.
+        """
+        nonlocal last_excerpts
+        if not enter_review(reason):
+            stop("honest-failure", unavailable_reason, unavailable_reason)
+            return False
+        verdict, failure = await run_review(reason)
+        if failure == "calls":
+            stop("honest-failure", "call-budget", "calls")
+            return False
+        if failure:
+            last_excerpts = ["review envelope stayed malformed after bounded retries"]
+            return False
+        if not verdict.approved:
+            last_excerpts = [f"review rejected: {verdict.detail or verdict.evidence}"]
+            return False
+        return True
+
+    async def consult_judge(jr: JudgeRequest) -> tuple[JudgeVerdict | None, str]:
+        """One bounded judge consultation, AT MOST ONE per attempt (ticket 19 round 3,
+        FIX 2).
+
+        A malformed judge used to burn the generic envelope retries and the same iteration
+        could consult the judge twice (the volunteer-blame site and the proactive site).
+        Both are cut here: the judge is attempted once per attempt with
+        :data:`JUDGE_RETRIES` retries. Returns ``(verdict, failure)`` with ``failure`` ""
+        on a credited verdict, ``"calls"`` when the call budget ran out, and
+        ``"unavailable"`` when the judge stayed malformed. On ``"unavailable"`` the
+        deterministic "attribution unavailable" fallback is recorded and NO further judge
+        call is made for this attempt; the node continues on the existing red path.
+        """
+        nonlocal judge_attempted, judge_unavailable
+        if judge_attempted:
+            return None, "unavailable"
+        judge_attempted = True
+        raw, failure = await request_bounded(
+            partial(_call_judge, attribution, jr), "judge", retries=JUDGE_RETRIES)
+        if failure == "calls":
+            return None, "calls"
+        if failure:
+            judge_unavailable += 1
+            emit("judge_unavailable", reason="attribution unavailable")
+            return None, "unavailable"
+        return apply_judge_filter(raw, jr), ""
 
     async def handle_verdict(verdict: JudgeVerdict, esc: Escalation, env: Any) -> str:
         """Apply the judge's MULTI-LABEL decision (ticket 19 A). Returns the action:
@@ -2584,6 +2689,7 @@ async def run_leaf(
             coverage_unresolved=list(coverage_unresolved),
             test_case_problems=list(test_case_problems),
             malformed_steps=list(malformed_steps),
+            judge_unavailable=judge_unavailable,
             needs_user=needs_user,
         )
 
@@ -2702,17 +2808,11 @@ async def run_leaf(
             if attribution is not None and can_afford(2):
                 jr = _no_red_judge_request(spec, workdir, previous_path, previous_content,
                                            baseline)
-                raw_verdict, failure = await request_bounded(
-                    partial(_call_judge, attribution, jr), "judge")
+                verdict, failure = await consult_judge(jr)
                 if failure == "calls":
                     stop("honest-failure", "call-budget", "calls")
                     return finish()
-                if failure:
-                    # Ticket 19 round 2 (F5): a malformed judge is recorded and the run
-                    # keeps going; without a credited verdict review is the fallback.
-                    emit("judge_unavailable", reason="malformed judge output")
-                else:
-                    verdict = apply_judge_filter(raw_verdict, jr)
+                if verdict is not None:
                     action = await handle_verdict(
                         verdict, Escalation("L1-resample", "sampling", False, "no red target"),
                         None)
@@ -2757,6 +2857,7 @@ async def run_leaf(
 
         mode = _mode(attempts)
         pending_verdict: JudgeVerdict | None = None
+        judge_attempted = False   # FIX 2: at most one judge consultation per attempt
         emit("leaf_attempt", n=len(attempts) + 1, strategy=esc.strategy, layer=esc.layer,
              mode=mode)
         if mode == "M1":
@@ -2794,24 +2895,19 @@ async def run_leaf(
                 break
             else:
                 jr = _judge_request(spec, workdir, self_test, last_excerpts, env, baseline)
-                raw_verdict, failure = await request_bounded(
-                    partial(_call_judge, attribution, jr), "judge")
+                verdict, failure = await consult_judge(jr)
                 if failure == "calls":
                     stop("honest-failure", "call-budget", "calls")
                     break
-                if failure:
-                    # F5: a malformed judge is recorded; no verdict is credited (the
-                    # model's own test-blaming word is never enough) and the run keeps
-                    # implementing.
-                    emit("judge_unavailable", reason="malformed judge output")
-                else:
-                    verdict = apply_judge_filter(raw_verdict, jr)
+                if verdict is not None:
                     pending_verdict = verdict
                     action = await handle_verdict(verdict, esc, env)
                     if action == "stop":
                         break
                     if action == "repair":
                         continue
+                # A malformed judge (FIX 2) leaves the model's own test-blaming word
+                # uncredited and the run keeps implementing.
 
         # normal path: write the source candidate (guarded) and run the tests
         wrote, source_rel, refusal, shape = _write_candidate(env, spec, workdir, self_test, baseline)
@@ -2846,23 +2942,20 @@ async def run_leaf(
                     and red_code_changes == ATTRIBUTION_RED_K and can_afford(2)):
                 emit("judge_triggered", reason="red-code-changes", count=red_code_changes)
                 jr = _judge_request(spec, workdir, self_test, last_excerpts, env, baseline)
-                raw_verdict, failure = await request_bounded(
-                    partial(_call_judge, attribution, jr), "judge")
+                verdict, failure = await consult_judge(jr)
                 if failure == "calls":
                     stop("honest-failure", "call-budget", "calls")
                     break
-                if failure:
-                    # F5: a malformed judge is recorded; the run keeps working without a
-                    # credited verdict.
-                    emit("judge_unavailable", reason="malformed judge output")
-                else:
-                    pending_verdict = apply_judge_filter(raw_verdict, jr)
+                if verdict is not None:
+                    pending_verdict = verdict
                     action = await handle_verdict(pending_verdict, esc, env)
                     if action == "stop":
                         break
                     if action == "repair":
                         red_code_changes = 0
                         continue
+                # FIX 2: a malformed judge leaves the attempt on the existing red path
+                # (no credited verdict, no repeat consultation this attempt).
         else:
             red_code_changes = 0
 
@@ -2966,14 +3059,25 @@ async def run_leaf(
                             "declared test discriminates for it")
             if unresolved:
                 coverage_unresolved = unresolved
-                candidate.outcome = "fail"
-                candidate.verdict = prefilter(attempts, candidate)
-                attempts.append(candidate)
                 emit("criterion_unresolved", problems=unresolved)
-                last_excerpts = [f"criterion not carried: {p}" for p in unresolved]
-                rung += 1
-                continue
-            coverage_unresolved = []
+                # FIX 1: an unresolvable criterion cannot be cleared by more code, so the
+                # node enters the owner's REVIEW path ("a test cannot carry the
+                # verification"). A grounded review pass then claims on
+                # verification_basis="review"; with no reviewer this is an honest stop,
+                # never a ladder burn.
+                if not await review_blocker(
+                        "a criterion names no artifact and no declared test discriminates "
+                        "for it", "criterion-unresolved"):
+                    candidate.outcome = "fail"
+                    candidate.verdict = prefilter(attempts, candidate)
+                    attempts.append(candidate)
+                    if stop_reason:
+                        break
+                    last_excerpts = [f"criterion not carried: {p}" for p in unresolved]
+                    rung += 1
+                    continue
+            else:
+                coverage_unresolved = []
             # Ticket 19 D: the DECLARED test-case contract, verified mechanically from
             # the report. A missing file/name is a distinct, repairable failure.
             tc_problems = ([] if verification_basis == "review"
@@ -3027,11 +3131,24 @@ async def run_leaf(
                         continue
             if tc_problems:
                 test_case_problems = tc_problems
-                attempts.append(candidate)
                 emit("test_cases_missing", problems=tc_problems)
-                stop("honest-failure", "test-cases", "test-cases")
-                break
-            test_case_problems = []
+                # FIX 1: the declared test-case defect survived the bounded repair, and
+                # more implementation cannot clear it; enter the owner's REVIEW path.
+                # No reviewer is the honest ``test-cases`` stop (never a ladder burn).
+                if not await review_blocker(
+                        "a declared test case is missing or does not discriminate",
+                        "test-cases"):
+                    candidate.outcome = "fail"
+                    candidate.verdict = prefilter(attempts, candidate)
+                    attempts.append(candidate)
+                    if stop_reason:
+                        break
+                    last_excerpts = [f"declared test case unresolved: {p}"
+                                     for p in tc_problems]
+                    rung += 1
+                    continue
+            else:
+                test_case_problems = []
             attempts.append(candidate)
             # Ticket 19 C: the independent test is an EXTRA LABEL, never the veto. Its
             # verdict is recorded (with its one bounded repair) but never stands between

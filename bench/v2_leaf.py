@@ -65,7 +65,7 @@ from harness.leaf import (  # noqa: E402
     run_leaf,
 )
 from harness.model import LlamaServerRunner  # noqa: E402
-from harness.runner import llm_step  # noqa: E402
+from harness.runner import SchemaViolation, llm_step  # noqa: E402
 from harness.staging import (  # noqa: E402
     PYTEST_ISOLATION_ARGS,
     PYTEST_ISOLATION_ENV,
@@ -332,6 +332,9 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         # Ticket 19 round 2 (F5): every envelope step that stayed malformed past its
         # bounded retries. A malformed step no longer ends the node.
         "malformed_steps": outcome.malformed_steps,
+        # Ticket 19 round 3 (FIX 2): how many judge consultations ended in the
+        # deterministic "attribution unavailable" fallback.
+        "judge_unavailable": outcome.judge_unavailable,
         "refusals": outcome.refusals,
         # Interpreter isolation (ticket 17 round 5) and the report policy (round 6):
         # both the leaf's own pytest and the grader's pytest run the same env/args,
@@ -378,9 +381,18 @@ async def model_judge(model: Any, request: JudgeRequest) -> JudgeVerdict:
     §16 ``debug_judge`` envelope (no new schema); an ``unable`` envelope is read as an
     environment attribution. The deterministic filter in
     :func:`harness.leaf.apply_judge_filter` is applied by the leaf, not here.
+
+    Ticket 19 round 3 (FIX 2): a weak model frequently cannot emit the §16 shape (a
+    ``blame`` enum + a ``problem`` + 1–5 ranked ``fixes``) and every malformed judge used
+    to be recorded as a wasted step. The call now falls back ONCE to the strictly simpler
+    §12 ``failure_judge`` shape (a flat per-side problem list) before re-raising, so a
+    systematic format slip still produces an attribution.
     """
-    env = await llm_step(model, "debug_judge", artifacts={},
-                         question=_judge_question(request), fresh=True)
+    try:
+        env = await llm_step(model, "debug_judge", artifacts={},
+                             question=_judge_question(request), fresh=True)
+    except SchemaViolation:
+        return await _model_judge_fallback(model, request)
     # The envelope's unset (unable-branch) payload fields hold the REQUIRED sentinel,
     # which pydantic cannot serialize — keep the raw verdict as plain JSON fields.
     raw = json.dumps({
@@ -398,6 +410,66 @@ async def model_judge(model: Any, request: JudgeRequest) -> JudgeVerdict:
     return JudgeVerdict(
         **_JUDGE_LABELS.get(getattr(env, "blame", ""), {"implementation_wrong": True}),
         reason=problem, evidence=problem, defect=problem, raw=raw)
+
+
+#: §12 ``failure_judge`` ``Problem.side`` → the multi-label attribution (FIX 2). ``side``
+#: has no environment member (§12 ``code``/``test``/``spec``); an ``unable`` envelope is
+#: read as an environment attribution exactly like the §16 path.
+_JUDGE_FALLBACK_SIDES = {"code": "implementation_wrong", "test": "test_wrong",
+                         "spec": "spec_wrong"}
+
+
+def _judge_fallback_question(request: JudgeRequest) -> str:
+    """The simpler §12 prompt for the judge fallback: ask only for the attribution, not
+    for ranked fixes."""
+    acs = "\n".join(f"- {a}" for a in request.acs) or "- (none given)"
+    files = "\n".join(f"--- {rel} ---\n{text}" for rel, text in sorted(request.files.items()))
+    return (
+        "You are an INDEPENDENT judge attributing a red test failure. You did not write "
+        "the source and you did not write the test.\n"
+        f"GOAL:\n{request.goal}\n\n"
+        f"ACCEPTANCE CRITERIA:\n{acs}\n\n"
+        f"THE RUN'S OWN TEST ({request.test_path or 'none'}):\n{request.test_content}\n\n"
+        f"FAILING TEST OUTPUT:\n{request.failure}\n\n"
+        f"CURRENT SOURCE FILES:\n{files}\n\n"
+        "Return ONE problem: `side` is `code` for a wrong implementation, `test` for a "
+        "wrong test, or `spec` for an ambiguous requirement; put the CONCRETE defect in "
+        "`description` and the file/line or assertion you used in `evidence`."
+    )
+
+
+async def _model_judge_fallback(model: Any, request: JudgeRequest) -> JudgeVerdict:
+    """The simpler §12 ``failure_judge`` fallback (FIX 2).
+
+    A malformed §16 ``debug_judge`` is retried ONCE in the strictly simpler §12 shape; the
+    flat ``problems`` list is mapped onto the multi-label verdict. A second failure is
+    re-raised so the leaf records its deterministic "attribution unavailable" fallback
+    rather than looping.
+    """
+    env = await llm_step(model, "failure_judge", artifacts={},
+                         question=_judge_fallback_question(request), fresh=True)
+    raw = json.dumps({
+        "status": env.status,
+        "comment": getattr(env, "comment", ""),
+        "unable_reason": env.unable_reason or "",
+    }, ensure_ascii=False)
+    if env.status == "unable":
+        reason = (env.unable_reason or "").strip()
+        return JudgeVerdict(environment_broken=True, reason=reason,
+                            evidence=reason, defect=reason, raw=raw)
+    labels: dict[str, bool] = {}
+    reasons: list[str] = []
+    for problem in getattr(env, "problems", []) or []:
+        label = _JUDGE_FALLBACK_SIDES.get(getattr(problem, "side", ""))
+        if label:
+            labels[label] = True
+        description = getattr(problem, "description", "") or ""
+        if description:
+            reasons.append(description)
+    if not labels:
+        labels = {"implementation_wrong": True}
+    reason = "; ".join(reasons)
+    return JudgeVerdict(**labels, reason=reason, evidence=reason, defect=reason, raw=raw)
 
 
 def _numbered_acs(acs: list[str]) -> str:

@@ -132,3 +132,49 @@ and `bench/v2_tree.node_record`).
   review mode the reviewer's grounded evidence (F1) is the only carrier.
 - Coverage over-gating from round 1 is unchanged (a request-wide symbol the run did not
   touch still blocks the claim).
+
+---
+
+# 19 round 3 — restore usefulness without reopening the holes (implemented)
+
+Status: round 3 implemented (delegated worker lane); suite 410 green (403 round-2 tests,
+1 updated for a superseded decision, 2 given a new stop-reason assertion, 7 added). No
+benchmark sweep was run.
+
+The blind measurement after round 2 read 1/18 (true success 1, missed 11, false success 0,
+137 calls). Two causes, both fixed here without weakening a round-2 guard.
+
+## Round 3 — finding → code → test
+
+| finding | code | tests |
+| --- | --- | --- |
+| FIX 1 an implementation-unclearable claim blocker had no route: an unresolvable criterion / a declared case that stayed missing-or-non-discriminating only burned the ladder | `review_blocker` routes BOTH blockers into the owner's REVIEW path; a grounded review pass claims on `verification_basis="review"`; no reviewer is an honest stop (`criterion-unresolved` / `test-cases`) | `test_blocked_criterion_routes_to_review_and_claims_with_evidence`, `test_blocked_declared_test_case_routes_to_review_and_claims`; updated `test_unresolved_criterion_without_a_declared_test_cannot_claim`, `test_unresolved_criterion_with_a_placeholder_declared_test_cannot_claim` |
+| FIX 2 the judge failed as a format parse (9/18 runs) and burned the generic envelope retries, twice per attempt | driver `model_judge` falls back ONCE to the simpler §12 `failure_judge` shape; `_as_verdict` parses a plain-text attribution; `JUDGE_RETRIES=1` and at-most-one consultation per attempt (`consult_judge`); persistent failure records "attribution unavailable" (`judge_unavailable`) and continues on the red path | `test_driver_model_judge_falls_back_to_the_simpler_failure_judge_shape`, `test_driver_model_judge_fallback_that_also_fails_reraises`, `test_plain_text_judge_verdict_is_parsed_by_the_fallback`, `test_malformed_judge_is_consulted_at_most_once_per_attempt`; updated `test_malformed_judge_output_is_recorded_and_the_node_continues` |
+| FIX 3 cost (137 vs round-1 86) | judge ≤ `JUDGE_RETRIES+1` = 2 calls per attempt, at most one consultation per attempt; a blocker may spend ≤ 1 repair + 1 review | cost pinned by the two judge tests and the review-route tests |
+
+Round-2 guards kept EXACTLY: a no-op tree can never claim (review evidence still needs a
+really-changed artifact), comment/whitespace-only edits are not changes, an unresolvable
+criterion is never silently skipped (it is recorded AND routed), and a declared case must
+be red-on-pristine / green-on-final on the test basis.
+
+## New stop reasons / fields
+
+- stop_reason `criterion-unresolved` (an unresolvable criterion with no reviewer; a
+  reviewer would have carried the claim). `test-cases` now also covers "survived the
+  bounded repair and no reviewer".
+- outcome/record field `judge_unavailable` (judge consultations that ended in the
+  deterministic "attribution unavailable" fallback); event `judge_unavailable` now carries
+  reason `"attribution unavailable"`.
+- New claim-route basis value: `verification_basis="review"` / `claimed_basis="review"`
+  reached through a claim blocker (previously only through no-red-target / unwritable test
+  / empty ACs).
+
+## Extra calls each route may consume
+
+- judge, per attempt: ≤ 2 model calls (`JUDGE_RETRIES=1`), consulted at most once per
+  attempt (previously ≤ 3, up to twice).
+- blocker → review: ≤ 1 repair call (declared case, already one-shot) + ≤ 1 review call;
+  once review is entered the ordinary per-attempt review loop owns later evaluations.
+- `coverage_missing` (a named artifact untouched) is unchanged: still a keep-working claim
+  blocker (its route is "touch the named artifact"), never a review route.
+

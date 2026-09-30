@@ -1,0 +1,1 @@
+The app shows every product rated 4 stars — even 4.5-star items. The API is documented to return the mean rounded to two decimals, but the values coming back are always whole numbers. Please fix the average.

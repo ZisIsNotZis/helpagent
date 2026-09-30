@@ -112,6 +112,7 @@ def node_record(outcome: NodeOutcome) -> dict:
         "coverage_unresolved": (list(leaf.coverage_unresolved) if leaf is not None else []),
         "test_case_problems": (list(leaf.test_case_problems) if leaf is not None else []),
         "malformed_steps": (list(leaf.malformed_steps) if leaf is not None else []),
+        "judge_unavailable": (leaf.judge_unavailable if leaf is not None else 0),
         "judge_verdicts": ([v.model_dump(mode="json") for v in leaf.judge_verdicts]
                            if leaf is not None else []),
         "integration_verdicts": dict(outcome.integration_verdicts),

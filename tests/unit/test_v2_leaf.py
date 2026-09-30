@@ -53,7 +53,7 @@ from harness.leaf import (
     evaluate_independent_test,
     run_leaf,
 )
-from harness.runner import ledger_entries, reset_ledger_for_tests
+from harness.runner import SchemaViolation, ledger_entries, reset_ledger_for_tests
 
 _FAR_FUTURE = 2_000_000_000.0
 
@@ -970,8 +970,9 @@ def test_malformed_implement_envelope_does_not_end_the_node(tmp_path):
 
 
 def test_malformed_judge_output_is_recorded_and_the_node_continues(tmp_path):
-    """F5: a malformed judge is retried a bounded number of times, recorded, and the run
-    keeps going with no credited verdict instead of stopping."""
+    """F5 + round-3 FIX 2: a malformed judge is retried a BOUNDED number of times (one
+    retry, not the generic envelope budget), recorded, and the run keeps going with the
+    deterministic ``attribution unavailable`` fallback instead of stopping or looping."""
     spec = make_spec()
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, blocked()]})
@@ -986,9 +987,23 @@ def test_malformed_judge_output_is_recorded_and_the_node_continues(tmp_path):
 
     assert out.stop_reason == "calls"
     assert out.claimed is False
-    assert len(seen) == 3                                      # 1 attempt + 2 retries, then on
+    assert len(seen) == 2                       # 1 attempt + 1 bounded retry (FIX 2)
+    assert out.judge_unavailable == 1           # recorded deterministic fallback
     assert "judge" in out.malformed_steps
     assert "judge_unavailable" in ledger_kinds()
+
+
+def test_plain_text_judge_verdict_is_parsed_by_the_fallback(tmp_path):
+    """FIX 2: a plain-text judge answer is parsed deterministically for its attribution
+    word, so prose is not silently discarded as implementation-only."""
+    from harness.leaf import _as_verdict
+
+    assert _as_verdict("the failing test asserts the wrong value").test_wrong is True
+    assert _as_verdict("the source code has an off-by-one").implementation_wrong is True
+    assert _as_verdict("the specification is ambiguous").spec_wrong is True
+    assert _as_verdict("the sandbox harness is broken").environment_broken is True
+    # no attribution word stays raw and is coerced to implementation by the filter
+    assert _as_verdict("banana").attribution == "banana"
 
 
 def test_malformed_test_rewrite_is_recorded_and_the_node_continues(tmp_path):
@@ -1184,6 +1199,44 @@ def test_driver_model_judge_maps_the_debug_judge_envelope():
     assert model.calls("debug_judge")[0].artifacts == {}
     unable = asyncio.run(model_judge(model, request))
     assert unable.attribution == "environment" and unable.defect == "no interpreter"
+
+
+def test_driver_model_judge_falls_back_to_the_simpler_failure_judge_shape():
+    """FIX 2: a malformed §16 debug_judge is retried ONCE in the simpler §12
+    failure_judge shape, so a systematic format slip still yields an attribution instead
+    of a wasted malformed step."""
+    from bench.v2_leaf import model_judge
+
+    model = FakeModelRunner({
+        "debug_judge": [schema_violation()],
+        "failure_judge": [{
+            "status": "ok", "comment": "judged",
+            "problems": [{"side": "test",
+                          "description": "test_goal asserts the wrong value",
+                          "evidence": "tests/test_x.py::test_goal", "confidence": "high"}],
+        }],
+    })
+    request = JudgeRequest(goal="g", failure="f", test_path="tests/test_x.py",
+                           test_content="def test_goal():\n    assert True\n", files={},
+                           acs=["AC-1"])
+
+    verdict = asyncio.run(model_judge(model, request))
+    assert verdict.test_wrong is True and "wrong value" in verdict.reason
+    assert model.calls("debug_judge") and model.calls("failure_judge")
+
+
+def test_driver_model_judge_fallback_that_also_fails_reraises():
+    """FIX 2: when BOTH shapes stay malformed the driver re-raises, so the leaf records
+    its deterministic fallback rather than the driver looping."""
+    from bench.v2_leaf import model_judge
+
+    model = FakeModelRunner({"debug_judge": [schema_violation()],
+                             "failure_judge": [schema_violation()]})
+    request = JudgeRequest(goal="g", failure="f", test_path="tests/test_x.py",
+                           test_content="def test_goal():\n    assert True\n", files={},
+                           acs=["AC-1"])
+    with pytest.raises(SchemaViolation):
+        asyncio.run(model_judge(model, request))
 
 
 def test_driver_independent_test_prompt_carries_the_repair_evidence():
@@ -3231,8 +3284,9 @@ def test_unresolved_criterion_is_carried_by_a_discriminating_declared_test(tmp_p
 
 
 def test_unresolved_criterion_without_a_declared_test_cannot_claim(tmp_path):
-    """F2: with no declared discriminating test to carry it, an unresolvable criterion
-    blocks the claim with a distinct, recorded reason."""
+    """F2 + round-3 FIX 1: with no declared discriminating test to carry it and NO
+    reviewer injected, an unresolvable criterion is an honest stop with a distinct,
+    recorded reason — never a ladder burn."""
     spec = dataclasses.replace(
         make_spec(), acs=["thread the timeout through the result and helper call sites"])
     stage(tmp_path, spec.files)
@@ -3242,8 +3296,96 @@ def test_unresolved_criterion_without_a_declared_test_cannot_claim(tmp_path):
         run_tests=_pristine_distinguishing_runner(tmp_path, pristine_red=True))
 
     assert out.claimed is False
+    assert out.stop_reason == "criterion-unresolved"
     assert out.coverage_unresolved and "AC1" in out.coverage_unresolved[0]
     assert "criterion_unresolved" in ledger_kinds()
+
+
+def test_blocked_criterion_routes_to_review_and_claims_with_evidence(tmp_path):
+    """FIX 1: an unresolvable criterion enters the owner's REVIEW path; a grounded review
+    pass on the changed diff then allows the claim on ``verification_basis=review`` while
+    the blocker stays recorded for audit."""
+    spec = dataclasses.replace(
+        make_spec(), acs=["thread the timeout through the result and helper call sites"])
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+        review=_approving_review,
+        run_tests=_pristine_distinguishing_runner(tmp_path, pristine_red=True))
+
+    assert out.claimed is True and out.stop_reason == "green"
+    assert out.verification_basis == "review" and out.claimed_basis == "review"
+    assert out.coverage_unresolved and "AC1" in out.coverage_unresolved[0]
+    assert out.review_verdict is not None and out.review_verdict.approved
+    assert "criterion_unresolved" in ledger_kinds()
+    assert "review_verification" in ledger_kinds() and "review_verdict" in ledger_kinds()
+
+
+def test_blocked_declared_test_case_routes_to_review_and_claims(tmp_path):
+    """FIX 1: a declared test case that survives the bounded repair and cannot carry the
+    claim enters the REVIEW path, where a grounded pass allows the claim on the review
+    basis (the declared-case defect stays recorded)."""
+    spec = dataclasses.replace(
+        make_spec(),
+        test_cases=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_goal",)),))
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl(), SELF_TEST]})
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=10, deadline_ts=_FAR_FUTURE),
+        review=_approving_review, run_tests=ScriptedTests([1, 0]))
+
+    assert out.claimed is True and out.stop_reason == "green"
+    assert out.verification_basis == "review" and out.claimed_basis == "review"
+    assert out.test_case_problems and "test_goal" in out.test_case_problems[0]
+    assert "review_verification" in ledger_kinds() and "review_verdict" in ledger_kinds()
+
+
+def test_malformed_judge_is_consulted_at_most_once_per_attempt(tmp_path):
+    """FIX 2: the volunteer-blame site and the proactive site in the SAME attempt share
+    one bounded judge consultation, so a malformed judge costs at most
+    ``JUDGE_RETRIES + 1`` calls per attempt instead of twice that."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST,
+        impl(comment="the test is wrong"),
+        impl(comment="the test is wrong"),
+    ]})
+    seen: list[JudgeRequest] = []
+
+    def judge(request: JudgeRequest) -> JudgeVerdict:
+        seen.append(request)
+        raise ValueError("judge output was not a verdict")
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
+                        judge=judge, run_tests=ScriptedTests([1] * 6))
+
+    assert out.claimed is False
+    # two attempts, each consulting the judge once with one bounded retry
+    assert len(seen) == 4
+    assert out.judge_unavailable == 2
+
+
+def test_blocked_criterion_review_without_grounded_evidence_cannot_claim(tmp_path):
+    """FIX 1 does not loosen F1: a review pass whose evidence names no changed artifact is
+    coerced to a fail by the deterministic filter, so the blocker still cannot claim."""
+    spec = dataclasses.replace(
+        make_spec(), acs=["thread the timeout through the result and helper call sites"])
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, *[impl()] * 4]})
+
+    def ungrounded(request: ReviewRequest) -> ReviewVerdict:
+        return ReviewVerdict(approved=True, evidence="looks good to me")
+
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+        review=ungrounded,
+        run_tests=_pristine_distinguishing_runner(tmp_path, pristine_red=True))
+
+    assert out.claimed is False
+    assert out.coverage_unresolved and "AC1" in out.coverage_unresolved[0]
+    assert out.review_verdicts and out.review_verdicts[0].coerced is True
 
 
 def test_unresolved_criterion_with_a_placeholder_declared_test_cannot_claim(tmp_path):
@@ -3260,6 +3402,7 @@ def test_unresolved_criterion_with_a_placeholder_declared_test_cannot_claim(tmp_
         run_tests=_pristine_distinguishing_runner(tmp_path, pristine_red=False))
 
     assert out.claimed is False
+    assert out.stop_reason == "criterion-unresolved"
     assert out.coverage_unresolved and "AC1" in out.coverage_unresolved[0]
     assert "criterion_unresolved" in ledger_kinds()
 
