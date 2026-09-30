@@ -256,7 +256,8 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
                  produced: dict[str, str], score: ExternalScore, quad: str,
                  run_wall_s: float, judge_enabled: bool = False,
                  iv_enabled: bool = False, review_enabled: bool = False,
-                 acs: list[str] | None = None, verified_quad: str = "") -> dict:
+                 acs: list[str] | None = None, verified_quad: str = "",
+                 budget: Budget | None = None) -> dict:
     """Assemble the persisted run record. One place, so the JSON that lands in
     ``run.json`` and the shape the tests pin cannot drift apart — including the
     wasted escalations that used to live only in the process-global ledger, every
@@ -326,6 +327,12 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         "calls": outcome.calls,
         "wall_s": outcome.wall_s,
         "run_wall_s": run_wall_s,
+        # Ticket 20 step 2e: the run-level pool and its conservation invariant
+        # (initial/remaining/spent + a computed ``ok``), so the plain leaf path carries the
+        # same at-a-glance check as the tree path. Omitted only when no budget was handed
+        # in (the unit tests build a record without one).
+        **(({"budget": budget.to_dict(), "accounting": budget.accounting(),
+            "accounting_ok": bool(budget.accounting()["ok"])}) if budget is not None else {}),
         "layers_used": outcome.layers_used,
         "wasted_escalations": [dataclasses.asdict(w) for w in outcome.wasted_escalations],
         "judge_verdicts": [v.model_dump(mode="json") for v in outcome.judge_verdicts],
@@ -647,7 +654,8 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     record = build_record(
         task["task_id"], spec.goal, outcome, withheld=withheld, produced=produced,
         score=score, quad=quad, run_wall_s=wall, judge_enabled=use_judge,
-        iv_enabled=use_iv, review_enabled=use_review, acs=spec.acs, verified_quad=vquad)
+        iv_enabled=use_iv, review_enabled=use_review, acs=spec.acs, verified_quad=vquad,
+        budget=budget)
 
     print(f"== v2 leaf: {task['task_id']} ==")
     print(f"[judge]  {'on' if use_judge else 'off (conservative baseline)'} "

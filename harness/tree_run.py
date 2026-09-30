@@ -291,6 +291,10 @@ class NodeOutcome:
     #: ``None`` for an internal node that ran no leaf, otherwise the exact changed paths
     #: outside the allowed set and what was restored. Recorded in the run record.
     boundary_audit: BoundaryAudit | None = None
+    #: Ticket 20 step 2e: the node pool's conservation check (``initial``/``remaining``/
+    #: ``spent`` + a COMPUTED ``ok``), so a reader can verify at a glance that every slice
+    #: this node split off was returned exactly once. Populated by :func:`run_node`.
+    accounting: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -1485,8 +1489,9 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
             if candidate_budget is not None:
                 budget.release(candidate_budget)
         cost = budget.spent_calls - before
-        if candidate_budget is not None:
-            cost += candidate_budget.spent_calls
+        # ``release`` folds the candidate slice's spend into the node pool, so this delta
+        # already carries the candidate's true cost (planning + leaf) with no double count
+        # (ticket 20 step 2e).
         # Ticket 20 step 2b-ii: the candidate's plan-time test list is its contract. Its
         # DEVIATIONS (extra tests beyond the declared points) do not score, but are
         # reported to the managing call; the candidate is scored over the declared points.
@@ -1814,7 +1819,36 @@ async def run_node(ctx: _TreeContext, node: NodeHandle, budget: Budget,
     and the node appends a NEW How — there is NO ``git reset --hard`` / ``git clean``
     anywhere. A node that cannot plan Hows falls back to the legacy unbound plan; on
     exhaustion or a spec bubble it parks instead of resetting.
+
+    Ticket 20 step 2e: the returned outcome carries the node pool's conservation check
+    (:func:`_node_accounting`) — the pool this node was handed minus what it and its
+    children spent must still add up once every split it made has been released.
     """
+    initial = budget.calls + budget.spent_calls
+    outcome = await _run_node_body(ctx, node, budget, workdir)
+    outcome.accounting = _node_accounting(initial, budget)
+    return outcome
+
+
+def _node_accounting(initial: int, budget: Budget) -> dict:
+    """The node pool's conservation invariant, COMPUTED from the live numbers.
+
+    ``initial`` is the pool the node was handed (``calls + spent`` at entry). Every slice
+    the node split off is released before it returns, and :meth:`Budget.release` folds a
+    slice's spend back, so ``remaining + spent`` must still equal ``initial``. A reservation
+    that is never returned — or returned twice — makes ``ok`` false, which is the defect
+    ticket 20 step 2e exists to catch.
+    """
+    return {
+        "initial": initial,
+        "remaining": budget.calls,
+        "spent": budget.spent_calls,
+        "ok": initial == budget.calls + budget.spent_calls,
+    }
+
+
+async def _run_node_body(ctx: _TreeContext, node: NodeHandle, budget: Budget,
+                         workdir: Path | None = None) -> NodeOutcome:
     nid = node.id
     spec = ctx.specs[nid]
     depth = ctx.depths[nid]
@@ -1970,10 +2004,7 @@ async def _run_integration_leaf(ctx: _TreeContext, integration_handle: NodeHandl
     """
     if budget.calls < 1:
         return []
-    calls = budget.calls
-    budget.take(calls)
-    child_budget = Budget(calls=calls, deadline_ts=budget.deadline_ts,
-                          reserve_fraction=budget.reserve_fraction)
+    child_budget = budget.split_total()
     try:
         await run_node(ctx, integration_handle, child_budget, workdir)
     finally:

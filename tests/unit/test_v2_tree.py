@@ -2753,3 +2753,108 @@ def test_a_genuinely_multi_part_node_may_still_decompose(tmp_path, monkeypatch):
     assert record.allocation["would_decompose"] is True
     assert record.allocation["files"] == 4
     assert "forced-leaf" not in ledger_kinds()
+
+
+# ---------------------------------------------------------------------------
+# Ticket 20 step 2e: the persisted budget record is truthful on BOTH routes
+# ---------------------------------------------------------------------------
+
+
+def _assert_tree_conserves(out, initial: int) -> None:
+    """Every pool's ``initial == remaining + spent`` — run level and node level.
+
+    ``ok`` is COMPUTED by the budget, so a leaked slice (under-count) or a double
+    release (over-count) fails here rather than passing silently.
+    """
+    acc = out.budget.accounting()
+    assert acc["ok"], acc
+    assert acc["initial"] == initial == out.budget.calls + out.budget.spent_calls
+
+    def walk(node):
+        if node.accounting:
+            assert node.accounting["ok"], (node.node_id, node.accounting)
+            assert (node.accounting["initial"]
+                    == node.accounting["remaining"] + node.accounting["spent"])
+        for child in node.children:
+            walk(child)
+
+    walk(out.root)
+
+
+def test_greedy_forced_leaf_budget_is_conserved(tmp_path, monkeypatch):
+    """Ticket 20 step 2e: the greedy candidate slice is reserved with ``split(1)`` and the
+    leaf spends INSIDE it. Releasing the slice must fold that spend back, so the persisted
+    budget record reads ``initial == remaining + spent`` instead of under-reporting by the
+    leaf's spend (the regression this step exists to fix)."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([leaf_outcome(claimed=True)])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=("c1", "c2"),
+                    kind="internal")
+    model = FakeModelRunner({"how_list": [how_env([how("do the small fix")])],
+                             "plan_node": [_decompose_into_two("over-split")]})
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=40, deadline_ts=_FAR), run_outdir=tmp_path / "out")
+
+    assert out.claimed and out.root.candidates[0].how_case == "forced-leaf"
+    _assert_tree_conserves(out, 40)
+    # the slice really carried the leaf's spend: it is counted in the pool, not lost
+    assert out.budget.spent_calls == out.calls
+    assert out.budget.spent_calls >= 1
+
+
+def test_greedy_decomposed_budget_is_conserved(tmp_path, monkeypatch):
+    """Ticket 20 step 2e: on the DECOMPOSED route each child's spend is likewise folded
+    into the parent on release, so the run-level pool still balances (the pre-existing
+    counterpart of the greedy-leaf defect)."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([leaf_outcome(claimed=True), leaf_outcome(claimed=True)])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal",
+                    files=("pkg/a.py", "pkg/b.py", "pkg/c.py", "pkg/d.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({"how_list": [how_env([how("split the work")])],
+                             "plan_node": [_decompose_into_two("multi-part")]})
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=40, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                        run_tests=Gates(green=True))
+
+    assert out.claimed and out.root.candidates[0].how_case == "decomposed-How"
+    assert out.root.children                                    # children really ran
+    _assert_tree_conserves(out, 40)
+    assert out.budget.spent_calls > 2                           # both children's spend is in
+
+
+def test_greedy_sequential_retry_returns_each_slice_exactly_once(tmp_path, monkeypatch):
+    """Ticket 20 step 2e: when the manager answers ``continue-with-next-how`` the first
+    candidate is ABANDONED and a second opens. Each greedy slice is reserved once and
+    released once, so the run still conserves — a slice released twice over-counts and a
+    leaked slice under-counts, either of which makes ``accounting.ok`` false."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([
+        leaf_outcome(claimed=False, signal="honest-failure", stop="calls",
+                     exhaustion_reason="the first approach did not close"),
+        leaf_outcome(claimed=True),
+    ])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal",
+                    files=("pkg/a.py", "pkg/b.py", "pkg/c.py", "pkg/d.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("first approach"), how("second approach")])],
+        "plan_node": [_decompose_into_two("first fix"), _decompose_into_two("second fix")],
+    })
+
+    def manager(view):
+        return ManagerDecision("continue-with-next-how", "try the second approach")
+
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                        manager=manager)
+
+    assert out.claimed and out.root.winner == "HOW-2"
+    assert out.root.sequential_attempts == 2                    # the retry really happened
+    _assert_tree_conserves(out, 60)

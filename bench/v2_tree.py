@@ -210,6 +210,11 @@ def node_record(outcome: NodeOutcome, *, diluted: bool = False) -> dict:
         "stop_reason": outcome.stop_reason,
         "calls": outcome.calls,
         "wall_s": outcome.wall_s,
+        # Ticket 20 step 2e: the node pool's conservation check (initial/remaining/spent +
+        # a computed ``ok``), so a reader can see at a glance that every slice this node
+        # split off was returned exactly once.
+        "accounting": dict(outcome.accounting),
+        "accounting_ok": bool(outcome.accounting.get("ok", False)),
         "leaf_signal": (leaf.signal if leaf is not None else None),
         "leaf_stop_reason": (leaf.stop_reason if leaf is not None else None),
         "self_test": (leaf.self_test if leaf is not None else None),
@@ -363,6 +368,11 @@ def build_record(task_id: str, goal: str, outcome: TreeOutcome, *, withheld: lis
         "tree_wall_s": outcome.wall_s,
         "run_wall_s": run_wall_s,
         "budget": outcome.budget.to_dict(),
+        # Ticket 20 step 2e: the RUN-level conservation invariant (initial/remaining/spent
+        # + a computed ``ok``). The budget sub-object carries the same object; it is
+        # surfaced here too so a reader can check the whole run at a glance.
+        "accounting": outcome.budget.accounting(),
+        "accounting_ok": bool(outcome.budget.accounting()["ok"]),
         "checkpoints": dict(outcome.checkpoints),
         "split_history": {
             node: [dataclasses.asdict(attempt) for attempt in attempts]

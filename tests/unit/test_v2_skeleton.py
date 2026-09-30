@@ -66,6 +66,42 @@ def test_spend_release_and_grant_are_audited():
         child.take(99)
 
 
+def test_release_folds_child_spend_so_conservation_holds():
+    """Ticket 20 step 2e: a child's spend is folded back on release, so the parent's
+    ``initial_calls == calls + spent_calls`` stays exact instead of silently dropping
+    every call spent inside a reserved slice (the greedy-leaf under-report defect)."""
+    parent = Budget(calls=20, deadline_ts=time.time() + 60)
+    child = parent.split(1)[0]                 # 20 * 0.75 = 15 to the single child
+    child.take(4)
+    assert parent.spent_calls == 0             # the parent has not yet counted the child
+    assert parent.release(child) == 11         # the child's UNUSED calls come back
+    assert parent.spent_calls == 4             # ... and its SPEND is folded in, once
+    assert parent.accounting() == {"initial": 20, "remaining": 16, "spent": 4,
+                                   "ok": True}
+    assert parent.to_dict()["initial_calls"] == 20
+
+
+def test_split_total_moves_the_whole_pool_and_stays_conserved():
+    """Ticket 20 step 2e: ``split_total`` hands the ENTIRE pool (reserve included) to one
+    child WITHOUT marking it spent, so the integration leaf's handoff conserves."""
+    parent = Budget(calls=9, deadline_ts=time.time() + 60)
+    child = parent.split_total()
+    assert child.calls == 9 and parent.calls == 0 and parent.spent_calls == 0
+    child.take(3)
+    parent.release(child)
+    assert parent.calls == 6 and parent.spent_calls == 3
+    assert parent.accounting()["ok"]
+
+
+def test_a_grant_extends_the_conservation_total():
+    """Ticket 20 step 2e: a grant EXTENDS the pool, so ``initial_calls`` moves with it and
+    ``accounting`` stays true (otherwise every legitimate grant would read as a leak)."""
+    budget = Budget(calls=5, deadline_ts=time.time() + 60)
+    budget.take(2)
+    budget.grant(5, "weekend extension")
+    assert budget.accounting() == {"initial": 10, "remaining": 8, "spent": 2, "ok": True}
+
+
 def test_deadline_is_the_primary_stop_and_is_durable():
     now = 1000.0
     live = Budget(calls=5, deadline_ts=now + 10)

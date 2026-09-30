@@ -86,12 +86,22 @@ class Budget:
     reserve_fraction: float = DEFAULT_RESERVE
     spent_calls: int = 0
     grants: list[GrantRecord] = field(default_factory=list)
+    #: The pool this budget was CREATED with (before any spend or transfer). It is what
+    #: makes conservation checkable at a glance: at rest ``initial_calls == calls +
+    #: spent_calls`` for every pool, because :meth:`release` folds a child's spend back
+    #: and :meth:`grant` extends the pool. A leak or a double release shows as ``ok``
+    #: false in :meth:`accounting` (ticket 20 step 2e). ``None`` means "derive it now".
+    initial_calls: int | None = None
 
     def __post_init__(self) -> None:
         if self.calls < 0:
             raise BudgetError("budget calls must be >= 0")
         if not 0.0 <= self.reserve_fraction < 1.0:
             raise BudgetError("reserve_fraction must be in [0, 1)")
+        if self.initial_calls is None:
+            self.initial_calls = self.calls + self.spent_calls
+        elif self.initial_calls < 0:
+            raise BudgetError("budget initial_calls must be >= 0")
 
     # -- state ------------------------------------------------------------
     def expired(self, now: float) -> bool:
@@ -129,6 +139,19 @@ class Budget:
         return [Budget(calls=share, deadline_ts=self.deadline_ts,
                        reserve_fraction=self.reserve_fraction) for _ in range(n_children)]
 
+    def split_total(self) -> Budget:
+        """Hand this pool's ENTIRE remaining calls to ONE child (reserve included).
+
+        Unlike :meth:`split`, nothing is marked spent on the way out: the calls MOVE to
+        the child and :meth:`release` folds the child's spend back, so ``calls +
+        spent_calls`` is conserved. The integration leaf draws on the parent's whole
+        remaining pool (reserve included), which is exactly this handoff.
+        """
+        child = Budget(calls=self.calls, deadline_ts=self.deadline_ts,
+                       reserve_fraction=self.reserve_fraction)
+        self.calls = 0
+        return child
+
     def split_weighted(self, weights: Sequence[int], *, min_each: int) -> list["Budget"]:
         """Hand each child a share of the non-reserve pool proportional to its weight.
 
@@ -162,11 +185,19 @@ class Budget:
         return budgets
 
     def release(self, child: "Budget") -> int:
-        """Return a finished child's unused calls to this pool."""
+        """Return a finished child's pool to this one: its unused calls AND its spend.
+
+        The child's ``spent_calls`` belongs to THIS pool's subtree, so folding it back is
+        what keeps ``initial_calls == calls + spent_calls`` exact across a split/release
+        cycle: counting only the parent's own takes silently drops every call a child
+        (or a reserved slice) spent. A child is released exactly once, so nothing is
+        double counted.
+        """
         if child.deadline_ts != self.deadline_ts:
             raise BudgetError("cannot release a budget from another subtree")
         returned = child.calls
         self.calls += returned
+        self.spent_calls += child.spent_calls
         return returned
 
     def grant(self, amount: int, reason: str) -> GrantRecord:
@@ -174,6 +205,9 @@ class Budget:
         if amount < 0:
             raise BudgetError("grant amount must be >= 0")
         self.calls += amount
+        # A grant EXTENDS the pool, so the conservation total moves with it (ticket 20
+        # step 2e): otherwise ``accounting`` would read False after any legitimate grant.
+        self.initial_calls = (self.initial_calls or 0) + amount
         record = GrantRecord(reason=reason, calls=amount, approved=True)
         self.grants.append(record)
         return record
@@ -184,6 +218,21 @@ class Budget:
         self.grants.append(record)
         return record
 
+    # -- conservation -----------------------------------------------------
+    def accounting(self) -> dict:
+        """The pool's conservation invariant, COMPUTED from the live numbers.
+
+        ``ok`` is true iff the pool's creation total still equals what is left plus what
+        was spent. It is derived, never asserted, so a reservation that is not returned
+        (or returned twice) reads as false rather than passing silently.
+        """
+        return {
+            "initial": self.initial_calls,
+            "remaining": self.calls,
+            "spent": self.spent_calls,
+            "ok": self.initial_calls == self.calls + self.spent_calls,
+        }
+
     # -- durability -------------------------------------------------------
     def to_dict(self) -> dict:
         return {
@@ -191,6 +240,8 @@ class Budget:
             "deadline_ts": self.deadline_ts,
             "reserve_fraction": self.reserve_fraction,
             "spent_calls": self.spent_calls,
+            "initial_calls": self.initial_calls,
+            "accounting": self.accounting(),
             "grants": [{"reason": g.reason, "calls": g.calls, "approved": g.approved}
                        for g in self.grants],
         }
@@ -203,6 +254,7 @@ class Budget:
             reserve_fraction=data.get("reserve_fraction", DEFAULT_RESERVE),
             spent_calls=data.get("spent_calls", 0),
             grants=[GrantRecord(**g) for g in data.get("grants", [])],
+            initial_calls=data.get("initial_calls"),
         )
 
 
