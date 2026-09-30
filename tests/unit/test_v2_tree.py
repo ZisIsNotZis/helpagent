@@ -36,7 +36,13 @@ from harness.exec import ShapedResult
 from harness.fake_model import FakeModelRunner
 from harness.gate_report import GateReport
 from harness.how import ManagerDecision
-from harness.leaf import DeclaredTestCase, LeafOutcome, LeafSpec, _source_write_problem
+from harness.leaf import (
+    DeclaredTestCase,
+    LeafOutcome,
+    LeafSpec,
+    ReviewVerdict,
+    _source_write_problem,
+)
 from harness.node import (
     Decomposition,
     NodeSpec,
@@ -1753,3 +1759,301 @@ def test_covenant_dilution_share_flags_a_weakened_run():
     assert covenant_diluted(3, 8) is True           # 37.5%
     assert covenant_diluted(0, 0) is False
     assert covenant_weakening_share(0, 0) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# 13. ticket 20 step 2b-i adversarial fixes (D1-D5)
+# ---------------------------------------------------------------------------
+
+
+def test_how_id_collision_from_a_single_non_sequential_id_does_not_crash(tmp_path,
+                                                                        monkeypatch):
+    """D1: the model named a single How ``HOW-2``. The harness-authored retry must get a
+    genuinely UNUSED id (scan the existing ids), so ``HowList.append`` cannot raise and
+    the runner survives it (a model naming cannot crash the run)."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([
+        leaf_outcome(claimed=False, signal="bubble", stop="spec-bubble", needs_parent=True,
+                     exhaustion_reason="the parent spec contradicts the goal"),
+        leaf_outcome(claimed=True),
+    ])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [
+            how_env([how("HOW-2", "the only approach", 1)]),
+            # the fresh model How reuses the colliding id -> the harness must own a new one
+            how_env([how("HOW-2", "the model repeats the colliding id", 1)]),
+        ],
+        "plan_node": [
+            plan_env([child("fix one", ["pkg/a.py"])], files=("pkg/a.py", "pkg/b.py")),
+            plan_env([child("fix two", ["pkg/b.py"])], files=("pkg/a.py", "pkg/b.py")),
+        ],
+    })
+
+    def manager(view):
+        return ManagerDecision("author-a-new-how", "retry with a different approach")
+
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                        manager=manager)
+    assert out.claimed                                   # the runner survived the collision
+    assert out.root.winner == "HOW-1"                    # a genuinely unused harness id
+    ids = [h["how_id"] for h in out.root.hows]
+    assert ids[0] == "HOW-2" and "HOW-1" in ids
+
+
+def test_how_id_gap_gets_an_unused_harness_id(tmp_path, monkeypatch):
+    """D1: the model named Hows ``HOW-1``/``HOW-3`` (an id gap, ranks still 1/2). The
+    harness-authored retry must take the unused ``HOW-2``, not the colliding ``HOW-3``."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([
+        leaf_outcome(claimed=False, signal="bubble", stop="spec-bubble", needs_parent=True,
+                     exhaustion_reason="the parent spec contradicts the goal"),
+        leaf_outcome(claimed=True),
+    ])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [
+            how_env([how("HOW-1", "first", 1), how("HOW-3", "third", 2)]),
+            how_env([how("HOW-1", "first again", 1), how("HOW-3", "third again", 2)]),
+        ],
+        "plan_node": [
+            plan_env([child("fix one", ["pkg/a.py"])], files=("pkg/a.py", "pkg/b.py")),
+            plan_env([child("fix two", ["pkg/b.py"])], files=("pkg/a.py", "pkg/b.py")),
+        ],
+    })
+
+    def manager(view):
+        return ManagerDecision("author-a-new-how", "retry with a different approach")
+
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                        manager=manager)
+    assert out.claimed
+    # the harness allocated the genuinely unused id for its authored retry
+    assert "HOW-2" in [h["how_id"] for h in out.root.hows]
+    assert out.root.winner in ("HOW-2", "HOW-3")
+
+
+def test_an_unusable_authored_how_parks_instead_of_crashing(tmp_path, monkeypatch):
+    """D1: any failure while authoring a new How must never raise out of the runner: the
+    refusal is recorded and the node parks honestly."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([leaf_outcome(claimed=False, signal="bubble", stop="spec-bubble",
+                                  needs_parent=True, exhaustion_reason="bubble")])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+
+    async def boom(*args, **kwargs):
+        raise RuntimeError("model How is unusable")
+
+    monkeypatch.setattr(tree_run, "_author_how", boom)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("HOW-1", "the approach", 1)])],
+        "plan_node": [plan_env([child("fix one", ["pkg/a.py"])],
+                               files=("pkg/a.py", "pkg/b.py"))],
+    })
+
+    def manager(view):
+        return ManagerDecision("author-a-new-how", "try again")
+
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                        manager=manager)
+    assert not out.claimed and out.root.stop_reason == "parked"
+    assert "authored How refused" in out.root.evidence
+    assert "how_refused" in ledger_kinds()
+    assert [d["decision"] for d in out.root.manager_decisions][-1] == "escalate-or-park"
+
+
+def test_first_failed_attempt_writes_do_not_seed_candidates_or_the_tree(tmp_path,
+                                                                       monkeypatch):
+    """D2: a first leaf attempt that writes an in-boundary file must not survive into any
+    candidate or the merged tree (snapshot before the first attempt, no git reset)."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    calls = {"n": 0}
+
+    async def leaf(model, spec, workdir_arg, budget, **kw):
+        calls["n"] += 1
+        budget.take(1)
+        if calls["n"] == 1:
+            (Path(workdir_arg) / "pkg" / "a.py").write_text("stale write\n")
+            return leaf_outcome(claimed=False, signal="exhausted", stop="attempts",
+                                exhausted=True, exhaustion_reason="node exhausted")
+        return leaf_outcome(claimed=True)
+
+    monkeypatch.setattr(tree_run, "run_leaf", leaf)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="leaf")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("HOW-1", "the retry", 1)])],
+        "plan_node": [plan_env([child("fix the set", ["pkg/a.py", "pkg/b.py"])],
+                               files=("pkg/a.py", "pkg/b.py"))],
+    })
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out")
+    assert out.claimed
+    # the failed first attempt's write is gone from the final tree
+    assert (workdir / "pkg" / "a.py").read_text() == "x = 1\n"
+
+
+def test_merging_a_winner_applies_its_deletions(tmp_path, monkeypatch):
+    """D3: the node tree must EQUAL the winning candidate tree, so a file the winner
+    deleted must be gone from the node tree after the merge."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+
+    async def leaf(model, spec, workdir_arg, budget, **kw):
+        budget.take(1)
+        (Path(workdir_arg) / "pkg" / "b.py").unlink()
+        return leaf_outcome(claimed=True)
+
+    monkeypatch.setattr(tree_run, "run_leaf", leaf)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("HOW-1", "drop b", 1)])],
+        "plan_node": [plan_env([child("remove b", ["pkg/b.py"])],
+                               files=("pkg/a.py", "pkg/b.py"))],
+    })
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out")
+    assert out.claimed
+    assert not (workdir / "pkg" / "b.py").exists()          # the winner's deletion applied
+    assert (workdir / "pkg" / "a.py").read_text() == "x = 1\n"
+
+
+def test_feasibility_review_infeasible_auto_advances_to_the_next_how(tmp_path, monkeypatch):
+    """D4: ``request-feasibility-review`` now RUNS the plan-level review and feeds its
+    verdict into the decision; an ``infeasible`` verdict advances automatically."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([
+        leaf_outcome(claimed=False, signal="bubble", stop="spec-bubble", needs_parent=True,
+                     exhaustion_reason="the approach cannot satisfy the constraint"),
+        leaf_outcome(claimed=True),
+    ])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("HOW-1", "the infeasible approach", 1),
+                              how("HOW-2", "the fallback", 2)])],
+        "plan_node": [
+            plan_env([child("one", ["pkg/a.py"])], files=("pkg/a.py", "pkg/b.py")),
+            plan_env([child("two", ["pkg/b.py"])], files=("pkg/a.py", "pkg/b.py")),
+        ],
+    })
+    reviews: list = []
+
+    def review(request):
+        reviews.append(request)
+        grade = ("definitely-problematic" if request.angle == "constraint-conflict"
+                 else "definitely-ok")
+        return ReviewVerdict(angle=request.angle, grade=grade,
+                             evidence="the How conflicts with a stated constraint")
+
+    def manager(view):
+        return ManagerDecision("request-feasibility-review", "check feasibility first")
+
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                        manager=manager, review=review)
+    assert out.claimed and out.root.winner == "HOW-2"
+    assert any(r.angle == "constraint-conflict" for r in reviews)   # plan angle ran
+    assert any(r.angle == "dependency-availability" for r in reviews)
+    decisions = [d["decision"] for d in out.root.manager_decisions]
+    assert "request-feasibility-review" in decisions
+    assert "continue-with-next-how" in decisions
+    feas = ledger_with("feasibility_review")
+    assert feas and "constraint-conflict" in feas[-1]["grades"]     # verdict recorded
+    req = next(r for r in reviews if r.angle == "constraint-conflict")
+    assert "the infeasible approach" in req.reason                  # the How text was given
+
+
+def test_feasibility_review_feasible_returns_to_the_manager(tmp_path, monkeypatch):
+    """D4: anything other than ``infeasible`` returns the decision to the manager (or
+    parks when there is none) instead of the dead-decision park."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([
+        leaf_outcome(claimed=False, signal="bubble", stop="spec-bubble", needs_parent=True,
+                     exhaustion_reason="bubble"),
+    ])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("HOW-1", "the approach", 1)])],
+        "plan_node": [plan_env([child("one", ["pkg/a.py"])],
+                               files=("pkg/a.py", "pkg/b.py"))],
+    })
+    calls: list = []
+    decisions = iter(["request-feasibility-review", "escalate-or-park"])
+
+    def manager(view):
+        calls.append(view)
+        return ManagerDecision(next(decisions), "explicit decision")
+
+    def review(request):
+        return ReviewVerdict(angle=request.angle, grade="definitely-ok",
+                             evidence="no counterexample found")
+
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                        manager=manager, review=review)
+    assert not out.claimed and out.root.stop_reason == "parked"
+    assert len(calls) == 2                     # asked, then decided knowing feasibility
+    assert "feasibility_review" in ledger_kinds()
+
+
+def test_the_exploration_cap_is_computed_once_and_cannot_be_raised(tmp_path, monkeypatch):
+    """D5: the exploration cap is CUMULATIVE --- computed once from the node pool
+    (``n_hows=None``) and never recounted, so a manager that authors Hows cannot raise it.
+    Under the old per-round recount it was recomputed with the growing How count."""
+    seen: list = []
+    real = tree_run.how_exploration_limit
+
+    def spy(budget, n_hows=None, **kw):
+        seen.append(n_hows)
+        return real(budget, n_hows, **kw)
+
+    monkeypatch.setattr(tree_run, "how_exploration_limit", spy)
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([
+        leaf_outcome(claimed=False, signal="bubble", stop="spec-bubble", needs_parent=True,
+                     exhaustion_reason="bubble"),
+        leaf_outcome(claimed=True),
+    ])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [
+            how_env([how("HOW-1", "first", 1)]),
+            how_env([how("HOW-2", "second", 2)]),
+        ],
+        "plan_node": [
+            plan_env([child("one", ["pkg/a.py"])], files=("pkg/a.py", "pkg/b.py")),
+            plan_env([child("two", ["pkg/b.py"])], files=("pkg/a.py", "pkg/b.py")),
+        ],
+    })
+
+    def manager(view):
+        return ManagerDecision("author-a-new-how", "retry")
+
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                        manager=manager)
+    assert out.claimed
+    assert seen == [None]          # computed exactly ONCE, budget-only (never the list)

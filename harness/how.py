@@ -579,20 +579,29 @@ def audit_candidate_boundary(workspace: CandidateWorkspace, before, boundary: Se
     return audit_leaf_boundary(workspace.path, before, boundary)
 
 
-def how_exploration_limit(budget, n_hows: int, *,
+def how_exploration_limit(budget, n_hows: int | None = None, *,
                           min_leaf_calls: int = MIN_LEAF_CALLS) -> int:
-    """How many Hows the budget lets the node EXPLORE (open a candidate for).
+    """The CUMULATIVE number of Hows the budget lets the node EXPLORE (open a candidate).
 
     One call was already spent on the How list; each explored How then costs its per-How
-    decomposition call plus a leaf's worth of work (``min_leaf_calls + 1``). The limit is
-    the non-reserve pool divided by that, capped by the number of Hows. A node may
-    therefore explore at most ``floor(spendable / (min_leaf_calls + 1))`` Hows.
+    decomposition call plus a leaf's worth of work (``min_leaf_calls + 1``). The bound is
+    the non-reserve pool divided by that: ``floor(spendable / (min_leaf_calls + 1))``. It
+    is a node-level CUMULATIVE cap, so the caller computes it ONCE when exploration
+    starts and never recounts it as Hows are appended or the budget is drawn down --- a
+    manager that authors more Hows therefore cannot raise the cap.
+
+    ``n_hows`` optionally caps the result by the number of Hows that already exist; pass
+    ``None`` (what the runner does) to leave the bound purely budget-derived, because
+    Hows authored LATER must not change the node's cap.
     """
-    if n_hows < 1:
-        return 0
     spendable = int(budget.calls * (1.0 - budget.reserve_fraction))
     per_how = min_leaf_calls + 1
-    return max(0, min(n_hows, spendable // per_how))
+    cap = max(0, spendable // per_how)
+    if n_hows is None:
+        return cap
+    if n_hows < 1:
+        return 0
+    return min(n_hows, cap)
 
 
 @dataclass

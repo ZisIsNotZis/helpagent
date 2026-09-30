@@ -74,7 +74,9 @@ from __future__ import annotations
 import hashlib
 import inspect
 import os
+import shutil
 import stat
+import tempfile
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
@@ -86,7 +88,13 @@ from harness.leaf import (
     DEFAULT_REVIEW_LEVEL,
     LeafOutcome,
     LeafSpec,
+    ReviewRequest,
+    ReviewVerdict,
+    _call_review,  # one reviewer call incl. verdict conversion (shared with the leaf)
     _default_run_tests,  # the tree's default check runner
+    combine_review_verdicts,
+    review_angles_for_level,
+    review_grade_rank,
     run_leaf,
 )
 from harness.node import (
@@ -104,6 +112,7 @@ from harness.how import (
     CandidateSet,
     How,
     HowList,
+    ManagerDecision,
     Selection,
     abandon_candidate,
     decide_after_failure,
@@ -1050,7 +1059,14 @@ async def _plan_how(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
 
 async def _author_how(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget: Budget,
                       cs: CandidateSet, evidence: str) -> How | None:
-    """Author a NEW How after a failure (append-only; the old How is never edited)."""
+    """Author a NEW How after a failure (append-only; the old How is never edited).
+
+    The HARNESS owns the id of a harness-authored How: it scans the ids already present
+    and picks the smallest genuinely UNUSED ``HOW-<n>``. A model that named its Hows
+    non-sequentially (a lone ``HOW-2``, or ``HOW-1``/``HOW-3``) therefore cannot make the
+    synthetic id collide with an existing one. A fresh model How is used only when its id
+    is unused as well.
+    """
     fresh = await _plan_hows(ctx, node, spec, budget, evidence=evidence)
     if fresh is not None:
         for how in fresh:
@@ -1060,10 +1076,18 @@ async def _author_how(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budge
     # candidate instead of editing the failed plan.
     rank = len(cs.hows.hows) + 1
     return make_how(
-        f"HOW-{rank}",
+        _unused_how_id({h.id for h in cs.hows}),
         f"new approach after failure: {(evidence or 'prior attempt failed')[:120]}",
         rank,
         "no fresh model How was available; append one so the node can retry")
+
+
+def _unused_how_id(existing: set[str]) -> str:
+    """The smallest ``HOW-<n>`` id not present in ``existing`` (harness-owned ids)."""
+    n = 1
+    while f"HOW-{n}" in existing:
+        n += 1
+    return f"HOW-{n}"
 
 
 async def _apply_decomposition(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
@@ -1108,33 +1132,42 @@ async def _apply_decomposition(ctx: _TreeContext, node: NodeHandle, spec: NodeSp
 
 
 async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget: Budget,
-                    workdir: Path, hows: HowList) -> NodeOutcome:
+                    workdir: Path, hows: HowList, *,
+                    source: Path | None = None) -> NodeOutcome:
     """Explore the node's How candidates, pick the winner, with NO destructive reset.
 
     Each How gets its OWN isolated candidate copy (never a git worktree / reset) and its
-    own decomposition; the How's children run inside that copy. Every model call any
-    candidate makes is charged to the node's budget: child budgets are split from the
-    node pool per candidate and released exactly once, so a candidate that cannot afford
-    its next call does not open and its unused budget returns. On failure the structured
-    record goes to the manager loop; a negative review is an ACTION ITEM.
+    own decomposition; the How's children run inside that copy. ``source`` is the pristine
+    tree every candidate is copied FROM (defaults to ``workdir``); the leaf path passes the
+    pre-first-attempt snapshot so a failed attempt's writes can never seed a candidate
+    (ticket 20 step 2b D2). Every model call any candidate makes is charged to the node's
+    budget: child budgets are split from the node pool per candidate and released exactly
+    once, so a candidate that cannot afford its next call does not open and its unused
+    budget returns. On failure the structured record goes to the manager loop; a negative
+    review is an ACTION ITEM.
     """
     nid = node.id
     started = ctx.now()
-    cs = CandidateSet(node_id=nid, run_outdir=ctx.run_outdir, source=workdir)
+    origin = Path(source) if source is not None else workdir
+    cs = CandidateSet(node_id=nid, run_outdir=ctx.run_outdir, source=origin)
     for how in hows:
-        cs.add_how(how)
+        # A duplicate id inside ONE envelope is refused without crashing: keep the first.
+        if cs.hows.get(how.id) is None:
+            cs.add_how(how)
+    # The exploration cap is CUMULATIVE per node: computed ONCE from the node's non-reserve
+    # pool and never recounted, so a manager that authors Hows cannot raise it (D5).
+    exploration_limit = how_exploration_limit(budget, None,
+                                              min_leaf_calls=ctx.min_leaf_calls)
     records: list[CandidateRecord] = []
     closed: list[tuple[CandidateRecord, NodeOutcome]] = []
     repair_action = ""
+    refusal = ""
     reuse_handles: list[NodeHandle] = []
     explored = 0
     stop = False
+    reviewed_feasibility: set[str] = set()
     while not stop and not ctx.expired(budget):
-        # The bound is rebuilt each round over the CURRENT How list (an appended How raises
-        # the pool, while the shrinking budget lowers it), so a node can open at most
-        # ``how_exploration_limit`` candidates for the Hows it actually holds.
-        if explored >= how_exploration_limit(budget, len(cs.hows),
-                                             min_leaf_calls=ctx.min_leaf_calls):
+        if explored >= exploration_limit:
             break
         untried = list(cs.hows.untried())
         if not untried:
@@ -1179,11 +1212,31 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
         cs.record(decision)
         ctx.emit("manager_decision", node=nid, how=how.id,
                  decision=decision.decision, reason=decision.reason)
+        if decision.decision == "request-feasibility-review" \
+                and how.id not in reviewed_feasibility:
+            # Wire the dead decision (D4): run the PLAN-level feasibility review and feed
+            # its verdict into decide_after_failure. Only an "infeasible" verdict advances
+            # automatically; anything else returns to the manager (or parks with none).
+            reviewed_feasibility.add(how.id)
+            feasibility = await _run_feasibility_review(
+                ctx, nid, spec, budget, how, decomp, evidence)
+            decision = decide_after_failure(cs.manager_view(current_how_id=how.id),
+                                            feasibility=feasibility, manager=ctx.manager)
+            cs.record(decision)
+            ctx.emit("manager_decision", node=nid, how=how.id,
+                     decision=decision.decision, reason=decision.reason,
+                     feasibility=feasibility)
         if decision.decision == "author-a-new-how":
-            appended = await _author_how(ctx, node, spec, budget, cs, evidence)
-            if appended is not None:
-                cs.add_how(appended)
-                ctx.emit("how_appended", node=nid, how=appended.id)
+            try:
+                appended = await _author_how(ctx, node, spec, budget, cs, evidence)
+                if appended is not None:
+                    cs.add_how(appended)
+                    ctx.emit("how_appended", node=nid, how=appended.id)
+            except Exception as exc:  # noqa: BLE001 — an unusable How must never crash
+                refusal = f"authored How refused: {exc}"
+                cs.record(ManagerDecision("escalate-or-park", refusal))
+                ctx.emit("how_refused", node=nid, how=how.id, reason=str(exc))
+                stop = True
         elif decision.decision == "continue-with-next-how":
             continue
         else:
@@ -1196,7 +1249,7 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
             ws = cs.workspaces.pop(how.id, None)
             if ws is not None:
                 abandon_candidate(ws)
-        evidence = repair_action or "no candidate closed"
+        evidence = repair_action or refusal or "no candidate closed"
         parked = _parked(nid, "parked", round(ctx.now() - started, 3),
                          evidence=f"no How candidate closed: {evidence}")
         parked.hows = [_how_dict(h) for h in cs.hows]
@@ -1211,7 +1264,10 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
         (record, outcome) for record, outcome in closed
         if record.selection is winner_selection)
     winner_record.won = True
-    _merge_candidate(Path(winner_record.directory), workdir)
+    unsupported = _merge_candidate(Path(winner_record.directory), workdir)
+    if unsupported:
+        ctx.emit("merge_unsupported", node=nid, how=winner_record.how_id,
+                 paths=unsupported)
     for record, _ in closed:
         if record is not winner_record:
             record.status = "abandoned"
@@ -1230,26 +1286,161 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
     return winner_outcome
 
 
-def _merge_candidate(source: Path, workdir: Path) -> None:
-    """Copy a winning candidate's files back into the node's workdir (no git).
+#: Tree-copy exclusions: git state and interpreter/pytest caches are never candidate
+#: content (``.git`` must survive in the node tree so the trajectory stays usable).
+_TREE_COPY_IGNORE = shutil.ignore_patterns(".git", "__pycache__", ".pytest_cache",
+                                           "*.pyc", "*.pyo")
 
-    The candidate was a COPY of the workdir, so writing every non-git, non-cache file
-    back leaves the workdir at the winning candidate's state without any branch switch
-    or reset.
+
+def _snapshot_tree(workdir: Path) -> Path:
+    """A pristine filesystem COPY of ``workdir`` (no ``.git`` / caches, links kept).
+
+    Ticket 20 step 2b D2: taken BEFORE a node's first attempt so a failed attempt's
+    in-boundary writes can never seed a candidate copy; it replaces the removed git
+    checkpoint (there is no ``git reset`` anymore).
+    """
+    root = Path(tempfile.mkdtemp(prefix="helpagent-node-snapshot-"))
+    shutil.copytree(Path(workdir), root, ignore=_TREE_COPY_IGNORE, symlinks=True,
+                    dirs_exist_ok=True)
+    return root
+
+
+def _excluded(rel: Path) -> bool:
+    """True for a relative path that is git state or an interpreter/pytest cache."""
+    return (".git" in rel.parts or "__pycache__" in rel.parts
+            or ".pytest_cache" in rel.parts or rel.suffix in (".pyc", ".pyo"))
+
+
+def _prune_empty_dirs(workdir: Path) -> None:
+    """Remove directories left empty after a merge (deepest first), caches/.git kept."""
+    for path in sorted(workdir.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+        if path.is_symlink() or not path.is_dir() or _excluded(path.relative_to(workdir)):
+            continue
+        try:
+            path.rmdir()
+        except OSError:
+            pass
+
+
+def _merge_candidate(source: Path, workdir: Path) -> list[str]:
+    """Make ``workdir`` EQUAL to the winning candidate tree (no git).
+
+    The candidate was a COPY of the node's (snapshot) tree, so the merge both copies its
+    changed/added files back AND removes every non-excluded path the candidate no longer
+    has --- its DELETIONS (ticket 20 step 2b D3), plus any stale write left by an earlier
+    failed attempt (D2). ``.git`` and interpreter/pytest caches are never touched.
+
+    A symlink is not reproducible by this copy: every symlink in the candidate (or a
+    stale one in the node tree) is returned as an UNSUPPORTED entry so the caller records
+    it, rather than silently dropping it.
     """
     source = Path(source)
     workdir = Path(workdir)
-    for path in sorted(source.rglob("*")):
+    unsupported: list[str] = []
+    candidate_files: set[str] = set()
+    candidate_dirs: set[str] = set()
+    for path in source.rglob("*"):
         rel = path.relative_to(source)
-        if ".git" in rel.parts or "__pycache__" in rel.parts \
-                or path.suffix in (".pyc", ".pyo") or path.is_symlink():
+        if _excluded(rel):
             continue
-        dest = workdir / rel
+        if path.is_symlink():
+            unsupported.append(rel.as_posix())
+            continue
         if path.is_dir():
-            dest.mkdir(parents=True, exist_ok=True)
+            candidate_dirs.add(rel.as_posix())
         elif path.is_file():
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(path.read_bytes())
+            candidate_files.add(rel.as_posix())
+    # Remove node-tree paths the candidate does not have (deletions + stale failed writes).
+    for path in sorted(workdir.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+        rel = path.relative_to(workdir)
+        if _excluded(rel):
+            continue
+        if path.is_symlink():
+            unsupported.append(rel.as_posix())
+            path.unlink(missing_ok=True)
+            continue
+        if path.is_dir() or rel.as_posix() in candidate_files \
+                or rel.as_posix() in candidate_dirs:
+            continue
+        path.unlink(missing_ok=True)
+    # Copy the candidate's directories and files.
+    for rel in sorted(candidate_dirs):
+        dest = workdir / rel
+        if dest.is_symlink() or (dest.exists() and not dest.is_dir()):
+            dest.unlink(missing_ok=True)
+        dest.mkdir(parents=True, exist_ok=True)
+    for rel in sorted(candidate_files):
+        src = source / rel
+        dest = workdir / rel
+        if dest.is_symlink():
+            dest.unlink(missing_ok=True)
+        elif dest.is_dir():
+            shutil.rmtree(dest)          # a directory replaced by this file
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(src.read_bytes())
+    _prune_empty_dirs(workdir)
+    return unsupported
+
+
+def _plan_review_request(spec: NodeSpec, how: How, decomp: Decomposition | None,
+                         evidence: str, angle: str) -> ReviewRequest:
+    """The PLAN-level review view for ONE angle: the How, its decomposition, and why the
+    attempt failed (there is no diff at plan time).  Its ``reason`` carries the plan facts
+    the plan angles judge; ``original``/``final`` are empty."""
+    if decomp is not None and decomp.children:
+        lines = [f"- {c.goal} [{', '.join(c.files) or 'no files'}]"
+                 for c in decomp.children]
+    else:
+        lines = ["(no decomposition was produced)"]
+    reason = (
+        f"How {how.id}: {how.text}\n"
+        f"Why this approach was worth a look: {how.reason}\n"
+        "Its decomposition:\n" + "\n".join(lines) + "\n"
+        f"Failure evidence: {evidence or 'the How failed with no recorded reason'}")
+    return ReviewRequest(goal=spec.goal, acs=list(spec.acs), original={}, final={},
+                         reason=reason, angle=angle)
+
+
+async def _run_feasibility_review(ctx: _TreeContext, nid: str, spec: NodeSpec,
+                                  budget: Budget, how: How,
+                                  decomp: Decomposition | None, evidence: str) -> str:
+    """The PLAN-level feasibility review of a failed How (ticket 20 step 2b D4).
+
+    Runs ONE fresh-context review per PREDEFINED plan angle (the ``"plan"``
+    :data:`harness.leaf.REVIEW_ANGLES_BY_LEVEL`), giving the reviewer the How text, its
+    decomposition, and the failure evidence, and combines the graded verdicts with the
+    plan-level critical-angle veto. Returns ``"infeasible"`` when a plan angle grades the
+    approach problematic, ``"feasible"`` when the combined review is clean, and
+    ``"unknown"`` when no review could be run (no reviewer, no budget, or a malformed
+    result). The verdict is data: only ``"infeasible"`` lets the node advance
+    automatically.
+    """
+    if ctx.review is None or budget.calls < 1:
+        return "unknown"
+    angles = review_angles_for_level("plan")
+    verdicts: list[ReviewVerdict] = []
+    for angle in angles:
+        if budget.calls < 1:
+            break
+        budget.take(1)
+        request = _plan_review_request(spec, how, decomp, evidence, angle)
+        try:
+            verdict = await _call_review(ctx.review, request)
+        except Exception:  # noqa: BLE001 — a model failure is data, not a crash
+            break
+        if not verdict.angle:
+            verdict = replace(verdict, angle=angle)
+        verdicts.append(verdict)
+    ctx.emit("feasibility_review", node=nid, how=how.id,
+             grades={v.angle: v.grade for v in verdicts})
+    if not verdicts:
+        return "unknown"
+    ok, _score, _why = combine_review_verdicts(verdicts, angles, "plan")
+    if ok:
+        return "feasible"
+    if any(review_grade_rank(v.grade) < 0 for v in verdicts):
+        return "infeasible"
+    return "unknown"
 
 
 async def run_node(ctx: _TreeContext, node: NodeHandle, budget: Budget,
@@ -1298,15 +1489,28 @@ async def run_node(ctx: _TreeContext, node: NodeHandle, budget: Budget,
                 return result
 
     # Leaf path (a declared leaf, or a node that could not afford to decompose).
-    result = await _run_leaf_node(ctx, node, spec, budget, workdir)
-    if result.stop_reason == "resplit":
-        # L6 replacement: append a How and switch candidate instead of resetting git.
-        hows = await _plan_hows(ctx, node, spec, budget, evidence=result.evidence)
-        if hows:
-            return await _run_hows(ctx, node, spec, budget, workdir, hows)
-        return _parked(nid, "needs-user", round(ctx.now() - started, 3),
-                       evidence="node exhausted; no new How available (no destructive "
-                                "reset)", leaf=result.leaf)
+    # D2: snapshot the node tree BEFORE the first attempt, so an in-boundary write the
+    # attempt leaves behind can never seed a candidate copy or the merged tree. This
+    # replaces the removed L6 git reset without git.
+    snapshot = _snapshot_tree(workdir)
+    try:
+        result = await _run_leaf_node(ctx, node, spec, budget, workdir)
+        if result.stop_reason == "resplit":
+            # L6 replacement: append a How and switch candidate instead of resetting git.
+            hows = await _plan_hows(ctx, node, spec, budget, evidence=result.evidence)
+            if hows:
+                outcome = await _run_hows(ctx, node, spec, budget, workdir, hows,
+                                          source=snapshot)
+                if not outcome.claimed:
+                    # No candidate won: drop the failed attempt's writes too.
+                    _merge_candidate(snapshot, workdir)
+                return outcome
+            _merge_candidate(snapshot, workdir)
+            return _parked(nid, "needs-user", round(ctx.now() - started, 3),
+                           evidence="node exhausted; no new How available (no destructive "
+                                    "reset)", leaf=result.leaf)
+    finally:
+        shutil.rmtree(snapshot, ignore_errors=True)
     # A spec bubble ("respec") is NOT handled here: it propagates UP to the owning node,
     # whose candidate loop consults the manager and appends a new How (no reset).
     return result

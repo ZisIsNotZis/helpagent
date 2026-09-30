@@ -392,6 +392,19 @@ def test_how_exploration_limit_bounds_the_hows_a_node_may_open():
     assert how_exploration_limit(budget, 2, min_leaf_calls=3) == 2
 
 
+def test_how_exploration_limit_is_budget_only_when_the_caller_does_not_cap():
+    """Ticket 20 step 2b D5: the runner passes ``n_hows=None`` so the cap is purely
+    budget-derived, computed once from the node pool rather than recounted from the
+    growing How list (a manager that authors Hows must not raise it)."""
+    budget = Budget(calls=20, deadline_ts=1e12)
+    assert how_exploration_limit(budget, None, min_leaf_calls=3) == 3
+    assert how_exploration_limit(Budget(calls=4, deadline_ts=1e12), None,
+                                 min_leaf_calls=3) == 0
+    # the How count is irrelevant to the uncapped (cumulative) form
+    assert how_exploration_limit(budget, None, min_leaf_calls=3) == \
+        how_exploration_limit(budget, 999, min_leaf_calls=3)
+
+
 def test_the_audit_key_and_the_picker_agree_on_rank_and_cost_ties():
     """Regression pin: the audit key once stored rank/cost UNSIGNED, so
     ``max(key=Selection.key)`` picked the OPPOSITE candidate on a rank/cost tie while
