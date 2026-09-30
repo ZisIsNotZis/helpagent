@@ -35,7 +35,13 @@ from typing import Any, Literal
 
 from harness.budget import Budget, group_weights
 from harness.envelopes import ChildPlan, PlanNode, file_tokens
-from harness.leaf import VERIFICATION_REQUIREMENTS, DeclaredTestCase
+from harness.leaf import (
+    COVENANT_DILUTION_SHARE,
+    DEFAULT_REVIEW_LEVEL,
+    VERIFICATION_REQUIREMENTS,
+    DeclaredTestCase,
+    review_angles_for_level,
+)
 from harness.runner import llm_step
 from harness.tree import Finding, ValidationFindings
 
@@ -141,11 +147,14 @@ class NodeSpec:
     #: node's leaf must expose and pass. Empty when the plan declared none.
     test_cases: tuple[DeclaredTestCase, ...] = ()
     #: Ticket 20 planning-time covenant: the verification the plan requires of this node's
-    #: leaf (``test`` | ``review`` | ``any``), how many INDEPENDENT review rounds the
-    #: review tier needs (1..3), and whether a weaker tier is an accepted fallback.
+    #: leaf (``test`` | ``review`` | ``any``), the REVIEW ANGLES the review tier runs (a
+    #: closed per-level set; empty = the level's critical angles), the review level, and
+    #: whether a weaker tier is an accepted fallback with a PLAN-LEVEL reason.
     verification_required: str = "any"
-    review_rounds: int = 1
+    review_angles: tuple[str, ...] = ()
+    review_level: str = DEFAULT_REVIEW_LEVEL
     best_effort: bool = False
+    best_effort_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -181,8 +190,9 @@ def _child_spec_from(child: ChildPlan) -> NodeSpec:
         test_cases=tuple(DeclaredTestCase(t.ac_id, t.file, tuple(t.names))
                          for t in child.test_cases),
         verification_required=child.verification_required,
-        review_rounds=child.review_rounds,
+        review_angles=tuple(child.review_angles),
         best_effort=child.best_effort,
+        best_effort_reason=child.best_effort_reason,
     )
 
 
@@ -200,8 +210,9 @@ def decomposition_from_envelope(env: PlanNode) -> Decomposition:
         test_cases=tuple(DeclaredTestCase(t.ac_id, t.file, tuple(t.names))
                          for t in env.test_cases),
         verification_required=env.verification_required,
-        review_rounds=env.review_rounds,
+        review_angles=tuple(env.review_angles),
         best_effort=env.best_effort,
+        best_effort_reason=env.best_effort_reason,
     )
     return Decomposition(spec=spec, children=children,
                          signature=decomposition_signature(children))
@@ -224,25 +235,37 @@ def _canon_set(paths: Sequence[str], add, label: str) -> set[str]:
 
 
 def _verification_findings(label: str, files: Sequence[str], required: str,
-                            review_rounds: Any, kind: NodeKind, add,
+                            review_angles: Sequence[str], level: str, best_effort: bool,
+                            best_effort_reason: str, kind: NodeKind, has_code: bool, add,
                             *, leaf_kind: str = "leaf-empty-files") -> None:
     """Ticket 20 STRUCTURAL hard checks, applied at plan construction (never later).
 
-    A LEAF node MUST have a non-empty file list (a leaf writes code); a non-leaf node MAY
-    have code, and if it does it must declare that file list. The declared verification
-    requirement and review-round count are validated against their closed domains here so
-    an out-of-domain declaration invalidates the node at construction.
+    A LEAF node MUST have a non-empty file list (a leaf writes code). A NON-LEAF node MAY
+    omit a file list only when it owns no work of its own; if it declares code (its own
+    acceptance criteria / declared test cases), the file list is mandatory --- a writer
+    that does not declare what it writes is invalid (ticket 19 round 1 gap 4). The declared
+    verification requirement, the review ANGLES (against the node's closed per-level set),
+    and the best-effort declaration (a plan-level reason is mandatory) are validated here
+    so an out-of-domain or unjustified declaration invalidates the node at construction.
     """
     if kind == "leaf" and not files:
         add(leaf_kind,
             f"{label} is a leaf with an empty file list (a leaf must write code)")
+    if kind != "leaf" and has_code and not files:
+        add("non-leaf-code-without-files",
+            f"{label} declares its own work but no file list (a writer must declare its "
+            "files)")
     if required not in VERIFICATION_REQUIREMENTS:
         add("bad-verification-required",
             f"{label} verification_required={required!r} not in {VERIFICATION_REQUIREMENTS}")
-    if not isinstance(review_rounds, int) or isinstance(review_rounds, bool) \
-            or not 1 <= review_rounds <= 3:
-        add("bad-review-rounds",
-            f"{label} review_rounds={review_rounds!r} must be an integer in 1..3")
+    domain = review_angles_for_level(level)
+    for angle in review_angles:
+        if angle not in domain:
+            add("bad-review-angle",
+                f"{label} review_angle={angle!r} not in the {level} set {domain}")
+    if best_effort and not (best_effort_reason or "").strip():
+        add("best-effort-without-reason",
+            f"{label} declares best_effort without a plan-level best_effort_reason")
 
 
 def validate_decomposition(
@@ -277,7 +300,9 @@ def validate_decomposition(
 
     _canon_set(node.files, add, "node")
     _verification_findings("node", node.files, node.verification_required,
-                           node.review_rounds, node.kind, add)
+                           node.review_angles, node.review_level, node.best_effort,
+                           node.best_effort_reason, node.kind,
+                           bool(node.acs or node.test_cases), add)
 
     if node.kind == "leaf":
         if d.children:
@@ -293,7 +318,9 @@ def validate_decomposition(
     for i, child in enumerate(d.children):
         cset = _canon_set(child.files, add, f"child {i}")
         _verification_findings(f"child {i}", child.files, child.verification_required,
-                               child.review_rounds, child.kind, add,
+                               child.review_angles, child.review_level, child.best_effort,
+                               child.best_effort_reason, child.kind,
+                               bool(child.acs or child.test_cases), add,
                                leaf_kind="leaf-child-empty-files")
         outside = sorted(cset - parent_canon)
         if outside:
@@ -307,6 +334,19 @@ def validate_decomposition(
             if tok not in candidate_files and tok not in parent_canon:
                 add("ungrounded-reference",
                     f"child {i} names {tok!r} not in the injected candidate scope")
+
+    # Ticket 20 item 5: a plan may not weaken the covenant on every child. If more than
+    # the predefined small share of children declares best_effort, the decomposition is
+    # rejected at construction (re-ask once, then force a leaf) instead of silently
+    # converting the declared floor into an audit log.
+    if d.children:
+        declared = sum(1 for child in d.children if child.best_effort)
+        share = declared / len(d.children)
+        if share > COVENANT_DILUTION_SHARE:
+            add("best-effort-dilution",
+                f"{declared}/{len(d.children)} children declare best_effort "
+                f"({share:.0%} > {COVENANT_DILUTION_SHARE:.0%}); the covenant floor must "
+                "not be weakened on every child")
 
     # Ticket 19 F: overlapping declared file sets between siblings are ALLOWED — two
     # requirements may legitimately change the same file. The tree SERIALIZES overlapping
@@ -433,10 +473,14 @@ def _plan_node_question(evidence: str, depth: int) -> str:
          "concretely (e.g. ac_id AC-1, file tests/test_x.py, names [test_ac1_goal])."),
         ("DECLARE the verification each node must carry: verification_required is "
          "'test' when a discriminating test MUST carry the claim, 'review' when an "
-         "independent review is enough, or 'any' for either. review_rounds (1-3) is how "
-         "many INDEPENDENT reviews the review tier needs; best_effort=true is an EXPLICIT "
-         "opt-in to a weaker tier (recorded and counted) when the requirement genuinely "
-         "cannot be tested or reviewed. Do NOT set best_effort everywhere."),
+         "independent review is enough, or 'any' for either. review_angles lists the "
+         "review ANGLES to run, from the closed implementation set "
+         "['ac-correctness', 'contract-compat', 'edge-and-error', 'regression-risk', "
+         "'input-safety', 'maintainability'] --- each angle is one independent review "
+         "call, and a repeated angle is a recorded deviation, not extra evidence; leave "
+         "it empty to run the critical angles. best_effort=true is an EXPLICIT PLAN-LEVEL "
+         "opt-in to a weaker tier, needs a best_effort_reason explaining why, lowers the "
+         "floor at most ONE tier, and MUST NOT be declared on every child."),
     ]
     if evidence:
         lines.append("PRIOR ATTEMPT WAS REJECTED — use this as evidence and differ:\n"

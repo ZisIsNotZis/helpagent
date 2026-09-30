@@ -2880,7 +2880,7 @@ def test_environment_broken_parks_needs_user_without_burning_budget(tmp_path):
 
 def _approving_review(request: ReviewRequest) -> ReviewVerdict:
     changed = next(iter(request.final), "pkg/calc.py")
-    return ReviewVerdict(approved=True, evidence=f"{changed}:1 implements the goal",
+    return ReviewVerdict(grade="definitely-ok", evidence=f"{changed}:1 implements the goal",
                          detail="ok")
 
 
@@ -2907,27 +2907,27 @@ def test_apply_review_filter_requires_a_changed_artifact_not_a_bare_line():
     request = ReviewRequest(goal="g", acs=["a"], original={"pkg/calc.py": "x"},
                             final={"pkg/calc.py": "y"})
     good = apply_review_filter(
-        ReviewVerdict(approved=True, evidence="pkg/calc.py:1 implements AC-1"), request)
+        ReviewVerdict(grade="definitely-ok", evidence="pkg/calc.py:1 implements AC-1"), request)
     assert good.approved is True and good.coerced is False
     # F1: a bare line reference names no changed artifact and is no longer enough
     line = apply_review_filter(
-        ReviewVerdict(approved=True, evidence="line 3 satisfies the requirement"), request)
+        ReviewVerdict(grade="definitely-ok", evidence="line 3 satisfies the requirement"), request)
     assert line.approved is False and line.coerced is True
-    vibes = apply_review_filter(ReviewVerdict(approved=True, evidence="looks good"), request)
+    vibes = apply_review_filter(ReviewVerdict(grade="definitely-ok", evidence="looks good"), request)
     assert vibes.approved is False and vibes.coerced is True
     # a symbol that occurs in a changed file's final text is accepted
     request2 = ReviewRequest(goal="g", acs=["a"], original={"pkg/calc.py": "def compute_total():\n    return 1\n"},
                              final={"pkg/calc.py": "def compute_total():\n    return 7\n"})
     symbol = apply_review_filter(
-        ReviewVerdict(approved=True, evidence="`compute_total` now returns 7"), request2)
+        ReviewVerdict(grade="definitely-ok", evidence="`compute_total` now returns 7"), request2)
     assert symbol.approved is True
     # F1 zero-change pin: an UNCHANGED tree can NEVER claim, path or line reference alike
     no_op = ReviewRequest(goal="g", acs=["a"], original={}, final={})
     assert apply_review_filter(
-        ReviewVerdict(approved=True, evidence="pkg/calc.py:1 fixes AC-1"),
+        ReviewVerdict(grade="definitely-ok", evidence="pkg/calc.py:1 fixes AC-1"),
         no_op).approved is False
     assert apply_review_filter(
-        ReviewVerdict(approved=True, evidence="line 1 is fine"), no_op).approved is False
+        ReviewVerdict(grade="definitely-ok", evidence="line 1 is fine"), no_op).approved is False
 
 
 def test_review_without_evidence_cannot_claim(tmp_path):
@@ -2937,7 +2937,7 @@ def test_review_without_evidence_cannot_claim(tmp_path):
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT] + [impl()] * 4})
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
-                        review=lambda request: ReviewVerdict(approved=True, evidence=""),
+                        review=lambda request: ReviewVerdict(grade="definitely-ok", evidence=""),
                         run_tests=ScriptedTests([0, 0, 0, 1, 1, 1]))
 
     assert out.claimed is False
@@ -3066,17 +3066,18 @@ def test_driver_review_defaults_on_and_maps_the_leaf_review_envelope():
     assert build_parser().parse_args(["--task", "x", "--no-review"]).review is False
 
     model = FakeModelRunner({"leaf_review": [
-        {"status": "ok", "comment": "reviewed", "verdict": "pass",
+        {"status": "ok", "comment": "reviewed", "grade": "definitely-ok",
          "evidence": "pkg/calc.py:1 implements AC-1"},
         {"status": "unable", "comment": "cannot review", "unable_reason": "no source"},
     ]})
     request = ReviewRequest(goal="g", acs=["a"], original={"pkg/calc.py": "x"},
-                            final={"pkg/calc.py": "y"})
+                            final={"pkg/calc.py": "y"}, angle="ac-correctness")
     verdict = asyncio.run(model_review(model, request))
-    assert verdict.approved is True and "pkg/calc.py:1" in verdict.evidence
+    assert verdict.approved is True and verdict.grade == "definitely-ok"
+    assert verdict.angle == "ac-correctness" and "pkg/calc.py:1" in verdict.evidence
     assert model.calls("leaf_review")[0].fresh is True
     unable = asyncio.run(model_review(model, request))
-    assert unable.approved is False
+    assert unable.approved is False and unable.grade == "uncertain"
 
 
 def test_run_record_carries_the_verification_basis_and_coverage():
@@ -3089,7 +3090,7 @@ def test_run_record_carries_the_verification_basis_and_coverage():
         self_test=None, questions=[], exhausted=False, exhaustion_reason="",
         layers_used=[], stop_reason="green", verification_basis="review",
         claimed_basis="review",
-        review_verdicts=[ReviewVerdict(approved=True, evidence="pkg/calc.py:1 fixes AC-1")],
+        review_verdicts=[ReviewVerdict(grade="definitely-ok", evidence="pkg/calc.py:1 fixes AC-1")],
         coverage=[RequirementCoverage(1, "c", files=("pkg/calc.py",), symbols=("result",))])
     score = ExternalScore(passed=True, exit=0, notes=[], work_root="", applied=[], skipped=[])
 
@@ -3099,7 +3100,8 @@ def test_run_record_carries_the_verification_basis_and_coverage():
     assert record["verification_basis"] == "review"
     assert record["claimed_basis"] == "review"
     assert record["review"] is True
-    assert record["review_verdicts"][0]["approved"] is True
+    assert record["review_verdicts"][0]["grade"] == "definitely-ok"
+    assert record["review_verdicts"][0]["angle"] == ""
     assert record["coverage"][0]["files"] == ("pkg/calc.py",)
     json.dumps(record)
 
@@ -3165,9 +3167,16 @@ def test_review_blocks_the_claim_until_it_passes(tmp_path):
         impl("def result():\n    return 1\n"),          # attempt 1
         impl("def result():\n    return 42\n"),         # attempt 2
     ]})
-    verdicts = [ReviewVerdict(approved=False, evidence="pkg/calc.py:1 returns 1, not 42",
-                              detail="AC-1 unmet"),
-                ReviewVerdict(approved=True, evidence="pkg/calc.py:2 returns 42 for AC-1")]
+    # One fresh call per DECLARED ANGLE (ticket 20 item 1); the default implementation
+    # set is the two critical angles, so attempt 1 grades both bad and attempt 2 both good.
+    verdicts = [
+        ReviewVerdict(grade="definitely-problematic",
+                      evidence="pkg/calc.py:1 returns 1, not 42", detail="AC-1 unmet"),
+        ReviewVerdict(grade="probably-problematic",
+                      evidence="pkg/calc.py:1 breaks the contract", detail="contract unmet"),
+        ReviewVerdict(grade="definitely-ok", evidence="pkg/calc.py:2 returns 42 for AC-1"),
+        ReviewVerdict(grade="definitely-ok", evidence="pkg/calc.py:2 keeps the contract"),
+    ]
 
     def review(request: ReviewRequest) -> ReviewVerdict:
         return verdicts.pop(0)
@@ -3177,7 +3186,7 @@ def test_review_blocks_the_claim_until_it_passes(tmp_path):
 
     assert out.verification_basis == "review"
     assert out.claimed is True and out.claimed_basis == "review"
-    assert [v.approved for v in out.review_verdicts] == [False, True]
+    assert [v.approved for v in out.review_verdicts] == [False, False, True, True]
     assert out.review_verdict is not None and out.review_verdict.approved
     assert "review_verdict" in ledger_kinds()
 
@@ -3379,7 +3388,7 @@ def test_blocked_criterion_review_without_grounded_evidence_cannot_claim(tmp_pat
     model = FakeModelRunner({"write_test": [SELF_TEST, *[impl()] * 4]})
 
     def ungrounded(request: ReviewRequest) -> ReviewVerdict:
-        return ReviewVerdict(approved=True, evidence="looks good to me")
+        return ReviewVerdict(grade="definitely-ok", evidence="looks good to me")
 
     out = run_leaf_sync(
         model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
@@ -3458,7 +3467,7 @@ def test_review_of_a_no_op_diff_cannot_claim(tmp_path):
 
     def review(request: ReviewRequest) -> ReviewVerdict:
         seen.append(request)
-        return ReviewVerdict(approved=True, evidence="pkg/calc.py:1 implements the goal")
+        return ReviewVerdict(grade="definitely-ok", evidence="pkg/calc.py:1 implements the goal")
 
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
                         review=review, run_tests=ScriptedTests([0, 0, 0]))
@@ -3513,11 +3522,11 @@ class ScriptedReview:
 
 def _passing_review(request: ReviewRequest) -> ReviewVerdict:
     changed = next(iter(request.final), "pkg/calc.py")
-    return ReviewVerdict(approved=True, evidence=f"{changed}:1 implements the goal")
+    return ReviewVerdict(grade="definitely-ok", evidence=f"{changed}:1 implements the goal")
 
 
 def _rejecting_review(request: ReviewRequest) -> ReviewVerdict:
-    return ReviewVerdict(approved=False, detail="the goal is not met")
+    return ReviewVerdict(grade="probably-problematic", detail="the goal is not met")
 
 
 def test_verification_tier_order_is_test_review_none():
@@ -3535,6 +3544,26 @@ def test_verification_tier_order_is_test_review_none():
     assert verification_reason_problem(
         "testing is not possible because the clock value is only injected in production") == ""
     assert verification_reason_problem(GOOD_REASON) == ""
+
+
+def test_none_reason_must_be_substantive_not_boilerplate_or_a_restatement():
+    """Ticket 20 item 4 / round-1 gap 1: a 24+ character sentence that merely mentions
+    testing and a why is NOT enough. Boilerplate/template, a generic keyword soup with no
+    artifact, and a restatement of the goal are all rejected; a named observation passes."""
+    goal = "make result() return 42"
+    acs = ["result() returns 42"]
+    boilerplate = ("no test can carry verification for this node and no independent "
+                   "review is available")
+    assert verification_reason_problem(boilerplate, goal=goal, acs=acs) != ""
+    generic = "testing and reviewing are not possible for this change"
+    assert verification_reason_problem(generic, goal=goal, acs=acs) != ""
+    restatement = "testing is not possible because make result() return 42"
+    assert verification_reason_problem(restatement, goal=goal, acs=acs) != ""
+    substantive = ("no test can pin the timing-dependent warning that only occurs under "
+                   "load in production")
+    assert verification_reason_problem(substantive, goal=goal, acs=acs) == ""
+    assert "boilerplate" in verification_reason_problem(boilerplate)
+    assert "restates" in verification_reason_problem(restatement, goal=goal, acs=acs)
 
 
 def test_discriminating_own_test_claims_at_the_test_tier_verified(tmp_path):
@@ -3564,36 +3593,144 @@ def test_review_tier_claim_records_the_independent_review(tmp_path):
     assert out.claimed is True and out.verification_basis == "review"
     assert out.verified is True and out.claim_status == "verified-success"
     assert out.verification.tier == "review" and out.verification.verified is True
-    assert len(out.verification.reviews) == 1 and out.verification.review_rounds == 1
+    # Ticket 20 item 1: the default implementation review runs the two CRITICAL angles.
+    assert out.verification.review_angles == ("ac-correctness", "contract-compat")
+    assert len(out.verification.reviews) == 2
+    assert out.verification.review_score == 12     # 3*(+2) + 3*(+2)
     assert out.verification.reviews[0].evidence
 
 
-def test_review_rounds_require_every_independent_review_to_approve(tmp_path):
-    """Ticket 20 item 5: ``review_rounds`` separate fresh-context reviews combine ALL-must-
-    approve. A rejection on the second round continues the work; every verdict recorded."""
-    spec = dataclasses.replace(make_spec(), review_rounds=2)
+def test_review_angles_run_one_call_per_declared_angle_and_combine_by_weight(tmp_path):
+    """Ticket 20 items 1-3: ``review_angles`` runs ONE fresh call per angle (a different
+    angle each), and the weighted score decides. A negative grade is an ACTION ITEM: the
+    node keeps working instead of claiming."""
+    from harness.leaf import combine_review_verdicts, weighted_review_score
+
+    spec = dataclasses.replace(
+        make_spec(),
+        review_angles=("ac-correctness", "contract-compat", "maintainability"))
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [
         SELF_TEST, SELF_TEST_ALT,
         impl("def result():\n    return 1\n"),
         impl("def result():\n    return 42\n"),
     ]})
-    review = ScriptedReview([_passing_review, _rejecting_review,
-                             _passing_review, _passing_review])
+    # attempt 1: ac-correctness bad, contract-compat ok, maintainability bad; attempt 2: all ok
+    review = ScriptedReview([
+        ReviewVerdict(grade="probably-problematic", evidence="pkg/calc.py:1 returns 1"),
+        ReviewVerdict(grade="definitely-ok", evidence="pkg/calc.py:1 keeps the contract"),
+        ReviewVerdict(grade="probably-problematic", evidence="pkg/calc.py:1 is unreadable"),
+        _passing_review, _passing_review, _passing_review])
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=14, deadline_ts=_FAR_FUTURE),
                         review=review, run_tests=ScriptedTests([0, 0, 0, 0]))
 
     assert out.claimed is True and out.verification_basis == "review"
-    assert review.calls == 4                      # 2 rounds rejected + 2 rounds approved
-    assert [v.approved for v in out.review_verdicts] == [True, False, True, True]
-    assert out.verification.review_rounds == 2
+    assert review.calls == 6                      # 3 angles x 2 attempts
+    assert [v.approved for v in out.review_verdicts] == [False, True, False, True, True, True]
+    assert out.verification.review_angles == (
+        "ac-correctness", "contract-compat", "maintainability")
+    assert out.verification.review_score == 14    # 3*2 + 3*2 + 1*2
     assert out.verification.tier == "review"
+    # The aggregation is itself pinned: a negative grade blocks the claim, and a missing
+    # CRITICAL angle blocks it even when every present angle is positive.
+    ok, score, why = combine_review_verdicts(
+        [ReviewVerdict(angle="ac-correctness", grade="definitely-ok"),
+         ReviewVerdict(angle="contract-compat", grade="probably-problematic")],
+        ("ac-correctness", "contract-compat"), "implementation")
+    assert ok is False and why
+    ok2, _score2, why2 = combine_review_verdicts(
+        [ReviewVerdict(angle="maintainability", grade="definitely-ok")],
+        ("maintainability",), "implementation")
+    assert ok2 is False and "critical" in why2
+    assert weighted_review_score(
+        [ReviewVerdict(angle="maintainability", grade="definitely-ok")]) == 2
+
+
+def test_critical_angle_definitely_problematic_vetoes_regardless_of_the_average():
+    """Ticket 20 item 3: a ``definitely-problematic`` grade on a CRITICAL angle vetoes the
+    candidate even though the weighted average stays positive."""
+    from harness.leaf import combine_review_verdicts, critical_review_veto
+
+    verdicts = [ReviewVerdict(angle="ac-correctness", grade="definitely-problematic",
+                              evidence="pkg/calc.py returns the wrong value"),
+                ReviewVerdict(angle="maintainability", grade="definitely-ok"),
+                ReviewVerdict(angle="contract-compat", grade="definitely-ok")]
+    veto = critical_review_veto(verdicts, "implementation")
+    assert veto and "ac-correctness" in veto
+    ok, score, why = combine_review_verdicts(
+        verdicts, ("ac-correctness", "contract-compat", "maintainability"),
+        "implementation")
+    assert ok is False and "critical" in why
+    assert score > 0     # the veto overrides a POSITIVE weighted average
+
+
+def test_review_angle_registry_weights_and_critical_set_are_predefined():
+    """Ticket 20 items 1-3: the CLOSED angle set per level, the predefined weights (an
+    accuracy-style angle weighs more than a maintainability-style one), and the critical
+    veto set live in one place and are what the aggregation uses."""
+    from harness.leaf import (CRITICAL_REVIEW_ANGLES, REVIEW_ANGLES_BY_LEVEL,
+                              REVIEW_ANGLE_WEIGHTS, effective_review_angles)
+
+    assert REVIEW_ANGLES_BY_LEVEL["plan"] == (
+        "constraint-conflict", "dependency-availability",
+        "architecture-consistency", "cost")
+    assert REVIEW_ANGLES_BY_LEVEL["implementation"] == (
+        "ac-correctness", "contract-compat", "edge-and-error", "regression-risk",
+        "input-safety", "maintainability")
+    assert REVIEW_ANGLES_BY_LEVEL["integration"] == (
+        "end-to-end-behaviour", "interface-alignment", "regression")
+    assert REVIEW_ANGLE_WEIGHTS["ac-correctness"] > REVIEW_ANGLE_WEIGHTS["maintainability"]
+    assert REVIEW_ANGLE_WEIGHTS["contract-compat"] > REVIEW_ANGLE_WEIGHTS["cost"]
+    assert CRITICAL_REVIEW_ANGLES["implementation"] == ("ac-correctness", "contract-compat")
+    assert CRITICAL_REVIEW_ANGLES["plan"] == ("constraint-conflict",)
+    # an empty declaration defaults to the level's critical angles; out-of-domain angles
+    # are dropped; the declared in-domain angles are kept in order.
+    assert effective_review_angles((), "implementation") == (
+        "ac-correctness", "contract-compat")
+    assert effective_review_angles((), "integration") == ("end-to-end-behaviour",)
+    assert effective_review_angles(("maintainability",), "implementation") == (
+        "maintainability",)
+    assert effective_review_angles(("cost",), "implementation") == (
+        "ac-correctness", "contract-compat")
+
+
+def test_driver_review_prompt_is_angle_specific_and_demands_a_grade():
+    """Ticket 20 items 1-2: each angle has its own fixed prompt template, and the prompt
+    requires a concrete counterexample or an explicit \"found none\" statement plus one of
+    the five ordinal grades."""
+    from bench.v2_leaf import _review_question
+
+    request = ReviewRequest(goal="g", acs=["a"], original={"pkg/calc.py": "x"},
+                            final={"pkg/calc.py": "y"}, angle="edge-and-error")
+    question = _review_question(request)
+    assert "edge-and-error" in question and "edge cases" in question
+    assert "definitely-problematic" in question and "definitely-ok" in question
+    assert "counterexample" in question and "found none" in question
+
+
+def test_repeated_review_angle_is_a_recorded_deviation_not_extra_evidence(tmp_path):
+    """Ticket 20 item 1: a repeated angle is deduped and recorded as a deviation; it does
+    not buy an extra independent review."""
+    spec = dataclasses.replace(
+        make_spec(),
+        review_angles=("ac-correctness", "ac-correctness", "contract-compat"))
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        review=_passing_review, run_tests=ScriptedTests([0, 0, 0]))
+
+    assert out.claimed is True and out.verification_basis == "review"
+    assert out.verification.review_angles == ("ac-correctness", "contract-compat")
+    assert len(out.verification.reviews) == 2
+    assert "review_angle_repeated" in ledger_kinds()
 
 
 def test_best_effort_none_reason_claims_unverified(tmp_path):
     """Items 2-3: no test, no reviewer, ``best_effort`` + a substantive written reason
     claims at the ``none+reason`` tier and is recorded as an UNVERIFIED success."""
-    spec = dataclasses.replace(make_spec(), best_effort=True)
+    spec = dataclasses.replace(
+        make_spec(), best_effort=True,
+        best_effort_reason="the timing is only injected in production")
     stage(tmp_path, spec.files)
     model = FakeModelRunner({
         "write_test": [SELF_TEST, SELF_TEST_ALT, impl()],
@@ -3613,7 +3750,9 @@ def test_best_effort_none_reason_claims_unverified(tmp_path):
 
 def test_best_effort_invalid_reason_blocks_the_claim(tmp_path):
     """Item 2: a terse/off-topic reason is CHECKED, not decorative — no claim, honest stop."""
-    spec = dataclasses.replace(make_spec(), best_effort=True)
+    spec = dataclasses.replace(
+        make_spec(), best_effort=True,
+        best_effort_reason="the timing is only injected in production")
     stage(tmp_path, spec.files)
     model = FakeModelRunner({
         "write_test": [SELF_TEST, SELF_TEST_ALT, impl()],
@@ -3631,7 +3770,9 @@ def test_best_effort_invalid_reason_blocks_the_claim(tmp_path):
 
 def test_best_effort_missing_reason_envelope_blocks_the_claim(tmp_path):
     """An ``unable`` verify envelope yields no reason ⇒ the same honest stop."""
-    spec = dataclasses.replace(make_spec(), best_effort=True)
+    spec = dataclasses.replace(
+        make_spec(), best_effort=True,
+        best_effort_reason="the timing is only injected in production")
     stage(tmp_path, spec.files)
     model = FakeModelRunner({
         "write_test": [SELF_TEST, SELF_TEST_ALT, impl()],
@@ -3641,6 +3782,56 @@ def test_best_effort_missing_reason_envelope_blocks_the_claim(tmp_path):
 
     assert out.claimed is False and out.stop_reason == "verification-required"
     assert out.verification.reason == "" and out.verification.reason_problem != ""
+
+
+def test_best_effort_boilerplate_reason_blocks_the_claim(tmp_path):
+    """Ticket 20 item 4: a boilerplate ``none+reason`` no longer carries an unverified
+    claim (the round-1 hole) --- the claim gate refuses it."""
+    spec = dataclasses.replace(
+        make_spec(), best_effort=True,
+        best_effort_reason="the timing is only injected in production")
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({
+        "write_test": [SELF_TEST, SELF_TEST_ALT, impl()],
+        "verify": [verify_env("no test can carry verification for this node and no "
+                              "independent review is available")]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=10, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([0, 0, 0]))
+
+    assert out.claimed is False and out.stop_reason == "verification-required"
+    assert out.verification.reason_problem != ""
+    assert "verification_claim_blocked" in ledger_kinds()
+
+
+def test_best_effort_cannot_lower_the_floor_more_than_one_tier(tmp_path):
+    """Ticket 20 item 5: best_effort may lower the floor at most one tier, so a ``test``
+    requirement can never be satisfied by a ``none+reason`` claim."""
+    spec = dataclasses.replace(
+        make_spec(), verification_required="test", best_effort=True,
+        best_effort_reason="the timing is only injected in production")
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({
+        "write_test": [SELF_TEST, SELF_TEST_ALT, impl()],
+        "verify": [verify_env("no test can pin the timing-dependent warning in prod")]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=10, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([0, 0, 0]))
+
+    assert out.claimed is False and out.stop_reason == "verification-required"
+    assert out.verification.tier == "none" and out.verification.verified is False
+
+
+def test_best_effort_without_a_plan_level_reason_cannot_downgrade(tmp_path):
+    """Ticket 20 item 5: best_effort is a PLAN-TIME opt-in that must carry a plan-level
+    reason; without one it is not a valid downgrade."""
+    spec = dataclasses.replace(make_spec(), verification_required="test",
+                               best_effort=True)   # no best_effort_reason
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        review=_passing_review, run_tests=ScriptedTests([0, 0, 0]))
+
+    assert out.claimed is False and out.stop_reason == "verification-required"
+    assert out.verification.tier == "review" and out.verification.downgraded is False
 
 
 def test_no_reviewer_without_best_effort_keeps_the_conservative_stop(tmp_path):
@@ -3675,7 +3866,9 @@ def test_required_test_met_only_by_review_without_best_effort_blocks(tmp_path):
 def test_required_test_with_best_effort_records_the_downgrade(tmp_path):
     """Item 4: with ``best_effort`` the weaker VERIFIED (review) tier is allowed, and the
     downgrade declaration + reason are recorded."""
-    spec = dataclasses.replace(make_spec(), verification_required="test", best_effort=True)
+    spec = dataclasses.replace(
+        make_spec(), verification_required="test", best_effort=True,
+        best_effort_reason="the timing is only injected in production")
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT, impl()]})
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
@@ -3701,7 +3894,8 @@ def test_run_record_carries_the_verification_record_and_status():
         layers_used=[], stop_reason="unverified", verified=False,
         claim_status="unverified-success",
         verification=VerificationRecord(
-            wrote_code=True, tier="none", reason=GOOD_REASON, review_rounds=2,
+            wrote_code=True, tier="none", reason=GOOD_REASON,
+            review_angles=("ac-correctness", "contract-compat"), review_score=0,
             required="test", best_effort=True, downgraded=True,
             downgrade_reason="best_effort: the required tier 'test' could not be met"))
     score = ExternalScore(passed=True, exit=0, notes=[], work_root="", applied=[], skipped=[])
@@ -3717,6 +3911,11 @@ def test_run_record_carries_the_verification_record_and_status():
     assert record["verified_quadrant"] == "unverified-success"
     assert record["best_effort_declared"] is True
     assert record["verification_downgrades"] == 1
+    # Ticket 20 item 4: a one-node run whose only claim is covenant-weakened is DILUTED,
+    # and its weakened claim is excluded from the verified counts.
+    assert record["covenant_weakened"] is True and record["covenant_diluted"] is True
+    assert record["verification"]["review_angles"] == ("ac-correctness", "contract-compat")
+    assert record["review_score"] == 0
     json.dumps(record)
 
 

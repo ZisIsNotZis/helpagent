@@ -98,10 +98,11 @@ async def llm(step_type: str,
   newest was `plan_node` (ENVELOPE_SCHEMAS §23): the node tree's ONE fused
   decompose+specify call — a node's `children` plus its own goal/behavior/files/ACs plus the
   declared per-criterion test cases (`test_cases`, ticket 19 D) and the per-node verification
-  covenant (`verification_required`/`review_rounds`/`best_effort`, ticket 20) in a single
-  invocation.
+  covenant (`verification_required`/`review_angles`/`best_effort`+`best_effort_reason`,
+  ticket 20) in a single invocation.
   Ticket 19 adds `leaf_review` (ENVELOPE_SCHEMAS §26): the review-based verification verdict
-  used when no test can carry verification (goal + ACs + final diff → pass/fail + evidence).
+  used when no test can carry verification (goal + ACs + final diff → a five-grade ordinal
+  verdict for ONE angle + evidence, ticket 20).
   Ticket 20 adds `verify` (ENVELOPE_SCHEMAS §27): the WRITTEN `none+reason` justification used
   only when the plan opted into `best_effort` and neither a discriminating test nor an
   independent review could carry the claim; a claim that survives it is recorded UNVERIFIED.

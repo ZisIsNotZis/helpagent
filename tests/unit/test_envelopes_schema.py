@@ -100,7 +100,8 @@ VALID_PAYLOADS = {
                                "check_kind": "test", "check_hint": "tests/test_auth.py::test_expiry"}],
                       "interfaces": [], "est_calls": 3}],
     },
-    "leaf_review": {"verdict": "pass", "evidence": "middleware/auth.py:42 implements AC-1"},
+    "leaf_review": {"grade": "definitely-ok",
+                    "evidence": "middleware/auth.py:42 implements AC-1"},
     "verify": {"reason": "no test can pin this timing-dependent warning and no reviewer was available"},
 }
 

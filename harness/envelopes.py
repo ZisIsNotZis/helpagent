@@ -746,11 +746,14 @@ class ChildPlan(BaseModel):
     test_cases: list[DeclaredTest] = Field(default_factory=list)
     est_calls: int = Field(ge=1, le=8)            # budget-allocation weight
     # Ticket 20 planning-time covenant: the verification this child's leaf must carry
-    # (``test`` > ``review`` > ``any``), how many INDEPENDENT review rounds the review
-    # tier needs, and whether a weaker tier is an accepted best-effort fallback.
+    # (``test`` > ``review`` > ``any``), the REVIEW ANGLES the review tier runs (a closed
+    # per-level set; empty = the level's critical angles), and whether a weaker tier is an
+    # accepted best-effort fallback with a PLAN-LEVEL reason. The reason is mandatory when
+    # best_effort is set (validated by :func:`harness.node.validate_decomposition`).
     verification_required: Literal["test", "review", "any"] = "any"
-    review_rounds: int = Field(default=1, ge=1, le=3)
+    review_angles: list[str] = Field(default_factory=list)
     best_effort: bool = False
+    best_effort_reason: str = ""
 
 
 class PlanNode(Envelope):
@@ -775,8 +778,9 @@ class PlanNode(Envelope):
     test_cases: list[DeclaredTest] = Field(default_factory=list, max_length=10)  # 19 D
     # Ticket 20 planning-time covenant for THIS node (when it runs as a leaf).
     verification_required: Literal["test", "review", "any"] = "any"
-    review_rounds: int = Field(default=1, ge=1, le=3)
+    review_angles: list[str] = Field(default_factory=list)   # closed per-level set
     best_effort: bool = False
+    best_effort_reason: str = ""
     children: list[ChildPlan] = req(max_length=15)  # [] ⇒ this node is a LEAF
 
 
@@ -796,17 +800,20 @@ class FixPlan(Envelope):
 
 
 class LeafReview(Envelope):
-    """Review-based verification of the final diff (ticket 19 B, ENVELOPE_SCHEMAS §26).
+    """Review-based verification of the final diff for ONE review ANGLE (tickets 19 B /
+    20, ENVELOPE_SCHEMAS §26).
 
     Used ONLY when no test can carry verification (the own test could not be made red, a
     judge-attributed test could not be repaired into a discriminator, or the test path is
     unwritable). A fresh-context reviewer sees the goal, the acceptance criteria and the
-    final diff; ``verdict`` is pass/fail and ``evidence`` MUST name the concrete files/
-    lines and the requirement it checked (the harness's deterministic filter rejects a
-    pass without it).
+    final diff for ONE predefined angle (ticket 20, item 1); ``grade`` is one of the five
+    ORDINAL grades and ``evidence`` carries either a CONCRETE COUNTEREXAMPLE or the
+    explicit statement that the angle found none. The harness's deterministic filter
+    rejects a POSITIVE grade whose evidence does not name a changed artifact.
     """
 
-    verdict: Literal["pass", "fail"] = req()
+    grade: Literal["definitely-ok", "probably-ok", "uncertain",
+                   "probably-problematic", "definitely-problematic"] = req()
     evidence: str = req(min_length=1)
 
 

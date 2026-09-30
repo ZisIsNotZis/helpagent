@@ -33,6 +33,7 @@ import json
 import shutil
 import sys
 import time
+from typing import Any
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -49,6 +50,7 @@ from bench.v2_leaf import (  # noqa: E402
     model_review,
 )
 from harness.budget import Budget, default_deadline  # noqa: E402
+from harness.leaf import covenant_diluted  # noqa: E402
 from harness.model import LlamaServerRunner  # noqa: E402
 from harness.node import (  # noqa: E402
     MIN_LEAF_CALLS,
@@ -87,9 +89,19 @@ def build_root(task: dict) -> tuple[NodeSpec, tuple[str, ...]]:
     return root, grader_paths
 
 
-def node_record(outcome: NodeOutcome) -> dict:
-    """One node's persisted facts (recursively) — the tree, stop reasons, and verdicts."""
+def node_record(outcome: NodeOutcome, *, diluted: bool = False) -> dict:
+    """One node's persisted facts (recursively) — the tree, stop reasons, and verdicts.
+
+    In a covenant-diluted run a weakened claim (a ``none`` tier or a best-effort downgrade)
+    is recorded UNVERIFIED here too, so no per-node field presents it as a verified claim.
+    """
     leaf = outcome.leaf
+    weakened = bool(leaf is not None and _leaf_weakened(leaf))
+    verified = bool(leaf.verified) if leaf is not None else False
+    claim_status = (leaf.claim_status if leaf is not None else "")
+    if diluted and weakened:
+        verified = False
+        claim_status = "unverified-success" if claim_status.endswith("success") else claim_status
     return {
         "node": outcome.node_id,
         "claimed": outcome.claimed,
@@ -104,8 +116,8 @@ def node_record(outcome: NodeOutcome) -> dict:
         "claimed_basis": (leaf.claimed_basis if leaf is not None else None),
         "verification_basis": (leaf.verification_basis if leaf is not None else None),
         # Ticket 20: the explicit verification record + four-way claim status per node.
-        "verified": (leaf.verified if leaf is not None else False),
-        "claim_status": (leaf.claim_status if leaf is not None else ""),
+        "verified": verified,
+        "claim_status": claim_status,
         "verification": (dataclasses.asdict(leaf.verification)
                          if leaf is not None and leaf.verification is not None else None),
         "needs_user": (leaf.needs_user if leaf is not None else False),
@@ -128,18 +140,47 @@ def node_record(outcome: NodeOutcome) -> dict:
         "reset_to": outcome.reset_to,
         "resplit_rounds": outcome.resplit_rounds,
         "respec_rounds": outcome.respec_rounds,
-        "children": [node_record(c) for c in outcome.children],
+        "children": [node_record(c, diluted=diluted) for c in outcome.children],
     }
 
 
-def _tree_verified(outcome: NodeOutcome) -> bool:
+def _tree_verified(outcome: NodeOutcome, *, allow_weakened: bool = True) -> bool:
     """The tree's terminal verification strength (ticket 20): every terminal leaf's
-    evidence is a VERIFIED tier (``test`` or ``review``)."""
+    evidence is a VERIFIED tier (``test`` or ``review``). In a covenant-diluted run
+    (``allow_weakened=False``) a weakened claim (a ``none`` tier or a best-effort
+    downgrade) never counts as verified."""
     if outcome.leaf is not None:
-        return outcome.leaf.verified
+        if not outcome.leaf.verified:
+            return False
+        if not allow_weakened and _leaf_weakened(outcome.leaf):
+            return False
+        return True
     if not outcome.children:
         return False
-    return all(_tree_verified(child) for child in outcome.children)
+    return all(_tree_verified(child, allow_weakened=allow_weakened)
+               for child in outcome.children)
+
+
+def _leaf_weakened(leaf: Any) -> bool:
+    """True when a code-writing leaf's claim was covenant-weakened (ticket 20 items 4-5)."""
+    record = getattr(leaf, "verification", None)
+    return bool(record is not None and record.wrote_code
+                and (record.downgraded or record.tier == "none"))
+
+
+def _covenant_counts(outcome: NodeOutcome) -> tuple[int, int]:
+    """The run-level ``(weakened, code-writing leaf)`` counts for the dilution cap."""
+    weakened = total = 0
+    if outcome.leaf is not None:
+        record = getattr(outcome.leaf, "verification", None)
+        if record is not None and record.wrote_code:
+            total += 1
+            weakened += 1 if _leaf_weakened(outcome.leaf) else 0
+    for child in outcome.children:
+        child_weakened, child_total = _covenant_counts(child)
+        weakened += child_weakened
+        total += child_total
+    return weakened, total
 
 
 def _verification_tally(outcome: NodeOutcome) -> tuple[int, int]:
@@ -163,6 +204,8 @@ def build_record(task_id: str, goal: str, outcome: TreeOutcome, *, withheld: lis
                  run_wall_s: float, judge_enabled: bool, iv_enabled: bool,
                  review_enabled: bool, acs: list[str], verified_quad: str = "") -> dict:
     declared, downgrades = _verification_tally(outcome.root)
+    weakened, nodes = _covenant_counts(outcome.root)
+    diluted = covenant_diluted(weakened, nodes)
     """Assemble the persisted run record (nodes, budgets, stop reasons, split history)."""
     return {
         "task": task_id,
@@ -176,9 +219,14 @@ def build_record(task_id: str, goal: str, outcome: TreeOutcome, *, withheld: lis
         "actual": score.passed,
         "quadrant": quad,
         "verified_quadrant": verified_quad,
-        # Ticket 20 item 4: the run-level declaration + downgrade counters.
+        # Ticket 20 items 4-5: the run-level declaration + downgrade counters, the
+        # weakening ratio, and the dilution flag. A diluted run's weakened claims never
+        # count as verified (the caller computes ``verified_quadrant`` accordingly).
         "best_effort_declared": declared,
         "verification_downgrades": downgrades,
+        "covenant_weakened": weakened,
+        "covenant_nodes": nodes,
+        "covenant_diluted": diluted,
         "calls": outcome.calls,
         "tree_wall_s": outcome.wall_s,
         "run_wall_s": run_wall_s,
@@ -188,7 +236,7 @@ def build_record(task_id: str, goal: str, outcome: TreeOutcome, *, withheld: lis
             node: [dataclasses.asdict(attempt) for attempt in attempts]
             for node, attempts in outcome.split_history.items()
         },
-        "nodes": node_record(outcome.root),
+        "nodes": node_record(outcome.root, diluted=diluted),
         "produced": sorted(produced),
         "grader_exit": score.exit,
         "grader_notes": score.notes[-6:],
@@ -231,7 +279,11 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     produced = produced_files(workdir)
     score = external_score(task_dir, produced, out_dir / "grade")
     quad = quadrant(outcome.claimed, score.passed)
-    vquad = verified_quadrant(outcome.claimed, score.passed, _tree_verified(outcome.root))
+    weakened, nodes = _covenant_counts(outcome.root)
+    diluted = covenant_diluted(weakened, nodes)
+    vquad = verified_quadrant(outcome.claimed, score.passed,
+                              _tree_verified(outcome.root,
+                                             allow_weakened=not diluted))
 
     record = build_record(
         task["task_id"], root.goal, outcome, withheld=withheld, produced=produced,

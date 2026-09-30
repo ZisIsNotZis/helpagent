@@ -520,8 +520,9 @@ class ChildPlan(Base):
     test_cases: list[DeclaredTest] # per-criterion expected test cases (ticket 19 D)
     est_calls: int                 # 1–8 — weight for the budget split
     verification_required: Literal["test","review","any"]  # ticket 20 covenant
-    review_rounds: int             # 1–3 independent review rounds
-    best_effort: bool              # opt-in to a weaker tier with a recorded reason
+    review_angles: list[str]       # closed per-level angle set (empty ⇒ critical angles)
+    best_effort: bool              # PLAN-TIME opt-in to one weaker tier
+    best_effort_reason: str        # mandatory plan-level reason when best_effort
 
 class DeclaredTest(Base):          # ticket 19 D
     ac_id: str                     # ^AC-[0-9]{1,3}$ — one of the node's ACs
@@ -537,8 +538,9 @@ class PlanNode(Envelope):
     interfaces: list[Interface]    # 0–8
     test_cases: list[DeclaredTest] # 0–10 — this node's declared test cases
     verification_required: Literal["test","review","any"]  # ticket 20 covenant
-    review_rounds: int             # 1–3
-    best_effort: bool
+    review_angles: list[str]       # implementation review angles (closed set)
+    best_effort: bool              # PLAN-TIME opt-in
+    best_effort_reason: str
     children: list[ChildPlan]      # 0–15 — [] ⇒ this node is a LEAF
 ```
 
@@ -589,25 +591,30 @@ overflow triggers the path, never truncates).
 
 ---
 
-## 26. `leaf_review` — review-based verification (ticket 19 B)
+## 26. `leaf_review` — per-angle review-based verification (tickets 19 B / 20)
 
 Used ONLY when no test can carry verification: the run's own test could not be made red on
 arrival (after the bounded re-ask), a judge-attributed broken test survived a bounded repair
-that still could not discriminate, or the test path is unwritable. A fresh-context reviewer
-sees the goal, the extracted acceptance criteria, and the ORIGINAL/FINAL source of the
-changed files (never a grader path, never the run's own test). `evidence` MUST name the
-concrete files/lines and the requirement it checked; the harness's deterministic filter
-(`harness.leaf.apply_review_filter`) rejects a `pass` whose evidence names no changed file
-or line, so a bare approval can never carry a claim.
+that still could not discriminate, or the test path is unwritable. Ticket 20 makes each
+review ONE ANGLE from a closed per-level set, with its own fixed prompt template; the
+reviewer sees the goal, the extracted acceptance criteria, and the ORIGINAL/FINAL source of
+the changed files (never a grader path, never the run's own test). `grade` is one of the
+five ORDINAL grades; the prompt requires a concrete counterexample or an explicit "found
+none" statement. A POSITIVE grade whose `evidence` names no changed artifact is coerced to
+`uncertain` by the harness's deterministic filter (`harness.leaf.apply_review_filter`), and
+a `definitely-problematic` grade on a CRITICAL angle vetoes the candidate.
 
 ```python
 class LeafReview(Envelope):
-    verdict: Literal["pass", "fail"]
-    evidence: str                  # concrete files/lines + the requirement checked
+    grade: Literal["definitely-ok","probably-ok","uncertain",
+                   "probably-problematic","definitely-problematic"]
+    evidence: str                  # counterexample, or the explicit "found none" + artifact
 ```
 
-**Kernel validates:** `evidence` is non-empty (grammar) and, for a `pass`, names a changed
-file or a line reference (post-hoc deterministic filter). Budget: ~120 tok.
+**Kernel validates:** `evidence` is non-empty (grammar); a positive `grade` whose evidence
+names no changed artifact is coerced to `uncertain` (post-hoc deterministic filter); the
+weighted aggregation and the critical-angle veto live in `harness.leaf`
+(`combine_review_verdicts`). Budget: ~120 tok per angle.
 
 ---
 
@@ -617,10 +624,13 @@ Used ONLY when a node WROTE CODE and neither a discriminating test nor an indepe
 review can carry its claim. With the plan's `best_effort` opt-in, the node may claim at the
 weakest (`none+reason`) tier — but only when this WRITTEN reason passes the deterministic
 check. The reason must be non-empty, at least `MIN_VERIFICATION_REASON` (24) characters,
-name testing or reviewing, AND say why testing or reviewing was not possible or not
-warranted; a terse or off-topic reason blocks the claim (an honest
-`verification-required` stop). A claim that survives is recorded as an UNVERIFIED claim
-(`verified=False`, `claim_status="unverified-success"`), never mixed into verified claims.
+name testing or reviewing, say why testing or reviewing was not possible or not warranted,
+NOT be a boilerplate/template sentence, NOT merely restate the goal/acceptance criteria,
+AND name a concrete artifact or observation (a non-generic token); `best_effort` may lower
+the floor at most ONE tier and needs a plan-level `best_effort_reason`. A terse, generic,
+or off-topic reason blocks the claim (an honest `verification-required` stop). A claim that
+survives is recorded as an UNVERIFIED claim (`verified=False`,
+`claim_status="unverified-success"`), never mixed into verified claims.
 
 ```python
 class VerifyRecord(Envelope):
@@ -628,4 +638,5 @@ class VerifyRecord(Envelope):
 ```
 
 **Kernel validates:** `reason` is non-empty (grammar) and passes the length + activity +
-why checks (`harness.leaf.verification_reason_problem`). Budget: ~80 tok.
+why + anti-boilerplate + anti-restatement + concrete-artifact checks
+(`harness.leaf.verification_reason_problem`). Budget: ~80 tok.

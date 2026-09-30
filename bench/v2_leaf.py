@@ -54,6 +54,8 @@ from bench.external_score import (  # noqa: E402
 from harness.budget import Budget, default_deadline  # noqa: E402
 from harness.gate_report import JUNIT_FAMILY_ARGS  # noqa: E402
 from harness.leaf import (  # noqa: E402
+    REVIEW_ANGLE_PROMPTS,
+    covenant_diluted,
     IndependentTestCandidate,
     IndependentTestRequest,
     JudgeRequest,
@@ -88,18 +90,24 @@ def _review_question(request: ReviewRequest) -> str:
                           for rel, text in sorted(request.original.items())) or "(no source changed)"
     final = "\n".join(f"--- {rel} (FINAL) ---\n{text}"
                        for rel, text in sorted(request.final.items())) or "(no source changed)"
+    angle = request.angle or "ac-correctness"
+    instruction = REVIEW_ANGLE_PROMPTS.get(
+        angle, "Check the final diff against the goal and the acceptance criteria.")
     return (
         "You are an INDEPENDENT reviewer. No test can carry verification for this node, so "
-        "YOU decide whether the final diff implements the acceptance criteria. You did not "
-        "write the code.\n"
+        "YOU grade ONE review ANGLE of the final diff. You did not write the code.\n"
+        f"ANGLE: {angle}\n"
+        f"WHAT TO CHECK: {instruction}\n"
         f"GOAL:\n{request.goal}\n\n"
         f"ACCEPTANCE CRITERIA (numbered):\n{acs}\n\n"
         f"ORIGINAL SOURCE (before):\n{original}\n\n"
         f"FINAL SOURCE (after):\n{final}\n\n"
         f"WHY REVIEW IS REQUIRED: {request.reason or 'no test could carry verification'}\n\n"
-        "Return verdict=pass only if EVERY acceptance criterion is implemented by the "
-        "final diff. In 'evidence' name the CONCRETE file and line (e.g. \"api/x.py:42\") "
-        "and the requirement it satisfies; a bare approval is rejected."
+        "Return ONE grade --- exactly one of definitely-ok, probably-ok, uncertain, "
+        "probably-problematic, definitely-problematic --- for THIS angle only. If you "
+        "found a problem you MUST give a CONCRETE counterexample in 'evidence'; if you "
+        "found none you MUST say so explicitly and name the concrete artifact you "
+        "checked (a changed file, symbol, or test name). A bare approval is rejected."
     )
 
 
@@ -110,18 +118,19 @@ async def model_review(model: Any, request: ReviewRequest) -> ReviewVerdict:
     :func:`harness.leaf.apply_review_filter` is applied by the leaf, not here."""
     env = await llm_step(model, "leaf_review", artifacts={},
                          question=_review_question(request), fresh=True)
+    grade = getattr(env, "grade", "")
     raw = json.dumps({
         "status": env.status,
         "comment": getattr(env, "comment", ""),
-        "verdict": (getattr(env, "verdict", "") if isinstance(getattr(env, "verdict", ""), str) else ""),
+        "grade": (grade if isinstance(grade, str) else ""),
         "evidence": (getattr(env, "evidence", "") if isinstance(getattr(env, "evidence", ""), str) else ""),
         "unable_reason": env.unable_reason or "",
     }, ensure_ascii=False)
     if env.status != "ok":
-        return ReviewVerdict(approved=False, evidence="",
+        return ReviewVerdict(angle=request.angle, grade="uncertain", evidence="",
                              detail=env.unable_reason or "review unavailable", raw=raw)
     evidence = getattr(env, "evidence", "") or env.comment
-    return ReviewVerdict(approved=getattr(env, "verdict", "") == "pass",
+    return ReviewVerdict(angle=request.angle, grade=str(grade) or "uncertain",
                          evidence=evidence, detail=evidence, raw=raw)
 
 
@@ -257,6 +266,12 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
     write-guard refusals, the gate report anomalies, the machine-readable grader
     report gate (ticket 17 F1), and the interpreter isolation applied to both pytest
     runs."""
+    weakened = covenant_weakened(outcome)
+    diluted = bool(outcome.claimed) and covenant_diluted(1 if weakened else 0, 1)
+    verified = bool(outcome.verified) and not (diluted and weakened)
+    claim_status = outcome.claim_status
+    if diluted and weakened and claim_status.endswith("success"):
+        claim_status = "unverified-success"
     return {
         "task": task_id,
         "goal": goal,
@@ -271,16 +286,22 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         # Ticket 20: the explicit verification record (ordered tier, written reason and
         # its deterministic check, the independent review verdicts, and any recorded
         # best-effort downgrade), plus the four-way claim status the scoring layer reads.
-        "verified": outcome.verified,
-        "claim_status": outcome.claim_status,
+        # A COVENANT-DILUTED run records its weakened claims as unverified.
+        "verified": verified,
+        "claim_status": claim_status,
         "verification": (dataclasses.asdict(outcome.verification)
                          if outcome.verification is not None else None),
-        # Ticket 20 item 4: the run-level record of the best_effort declaration and the
-        # downgrade count, so an "everywhere best_effort" plan cannot stay a silent escape.
+        # Ticket 20 items 4-5: the run-level best_effort/downgrade counters, the weighting
+        # ratio, and the dilution flag, so an "everywhere best_effort" plan cannot stay a
+        # silent escape.
         "best_effort_declared": bool(outcome.verification is not None
                                      and outcome.verification.best_effort),
         "verification_downgrades": (1 if outcome.verification is not None
                                     and outcome.verification.downgraded else 0),
+        "covenant_weakened": weakened,
+        "covenant_diluted": diluted,
+        "review_score": (outcome.verification.review_score
+                         if outcome.verification is not None else 0),
         "review_verdicts": [dataclasses.asdict(v) for v in outcome.review_verdicts],
         # Ticket 19 E/D: per-requirement artifact coverage and the declared test-case
         # contract failures that blocked a claim.
@@ -576,6 +597,14 @@ async def model_independent_test(model: Any, request: IndependentTestRequest
     return IndependentTestCandidate(path=env.file_path, content=env.content, raw=raw)
 
 
+def covenant_weakened(outcome: LeafOutcome) -> bool:
+    """True when the node's claim was covenant-weakened (ticket 20, items 4-5): it claimed
+    at the ``none`` tier, or below its declared floor under a ``best_effort`` declaration."""
+    record = outcome.verification
+    return bool(record is not None and record.wrote_code
+                and (record.downgraded or record.tier == "none"))
+
+
 def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
              deadline_hours: float, use_judge: bool = True,
              use_iv: bool = True, use_review: bool = True) -> dict:
@@ -610,7 +639,10 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     produced = produced_files(workdir)
     score = external_score(task_dir, produced, out_dir / "grade")
     quad = quadrant(outcome.claimed, score.passed)
-    vquad = verified_quadrant(outcome.claimed, score.passed, outcome.verified)
+    weakened = covenant_weakened(outcome)
+    diluted = bool(outcome.claimed) and covenant_diluted(1 if weakened else 0, 1)
+    vquad = verified_quadrant(outcome.claimed, score.passed,
+                              bool(outcome.verified) and not (diluted and weakened))
 
     record = build_record(
         task["task_id"], spec.goal, outcome, withheld=withheld, produced=produced,

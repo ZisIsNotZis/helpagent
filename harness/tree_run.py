@@ -75,6 +75,7 @@ from typing import Any
 
 from harness.budget import Budget, BudgetError, group_weights
 from harness.leaf import (
+    DEFAULT_REVIEW_LEVEL,
     LeafOutcome,
     LeafSpec,
     _default_run_tests,  # the tree's default check runner
@@ -622,8 +623,10 @@ def leaf_spec_from(spec: NodeSpec, workdir: Path, *,
         test_cases=tuple(spec.test_cases),
         candidate_files=tuple(candidate_files),
         verification_required=spec.verification_required,
-        review_rounds=spec.review_rounds,
+        review_angles=tuple(spec.review_angles),
+        review_level=spec.review_level,
         best_effort=spec.best_effort,
+        best_effort_reason=spec.best_effort_reason,
     )
 
 
@@ -785,6 +788,9 @@ def _integration_spec(spec: NodeSpec) -> NodeSpec:
         behavior=spec.behavior,
         implementation_notes=spec.implementation_notes,
         view_files=tuple(spec.files),
+        # Ticket 20: the integration leaf reviews at the INTEGRATION level (its own
+        # closed angle set and its own critical veto), not the implementation level.
+        review_level="integration",
     )
 
 
@@ -860,12 +866,16 @@ def _merge_children(children: Sequence[NodeSpec],
             interfaces=tuple(i for s in specs for i in s.interfaces),
             kind="leaf",
             est_calls=sum(s.est_calls for s in specs),
-            # Ticket 20: the merged child carries the STRONGEST requirement and the most
-            # review rounds of its parts, and is best-effort only when every part was.
+            # Ticket 20: the merged child carries the STRONGEST requirement and the UNION
+            # of its parts' review angles, and is best-effort only when every part was.
             verification_required=_strongest_requirement(s.verification_required
                                                          for s in specs),
-            review_rounds=max(s.review_rounds for s in specs),
+            review_angles=tuple(dict.fromkeys(
+                angle for s in specs for angle in s.review_angles)),
+            review_level=DEFAULT_REVIEW_LEVEL,
             best_effort=all(s.best_effort for s in specs),
+            best_effort_reason=(next((s.best_effort_reason for s in specs
+                                      if s.best_effort_reason), "")),
         ))
     return merged
 

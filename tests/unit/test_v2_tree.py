@@ -1491,7 +1491,7 @@ def test_tree_run_record_carries_the_new_leaf_fields():
         self_test=None, questions=[], exhausted=False, exhaustion_reason="",
         layers_used=[], stop_reason="green", claimed_basis="review",
         verification_basis="review",
-        review_verdicts=[ReviewVerdict(approved=True, evidence="pkg/a.py:1 implements AC-1")],
+        review_verdicts=[ReviewVerdict(grade="definitely-ok", evidence="pkg/a.py:1 implements AC-1")],
         coverage=[RequirementCoverage(1, "c", files=("pkg/a.py",), symbols=("result",))],
         judge_verdicts=[JudgeVerdict(implementation_wrong=True, reason="r", evidence="e")])
     node = NodeOutcome(node_id="n1", claimed=True, stop_reason="closed", leaf=leaf)
@@ -1509,7 +1509,7 @@ def test_tree_run_record_carries_the_new_leaf_fields():
     node_rec = record["nodes"]
     assert node_rec["claimed_basis"] == "review"
     assert node_rec["verification_basis"] == "review"
-    assert node_rec["review_verdicts"][0]["approved"] is True
+    assert node_rec["review_verdicts"][0]["grade"] == "definitely-ok"
     assert node_rec["coverage"][0]["files"] == ("pkg/a.py",)
     assert node_rec["judge_verdicts"][0]["implementation_wrong"] is True
     assert node_rec["needs_user"] is False
@@ -1533,15 +1533,22 @@ def test_leaf_node_without_files_is_invalid_at_construction():
     assert any(f.kind == "leaf-empty-files" for f in findings)
 
 
-def test_non_leaf_node_may_declare_or_omit_a_file_list():
-    """Item 6: a non-leaf node MAY have code (a file list) and is not invalidated when it
-    omits one."""
+def test_non_leaf_node_may_omit_a_file_list_only_when_it_owns_no_work():
+    """Item 6: a non-leaf node that owns NO work of its own may omit a file list; a
+    non-leaf node that declares code but no file list is INVALID at construction."""
     with_code = _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=(), kind="internal"),
                           [NodeSpec(goal="one", files=("pkg/a.py",), acs=("c",))])
-    without = _findings(NodeSpec(goal="root", files=(), acs=(), kind="internal"),
+    no_work = _findings(NodeSpec(goal="root", files=(), acs=(), kind="internal"),
                         [NodeSpec(goal="one", files=("pkg/a.py",), acs=("c",))])
-    assert not any(f.kind == "leaf-empty-files" for f in (*with_code, *without))
-    assert not any(f.kind == "internal-without-children" for f in (*with_code, *without))
+    assert not any(f.kind == "leaf-empty-files" for f in (*with_code, *no_work))
+    assert not any(f.kind == "internal-without-children" for f in (*with_code, *no_work))
+    assert not any(f.kind == "non-leaf-code-without-files" for f in (*with_code, *no_work))
+    # a non-leaf that declares its own acceptance criteria but no files owns work it did
+    # not declare -> invalid.
+    owning = _findings(NodeSpec(goal="root", files=(), acs=("integrate the parts",),
+                                kind="internal"),
+                       [NodeSpec(goal="one", files=("pkg/a.py",), acs=("c",))])
+    assert any(f.kind == "non-leaf-code-without-files" for f in owning)
 
 
 def test_leaf_child_without_files_is_invalid_at_construction():
@@ -1552,35 +1559,46 @@ def test_leaf_child_without_files_is_invalid_at_construction():
 
 
 def test_out_of_domain_verification_declaration_invalidates_the_node():
-    """Item 4/6: the declared tier and review rounds are validated at construction."""
+    """Item 4/6: the declared tier, review ANGLES, and best-effort reason are validated at
+    construction."""
     findings = _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",), kind="leaf",
                                   verification_required="sometimes"))
     assert any(f.kind == "bad-verification-required" for f in findings)
-    rounds = _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",), kind="leaf",
-                                review_rounds=9))
-    assert any(f.kind == "bad-review-rounds" for f in rounds)
+    angles = _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",), kind="leaf",
+                                review_angles=("vibes",)))
+    assert any(f.kind == "bad-review-angle" for f in angles)
+    unjustified = _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",),
+                                     kind="leaf", best_effort=True))
+    assert any(f.kind == "best-effort-without-reason" for f in unjustified)
 
 
 def test_covenant_valid_leaf_declaration_has_no_findings():
     assert _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",), kind="leaf",
-                              verification_required="test", review_rounds=3,
-                              best_effort=True)) == []
+                              verification_required="test",
+                              review_angles=("ac-correctness", "contract-compat"),
+                              best_effort=True,
+                              best_effort_reason="the timing is only injected in prod")) == []
 
 
 def test_plan_node_carries_the_verification_covenant():
     """Item 4: the fused plan envelope carries the per-node covenant and it survives the
     translation into a :class:`Decomposition` (both the node and its children)."""
     base = plan_env([{**child("one", ["pkg/a.py"]),
-                      "verification_required": "test", "review_rounds": 2,
-                      "best_effort": True}],
+                      "verification_required": "test",
+                      "review_angles": ["ac-correctness"], "best_effort": True,
+                      "best_effort_reason": "the value is only injected in prod"}],
                     files=("pkg/a.py",))
     payload = {"status": "ok", "comment": "c", **base,
-               "verification_required": "review", "review_rounds": 3, "best_effort": True}
+               "verification_required": "review",
+               "review_angles": ["ac-correctness", "contract-compat"],
+               "best_effort": True,
+               "best_effort_reason": "the value is only injected in prod"}
     decomp = decomposition_from_envelope(PlanNode.model_validate(payload))
-    assert (decomp.spec.verification_required, decomp.spec.review_rounds,
-            decomp.spec.best_effort) == ("review", 3, True)
-    assert (decomp.children[0].verification_required, decomp.children[0].review_rounds,
-            decomp.children[0].best_effort) == ("test", 2, True)
+    assert (decomp.spec.verification_required, decomp.spec.review_angles,
+            decomp.spec.best_effort) == ("review", ("ac-correctness", "contract-compat"),
+                                         True)
+    assert (decomp.children[0].verification_required, decomp.children[0].review_angles,
+            decomp.children[0].best_effort) == ("test", ("ac-correctness",), True)
 
 
 def test_plan_node_envelope_enforces_the_covenant_domain():
@@ -1588,10 +1606,11 @@ def test_plan_node_envelope_enforces_the_covenant_domain():
     with pytest.raises(ValidationError):
         PlanNode.model_validate({"status": "ok", "comment": "c", **base,
                                  "verification_required": "maybe"})
+    # Ticket 20: a non-list/unknown-shape review_angles field is rejected by the schema,
+    # and an out-of-domain angle is rejected by validate_decomposition (tested above).
     with pytest.raises(ValidationError):
-        PlanNode.model_validate({"status": "ok", "comment": "c", **base, "review_rounds": 0})
-    with pytest.raises(ValidationError):
-        PlanNode.model_validate({"status": "ok", "comment": "c", **base, "review_rounds": 4})
+        PlanNode.model_validate({"status": "ok", "comment": "c", **base,
+                                 "review_angles": "ac-correctness"})
 
 
 def test_leaf_spec_from_carries_the_verification_covenant(tmp_path):
@@ -1599,11 +1618,15 @@ def test_leaf_spec_from_carries_the_verification_covenant(tmp_path):
     from harness.tree_run import leaf_spec_from
 
     spec = NodeSpec(goal="g", files=("pkg/a.py",), acs=("c",), kind="leaf",
-                    verification_required="test", review_rounds=2, best_effort=True)
+                    verification_required="test",
+                    review_angles=("ac-correctness", "contract-compat"),
+                    best_effort=True,
+                    best_effort_reason="the value is only injected in prod")
     leaf_spec = leaf_spec_from(spec, tmp_path, root_grader_paths=(_GRADER,))
     assert leaf_spec.verification_required == "test"
-    assert leaf_spec.review_rounds == 2
+    assert leaf_spec.review_angles == ("ac-correctness", "contract-compat")
     assert leaf_spec.best_effort is True
+    assert leaf_spec.best_effort_reason == "the value is only injected in prod"
 
 
 def test_planner_guidance_declares_the_verification_covenant():
@@ -1613,21 +1636,66 @@ def test_planner_guidance_declares_the_verification_covenant():
 
     question = _plan_node_question("", 0)
     assert "verification_required" in question
-    assert "review_rounds" in question
-    assert "best_effort" in question
+    assert "review_angles" in question and "ac-correctness" in question
+    assert "best_effort" in question and "best_effort_reason" in question
 
 
 def test_tree_run_record_counts_best_effort_declarations_and_downgrades():
-    """Item 4: the run-level counters make an 'everywhere best_effort' plan auditable."""
-    from bench.v2_tree import _verification_tally
+    """Item 4: the run-level counters make an 'everywhere best_effort' plan auditable, and
+    a fully weakened run is flagged covenant-diluted so its weakened claim is excluded from
+    the verified counts."""
+    from bench import v2_tree
+    from bench.external_score import ExternalScore
     from harness.leaf import VerificationRecord
-    from harness.tree_run import NodeOutcome
+    from harness.tree_run import NodeOutcome, TreeOutcome
 
     record = VerificationRecord(wrote_code=True, tier="review", required="test",
                                 best_effort=True, downgraded=True,
                                 downgrade_reason="best_effort: met 'review', required 'test'")
     leaf = leaf_outcome(verification=record, verified=True,
                         claim_status="verified-success")
-    root = NodeOutcome(node_id="root", claimed=True, stop_reason="closed", children=[
-        NodeOutcome(node_id="n", claimed=True, stop_reason="closed", leaf=leaf)])
-    assert _verification_tally(root) == (1, 1)
+    node = NodeOutcome(node_id="n", claimed=True, stop_reason="closed", leaf=leaf)
+    root = NodeOutcome(node_id="root", claimed=True, stop_reason="closed",
+                       children=[node])
+    assert v2_tree._verification_tally(root) == (1, 1)
+    assert v2_tree._covenant_counts(root) == (1, 1)
+
+    tree_outcome = TreeOutcome(root=root, claimed=True, calls=1, wall_s=0.0,
+                               budget=Budget(calls=5, deadline_ts=_FAR),
+                               checkpoints={}, split_history={})
+    score = ExternalScore(passed=True, exit=0, notes=[], work_root="", applied=[], skipped=[])
+    rec = v2_tree.build_record("T-x", "goal", tree_outcome, withheld=[], produced={},
+                               score=score, quad="true-success", run_wall_s=0.0,
+                               judge_enabled=True, iv_enabled=True, review_enabled=True,
+                               acs=[], verified_quad="unverified-success")
+    assert rec["covenant_weakened"] == 1 and rec["covenant_nodes"] == 1
+    assert rec["covenant_diluted"] is True
+    assert v2_tree._tree_verified(root, allow_weakened=False) is False
+
+
+def test_decomposition_rejects_best_effort_on_every_child():
+    """Item 5: a plan that weakens the covenant on more than the predefined small share of
+    its children is rejected at construction (the floor cannot be opt-out everywhere)."""
+    kids = [NodeSpec(goal=f"c{i}", files=("pkg/a.py",), acs=("x",), best_effort=True,
+                     best_effort_reason="the value is only injected in prod")
+            for i in range(2)]
+    findings = _findings(
+        NodeSpec(goal="root", files=("pkg/a.py",), acs=(), kind="internal"), kids)
+    assert any(f.kind == "best-effort-dilution" for f in findings)
+    normal = [NodeSpec(goal=f"c{i}", files=("pkg/a.py",), acs=("x",)) for i in range(2)]
+    assert not any(f.kind == "best-effort-dilution"
+                   for f in _findings(
+                       NodeSpec(goal="root", files=("pkg/a.py",), acs=(), kind="internal"),
+                       normal))
+
+
+def test_covenant_dilution_share_flags_a_weakened_run():
+    """Item 4: the predefined small share and the dilution predicate."""
+    from harness.leaf import (COVENANT_DILUTION_SHARE, covenant_diluted,
+                              covenant_weakening_share)
+
+    assert COVENANT_DILUTION_SHARE == 0.25
+    assert covenant_diluted(1, 8) is False          # 12.5%
+    assert covenant_diluted(3, 8) is True           # 37.5%
+    assert covenant_diluted(0, 0) is False
+    assert covenant_weakening_share(0, 0) == 0.0

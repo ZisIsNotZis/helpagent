@@ -299,6 +299,111 @@ _TIER_RANK: dict[str, int] = {"test": 2, "review": 1, "none": 0}
 #: ``best_effort`` opt-in plus a valid written reason (see :func:`verification_reason_problem`).
 _REQUIRED_FLOOR: dict[str, int] = {"test": 2, "review": 1, "any": 0}
 
+# ---------------------------------------------------------------------------
+# Review ANGLES, weights, and the five ORDINAL grades (ticket 20, item 1-3)
+# ---------------------------------------------------------------------------
+
+#: The CLOSED review-angle registry, one tuple per REVIEW LEVEL. A review is NOT a count
+#: of identical calls (the round-1 verification gap 3): it is one fresh-context call per
+#: DECLARED ANGLE, each with its own fixed prompt template (:data:`REVIEW_ANGLE_PROMPTS`),
+#: drawn from this closed set so a small model cannot wander.
+REVIEW_ANGLES_BY_LEVEL: dict[str, tuple[str, ...]] = {
+    "plan": ("constraint-conflict", "dependency-availability",
+             "architecture-consistency", "cost"),
+    "implementation": ("ac-correctness", "contract-compat", "edge-and-error",
+                       "regression-risk", "input-safety", "maintainability"),
+    "integration": ("end-to-end-behaviour", "interface-alignment", "regression"),
+}
+
+#: The review level an ordinary (implementation) leaf belongs to; the integration leaf
+#: overrides it with ``review_level="integration"``. The plan (How) level is defined for
+#: the How axis (the NEXT round) and is not wired here.
+DEFAULT_REVIEW_LEVEL = "implementation"
+
+#: Every angle in the closed set, flattened over the levels (the plan-envelope domain).
+ALL_REVIEW_ANGLES: tuple[str, ...] = tuple(
+    angle for level in ("plan", "implementation", "integration")
+    for angle in REVIEW_ANGLES_BY_LEVEL[level])
+
+#: The PREDEFINED per-angle weights --- the accuracy-style angles (does the diff satisfy
+#: the acceptance criteria / the contract) weigh most, edge/regression/input next, and the
+#: maintainability-style angles least. The weighted score ranks candidates; the critical
+#: angles below are the veto. One table, the single place the weights live.
+REVIEW_ANGLE_WEIGHTS: dict[str, int] = {
+    "constraint-conflict": 3, "dependency-availability": 3,
+    "architecture-consistency": 2, "cost": 1,
+    "ac-correctness": 3, "contract-compat": 3,
+    "edge-and-error": 2, "regression-risk": 2, "input-safety": 2,
+    "maintainability": 1,
+    "end-to-end-behaviour": 3, "interface-alignment": 2, "regression": 2,
+}
+
+#: The PREDEFINED CRITICAL angles per level (ticket 20, item 3). A ``definitely-problematic``
+#: verdict on one of these VETOES the candidate regardless of the weighted average, so a
+#: real defect found by a high-weight angle cannot be averaged away. A critical angle that
+#: did not run at all also blocks a review-tier claim (the veto would be vacuous otherwise).
+CRITICAL_REVIEW_ANGLES: dict[str, tuple[str, ...]] = {
+    "plan": ("constraint-conflict",),
+    "implementation": ("ac-correctness", "contract-compat"),
+    "integration": ("end-to-end-behaviour",),
+}
+
+#: The five ORDINAL grades (worst → best) and their integer ranks (ticket 20, item 2).
+REVIEW_GRADES: tuple[str, ...] = (
+    "definitely-problematic", "probably-problematic", "uncertain",
+    "probably-ok", "definitely-ok")
+REVIEW_GRADE_RANK: dict[str, int] = {
+    "definitely-problematic": -2, "probably-problematic": -1, "uncertain": 0,
+    "probably-ok": 1, "definitely-ok": 2}
+#: The grades that carry a POSITIVE verdict (only these may be grounded into a claim).
+POSITIVE_REVIEW_GRADES: frozenset[str] = frozenset({"probably-ok", "definitely-ok"})
+
+#: The fixed prompt template per angle. The prompt REQUIRES either a concrete
+#: counterexample or the explicit statement that the angle found none, and the grade is
+#: one of the five ordinal values --- so the reviewer cannot answer with a vague approval.
+REVIEW_ANGLE_PROMPTS: dict[str, str] = {
+    "constraint-conflict": (
+        "Check whether the plan conflicts with a constraint stated in the goal or the "
+        "acceptance criteria (an invariant, a required behaviour, a forbidden change)."),
+    "dependency-availability": (
+        "Check whether every dependency the plan relies on (a module, symbol, file, "
+        "tool, or already-landed behaviour) actually exists and is available."),
+    "architecture-consistency": (
+        "Check whether the plan is consistent with the existing architecture and "
+        "conventions of the code it touches."),
+    "cost": (
+        "Check whether the plan's cost (calls, time, amount of change) is proportionate "
+        "to the requirement."),
+    "ac-correctness": (
+        "Check whether the final diff makes EACH acceptance criterion true, reading the "
+        "actual changed code, not the summary."),
+    "contract-compat": (
+        "Check whether the final diff keeps every interface, signature, and documented "
+        "contract it must not break."),
+    "edge-and-error": (
+        "Check whether the final diff handles the edge cases and error paths the "
+        "acceptance criteria imply."),
+    "regression-risk": (
+        "Check whether the final diff can break behaviour that worked before but is not "
+        "covered by the goal."),
+    "input-safety": (
+        "Check whether the final diff is safe against malformed, empty, or hostile "
+        "inputs at the boundary it touches."),
+    "maintainability": (
+        "Check whether the final diff is readable, minimal, and consistent with the "
+        "surrounding code."),
+    "end-to-end-behaviour": (
+        "Check whether the child changes together produce the end-to-end behaviour the "
+        "node's acceptance criteria require."),
+    "interface-alignment": (
+        "Check whether the child changes agree on the interfaces between them (names, "
+        "signatures, data shapes)."),
+    "regression": (
+        "Check whether integrating the child changes breaks behaviour that was working "
+        "before."),
+}
+
+
 #: The minimum length of a ``none+reason`` written reason (ticket 20).
 MIN_VERIFICATION_REASON = 24
 #: The reason must NAME the activity it is about ...
@@ -310,16 +415,61 @@ _REASON_WHY: tuple[str, ...] = (
     "not possible", "not feasible", "infeasible", "not warranted",
     "not applicable", "no test", "no review", "without", "not worth", "no way",
     "unsafe", "not sensible", "not meaningful", "not amenable")
+#: Words that carry NO artifact and NO observation of their own. A reason made ONLY of
+#: these (plus the activity/why vocabulary) is boilerplate, however long it is --- this is
+#: the deterministic answer to round-1 gap 1 (a keyword substring test is not enough).
+_REASON_GENERIC: frozenset[str] = frozenset({
+    "test", "tests", "testing", "review", "reviews", "reviewing", "reviewer",
+    "reviewers", "verification", "verify", "verified", "check", "checks",
+    "checking", "checked", "change", "changes", "changed", "code", "function",
+    "functions", "method", "methods", "helper", "helpers", "behaviour",
+    "behavioural", "behavior", "feature", "features", "thing", "things", "part",
+    "parts", "reason", "reasons", "reasoning", "possible", "impossible",
+    "available", "unavailable", "warranted", "applicable", "reviewable",
+    "testable", "sensible", "meaningful", "amenable", "feasible", "infeasible",
+    "worth", "safe", "unsafe", "manual", "manually", "automatic", "automatically",
+    "cannot", "unable", "way", "able", "need", "needed", "needs", "still",
+    "without", "note", "noted", "here", "node", "goal", "criteria",
+    "criterion", "acceptance", "requirement", "requirements", "current", "given",
+    "this", "that", "these", "those", "because", "since", "and", "the", "for",
+    "with", "from", "into", "only", "just", "very", "much", "more", "most",
+    "not", "are", "is", "was", "were", "be", "been", "being", "has", "have",
+    "had", "do", "does", "did", "would", "could", "should", "may", "might",
+    "must", "will", "can", "or", "but", "if", "then", "than", "there", "their",
+    "its", "it", "as", "at", "by", "on", "in", "of", "to", "a", "an", "over",
+    "under", "between", "any", "all", "some", "each", "every", "no", "nor", "so",
+    "such", "too", "also", "while", "when", "where", "which", "who", "what", "why",
+    "how", "they", "them", "we", "you",
+})
+#: Fixed boilerplate/template sentences; a reason that IS one of these (or opens with one)
+#: is rejected by name, independent of the specificity heuristic above.
+_REASON_BOILERPLATE: tuple[str, ...] = (
+    "no test can carry verification for this node",
+    "no test can carry verification for this change",
+    "testing or reviewing was not possible or not warranted",
+    "no test and no reviewer could carry verification",
+    "testing is not possible and no review is available",
+    "there is nothing to test or review here",
+)
+_REASON_WORD = re.compile(r"[a-z0-9][a-z0-9_./-]*")
 
 
-def verification_reason_problem(reason: str) -> str:
-    """DETERMINISTICALLY check a ``none+reason`` justification (ticket 20).
+def _reason_tokens(text: str) -> set[str]:
+    """Lower-cased word tokens of ``text`` (dotted/underscored identifiers kept whole)."""
+    return {word for word in _REASON_WORD.findall((text or "").lower())}
+
+
+def verification_reason_problem(reason: str, *, goal: str = "",
+                                acs: Sequence[str] = ()) -> str:
+    """DETERMINISTICALLY check a ``none+reason`` justification (ticket 20, item 4).
 
     Returns "" when the reason is acceptable, else a short problem describing the first
-    failure. A reason is accepted only when it is non-empty, at least
-    :data:`MIN_VERIFICATION_REASON` characters long, mentions testing or reviewing, AND
-    says why testing or reviewing was not possible or not warranted. The check is not
-    decorative: an empty, terse, or off-topic reason blocks the claim.
+    failure. Beyond the original length/activity/why checks, the reason must NOT be
+    boilerplate or a fixed template sentence, must NOT merely restate the goal or the
+    acceptance criteria (a token-overlap test), and must name a concrete artifact or
+    observation (at least one content token outside the generic vocabulary) --- so the
+    round-1 hole (any 24+ character sentence mentioning testing and a why word passed)
+    is closed.
     """
     text = " ".join((reason or "").split())
     if not text:
@@ -332,7 +482,114 @@ def verification_reason_problem(reason: str) -> str:
     if not any(term in lowered for term in _REASON_WHY):
         return ("reason does not say why testing or reviewing was not possible or "
                 "not warranted")
+    normalized = lowered.strip(" .")
+    if any(normalized == phrase or normalized.startswith(phrase)
+           for phrase in _REASON_BOILERPLATE):
+        return "reason is a boilerplate/template sentence"
+    tokens = _reason_tokens(lowered)
+    specific = tokens - _REASON_GENERIC
+    if not specific:
+        return "reason names no concrete artifact or observation"
+    goal_tokens = _reason_tokens(" ".join([goal, *acs])) - _REASON_GENERIC
+    if goal_tokens:
+        overlap = len(specific & goal_tokens) / len(specific)
+        if overlap >= 0.8:
+            return "reason merely restates the goal or acceptance criteria"
     return ""
+
+
+def review_angles_for_level(level: str) -> tuple[str, ...]:
+    """The closed angle set for ``level`` (defaulting to the implementation level)."""
+    return REVIEW_ANGLES_BY_LEVEL.get(level, REVIEW_ANGLES_BY_LEVEL[DEFAULT_REVIEW_LEVEL])
+
+
+def critical_review_angles(level: str) -> tuple[str, ...]:
+    """The PREDEFINED veto angles for ``level``."""
+    return CRITICAL_REVIEW_ANGLES.get(level, CRITICAL_REVIEW_ANGLES[DEFAULT_REVIEW_LEVEL])
+
+
+def review_grade_rank(grade: str) -> int:
+    """The ordinal rank of a grade (unknown grades are the neutral ``uncertain`` = 0)."""
+    return REVIEW_GRADE_RANK.get(grade, 0)
+
+
+def effective_review_angles(declared: Sequence[str], level: str) -> tuple[str, ...]:
+    """The angles a review actually runs: the declared in-domain angles in order, deduped
+    (a repeated angle is a recorded deviation, never extra evidence), or --- when the plan
+    declared none --- the level's CRITICAL angles (the minimum a claim must check)."""
+    domain = review_angles_for_level(level)
+    out: list[str] = []
+    for angle in declared:
+        if angle in domain and angle not in out:
+            out.append(angle)
+    return tuple(out) or critical_review_angles(level)
+
+
+def weighted_review_score(verdicts: Sequence["ReviewVerdict"]) -> int:
+    """The PREDEFINED-weight weighted sum of per-angle grades. An angle with no review
+    contributes 0, so no review at all scores 0."""
+    return sum(REVIEW_ANGLE_WEIGHTS.get(v.angle, 0) * review_grade_rank(v.grade)
+               for v in verdicts)
+
+
+def critical_review_veto(verdicts: Sequence["ReviewVerdict"], level: str) -> str:
+    """The VETO reason when a critical angle of ``level`` graded ``definitely-problematic``
+    (``-2``), else "". The veto is not diluted by the weighted average."""
+    critical = set(critical_review_angles(level))
+    for verdict in verdicts:
+        if verdict.angle in critical and review_grade_rank(verdict.grade) <= -2:
+            return (f"critical angle {verdict.angle} graded {verdict.grade}: "
+                    f"{verdict.detail or verdict.evidence or 'definitely problematic'}")
+    return ""
+
+
+def combine_review_verdicts(verdicts: Sequence["ReviewVerdict"], angles: Sequence[str],
+                            level: str) -> tuple[bool, int, str]:
+    """Combine per-angle graded reviews into ``(ok, weighted_score, reason)``.
+
+    A review carries a claim ONLY when every critical angle of the level produced a
+    graded verdict, no angle is negative (any ``probably-problematic``/worse grade is an
+    ACTION ITEM: the node keeps working), and the weighted score is positive. A missing
+    critical angle scores 0 (the veto would be vacuous otherwise).
+    """
+    # A COERCED verdict (an ungrounded positive, or a malformed review) carries no grade
+    # for aggregation: it is as if that angle did not run, so a missing critical angle
+    # still blocks the claim.
+    by_angle = {v.angle: v for v in verdicts
+                if v.angle in set(angles) and not v.coerced}
+    missing = [a for a in critical_review_angles(level) if a not in by_angle]
+    if missing:
+        return False, 0, f"critical review angle(s) not run: {', '.join(missing)}"
+    veto = critical_review_veto(by_angle.values(), level)
+    if veto:
+        return False, weighted_review_score(by_angle.values()), veto
+    negative = [v for v in by_angle.values() if review_grade_rank(v.grade) < 0]
+    if negative:
+        worst = min(negative, key=lambda v: review_grade_rank(v.grade))
+        return False, weighted_review_score(by_angle.values()), (
+            f"angle {worst.angle} graded {worst.grade}: "
+            f"{worst.detail or worst.evidence or 'problematic'}")
+    score = weighted_review_score(by_angle.values())
+    if score <= 0:
+        return False, score, "the weighted review score is not positive"
+    return True, score, ""
+
+
+#: The predefined small share of a run's code-writing nodes that may claim at the
+#: ``none`` tier or declare ``best_effort`` before the run is flagged ``covenant-diluted``
+#: (ticket 20, items 4-5).
+COVENANT_DILUTION_SHARE = 0.25
+
+
+def covenant_weakening_share(weakened: int, nodes: int) -> float:
+    """The share of code-writing nodes recorded as covenant-weakened (0.0 when no nodes)."""
+    return (weakened / nodes) if nodes > 0 else 0.0
+
+
+def covenant_diluted(weakened: int, nodes: int,
+                     share: float = COVENANT_DILUTION_SHARE) -> bool:
+    """True when the covenant-weakened share EXCEEDS the predefined small share."""
+    return nodes > 0 and covenant_weakening_share(weakened, nodes) > share
 
 
 #: Bounded retries for a malformed/unparseable model envelope (owner direction: no
@@ -374,13 +631,17 @@ _MISSING_TEST_CASES_QUESTION = (
 
 #: Ticket 20: the bounded envelope that asks for the WRITTEN ``none+reason``
 #: justification when neither a discriminating test nor an independent review can carry a
-#: node's claim. The reason is checked deterministically (length + why testing/reviewing
-#: was not possible or not warranted), so a terse or off-topic answer cannot carry it.
+#: node's claim. The reason is checked deterministically (length, why testing/reviewing was
+#: not possible or not warranted, NOT boilerplate, NOT a restatement of the goal, and a
+#: NAMED concrete artifact or observation), so a terse, generic, or goal-restating answer
+#: cannot carry a claim.
 _VERIFICATION_REASON_QUESTION = (
     "No test can carry verification for this node and no independent review is available "
     "(or a review is not warranted). In one or two sentences, explain IN WRITING why "
-    "testing or reviewing was not possible or not warranted for this change, naming the "
-    "concrete reason. Reply with reason=<your explanation>."
+    "testing or reviewing was not possible or not warranted for THIS change. You MUST name "
+    "a concrete artifact or observation (a file, a symbol, a test name, or a specific "
+    "behaviour); do NOT restate the goal and do NOT reply with a generic phrase. Reply "
+    "with reason=<your explanation>."
 )
 
 _TEST_BLAME_PHRASES = (
@@ -436,12 +697,16 @@ class LeafSpec:
     #: blind view's keys when empty.
     candidate_files: tuple[str, ...] = ()
     #: Ticket 20 planning-time covenant: the verification the plan requires of this node
-    #: (``test`` | ``review`` | ``any``), how many INDEPENDENT review rounds the review
-    #: tier needs (1..3), and whether a weaker tier is an accepted best-effort fallback.
-    #: Defaults preserve the pre-ticket-20 policy (any tier, one review, no fallback).
+    #: (``test`` | ``review`` | ``any``), the REVIEW ANGLES the review tier must run (a
+    #: closed per-level set; empty means the level's critical angles), the review level
+    #: (``implementation`` | ``integration``; the plan level is not wired here), and
+    #: whether a weaker tier is an accepted best-effort fallback with a plan-level reason.
+    #: Defaults preserve the pre-ticket-20 policy (any tier, critical angles, no fallback).
     verification_required: str = "any"
-    review_rounds: int = 1
+    review_angles: tuple[str, ...] = ()
+    review_level: str = DEFAULT_REVIEW_LEVEL
     best_effort: bool = False
+    best_effort_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -735,24 +1000,36 @@ class ReviewRequest:
     original: dict[str, str]
     final: dict[str, str]
     reason: str = ""
+    #: Ticket 20 (item 1): the review ANGLE this call asks about (one fresh call per
+    #: angle, its own fixed prompt); the driver builds the angle-specific question from it.
+    angle: str = ""
 
 
 @dataclass(frozen=True)
 class ReviewVerdict:
-    """A fresh-context reviewer's verdict on the final diff (ticket 19 B).
+    """A fresh-context reviewer's verdict on ONE review angle (tickets 19 B / 20).
 
-    ``approved`` is honoured ONLY when ``evidence`` is non-empty AND names a concrete
-    changed file or line (the deterministic filter, :func:`apply_review_filter`), so a
-    bare "looks good" cannot carry a claim. ``detail`` is the human-readable detail
-    (the reviewer's own comment/defect) and ``raw`` the unedited verdict.
+    ``grade`` is one of the five ORDINAL :data:`REVIEW_GRADES` (``definitely-ok`` +2 …
+    ``definitely-problematic`` -2); ``angle`` says which angle it answers. A POSITIVE
+    grade is honoured ONLY when ``evidence`` names a concrete changed artifact (the
+    deterministic filter, :func:`apply_review_filter}), so a bare "looks good" cannot
+    carry a claim. ``approved`` is the derived boolean (``grade`` is positive). ``detail``
+    is the human-readable detail (the reviewer's own comment/counterexample) and ``raw``
+    the unedited verdict.
     """
 
-    approved: bool
+    angle: str = ""
+    grade: str = "uncertain"
     evidence: str = ""
     detail: str = ""
     raw: str = ""
     coerced: bool = False
     coercion_reason: str = ""
+
+    @property
+    def approved(self) -> bool:
+        """True only for a POSITIVE grade (``probably-ok`` or ``definitely-ok``)."""
+        return self.grade in POSITIVE_REVIEW_GRADES
 
 
 @dataclass(frozen=True)
@@ -763,10 +1040,11 @@ class VerificationRecord:
     ``none``): a real discriminating test, one or more independent fresh-context reviews,
     or neither with a REQUIRED written reason. ``reason`` is the written justification
     for the ``none`` tier and ``reason_problem`` is the deterministic check's verdict on
-    it (empty when the reason is acceptable). ``required``/``review_rounds``/
-    ``best_effort`` echo the plan's declaration; ``downgraded``/``downgrade_reason``
-    record a best-effort claim at a weaker tier than the plan required. ``reviews``
-    keeps every independent review verdict (with its evidence).
+    it (empty when the reason is acceptable). ``required``/``review_angles``/
+    ``review_level``/``best_effort`` echo the plan's declaration; ``downgraded``/
+    ``downgrade_reason`` record a best-effort claim at a weaker tier than the plan
+    required. ``reviews`` keeps every per-angle review verdict (with its grade and
+    evidence) and ``review_score`` is their weighted sum.
     """
 
     wrote_code: bool
@@ -774,7 +1052,9 @@ class VerificationRecord:
     reason: str = ""
     reason_problem: str = ""
     reviews: tuple[ReviewVerdict, ...] = ()
-    review_rounds: int = 1
+    review_angles: tuple[str, ...] = ()
+    review_level: str = DEFAULT_REVIEW_LEVEL
+    review_score: int = 0
     required: str = "any"
     best_effort: bool = False
     downgraded: bool = False
@@ -1471,9 +1751,11 @@ def _review_request(
     workdir: Path,
     baseline: Mapping[str, str | None],
     reason: str,
+    angle: str = "",
 ) -> ReviewRequest:
-    """The blind review view: the goal, the ACs, and the ORIGINAL/FINAL source of exactly
-    the files the run changed (never the run's own test, never a grader path).
+    """The blind review view for ONE angle: the goal, the ACs, and the ORIGINAL/FINAL
+    source of exactly the files the run changed (never the run's own test, never a grader
+    path). ``angle`` is the predefined angle the fresh-context call answers.
 
     Ticket 19 round 2 (F3, composed with F1): "changed" is judged on the comment- and
     whitespace-stripped contents, so a comment-only edit is not a changed file and cannot
@@ -1487,7 +1769,7 @@ def _review_request(
         goal=spec.goal, acs=list(spec.acs),
         original={rel: original.get(rel, "") for rel in changed},
         final={rel: final.get(rel, "") for rel in changed},
-        reason=reason,
+        reason=reason, angle=angle,
     )
 
 
@@ -1515,34 +1797,65 @@ def _evidence_names_an_artifact(evidence: str, request: ReviewRequest) -> bool:
 
 
 def apply_review_filter(verdict: ReviewVerdict, request: ReviewRequest) -> ReviewVerdict:
-    """The DETERMINISTIC review filter (ticket 19 B): evidence or no claim.
+    """The DETERMINISTIC review filter (ticket 19 B, extended to grades): evidence or no
+    claim.
 
-    A ``pass`` is honoured ONLY when its evidence names a concrete changed file or a
-    line reference; otherwise it is coerced to a fail and the coercion recorded, so the
-    reviewer (the same weak model) can never carry a claim on its word alone."""
-    if verdict.approved and not _evidence_names_an_artifact(verdict.evidence, request):
-        return replace(verdict, approved=False, coerced=True,
-                       coercion_reason=("review approval without evidence naming a changed "
-                                        "file or line (deterministic filter)"))
+    A POSITIVE grade (``probably-ok``/``definitely-ok``) is honoured ONLY when its evidence
+    names a concrete artifact that changed in the diff; otherwise the grade is coerced down
+    to ``uncertain`` (0) and the coercion recorded, so the reviewer (the same weak model)
+    can never carry a claim on its word alone and a no-op tree can never claim. A
+    non-positive grade is left as it is (a negative grade is an action item; uncertain
+    scores 0)."""
+    if verdict.grade in POSITIVE_REVIEW_GRADES \
+            and not _evidence_names_an_artifact(verdict.evidence, request):
+        return replace(verdict, grade="uncertain", coerced=True,
+                       coercion_reason=("positive review grade without evidence naming a "
+                                        "changed artifact (deterministic filter)"))
     return verdict
 
 
+def _coerce_review_grade(value: Any) -> str:
+    """Map a model's grade word (or a legacy pass/fail) to one of the five ordinal grades."""
+    if isinstance(value, str):
+        normalized = value.strip().lower().replace("_", "-").replace(" ", "-")
+        if normalized in REVIEW_GRADE_RANK:
+            return normalized
+        if normalized in ("pass", "approved", "ok", "true", "yes"):
+            return "probably-ok"
+        if normalized in ("fail", "failed", "false", "no", "reject", "rejected"):
+            return "probably-problematic"
+    if isinstance(value, bool):
+        return "probably-ok" if value else "probably-problematic"
+    return "uncertain"
+
+
 def _as_review_verdict(result: Any) -> ReviewVerdict:
-    """Accept a structured verdict, a payload dict, or a bare pass/fail string."""
+    """Accept a structured verdict, a payload dict, or a bare pass/fail string.
+
+    The grade is read from ``grade`` when present, else from a legacy ``verdict``/``approved``
+    field, else from a bare pass/fail string; anything unrecognized is ``uncertain`` (0),
+    never a positive claim."""
     if isinstance(result, ReviewVerdict):
         return result
     if isinstance(result, Mapping):
+        if "grade" in result:
+            grade = _coerce_review_grade(result.get("grade"))
+        elif "verdict" in result:
+            grade = _coerce_review_grade(result.get("verdict"))
+        else:
+            grade = _coerce_review_grade(result.get("approved", False))
         return ReviewVerdict(
-            approved=bool(result.get("approved", False)),
+            angle=str(result.get("angle", "")),
+            grade=grade,
             evidence=str(result.get("evidence", "")),
             detail=str(result.get("detail", "")),
             raw=str(result.get("raw", "")),
         )
     if isinstance(result, str):
-        approved = _norm(result) in ("pass", "approved", "ok", "true")
-        return ReviewVerdict(approved=approved, evidence=result, raw=result)
+        return ReviewVerdict(grade=_coerce_review_grade(result), evidence=result,
+                             raw=result)
     raise TypeError(
-        f"review returned {type(result).__name__}; expected a verdict, dict, or pass/fail")
+        f"review returned {type(result).__name__}; expected a verdict, dict, or grade")
 
 
 async def _call_review(review: Any, request: ReviewRequest) -> ReviewVerdict:
@@ -2368,6 +2681,7 @@ async def run_leaf(
     verification_reason_problem_text = ""
     verification_downgraded = False
     verification_downgrade_reason = ""
+    verification_review_score = 0
     # Ticket 19 D/E coverage evidence from the LAST claim evaluation.
     coverage: list[RequirementCoverage] = []
     coverage_missing: list[str] = []
@@ -2508,62 +2822,90 @@ async def run_leaf(
                          if verdict.final_gate is not None else None),
              raw=verdict.raw)
 
-    async def run_review(reason: str, round_index: int = 0
+    async def run_review(angle: str, reason: str
                          ) -> tuple[ReviewVerdict | None, str]:
-        """Author and FILTER one fresh-context review of the final diff (ticket 19 B).
+        """Author and FILTER one fresh-context review of ONE angle (tickets 19 B / 20).
 
         The reviewer sees the goal, the ACs, and the changed files' original and final
-        source — never a grader path and never the run's own test. Its verdict is put
-        through :func:`apply_review_filter`, so only a pass WITH concrete evidence
-        (a changed file or line reference) can carry a claim. Each call is a SEPARATE
-        fresh-context review (ticket 20, item 5): ``round_index`` only names the round in
-        the request so the independent verdicts are auditable. Returns ``(verdict, "")``
-        or ``(None, failure_reason)`` where ``failure_reason`` is ``"calls"`` or
-        ``"malformed-output"``.
+        source — never a grader path and never the run's own test — and the fixed
+        angle-specific prompt template (ticket 20, item 1). Each call is a SEPARATE
+        fresh-context review (no shared history) for exactly one angle. The graded verdict
+        is put through :func:`apply_review_filter`, so only a POSITIVE grade WITH concrete
+        evidence naming a changed artifact can contribute to a claim. Returns
+        ``(verdict, "")`` or ``(None, failure_reason)`` where ``failure_reason`` is
+        ``"calls"`` or ``"malformed-output"``.
         """
-        note_text = reason or review_reason
-        if round_index:
-            note_text = f"{note_text} (independent review round {round_index + 1})"
-        request = _review_request(spec, workdir, baseline, note_text)
+        request = _review_request(spec, workdir, baseline, reason or review_reason, angle)
         raw, failure = await request_bounded(
             partial(_call_review, review, request), "review")
         if failure:
             return None, failure
         verdict = apply_review_filter(raw, request)
+        if not verdict.angle:
+            verdict = replace(verdict, angle=angle)
         review_verdicts.append(verdict)
-        emit("review_verdict", approved=verdict.approved, evidence=verdict.evidence,
-             detail=verdict.detail, coerced=verdict.coerced, round=round_index + 1)
+        emit("review_verdict", angle=verdict.angle, grade=verdict.grade,
+             approved=verdict.approved, evidence=verdict.evidence,
+             detail=verdict.detail, coerced=verdict.coerced)
         if verdict.coerced:
             emit("review_coerced", reason=verdict.coercion_reason)
         return verdict, ""
 
-    def _declared_review_rounds() -> int:
-        """The plan's review rounds, clamped to the declared 1..3 domain (ticket 20)."""
-        try:
-            rounds = int(spec.review_rounds)
-        except (TypeError, ValueError):
-            rounds = 1
-        return max(1, min(3, rounds))
+    def _declared_review_angles() -> tuple[str, ...]:
+        """The angles this node's review runs (ticket 20, item 1).
+
+        The declared angles are filtered to the node's closed per-level set and deduped;
+        a REPEATED angle is recorded as a deviation (``review_angle_repeated``) and never
+        buys extra evidence. An empty declaration falls back to the level's CRITICAL
+        angles, the minimum a review-tier claim must check.
+        """
+        level = spec.review_level if spec.review_level in REVIEW_ANGLES_BY_LEVEL \
+            else DEFAULT_REVIEW_LEVEL
+        domain = review_angles_for_level(level)
+        angles: list[str] = []
+        repeats: list[str] = []
+        rejected: list[str] = []
+        for angle in spec.review_angles:
+            if angle not in domain:
+                rejected.append(angle)
+            elif angle in angles:
+                repeats.append(angle)
+            else:
+                angles.append(angle)
+        if repeats:
+            emit("review_angle_repeated", angles=repeats)
+        if rejected:
+            emit("review_angle_rejected", angles=rejected)
+        return tuple(angles) or critical_review_angles(level)
 
     async def run_reviews(reason: str) -> tuple[bool | None, str]:
-        """Ticket 20 (item 5): run the declared INDEPENDENT reviews and combine them.
+        """Ticket 20 (items 1-3): run ONE fresh-context review per declared ANGLE and
+        combine the graded verdicts by the PREDEFINED weights + the critical-angle veto.
 
-        One fresh-context review call per round, with no shared history; the deterministic
-        combination is ALL-must-approve for the review tier. Any rejection (or a malformed
-        round) returns ``(False, why)`` so the loop CONTINUES the work; every verdict is
-        recorded with its evidence (``review_verdicts``). ``(None, "calls")`` means the
-        call budget ran out.
+        Every angle is a separate fresh call with its own fixed prompt. A malformed round
+        records ``uncertain`` for that angle (it cannot contribute a positive score). The
+        claim may proceed ONLY when :func:`combine_review_verdicts` says so — no negative
+        grade, every critical angle run, and a positive weighted score. ``(None, "calls")``
+        means the call budget ran out; ``(False, why)`` keeps the loop working.
         """
-        rounds = _declared_review_rounds()
-        for round_index in range(rounds):
-            verdict, failure = await run_review(reason, round_index)
+        nonlocal verification_review_score
+        level = spec.review_level if spec.review_level in REVIEW_ANGLES_BY_LEVEL \
+            else DEFAULT_REVIEW_LEVEL
+        angles = _declared_review_angles()
+        for angle in angles:
+            verdict, failure = await run_review(angle, reason)
             if failure == "calls":
                 return None, "calls"
             if failure:
-                return False, "review envelope stayed malformed after bounded retries"
-            if not verdict.approved:
-                return False, (verdict.detail or verdict.evidence
-                               or "review did not approve")
+                review_verdicts.append(ReviewVerdict(
+                    angle=angle, grade="uncertain", coerced=True,
+                    coercion_reason="review envelope stayed malformed after bounded retries",
+                    detail="review unavailable"))
+                emit("review_angle_unavailable", angle=angle)
+        ok, score, why = combine_review_verdicts(review_verdicts, angles, level)
+        verification_review_score = score
+        if not ok:
+            return False, why or "the weighted review did not carry the claim"
         return True, ""
 
     async def obtain_verification_reason() -> tuple[str, str]:
@@ -2606,13 +2948,20 @@ async def run_leaf(
         required = _required_tier()
         floor = _REQUIRED_FLOOR[required]
         if tier == "none":
-            if not spec.best_effort:
+            if not spec.best_effort or not (spec.best_effort_reason or "").strip():
+                return False, "blocked"
+            if floor - _TIER_RANK["none"] > 1:
+                # Ticket 20 item 5: best_effort lowers the floor AT MOST one tier, so a
+                # ``test`` requirement can never be satisfied by a ``none`` claim.
+                emit("verification_claim_blocked", tier=tier, required=required,
+                     reason="best_effort may lower the floor at most one tier")
                 return False, "blocked"
             reason, failure = await obtain_verification_reason()
             if failure:
                 return False, failure
             verification_reason = reason
-            verification_reason_problem_text = verification_reason_problem(reason)
+            verification_reason_problem_text = verification_reason_problem(
+                reason, goal=spec.goal, acs=spec.acs)
             if verification_reason_problem_text:
                 return False, "blocked"
             verification_downgraded = True
@@ -2623,7 +2972,16 @@ async def run_leaf(
             return True, ""
         if _TIER_RANK[tier] >= floor:
             return True, ""
-        if not spec.best_effort:
+        if not spec.best_effort or not (spec.best_effort_reason or "").strip():
+            # Ticket 20 item 5: best_effort is a PLAN-TIME opt-in that must carry a
+            # plan-level reason; without one it is not a valid downgrade.
+            return False, "blocked"
+        if floor - _TIER_RANK[tier] > 1:
+            # Ticket 20 item 5: best_effort may lower the floor AT MOST ONE tier
+            # (test -> review, review -> none). A two-tier drop is never allowed, however
+            # it was reached.
+            emit("verification_claim_blocked", tier=tier, required=required,
+                 reason="best_effort may lower the floor at most one tier")
             return False, "blocked"
         verification_downgraded = True
         verification_downgrade_reason = (
@@ -2643,7 +3001,7 @@ async def run_leaf(
         no ``best_effort`` opt-in (an honest stop, recorded with ``unavailable_reason`` —
         never a ladder burn), the review was unaffordable (a ``calls`` stop), it stayed
         malformed, or it rejected the diff (the review becomes the next attempt's
-        context). A blocker may spend at most the declared review rounds: once review is
+        context). A blocker may spend at most the declared review ANGLES: once review is
         entered, ``verification_basis == "review"`` and the ordinary per-attempt review
         loop owns every later evaluation.
         """
@@ -2906,7 +3264,12 @@ async def run_leaf(
             record = VerificationRecord(
                 wrote_code=True, tier=tier, reason=verification_reason,
                 reason_problem=verification_reason_problem_text,
-                reviews=tuple(review_verdicts), review_rounds=_declared_review_rounds(),
+                reviews=tuple(review_verdicts),
+                review_angles=_declared_review_angles(),
+                review_level=(spec.review_level
+                              if spec.review_level in REVIEW_ANGLES_BY_LEVEL
+                              else DEFAULT_REVIEW_LEVEL),
+                review_score=verification_review_score,
                 required=_required_tier(), best_effort=bool(spec.best_effort),
                 downgraded=verification_downgraded,
                 downgrade_reason=verification_downgrade_reason)
@@ -3142,7 +3505,7 @@ async def run_leaf(
         mode = _mode(attempts)
         pending_verdict: JudgeVerdict | None = None
         judge_attempted = False   # FIX 2: at most one judge consultation per attempt
-        review_approved = False   # ticket 20: recomputed each attempt (review rounds)
+        review_approved = False   # ticket 20: recomputed each attempt (review angles)
         emit("leaf_attempt", n=len(attempts) + 1, strategy=esc.strategy, layer=esc.layer,
              mode=mode)
         if mode == "M1":
@@ -3249,8 +3612,8 @@ async def run_leaf(
         if not spec.acs and verification_basis == "test" and wrote and source_rel:
             enter_review("the acceptance-criteria list is empty: a test basis alone "
                          "cannot carry the claim")
-        # Ticket 19 B / ticket 20: when no test can carry verification, the declared number
-        # of INDEPENDENT reviews is the gate (ALL must approve).
+        # Ticket 19 B / ticket 20: when no test can carry verification, the declared review
+        # ANGLES are the gate (weighted, critical-angle veto, no negative grade).
         if verification_basis == "review" and wrote and source_rel:
             status, why = await run_reviews(review_reason)
             if status is None:
