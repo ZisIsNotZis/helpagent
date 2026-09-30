@@ -391,3 +391,21 @@ and requirement-based decomposition are for.
 Caveat: this is one scaffold (a simple ACTION protocol with two prompt regimes). A
 different scaffold (native tool-call JSON, plan-then-act, few-shot) could do better; the
 0-test-files / 0-commands result was stable across both regimes tried.
+
+## Ticket 19 round 1 — the attribution/claim redesign (2026-09-29, worker)
+
+The owner direction derived from the matched traditional-vs-strict measurement replaced the
+leaf's claim policy and the tree's decomposition rule. Changes: the independent-test-as-VETO
+is demoted to an extra label (an own test that is a real discriminator and unmodified carries
+the claim); the judge is PROACTIVE (fires on a RED report after K=2 code-changing red attempts,
+or immediately when the own test cannot be made red) and MULTI-LABEL
+(implementation/test/spec/environment) with spec→environment→test→implementation dominance;
+review-based verification is mandatory when no test can carry verification; a declared
+test-case contract (file + function names) and per-requirement artifact coverage of the diff
+gate every claim; sibling file DISJOINTNESS is relaxed to overlap-allowed with serialized
+writers and the per-node boundary audit. New stops ``environment`` (park needs-user) and
+``test-cases`` (a declared case missing after repair); artifact coverage is a claim blocker
+(``coverage_missing``), not a stop; new claim basis ``review``; new schema ``leaf_review``
+(SCHEMAS 24→25). Full decision-to-code-to-test mapping, the exact pytest summary
+(**394 passed**), the changed tests, and the residual risks:
+``.scratch/19-attribution-claims/issues/19-attribution-claims.md``.

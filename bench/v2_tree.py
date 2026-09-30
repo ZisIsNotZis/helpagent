@@ -46,6 +46,7 @@ from bench.v2_leaf import (  # noqa: E402
     load_task,
     model_independent_test,
     model_judge,
+    model_review,
 )
 from harness.budget import Budget, default_deadline  # noqa: E402
 from harness.model import LlamaServerRunner  # noqa: E402
@@ -98,6 +99,19 @@ def node_record(outcome: NodeOutcome) -> dict:
         "leaf_signal": (leaf.signal if leaf is not None else None),
         "leaf_stop_reason": (leaf.stop_reason if leaf is not None else None),
         "self_test": (leaf.self_test if leaf is not None else None),
+        # Ticket 19: the leaf's claim basis, verification basis, review verdicts, coverage
+        # results, declared-case problems, attribution labels, and needs-user flag.
+        "claimed_basis": (leaf.claimed_basis if leaf is not None else None),
+        "verification_basis": (leaf.verification_basis if leaf is not None else None),
+        "needs_user": (leaf.needs_user if leaf is not None else False),
+        "review_verdicts": ([dataclasses.asdict(v) for v in leaf.review_verdicts]
+                            if leaf is not None else []),
+        "coverage": ([dataclasses.asdict(c) for c in leaf.coverage]
+                     if leaf is not None else []),
+        "coverage_missing": (list(leaf.coverage_missing) if leaf is not None else []),
+        "test_case_problems": (list(leaf.test_case_problems) if leaf is not None else []),
+        "judge_verdicts": ([v.model_dump(mode="json") for v in leaf.judge_verdicts]
+                           if leaf is not None else []),
         "integration_verdicts": dict(outcome.integration_verdicts),
         "close_rule": outcome.close_rule,
         "integration_reopen_rounds": outcome.integration_reopen_rounds,
@@ -113,7 +127,7 @@ def node_record(outcome: NodeOutcome) -> dict:
 def build_record(task_id: str, goal: str, outcome: TreeOutcome, *, withheld: list[str],
                  produced: dict[str, str], score: ExternalScore, quad: str,
                  run_wall_s: float, judge_enabled: bool, iv_enabled: bool,
-                 acs: list[str]) -> dict:
+                 review_enabled: bool, acs: list[str]) -> dict:
     """Assemble the persisted run record (nodes, budgets, stop reasons, split history)."""
     return {
         "task": task_id,
@@ -122,6 +136,7 @@ def build_record(task_id: str, goal: str, outcome: TreeOutcome, *, withheld: lis
         "withheld_grader_paths": withheld,
         "judge": judge_enabled,
         "iv": iv_enabled,
+        "review": review_enabled,
         "claimed": outcome.claimed,
         "actual": score.passed,
         "quadrant": quad,
@@ -146,7 +161,8 @@ def build_record(task_id: str, goal: str, outcome: TreeOutcome, *, withheld: lis
 
 
 def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
-             deadline_hours: float, use_judge: bool = True, use_iv: bool = True) -> dict:
+             deadline_hours: float, use_judge: bool = True, use_iv: bool = True,
+             use_review: bool = True) -> dict:
     task = load_task(task_dir)
     root, grader_paths = build_root(task)
 
@@ -161,6 +177,7 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     model = LlamaServerRunner(server)
     judge = (lambda request: model_judge(model, request)) if use_judge else None
     iv = (lambda request: model_independent_test(model, request)) if use_iv else None
+    review = (lambda request: model_review(model, request)) if use_review else None
     # The higher per-leaf floor when the independent machinery is on (design §2).
     min_leaf_calls = (MIN_LEAF_CALLS_WITH_JUDGE if (use_judge and use_iv)
                       else MIN_LEAF_CALLS)
@@ -169,7 +186,7 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     started = time.monotonic()
     outcome = asyncio.run(run_tree(
         model, root, tree, workdir, budget, root_grader_paths=grader_paths,
-        judge=judge, iv=iv, min_leaf_calls=min_leaf_calls))
+        judge=judge, iv=iv, review=review, min_leaf_calls=min_leaf_calls))
     wall = round(time.monotonic() - started, 1)
 
     produced = produced_files(workdir)
@@ -179,7 +196,7 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     record = build_record(
         task["task_id"], root.goal, outcome, withheld=withheld, produced=produced,
         score=score, quad=quad, run_wall_s=wall, judge_enabled=use_judge,
-        iv_enabled=use_iv, acs=list(root.acs))
+        iv_enabled=use_iv, review_enabled=use_review, acs=list(root.acs))
 
     print(f"== v2 tree: {task['task_id']} ==")
     print(f"[judge]  {'on' if use_judge else 'off (conservative baseline)'}")
@@ -205,6 +222,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="run the independent attribution judge per leaf (default ON)")
     parser.add_argument("--iv", action=argparse.BooleanOptionalAction, default=True,
                         help="run the independent test per leaf (default ON)")
+    parser.add_argument("--review", action=argparse.BooleanOptionalAction, default=True,
+                        help="run the mandatory review verification per leaf (default ON)")
     return parser
 
 
@@ -217,7 +236,7 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     record = run_once(task_dir, out_dir, args.server, args.calls, args.deadline_hours,
-                      use_judge=args.judge, use_iv=args.iv)
+                      use_judge=args.judge, use_iv=args.iv, use_review=args.review)
     record_path = out_dir / "run.json"
     record_path.write_text(json.dumps(record, indent=1, ensure_ascii=False))
     print(f"[persist] {record_path}")

@@ -33,6 +33,7 @@ from harness.fake_model import FakeModelRunner, schema_violation
 from harness.gate_report import GateReport
 from harness.leaf import (
     LADDER,
+    DeclaredTestCase,
     Escalation,
     IndependentTestCandidate,
     IndependentTestRequest,
@@ -41,7 +42,12 @@ from harness.leaf import (
     JudgeVerdict,
     LeafOutcome,
     LeafSpec,
+    ReviewRequest,
+    ReviewVerdict,
+    _declared_test_case_problems,
+    _requirement_coverage,
     apply_judge_filter,
+    apply_review_filter,
     escalate,
     evaluate_independent_test,
     run_leaf,
@@ -1220,32 +1226,31 @@ def test_claim_requires_the_independent_test_red_original_green_final(tmp_path):
     assert seen[0].acs == spec.acs
 
 
-def test_independent_test_rejection_is_the_next_attempt_failure_context(tmp_path):
+def test_independent_test_rejection_is_recorded_but_no_longer_vetoes(tmp_path):
+    """Ticket 19 C: the independent test is an EXTRA LABEL, never the veto. A red-on-final
+    independent test is recorded on the outcome, yet the run's own discriminating test
+    still carries the claim (``claimed_basis="own-test"``); the loop no longer burns
+    attempts rejecting correct work."""
     spec = make_spec()
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [
         SELF_TEST,
-        impl("def result():\n    return 1\n"),
-        impl("def result():\n    return 1\n"),
+        impl(),
     ]})
     # gate order: self-test red, impl green, IV red-original, IV RED-final (still wrong)
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=5, deadline_ts=_FAR_FUTURE),
                         iv=lambda request: iv_candidate(),
                         run_tests=ScriptedTests([1, 0, 1, 1]))
 
-    assert out.claimed is False
-    assert out.stop_reason in ("calls", "attempts")   # the loop continued, then stopped
+    assert out.claimed is True and out.stop_reason == "green"
+    assert out.claimed_basis == "own-test"
     assert out.iv_verdicts[-1].reason == "independent-test-red-on-final"
     assert out.independent_test_reason.startswith("independent-test-red-on-final")
-    assert "independent-test" in out.exhaustion_reason
-    rejected = [a for a in out.attempts if a.claimed_delta.startswith("independent test:")]
-    assert rejected and rejected[0].outcome == "fail"
-    # the failing IV output became the next implementation's failure context
-    impl_calls = model.calls("write_test")
-    assert "independent test rejected" in impl_calls[2].artifacts["failure_output"]
 
 
 def test_vacuous_independent_test_is_rejected_as_not_red(tmp_path):
+    """Ticket 19 C: a vacuous independent test is recorded with its reason, but the run's
+    own discriminating test still carries the claim."""
     spec = make_spec()
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
@@ -1254,12 +1259,11 @@ def test_vacuous_independent_test_is_rejected_as_not_red(tmp_path):
                         iv=lambda request: iv_candidate(),
                         run_tests=ScriptedTests([1, 0, 0]))
 
-    assert out.claimed is False
+    assert out.claimed is True and out.claimed_basis == "own-test"
     assert out.iv_verdicts[-1].reason == "independent-test-not-red"
-    assert out.stop_reason == "calls"
 
 
-def test_unobserved_independent_test_keeps_claimed_false(tmp_path):
+def test_unobserved_independent_test_is_a_label_not_a_veto(tmp_path):
     spec = make_spec()
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
@@ -1267,7 +1271,7 @@ def test_unobserved_independent_test_keeps_claimed_false(tmp_path):
                         iv=lambda request: iv_candidate(),
                         run_tests=ScriptedTests([1, 0, transport()]))
 
-    assert out.claimed is False
+    assert out.claimed is True and out.claimed_basis == "own-test"
     assert out.iv_verdicts[-1].reason == "independent-test-unobserved"
 
 
@@ -1306,7 +1310,9 @@ def test_independent_test_runs_in_a_private_copy_never_the_run_workdir(tmp_path)
     assert not (tmp_path / "tests" / "test_independent.py").exists()
 
 
-def test_malformed_independent_test_output_keeps_claimed_false(tmp_path):
+def test_malformed_independent_test_output_is_recorded_as_a_label(tmp_path):
+    """Ticket 19 C: an independent test that cannot be produced is recorded, but it does
+    not stand between the run and a claim authorised by its own discriminating test."""
     spec = make_spec()
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
@@ -1319,13 +1325,14 @@ def test_malformed_independent_test_output_keeps_claimed_false(tmp_path):
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=9, deadline_ts=_FAR_FUTURE),
                         iv=iv, run_tests=ScriptedTests([1, 0]))
 
-    assert out.claimed is False
-    assert out.stop_reason == "malformed-output"
-    assert out.claimed_basis == "own-test"
+    assert out.claimed is True and out.claimed_basis == "own-test"
+    assert out.iv_verdicts == []
     assert len(seen) == 3            # 1 attempt + 2 retries
 
 
-def test_unaffordable_independent_test_keeps_claimed_false(tmp_path):
+def test_unaffordable_independent_test_leaves_the_own_test_basis(tmp_path):
+    """Ticket 19 C: when the independent label cannot be afforded, the own-test claim
+    still stands (the label was never the gate)."""
     spec = make_spec()
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
@@ -1338,10 +1345,9 @@ def test_unaffordable_independent_test_keeps_claimed_false(tmp_path):
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=2, deadline_ts=_FAR_FUTURE),
                         iv=iv, run_tests=ScriptedTests([1, 0]))
 
-    assert out.claimed is False
-    assert out.stop_reason == "calls"
-    assert started == []             # not even started
+    assert out.claimed is True and out.stop_reason == "green"
     assert out.claimed_basis == "own-test"
+    assert started == []             # not even started
 
 
 def test_no_iv_producer_claims_on_the_own_test_with_basis_own_test(tmp_path):
@@ -1553,9 +1559,9 @@ def test_uncollected_iv_triggers_one_repair_then_approves(tmp_path):
     assert seen[1].repair_reason == "independent-test-unobserved"
 
 
-def test_iv_repair_that_fails_again_keeps_claimed_false(tmp_path):
-    """ONE repair only: if the re-asked test is defective again the verdict stands, the
-    run stays unclaimed, and the loop continues (here it stops cleanly on the budget)."""
+def test_iv_repair_that_fails_again_is_recorded_before_the_claim(tmp_path):
+    """ONE repair only: if the re-asked test is defective again the verdict stands — and
+    ticket 19 C records it as a label without blocking the own-test claim."""
     spec = make_spec()
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
@@ -1568,18 +1574,17 @@ def test_iv_repair_that_fails_again_keeps_claimed_false(tmp_path):
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=4, deadline_ts=_FAR_FUTURE),
                         iv=iv, run_tests=ScriptedTests([1, 0, 0, 0]))
 
-    assert out.claimed is False
+    assert out.claimed is True and out.claimed_basis == "own-test"
     assert out.iv_attempts == 2 and out.iv_repairs == 1
     assert [v.approved for v in out.iv_verdicts] == [False, False]
     assert out.iv_verdicts[-1].reason == "independent-test-not-red"
     assert out.independent_test_reason.startswith("independent-test-not-red")
-    assert "independent-test" in out.exhaustion_reason
     assert "independent_test_repair" in ledger_kinds()
 
 
 def test_iv_red_on_final_is_a_fix_failure_and_is_not_repaired(tmp_path):
     """``independent-test-red-on-final`` means the FIX did not satisfy the test, not that
-    the test is defective: it is never repaired and the loop continues with it."""
+    the test is defective: it is never repaired. Ticket 19 C records it as a label."""
     spec = make_spec()
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
@@ -1592,7 +1597,7 @@ def test_iv_red_on_final_is_a_fix_failure_and_is_not_repaired(tmp_path):
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=4, deadline_ts=_FAR_FUTURE),
                         iv=iv, run_tests=ScriptedTests([1, 0, 1, 1]))
 
-    assert out.claimed is False
+    assert out.claimed is True and out.claimed_basis == "own-test"
     assert out.iv_attempts == 1 and out.iv_repairs == 0
     assert out.iv_verdicts[-1].reason == "independent-test-red-on-final"
     assert len(seen) == 1                       # no repair was requested
@@ -1809,9 +1814,9 @@ def test_shared_coverage_rejects_and_one_repair_can_approve(tmp_path):
     assert seen[1].offending_indices == (1, 2)
 
 
-def test_incomplete_coverage_after_repair_keeps_claimed_false(tmp_path):
-    """ONE repair only: a repaired test that still misses an index leaves the verdict
-    standing, the run unclaimed, and the coverage evidence on the outcome."""
+def test_incomplete_coverage_after_repair_is_recorded_on_the_outcome(tmp_path):
+    """ONE repair only. Ticket 19 C: the incomplete-coverage verdict stays recorded as a
+    label while the own-test claim stands; the coverage evidence is on the outcome."""
     spec = _two_acs_spec()
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
@@ -1827,7 +1832,7 @@ def test_incomplete_coverage_after_repair_keeps_claimed_false(tmp_path):
                             1, 0, _red_result(ac1, ac2), ac1_only,
                             _red_result(ac1, ac2), ac1_only]))
 
-    assert out.claimed is False
+    assert out.claimed is True and out.claimed_basis == "own-test"
     assert out.iv_attempts == 2 and out.iv_repairs == 1
     assert out.iv_verdicts[-1].reason == "independent-test-incomplete-coverage"
     assert out.independent_test_reason.startswith("independent-test-incomplete-coverage")
@@ -2521,7 +2526,11 @@ def test_t31_untouched_files_are_grader_paths_and_the_write_is_refused(tmp_path)
     assert (tmp_path / "api" / "__init__.py").read_text() == frozen   # never written
     assert any("api/__init__.py" in r and "grader-owned" in r for r in out.refusals)
     assert "implement_refused" in ledger_kinds()
-    assert out.claimed is True                     # the real source fix still greens
+    # Ticket 19 E: the request names the client's fetch() (and both call sites) but the
+    # run touched only the transport, so per-requirement artifact coverage refuses the
+    # claim — the design answer to the T-31 false success.
+    assert out.claimed is False
+    assert any("fetch" in m for m in out.coverage_missing)
 
 
 # ------------------------------- round 6: two more crash shapes become honest refusals (F3)
@@ -2624,14 +2633,15 @@ def test_bare_unable_implementation_envelope_is_refused_not_a_crash(tmp_path):
 # ------------------------------------------- round 6: sweep flags / run-record evidence
 
 def test_sweep_exposes_and_forwards_the_judge_and_iv_flags(tmp_path, monkeypatch):
-    """An A/B measurement must run unattended: the sweep exposes --judge/--no-judge and
-    --iv/--no-iv and forwards both to the driver."""
+    """An A/B measurement must run unattended: the sweep exposes --judge/--no-judge,
+    --iv/--no-iv and --review/--no-review and forwards all three to the driver."""
     from bench import v2_sweep
 
     parser = v2_sweep.build_parser()
     assert parser.parse_args([]).judge is True and parser.parse_args([]).iv is True
-    off = parser.parse_args(["--no-judge", "--no-iv"])
-    assert off.judge is False and off.iv is False
+    assert parser.parse_args([]).review is True
+    off = parser.parse_args(["--no-judge", "--no-iv", "--no-review"])
+    assert off.judge is False and off.iv is False and off.review is False
 
     corpus = tmp_path / "corpus" / "T-99-pinned"
     (corpus / "repo").mkdir(parents=True)
@@ -2650,12 +2660,13 @@ def test_sweep_exposes_and_forwards_the_judge_and_iv_flags(tmp_path, monkeypatch
     monkeypatch.setattr(v2_sweep, "run_once", fake_run_once)
     monkeypatch.setattr("sys.argv", ["v2_sweep", "--tasks", "all"])
     assert v2_sweep.main() == 0
-    assert seen == [{"use_judge": True, "use_iv": True}]
+    assert seen == [{"use_judge": True, "use_iv": True, "use_review": True}]
 
     seen.clear()
-    monkeypatch.setattr("sys.argv", ["v2_sweep", "--tasks", "all", "--no-judge", "--no-iv"])
+    monkeypatch.setattr("sys.argv", ["v2_sweep", "--tasks", "all", "--no-judge", "--no-iv",
+                                     "--no-review"])
     assert v2_sweep.main() == 0
-    assert seen == [{"use_judge": False, "use_iv": False}]
+    assert seen == [{"use_judge": False, "use_iv": False, "use_review": False}]
 
 
 def test_run_record_records_the_gate_report_evidence():
@@ -2684,4 +2695,449 @@ def test_run_record_records_the_gate_report_evidence():
     assert record["grader_report_gate"]["expected_files"] == ("tests/test_chain.py",)
     assert record["grader_suspected_contaminated_grade"] is True
     assert record["isolation"]["report_dir"].startswith("private mkdtemp")
+    json.dumps(record)
+
+
+# ===========================================================================
+# ticket 19: proactive MULTI-LABEL attribution, review-based verification,
+# declared test cases, and per-requirement artifact coverage
+# ===========================================================================
+
+from harness.attempts import judge_labels  # noqa: E402
+
+
+def test_judge_verdict_is_multilabel_with_a_dominant_summary():
+    """Ticket 19 A: the verdict carries four independent labels plus reason/evidence; the
+    legacy single ``attribution`` is the dominant SUMMARY (spec > environment > test >
+    implementation)."""
+    both = JudgeVerdict(implementation_wrong=True, test_wrong=True, reason="both are wrong")
+    assert judge_labels(both) == ("test_wrong", "implementation_wrong")
+    assert both.attribution == "tests" and both.reason == "both are wrong"
+    spec = JudgeVerdict(attribution="spec")
+    assert spec.spec_wrong is True and spec.attribution == "spec"
+    env = JudgeVerdict(attribution="environment")
+    assert env.environment_broken is True and env.attribution == "environment"
+
+
+def test_proactive_judge_fires_once_on_the_kth_red_code_changing_attempt(tmp_path):
+    """Ticket 19 A: the judge is consulted when the run's own test REPORTS RED — after K=2
+    consecutive red attempts that materially changed the code — not only when the model
+    volunteers a blame."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST,
+        impl("def result():\n    return 1\n"),
+        impl("def result():\n    return 2\n"),
+        impl("def result():\n    return 3\n"),
+    ]})
+    seen: list[JudgeRequest] = []
+
+    def judge(request: JudgeRequest) -> JudgeVerdict:
+        seen.append(request)
+        return JudgeVerdict(implementation_wrong=True, reason="still wrong")
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
+                        judge=judge, run_tests=ScriptedTests([1, 1, 1, 1]))
+
+    assert len(seen) == 1                       # exactly once, at the K-th red
+    request = seen[0]
+    # the judge carries the evidence the owner direction names: goal, ACs, the run's own
+    # test source, the failing output, and the current diff of the changed files.
+    assert request.goal == spec.goal
+    assert request.acs == spec.acs
+    assert "def test_goal" in request.test_content
+    assert request.test_path == "tests/test_leaf_self.py"
+    assert "FAILED" in request.failure or "AssertionError" in request.failure
+    assert request.files["pkg/calc.py"] == "def result():\n    return 2\n"
+    assert "judge_triggered" in ledger_kinds()
+    assert out.judge_verdicts and out.judge_verdicts[0].implementation_wrong
+    assert out.claimed is False
+
+
+def test_spec_wrong_dominates_and_bubbles_to_the_parent(tmp_path):
+    """Ticket 19 A: spec_wrong dominates — the node stops and bubbles, because an
+    implementation and a test are meaningless against a wrong spec."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST, impl("def result():\n    return 1\n"), impl("def result():\n    return 2\n")]})
+
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
+        judge=lambda request: JudgeVerdict(spec_wrong=True, implementation_wrong=True,
+                                           reason="the requirement contradicts the code"),
+        run_tests=ScriptedTests([1, 1, 1]))
+
+    assert out.signal == "bubble" and out.needs_parent is True
+    assert out.stop_reason == "spec-bubble" and out.claimed is False
+    assert "spec_bubbled_up" in ledger_kinds()
+
+
+def test_environment_broken_parks_needs_user_without_burning_budget(tmp_path):
+    """Ticket 19 A: environment_broken means we cannot fix it in-process — park honestly
+    (needs-user) instead of burning the budget on more attempts."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST, impl("def result():\n    return 1\n"), impl("def result():\n    return 2\n")]})
+
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=20, deadline_ts=_FAR_FUTURE),
+        judge=lambda request: JudgeVerdict(environment_broken=True, reason="no interpreter"),
+        run_tests=ScriptedTests([1, 1, 1]))
+
+    assert out.stop_reason == "environment" and out.needs_user is True
+    assert out.claimed is False and out.needs_parent is False
+    assert out.calls < 20
+    assert "environment_broken" in ledger_kinds()
+
+
+# ------------------------------------------------------------- review-based verification
+
+
+def _approving_review(request: ReviewRequest) -> ReviewVerdict:
+    changed = next(iter(request.final), "pkg/calc.py")
+    return ReviewVerdict(approved=True, evidence=f"{changed}:1 implements the goal",
+                         detail="ok")
+
+
+def test_no_red_target_switches_to_review_and_claims_with_evidence(tmp_path):
+    """Ticket 19 B/C: when the own test cannot be made red on arrival, the node switches to
+    REVIEW-based verification and may claim on a passing review with evidence."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        review=_approving_review, run_tests=ScriptedTests([0, 0, 0]))
+
+    assert out.verification_basis == "review"
+    assert out.claimed is True and out.claimed_basis == "review"
+    assert out.stop_reason == "green"
+    assert out.review_verdict is not None and out.review_verdict.approved
+    assert "review_verification" in ledger_kinds() and "review_verdict" in ledger_kinds()
+
+
+def test_apply_review_filter_requires_naming_a_changed_file_or_line():
+    """Ticket 19 B: a review pass is honoured ONLY with concrete evidence (a changed file
+    or a line reference); a bare approval is coerced to a fail."""
+    request = ReviewRequest(goal="g", acs=["a"], original={"pkg/calc.py": "x"},
+                            final={"pkg/calc.py": "y"})
+    good = apply_review_filter(
+        ReviewVerdict(approved=True, evidence="pkg/calc.py:1 implements AC-1"), request)
+    assert good.approved is True and good.coerced is False
+    line = apply_review_filter(
+        ReviewVerdict(approved=True, evidence="line 3 satisfies the requirement"), request)
+    assert line.approved is True
+    vibes = apply_review_filter(ReviewVerdict(approved=True, evidence="looks good"), request)
+    assert vibes.approved is False and vibes.coerced is True
+    assert "ba.py" not in vibes.evidence  # (sanity: the filter used the request, not a guess)
+
+
+def test_review_without_evidence_cannot_claim(tmp_path):
+    """The driver's review must carry evidence: an unevidenced pass is coerced and the
+    node never claims from it."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT] + [impl()] * 4})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
+                        review=lambda request: ReviewVerdict(approved=True, evidence=""),
+                        run_tests=ScriptedTests([0, 0, 0, 1, 1, 1]))
+
+    assert out.claimed is False
+    assert out.review_verdict is not None and out.review_verdict.coerced is True
+
+
+def test_repaired_test_that_cannot_discriminate_switches_to_review(tmp_path):
+    """Ticket 19 B: the judge says the test is wrong, but the bounded repair still cannot
+    produce a discriminating test (it greens on arrival) — review becomes mandatory."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    repaired = write_env("tests/test_leaf_self.py", "def test_goal():\n    assert True\n")
+    model = FakeModelRunner({"write_test": [SELF_TEST, blocked(), repaired, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=10, deadline_ts=_FAR_FUTURE),
+                        judge=judge_blames_test, review=_approving_review,
+                        run_tests=ScriptedTests([1, 0, 0]))
+
+    assert out.verification_basis == "review"
+    assert out.claimed is True and out.claimed_basis == "review"
+    assert out.test_rewrites == 1
+
+
+def test_unwritable_self_test_path_switches_to_review(tmp_path, monkeypatch):
+    """Ticket 19 C2: when the test path is declared unwritable, a review verdict with
+    evidence is the claim route."""
+    import harness.leaf as leaf_mod
+
+    real_write = leaf_mod._write
+
+    def refusing_write(workdir, rel, content):
+        if rel.endswith("test_leaf_self.py"):
+            raise leaf_mod.WriteShapeRefused(rel, "unwritable path (OSError: read-only)")
+        return real_write(workdir, rel, content)
+
+    monkeypatch.setattr(leaf_mod, "_write", refusing_write)
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        review=_approving_review, run_tests=ScriptedTests([0]))
+
+    assert out.verification_basis == "review"
+    assert out.claimed is True and out.claimed_basis == "review"
+
+
+# ------------------------------------------------- declared test-case contract (ticket 19 D)
+
+
+def test_declared_test_case_present_and_passing_allows_the_claim(tmp_path):
+    spec = dataclasses.replace(
+        make_spec(),
+        test_cases=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_ac1",)),))
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 0]))
+
+    assert out.claimed is True and out.stop_reason == "green"
+    assert out.test_case_problems == []
+
+
+def test_declared_test_case_missing_is_a_repairable_failure_and_blocks_the_claim(tmp_path):
+    spec = dataclasses.replace(
+        make_spec(),
+        test_cases=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_goal",)),))
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl(), SELF_TEST]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 0]))
+
+    assert out.claimed is False
+    assert out.stop_reason == "test-cases"
+    assert out.test_case_problems and "test_goal" in out.test_case_problems[0]
+    assert "test_case_repair" in ledger_kinds()
+
+
+def test_declared_test_case_name_check_is_boundary_aware():
+    """A declared ``test_ac1`` must NOT be satisfied by a collected ``test_ac1_extra``."""
+    report = GateReport(report_path="(scripted)", process_exit=0, canary="c", expected_files=(),
+                        n_tests=1, n_failed=0, n_errors=0,
+                        passed_ids=("tests/test_x.py::test_ac1_extra",), failed_ids=(),
+                        missing=(), observed=True)
+    problems = _declared_test_case_problems(
+        report, (DeclaredTestCase("AC-1", "tests/test_x.py", ("test_ac1",)),))
+    assert problems and "not collected" in problems[0]
+
+
+# ----------------------------------------- per-requirement artifact coverage (ticket 19 E)
+
+
+def test_requirement_artifact_coverage_blocks_a_claim_when_the_named_file_is_untouched(tmp_path):
+    """Ticket 19 E: a criterion whose named file is untouched was not implemented — the
+    node may not claim (the T-31 answer)."""
+    spec = dataclasses.replace(make_spec(), acs=["pkg/calc.py must return 42"])
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST, impl(path="pkg/other.py", content="x = 1\n")]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 0]))
+
+    assert out.claimed is False
+    assert any("pkg/calc.py" in m for m in out.coverage_missing)
+    assert "requirement_uncovered" in ledger_kinds()
+
+
+def test_requirement_coverage_records_symbols_and_skips_unresolvable_text(tmp_path):
+    spec = dataclasses.replace(make_spec(), acs=["result() returns 42", "the widget is blue"])
+    stage(tmp_path, spec.files)
+    (tmp_path / "pkg" / "calc.py").write_text("def result():\n    return 1\n")
+    baseline = {"pkg/calc.py": "def result():\n    return 0\n"}
+    coverage = _requirement_coverage(spec, tmp_path, baseline)
+    assert coverage[0].ok and "result" in coverage[0].symbols
+    assert coverage[1].ok and not coverage[1].files and not coverage[1].symbols
+
+
+def test_driver_review_defaults_on_and_maps_the_leaf_review_envelope():
+    """Ticket 19 B driver wiring: ``--review`` is ON by default and the default reviewer
+    reads the §26 ``leaf_review`` envelope into a :class:`ReviewVerdict`."""
+    from bench.v2_leaf import build_parser, model_review
+
+    assert build_parser().parse_args(["--task", "x"]).review is True
+    assert build_parser().parse_args(["--task", "x", "--no-review"]).review is False
+
+    model = FakeModelRunner({"leaf_review": [
+        {"status": "ok", "comment": "reviewed", "verdict": "pass",
+         "evidence": "pkg/calc.py:1 implements AC-1"},
+        {"status": "unable", "comment": "cannot review", "unable_reason": "no source"},
+    ]})
+    request = ReviewRequest(goal="g", acs=["a"], original={"pkg/calc.py": "x"},
+                            final={"pkg/calc.py": "y"})
+    verdict = asyncio.run(model_review(model, request))
+    assert verdict.approved is True and "pkg/calc.py:1" in verdict.evidence
+    assert model.calls("leaf_review")[0].fresh is True
+    unable = asyncio.run(model_review(model, request))
+    assert unable.approved is False
+
+
+def test_run_record_carries_the_verification_basis_and_coverage():
+    from bench.external_score import ExternalScore
+    from bench.v2_leaf import build_record
+    from harness.leaf import RequirementCoverage
+
+    outcome = LeafOutcome(
+        claimed=True, signal="green", attempts=[], calls=3, wall_s=1.0,
+        self_test=None, questions=[], exhausted=False, exhaustion_reason="",
+        layers_used=[], stop_reason="green", verification_basis="review",
+        claimed_basis="review",
+        review_verdicts=[ReviewVerdict(approved=True, evidence="pkg/calc.py:1 fixes AC-1")],
+        coverage=[RequirementCoverage(1, "c", files=("pkg/calc.py",), symbols=("result",))])
+    score = ExternalScore(passed=True, exit=0, notes=[], work_root="", applied=[], skipped=[])
+
+    record = build_record("T-x", "goal", outcome, withheld=[], produced={}, score=score,
+                          quad="true-success", run_wall_s=1.0, review_enabled=True)
+
+    assert record["verification_basis"] == "review"
+    assert record["claimed_basis"] == "review"
+    assert record["review"] is True
+    assert record["review_verdicts"][0]["approved"] is True
+    assert record["coverage"][0]["files"] == ("pkg/calc.py",)
+    json.dumps(record)
+
+
+def test_no_red_target_consults_the_judge_immediately(tmp_path):
+    """Ticket 19 A: the judge is called immediately when the own test cannot be made red on
+    arrival — here it attributes the failure to the spec, so the node bubbles."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT]})
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
+        judge=lambda request: JudgeVerdict(spec_wrong=True, reason="the goal is wrong"),
+        run_tests=ScriptedTests([0, 0]))
+
+    assert out.signal == "bubble" and out.needs_parent is True
+    assert out.stop_reason == "spec-bubble"
+    assert out.judge_verdicts and out.judge_verdicts[0].spec_wrong
+
+
+def test_no_red_target_environment_verdict_parks_needs_user(tmp_path):
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT]})
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
+        judge=lambda request: JudgeVerdict(environment_broken=True, reason="no interpreter"),
+        run_tests=ScriptedTests([0, 0]))
+
+    assert out.stop_reason == "environment" and out.needs_user is True
+
+
+def test_declared_case_repair_must_still_discriminate(tmp_path):
+    """Ticket 19 D: a repaired own test must be RED on the pristine source (a private copy)
+    so a declared-case repair cannot smuggle a weakened test into a claim."""
+    from harness.leaf import _repaired_test_is_red_on_pristine
+
+    spec = dataclasses.replace(make_spec(), acs=["result() returns 42"])
+    stage(tmp_path, spec.files)
+    calls: list[Path] = []
+
+    def runner(workdir, node_ids=None):
+        workdir = Path(workdir)
+        calls.append(workdir)
+        if workdir != tmp_path:                     # the private pristine copy
+            return ShapedResult(command=[], exit=1, verdict="failed",
+                                excerpts=["FAILED"], gate=scripted_red_gate())
+        return ShapedResult(command=[], exit=0, verdict="ok", gate=scripted_gate())
+
+    assert asyncio.run(_repaired_test_is_red_on_pristine(
+        runner, spec, "tests/test_leaf_self.py", "def test_goal():\n    assert True\n")) is True
+    assert calls and calls[0] != tmp_path          # ran in a private copy, never the workdir
+
+
+def test_review_blocks_the_claim_until_it_passes(tmp_path):
+    """Ticket 19 B: when no test can carry verification, the node may NOT claim until a
+    review PASSES. A failing review becomes the next attempt's context; only the passing
+    review closes the node (basis ``review``)."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST, SELF_TEST_ALT,                       # both green on arrival: no red target
+        impl("def result():\n    return 1\n"),          # attempt 1
+        impl("def result():\n    return 42\n"),         # attempt 2
+    ]})
+    verdicts = [ReviewVerdict(approved=False, evidence="pkg/calc.py:1 returns 1, not 42",
+                              detail="AC-1 unmet"),
+                ReviewVerdict(approved=True, evidence="pkg/calc.py:2 returns 42 for AC-1")]
+
+    def review(request: ReviewRequest) -> ReviewVerdict:
+        return verdicts.pop(0)
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
+                        review=review, run_tests=ScriptedTests([0, 0, 0, 0]))
+
+    assert out.verification_basis == "review"
+    assert out.claimed is True and out.claimed_basis == "review"
+    assert [v.approved for v in out.review_verdicts] == [False, True]
+    assert out.review_verdict is not None and out.review_verdict.approved
+    assert "review_verdict" in ledger_kinds()
+
+
+def test_requirement_coverage_two_call_sites_requires_both(tmp_path):
+    """Ticket 19 E / T-31: the request names TWO call sites; a run that changed only one may
+    NOT claim. Touching both clears the coverage gate."""
+    spec = dataclasses.replace(
+        make_spec({"pkg/calc.py": "def result():\n    return 0\n",
+                   "pkg/other.py": "def helper():\n    return 0\n"},
+                  goal="thread the timeout through pkg/calc.py and pkg/other.py"),
+        acs=["thread the timeout through pkg/calc.py and pkg/other.py"])
+
+    # only one of the two named files is touched -> coverage is missing pkg/other.py
+    work = tmp_path / "one"
+    stage(work, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST, impl(path="pkg/calc.py", content="def result():\n    return 1\n")]})
+    out = run_leaf_sync(model, spec, work, Budget(calls=6, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 0]))
+    assert out.claimed is False
+    assert any("pkg/other.py" in m for m in out.coverage_missing)
+    assert out.coverage[0].missing == ("pkg/other.py",)
+
+    # both named files touched -> the coverage gate clears and the run claims
+    work = tmp_path / "both"
+    stage(work, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST,
+        impl(path="pkg/calc.py", content="def result():\n    return 1\n"),
+        impl(path="pkg/other.py", content="def helper():\n    return 1\n"),
+    ]})
+    out = run_leaf_sync(model, spec, work, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 1, 0]))
+    assert out.claimed is True and out.stop_reason == "green"
+    assert out.coverage_missing == []
+
+
+def test_run_record_carries_the_attribution_labels(tmp_path):
+    """The run record persists the multi-label attribution (the four booleans) so a
+    consumer can audit what the judge decided."""
+    from bench.external_score import ExternalScore
+    from bench.v2_leaf import build_record
+    from harness.leaf import RequirementCoverage
+
+    outcome = LeafOutcome(
+        claimed=True, signal="green", attempts=[], calls=3, wall_s=1.0,
+        self_test="tests/test_x.py", questions=[], exhausted=False, exhaustion_reason="",
+        layers_used=[], stop_reason="green", claimed_basis="own-test",
+        judge_verdicts=[JudgeVerdict(implementation_wrong=True, test_wrong=True,
+                                     reason="both wrong", evidence="pkg/calc.py:1")],
+        coverage=[RequirementCoverage(1, "c", files=("pkg/calc.py",), symbols=("result",))])
+    score = ExternalScore(passed=True, exit=0, notes=[], work_root="", applied=[], skipped=[])
+
+    record = build_record("T-x", "goal", outcome, withheld=[], produced={}, score=score,
+                          quad="true-success", run_wall_s=1.0, judge_enabled=True)
+
+    labels = record["judge_verdicts"][0]
+    assert labels["implementation_wrong"] is True and labels["test_wrong"] is True
+    assert labels["spec_wrong"] is False and labels["environment_broken"] is False
+    assert labels["reason"] == "both wrong" and labels["evidence"] == "pkg/calc.py:1"
+    assert record["claimed_basis"] == "own-test"
     json.dumps(record)

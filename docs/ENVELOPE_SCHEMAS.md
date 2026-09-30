@@ -517,7 +517,13 @@ class ChildPlan(Base):
     files: list[str]               # leaf write boundary; [] for pure internal
     acs: list[DraftAC]             # leaf: mandatory; internal: integration view
     interfaces: list[Interface]
+    test_cases: list[DeclaredTest] # per-criterion expected test cases (ticket 19 D)
     est_calls: int                 # 1–8 — weight for the budget split
+
+class DeclaredTest(Base):          # ticket 19 D
+    ac_id: str                     # ^AC-[0-9]{1,3}$ — one of the node's ACs
+    file: str                      # the test file that must exist and collect
+    names: list[str]               # 1–8 test function names that must exist and pass
 
 class PlanNode(Envelope):
     goal: str                      # THIS node's goal
@@ -526,6 +532,7 @@ class PlanNode(Envelope):
     files: list[str]               # 0–10 — THIS node's write boundary
     acs: list[DraftAC]             # 0–10 — THIS node's AC map (leaf mandatory)
     interfaces: list[Interface]    # 0–8
+    test_cases: list[DeclaredTest] # 0–10 — this node's declared test cases
     children: list[ChildPlan]      # 0–15 — [] ⇒ this node is a LEAF
 ```
 
@@ -543,7 +550,8 @@ plan_node:
 
 **Kernel validates (post-hoc, `harness.node.validate_decomposition`):** every path is
 canonicalized (POSIX `normpath`; `..`/absolute rejected); a child's `files` must NARROW
-the parent's boundary; siblings must be pairwise file-DISJOINT; a leaf needs an empty
+the parent's boundary; siblings MAY declare the same file (ticket 19 F — the tree
+serializes overlapping writers and audits each node's boundary); a leaf needs an empty
 `children` and a non-empty `acs`; an internal node needs ≥1 child; `est_calls >= 1`; two
 children may not share a normalized `what`; depth ≤ 4 and ≤ 15 children; any file token
 in `what`/`why` must be in the injected candidate scope. A bad plan is re-asked ONCE with
@@ -572,3 +580,25 @@ overflow triggers the path, never truncates).
   writes, best-of-N resample on low-confidence judges.
 - **Script-owned:** which envelope to request, retry/re-split routing, aspect config —
   scripts never author or alter schemas (§4.2: schemas are selected from this library).
+
+---
+
+## 26. `leaf_review` — review-based verification (ticket 19 B)
+
+Used ONLY when no test can carry verification: the run's own test could not be made red on
+arrival (after the bounded re-ask), a judge-attributed broken test survived a bounded repair
+that still could not discriminate, or the test path is unwritable. A fresh-context reviewer
+sees the goal, the extracted acceptance criteria, and the ORIGINAL/FINAL source of the
+changed files (never a grader path, never the run's own test). `evidence` MUST name the
+concrete files/lines and the requirement it checked; the harness's deterministic filter
+(`harness.leaf.apply_review_filter`) rejects a `pass` whose evidence names no changed file
+or line, so a bare approval can never carry a claim.
+
+```python
+class LeafReview(Envelope):
+    verdict: Literal["pass", "fail"]
+    evidence: str                  # concrete files/lines + the requirement checked
+```
+
+**Kernel validates:** `evidence` is non-empty (grammar) and, for a `pass`, names a changed
+file or a line reference (post-hoc deterministic filter). Budget: ~120 tok.

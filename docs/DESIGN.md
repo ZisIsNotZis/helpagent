@@ -339,17 +339,35 @@ The run's own tests gate the run, and a claim additionally needs an independent 
   uncredited (`test_blame_uncredited`). A judge-attributed replacement is re-derived from
   scratch and must be red on arrival again; a green that follows a rewrite is reported as
   `green-after-test-rewrite` with `own_test_mutated`, so measurement can separate it.
-- **A claim needs an INDEPENDENT TEST, not a text opinion (owner decision 2026-09-29,
-  round 7 — replaces the round-4 falsifier).** A fresh-context call writes its own test from
-  the goal, the extracted ACs, and the ORIGINAL and FINAL source of the changed files — it
-  never sees the run's own test and never a grader path. The harness runs that test on a
-  PRIVATE COPY of the pre-run tree and on one of the final tree (temp dirs outside the
-  workdir): it must FAIL on the original (a test that passes there is vacuous,
-  `independent-test-not-red`) and PASS on the final with the canary and expected node ids
-  satisfied. `claimed=True` only when both gates hold and the run's own test is unmodified
-  (`claimed_basis="own-test+independent-test"`). A rejection becomes the next attempt's
-  failure context and the loop continues; a test that cannot be produced, afforded, or
-  evaluated leaves `claimed=False`.
+- **A claim is validated regardless of cause (owner direction 2026-09-29, ticket 19 —
+  supersedes the independent-test-as-veto).** A claim is allowed only when (1) the run's own
+  test is a real discriminator (it failed on the pristine source) and is now green and
+  unmodified since that red, OR (2) the test path was declared unwritable and a review
+  verdict with concrete evidence passed. The independent test stays available as an EXTRA
+  LABEL but is no longer the only thing standing between the run and a claim (it is
+  authored by the same weak model and was wrong in both directions). Per-requirement
+  coverage (below) replaces the veto.
+- **Proactive multi-label attribution (ticket 19).** The judge is consulted when the run's
+  own test REPORTS RED — after K=2 consecutive red attempts that materially changed the
+  code, or immediately when the own test cannot be made red on arrival — not only when the
+  model volunteers a blame. The verdict is multi-label
+  (``implementation_wrong``/``test_wrong``/``spec_wrong``/``environment_broken`` + reason +
+  evidence): ``spec_wrong`` bubbles to the parent, ``environment_broken`` parks the node
+  ``needs-user`` without burning budget, ``test_wrong`` repair/replaces the own test
+  (bounded), ``implementation_wrong`` alone keeps implementing. A ``test_wrong`` label must
+  name a concrete defect in the test (deterministic filter).
+- **Mandatory review when no test can carry verification (ticket 19).** If the own test
+  cannot be made red on arrival (after the bounded re-ask) OR the judge's ``test_wrong``
+  label survives a bounded repair that still cannot discriminate, the node switches to a
+  fresh-context REVIEWER of the final diff that returns pass/fail WITH concrete evidence
+  (specific files/lines and the requirement it checks). Until then the node may NOT claim.
+- **Declared test cases and per-requirement artifact coverage (ticket 19).** A plan declares,
+  per acceptance criterion, the expected test FILE and FUNCTION NAMES; the harness verifies
+  them mechanically from the machine-readable report (boundary-aware) and a missing
+  name/file is a distinct, repairable failure. Independently, every criterion's named
+  artifacts (file paths and symbols extracted from its text) must appear in the node's
+  final diff; an untouched named artifact means the requirement was not implemented and the
+  node may NOT claim (§10.9).
 - **A machine-readable pytest report is the only green — the exit status is not
   evidence (owner decision 2026-09-29, round 6, adversarial finding F1).** Run-authored
   code executes inside the gate process (the run's own test imports the run's source), so
@@ -418,3 +436,39 @@ is evidence, not proof.
 Claimed × actual: true success (best) / **false success (worst — the system lied)** / missed success (it stopped although the work was right) / honest failure (it stopped and said so). Cost breaks ties. Honest failure scores below missed success, because both need follow-up but only the latter already achieved the goal. Per-ladder-level success rate and spend are tracked so the ladder order becomes evidence-driven.
 
 ---
+
+### 10.9 Attribution, claim, and decomposition rules (ticket 19 round 1)
+
+The round-1 redesign of the leaf's attribution/claim rules and the tree's decomposition
+rules (owner direction), superseding the earlier single-label judge, the
+independent-test veto, and sibling file-disjointness:
+
+- **Proactive multi-label attribution.** The judge fires on a RED report (K=2 consecutive
+  red attempts with a material code change; immediately when the own test cannot be made
+  red), not on the model's volunteered blame. The verdict carries four labels
+  (`implementation_wrong`, `test_wrong`, `spec_wrong`, `environment_broken`) plus reason and
+  evidence; dominance is spec → environment → test → implementation. A `test_wrong` label
+  must name a concrete defect in the test.
+- **Claim rule.** A green claim is allowed when the run's own test is a real discriminator
+  (red on the pristine source, now green, unmodified) OR the test path was unwritable and a
+  review verdict with evidence passed. The independent test is an extra label, never the
+  veto. New claim basis values: `own-test`, `own-test+independent-test`, `review`.
+- **Mandatory review.** No test can carry verification (no red target after the bounded
+  re-ask; a judge-attributed broken test that a bounded repair cannot make discriminating;
+  an unwritable test path) ⇒ a fresh-context reviewer of the final diff returns pass/fail
+  with concrete evidence (specific files/lines and the requirement). Until then, no claim.
+- **Declared test cases.** A node declares, per criterion, the expected test file + function
+  names; the harness verifies them mechanically from the report (boundary-aware). Missing
+  names/files are a repairable failure.
+- **Per-requirement artifact coverage.** Every criterion's named file paths/symbols must
+  appear in the node's final diff; an untouched named artifact blocks the claim (the T-31
+  answer).
+- **Decomposition by requirement.** Sibling file sets may overlap (two requirements may
+  change one file); the tree serializes overlapping writers and keeps the per-node boundary
+  audit, child ⊆ parent, and the depth/child caps. The planner splits by requirement and
+  declares expected test cases.
+
+New stops: `environment` (park needs-user) and `test-cases` (a declared test case is still
+missing/unpassed). Per-requirement artifact coverage is a claim blocker (`coverage_missing`
++ the `requirement_uncovered` event), not a stop of its own. Full decision-to-code-to-test
+mapping and the round-1 measurement plan live in the ticket-19 work record.

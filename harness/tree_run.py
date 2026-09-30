@@ -578,7 +578,8 @@ def _leaf_goal(spec: NodeSpec) -> str:
 
 
 def leaf_spec_from(spec: NodeSpec, workdir: Path, *,
-                   root_grader_paths: Sequence[str]) -> LeafSpec:
+                   root_grader_paths: Sequence[str],
+                   candidate_files: Sequence[str] = ()) -> LeafSpec:
     """Build the leaf contract from a node's plan.
 
     ``grader_paths`` is ALWAYS ``root_grader_paths`` (the root's set), never anything a
@@ -594,6 +595,10 @@ def leaf_spec_from(spec: NodeSpec, workdir: Path, *,
     ``spec.view_files`` adds READ-ONLY paths to the view only (ticket 18 gap C): the
     integration leaf sets them to the parent's declared files so it can author a test
     against the code under integration, while its write boundary stays its own test path.
+
+    Ticket 19 D/E: the node's DECLARED test cases and the root candidate-file scope ride
+    along, so the leaf can verify the declared test-case contract and gate a claim on the
+    artifacts a criterion names.
     """
     workdir = Path(workdir)
     boundary = tuple(spec.files)
@@ -614,6 +619,8 @@ def leaf_spec_from(spec: NodeSpec, workdir: Path, *,
         interfaces=list(spec.interfaces),
         grader_paths=tuple(root_grader_paths),
         write_boundary=boundary,
+        test_cases=tuple(spec.test_cases),
+        candidate_files=tuple(candidate_files),
     )
 
 
@@ -672,6 +679,7 @@ class _TreeContext:
     candidate_files: set[str]
     judge: Any
     iv: Any
+    review: Any
     run_tests: Any
     now: Callable[[], float]
     on_event: Any
@@ -992,12 +1000,13 @@ async def _run_leaf_node(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
     (``stop_reason == "boundary-escape"``) so the node never closes on code that wrote
     outside its boundary.
     """
-    leaf_spec = leaf_spec_from(spec, ctx.workdir, root_grader_paths=ctx.root_grader_paths)
+    leaf_spec = leaf_spec_from(spec, ctx.workdir, root_grader_paths=ctx.root_grader_paths,
+                               candidate_files=tuple(sorted(ctx.candidate_files)))
     before_state = snapshot_workdir(ctx.workdir)
     before = budget.spent_calls
     outcome = await run_leaf(
         ctx.model, leaf_spec, ctx.workdir, budget, judge=ctx.judge, iv=ctx.iv,
-        run_tests=ctx.run_tests, now=ctx.now, on_event=ctx.on_event)
+        review=ctx.review, run_tests=ctx.run_tests, now=ctx.now, on_event=ctx.on_event)
     ctx.total_calls += budget.spent_calls - before
     audit = audit_leaf_boundary(ctx.workdir, before_state,
                                 leaf_spec.write_boundary or ())
@@ -1282,6 +1291,7 @@ async def run_tree(
     root_grader_paths: Sequence[str],
     judge: Any = None,
     iv: Any = None,
+    review: Any = None,
     run_tests: Any = None,
     now: Callable[[], float] | None = None,
     on_event: Callable[[str, dict], None] | None = None,
@@ -1304,7 +1314,7 @@ async def run_tree(
         model=model, tree=tree, workdir=workdir, trajectory=trajectory,
         root_grader_paths=tuple(root_grader_paths),
         candidate_files=set(_source_only_view(workdir)),
-        judge=judge, iv=iv, run_tests=run_tests, now=clock, on_event=on_event,
+        judge=judge, iv=iv, review=review, run_tests=run_tests, now=clock, on_event=on_event,
         depth_cap=depth_cap, max_children=max_children, min_leaf_calls=min_leaf_calls)
     ctx.specs[tree.root_id] = root
     ctx.depths[tree.root_id] = 0

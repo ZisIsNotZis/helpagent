@@ -21,13 +21,14 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
-from typing import Literal, Sequence
+from typing import Literal, Self, Sequence
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 __all__ = [
     "TargetLayer", "Strategy", "Novelty", "Attempt", "JudgeVerdict",
     "failure_signature", "prefilter", "exhausted", "layers_tried",
+    "ATTRIBUTION_ALIASES", "judge_labels", "normalize_judge_labels", "summary_attribution",
 ]
 
 TargetLayer = Literal["decomposition", "spec", "implementation", "tests", "sampling"]
@@ -71,25 +72,104 @@ def failure_signature(failing_tests: Sequence[str], excerpts: Sequence[str]) -> 
     return f"tests[{ids_s}] errors[{kinds_s}]" if (ids_s or kinds_s) else ""
 
 
-class JudgeVerdict(BaseModel):
-    """An independent judge's attribution of a failure, after the deterministic
-    filter (ticket 17 round 3).
+#: Aliases a judge model may use for the four attributions.
+ATTRIBUTION_ALIASES: dict[str, str] = {
+    "implementation": "implementation", "code": "implementation", "source": "implementation",
+    "tests": "tests", "test": "tests",
+    "spec": "spec", "specification": "spec", "requirement": "spec",
+    "environment": "environment", "env": "environment", "harness": "environment",
+}
 
-    ``attribution`` is always one of implementation | tests | spec | environment
-    once :func:`harness.leaf.apply_judge_filter` has run. ``defect`` names the
-    CONCRETE defect in one sentence. ``raw`` keeps the judge's unedited verdict and
-    ``coerced``/``coercion_reason`` record whether the filter overrode a ``tests``
-    claim that did not name the failing test or one of its assertions — the evidence
-    the judge itself is calibrated against later.
+#: The canonical single-label domain (kept as the compat summary of a multi-label verdict).
+ATTRIBUTION_DOMAIN: tuple[str, ...] = ("implementation", "tests", "spec", "environment")
+
+_ATTRIBUTION_TO_LABEL: dict[str, str] = {
+    "implementation": "implementation_wrong",
+    "tests": "test_wrong",
+    "spec": "spec_wrong",
+    "environment": "environment_broken",
+}
+_LABEL_TO_ATTRIBUTION: dict[str, str] = {v: k for k, v in _ATTRIBUTION_TO_LABEL.items()}
+
+#: Dominance order for the ONE summary label: a wrong spec outranks a broken environment,
+#: which outranks a wrong test, which outranks a wrong implementation (owner direction A).
+_LABEL_PRIORITY: tuple[str, ...] = (
+    "spec_wrong", "environment_broken", "test_wrong", "implementation_wrong")
+
+
+def judge_labels(verdict: "JudgeVerdict") -> tuple[str, ...]:
+    """The set labels a verdict asserts, in dominance order."""
+    return tuple(name for name in _LABEL_PRIORITY if getattr(verdict, name, False))
+
+
+def summary_attribution(labels: Sequence[str]) -> str:
+    """The single compat ``attribution`` for a set of multi-labels (dominance order)."""
+    for name in _LABEL_PRIORITY:
+        if name in labels:
+            return _LABEL_TO_ATTRIBUTION[name]
+    return "implementation"
+
+
+def normalize_judge_labels(verdict: "JudgeVerdict") -> "JudgeVerdict":
+    """Derive the multi-labels from a legacy single ``attribution`` (and back) in place.
+
+    A hand-authored oracle may answer with the older one-of-four ``attribution``; a
+    multi-label verdict may answer with booleans only. Both spellings are kept coherent:
+    the dominant label becomes the summary ``attribution`` and a single ``attribution``
+    becomes its label, so nothing downstream has to know which form the judge used.
+    """
+    labels = judge_labels(verdict)
+    if not labels and verdict.attribution:
+        canonical = ATTRIBUTION_ALIASES.get(_norm(verdict.attribution))
+        if canonical is not None:
+            label = _ATTRIBUTION_TO_LABEL[canonical]
+            setattr(verdict, label, True)
+            labels = (label,)
+    if labels and verdict.attribution != summary_attribution(labels):
+        setattr(verdict, "attribution", summary_attribution(labels))
+    if verdict.reason and not verdict.defect:
+        setattr(verdict, "defect", verdict.reason)
+    elif verdict.defect and not verdict.reason:
+        setattr(verdict, "reason", verdict.defect)
+    return verdict
+
+
+class JudgeVerdict(BaseModel):
+    """An independent judge's MULTI-LABEL attribution of a failure (ticket 19 A).
+
+    The owner direction replaced the one-of-four ``attribution`` with four independent
+    booleans: ``implementation_wrong``, ``test_wrong``, ``spec_wrong`` and
+    ``environment_broken``, plus the judge's ``reason`` and the concrete ``evidence`` it
+    used. Dominance for the decision: ``spec_wrong`` bubbles to the parent (an
+    implementation and a test are meaningless against a wrong spec), then
+    ``environment_broken`` parks the node, then ``test_wrong`` repairs/replaces the
+    test, and ``implementation_wrong`` alone keeps implementing.
+
+    ``attribution`` (implementation | tests | spec | environment) remains the single
+    compat SUMMARY of the labels, derived in dominance order, so a legacy one-of-four
+    oracle still works and the run record keeps its old field. ``defect`` names the
+    CONCRETE defect in one sentence; ``raw`` keeps the judge's unedited verdict;
+    ``coerced``/``coercion_reason`` record the deterministic filter overriding a
+    ``test_wrong`` label that did not name the failing test or one of its assertions.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    attribution: str = "implementation"   # domain enforced by apply_judge_filter
+    implementation_wrong: bool = False
+    test_wrong: bool = False
+    spec_wrong: bool = False
+    environment_broken: bool = False
+    reason: str = ""
+    evidence: str = ""
+    attribution: str = ""               # compat summary, derived in dominance order
     defect: str = ""
     raw: str = ""
     coerced: bool = False
     coercion_reason: str = ""
+
+    @model_validator(mode="after")
+    def _labels_from_attribution(self) -> Self:
+        return normalize_judge_labels(self)
 
 
 class Attempt(BaseModel):

@@ -42,21 +42,46 @@ Fixed contract points, each deliberate:
   ``comment`` claiming green is irrelevant. A green that follows a judge-authorized
   test REWRITE never claims: it stops as ``green-after-test-rewrite`` (the
   implementation satisfied a replaced test — unverified).
-- **A claim needs an INDEPENDENT TEST (ticket 17 round 7, replacing the round-4
-  falsifier text opinion).** When an ``iv`` producer is injected (the ``--iv`` driver
-  default), ``claimed=True`` additionally requires a DETERMINISTIC two-gate check on a
-  fresh-context test the run never saw: the test must FAIL on a private copy of the
-  PRE-RUN source (``red on original``; a test that passes there is vacuous and rejected
-  with ``independent-test-not-red``) and PASS on a private copy of the FINAL source.
-  Both copies live in a ``tempfile`` directory outside the workdir, so the run can never
-  see the independent test; the model call sees the goal, the ACs, and the ORIGINAL and
-  FINAL source of the changed files, never the run's own test and never a grader path.
-  On either failure the test's output becomes the next attempt's failure context and the
-  loop CONTINUES; claimed is ``True`` only when both gates hold and the run's own test is
-  unmodified (``claimed_basis="own-test+independent-test"``). A test that cannot be
-  produced, afforded, or evaluated leaves ``claimed=False`` — never claim unverified.
-  Without an ``iv`` producer the basis is the run's own unmodified test
-  (``claimed_basis="own-test"``).
+- **A GREEN CLAIM IS VALIDATED REGARDLESS OF CAUSE (ticket 19 C, superseding the
+  independent-test-as-VETO).** A claim is allowed only when (1) the run's own test is a
+  real DISCRIMINATOR — it failed on the pristine source (observed red on arrival) and is
+  now green and unmodified since that red — OR (2) the test path was declared unwritable
+  and a review verdict with concrete evidence passed. The independent test (``iv``) stays
+  available as an EXTRA LABEL: its verdict is recorded but it is no longer the only thing
+  standing between the run and a claim (it is authored by the same weak model and was
+  wrong in both directions — the strict arm measured better fixes but far fewer claims).
+  A test that cannot be produced, afforded, or evaluated no longer blocks a claim
+  authorised by the run's own discriminating test; ``claimed_basis`` is ``own-test`` or
+  ``own-test+independent-test`` (or ``review`` in review mode).
+- **PROACTIVE MULTI-LABEL ATTRIBUTION (ticket 19 A).** The judge is consulted when the
+  run's own test REPORTS RED — after K=2 consecutive red attempts that materially changed
+  the code, or immediately when the own test cannot be made red on arrival — not only when
+  the model volunteers a blame. Its verdict is MULTI-LABEL
+  (``implementation_wrong``/``test_wrong``/``spec_wrong``/``environment_broken`` + reason +
+  evidence), and dominance decides the move: ``spec_wrong`` bubbles to the parent
+  (``spec-bubble``), ``environment_broken`` parks the node ``needs-user``
+  (``stop_reason="environment"``, without burning budget), ``test_wrong`` repair/replaces
+  the own test (bounded), and ``implementation_wrong`` alone keeps implementing. A
+  ``test_wrong`` label is still put through the deterministic filter
+  (:func:`apply_judge_filter`): it is honoured only with a defect naming the failing test
+  or one of its assertions, else it is coerced and recorded.
+- **REVIEW-BASED VERIFICATION WHEN NO TEST CAN CARRY IT (ticket 19 B).** If the own test
+  cannot be made red on arrival (after the bounded re-ask), or the judge's ``test_wrong``
+  label survives a bounded repair that still cannot discriminate, or the test path is
+  unwritable, the node switches to a fresh-context REVIEWER of the final diff
+  (:class:`ReviewRequest`/``ReviewVerdict``, :func:`apply_review_filter`). A pass counts
+  only with concrete evidence (a changed file or a line reference); until then the node
+  may NOT claim (``verification_basis="review"``, ``claimed_basis="review"``). With no
+  reviewer injected the leaf keeps its conservative honest stop.
+- **DECLARED TEST CASES AND PER-REQUIREMENT ARTIFACT COVERAGE (ticket 19 D/E).** A plan
+  may DECLARE, per acceptance criterion, the test file and function names that must exist
+  and pass (:class:`DeclaredTestCase`); the harness verifies them mechanically from the
+  report and a missing name/file is a distinct, repairable failure (``stop_reason
+  ="test-cases"``). Independently, every criterion's named artifacts (file paths and
+  symbols that exist in the injected view) must appear in the node's final diff — an
+  untouched named artifact means the requirement was not implemented and the node may NOT
+  claim — the design answer to the T-31 false success (the loop keeps working; the
+  coverage evidence rides the outcome as ``coverage_missing``).
 - **The independent test's file name is a PARAMETER (ticket 17 round 8).** The harness,
   not the model, decides the collected file name: the candidate is written at a path
   pytest actually collects (:func:`_iv_safe_path`), and a relocation is recorded
@@ -98,8 +123,8 @@ Fixed contract points, each deliberate:
   judge.** The model's own "the test is wrong" claim is never enough: without an
   injected independent judge the claim is not credited and the failure is treated
   as an implementation failure (deterministic conservative default). When the judge
-  does attribute to the tests, the test is re-derived from scratch and must be RED
-  ON ARRIVAL again before the loop continues. A judge attribution of ``tests`` is
+  does label the test wrong, the test is re-derived from scratch and must be RED
+  ON ARRIVAL again before the loop continues. A ``test_wrong`` label is
   itself put through the deterministic filter (:func:`apply_judge_filter`): it is
   honoured only when the verdict carries a non-empty defect naming the failing test
   function or one of its assertions; otherwise it is coerced to implementation and
@@ -129,11 +154,15 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from harness.attempts import (
+    ATTRIBUTION_ALIASES,
     Attempt,
     JudgeVerdict,
     failure_signature,
+    judge_labels,
     layers_tried,
+    normalize_judge_labels,
     prefilter,
+    summary_attribution,
 )
 from harness.attempts import exhausted as attempts_exhausted
 from harness.budget import Budget
@@ -210,15 +239,22 @@ STRATEGY_LAYER: dict[str, str] = {
 #: The leaf's stop vocabulary (ticket policy). Exactly one is set on every return.
 #: ``malformed-output`` is the round-3 robustness stop: a model envelope that stayed
 #: unparseable after its bounded retries no longer raises — it stops honestly here.
+#: Ticket 19 adds ``environment`` (a judge-attributed broken environment — park needs-user,
+#: do not burn budget) and ``test-cases`` (a declared test case is still missing/unpassed
+#: after the bounded repair, owner direction D). A per-requirement artifact-coverage failure
+#: (owner direction E) is a CLAIM BLOCKER that keeps the loop working, recorded as
+#: ``coverage_missing``/``requirement_uncovered`` — not a stop of its own.
 STOP_REASONS: tuple[str, ...] = (
     "calls",            # the call budget is spent
     "deadline",         # the wall-clock window closed (handover)
     "attempts",         # node exhaustion or the bounded-attempt cap
     "ladder",           # no rung is left to advance to
     "spec-bubble",      # the judge attributed the failure to the specification
+    "environment",      # the judge attributed the failure to a broken environment
+    "test-cases",       # a declared test case is still missing/unpassed (no claim)
     "no-red-target",    # the run's own test could not be made to fail on arrival
     "self-test",        # the run's own test could not be written at a safe path / could not run
-    "green",            # the run's own tests exited 0 and the independent test approved
+    "green",            # the run's own tests exited 0 and the claim held
     "green-after-test-rewrite",  # a replaced test went green: unverified, never claimed
     "write-shape",      # a write target could not be normalized (NUL/long/dir/file-parent)
     "malformed-output", # a model envelope stayed malformed past its bounded retries
@@ -242,6 +278,15 @@ _RETRY_SELF_TEST_QUESTION = (
     "current source. Reply with the file path and its complete content."
 )
 
+#: Ticket 19 D: the bounded repair for a green run whose test does not expose the DECLARED
+#: test cases (missing file/function names). The declared contract is the harness's, so
+#: the missing names are handed back as evidence.
+_MISSING_TEST_CASES_QUESTION = (
+    "Your current test does not expose the DECLARED test cases for this node. Rewrite "
+    "the complete test file so the declared test functions exist at the declared path and "
+    "pass. Keep the test discriminating. Reply with the file path and complete content."
+)
+
 _TEST_BLAME_PHRASES = (
     "test is wrong",
     "wrong test",
@@ -251,6 +296,19 @@ _TEST_BLAME_PHRASES = (
     "test is broken",
     "fix the test",
 )
+
+
+@dataclass(frozen=True)
+class DeclaredTestCase:
+    """One DECLARED test case: the file and function names a plan expects for a criterion
+    (ticket 19 D). The harness verifies mechanically from the machine-readable report that
+    the file exists and every declared name is a collected, passing node id; a missing
+    name/file is a distinct, repairable failure. The name check is boundary-aware (a
+    declared ``test_ac1_goal`` never matches ``test_ac1_goal_extra``)."""
+
+    ac_id: str                       # e.g. "AC-1" — must be one of the node's ACs
+    file: str                        # the test file that must exist and collect
+    names: tuple[str, ...] = ()      # test function names that must exist and pass
 
 
 @dataclass(frozen=True)
@@ -264,6 +322,10 @@ class LeafSpec:
     boundary). It is ``None`` for the single-leaf driver, whose boundary is the whole
     source view — so its behaviour is unchanged; a tree child sets it to its declared
     files, and any write outside it is refused at the parameter layer (never a crash).
+
+    ``test_cases`` is the DECLARED test-case contract (ticket 19 D): the test file +
+    function names the node expects per acceptance criterion. Empty means the node
+    declared none and the check is skipped.
     """
 
     goal: str
@@ -272,6 +334,11 @@ class LeafSpec:
     interfaces: list[str]
     grader_paths: tuple[str, ...] = ()  # owned by the grader: never shown, never writable
     write_boundary: tuple[str, ...] | None = None  # None ⇒ unguarded (single-leaf driver)
+    test_cases: tuple[DeclaredTestCase, ...] = ()
+    #: The files this node's acceptance criteria may name as artifacts (ticket 19 E). The
+    #: projection of the whole repo the requirement text can reference; defaults to the
+    #: blind view's keys when empty.
+    candidate_files: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -295,6 +362,30 @@ class CriterionEvidence:
     final_failures: int
     reason: str = ""
     detail: str = ""
+
+
+@dataclass(frozen=True)
+class RequirementCoverage:
+    """Per-criterion ARTIFACT coverage of the node's final diff (ticket 19 E).
+
+    For criterion ``index`` the harness deterministically extracted the artifacts its
+    text names — file paths and symbols that actually exist in the injected repo view —
+    and checked whether each appears in the node's final diff. ``missing`` lists the
+    artifacts that do NOT: a criterion whose named artifact is untouched means the
+    requirement was not implemented and the node may not claim. An empty
+    ``files``/``symbols`` means the criterion named no resolvable artifact, so nothing
+    could be checked (the requirement is skipped, not failed).
+    """
+
+    index: int
+    statement: str
+    files: tuple[str, ...] = ()
+    symbols: tuple[str, ...] = ()
+    missing: tuple[str, ...] = ()
+
+    @property
+    def ok(self) -> bool:
+        return not self.missing
 
 
 @dataclass
@@ -374,6 +465,26 @@ class LeafOutcome:
     # a report without the per-run canary, a report that contradicts the exit status.
     # A gate with an anomaly is RED and the detail lands here and in the run record.
     gate_anomalies: list[str] = field(default_factory=list)
+    # Ticket 19 B/C: REVIEW-BASED verification. ``verification_basis`` is "test" when the
+    # claim could rest on the run's own discriminating test, or "review" when no test could
+    # carry verification (the test was green on arrival past the bounded re-ask, the judge's
+    # test_wrong label survived a bounded repair that could not discriminate, or the test
+    # path was unwritable) so a fresh-context reviewer of the final diff is mandatory.
+    # ``review_verdicts`` keeps every verdict; ``review_verdict`` is the last (or None).
+    verification_basis: str = "test"
+    review_verdicts: list["ReviewVerdict"] = field(default_factory=list)
+    review_verdict: "ReviewVerdict | None" = None
+    # Ticket 19 E: per-criterion artifact coverage of the final diff. ``coverage`` is one
+    # record per acceptance criterion; ``coverage_missing`` flattens the artifacts that
+    # are named by a criterion but untouched by the run (a claim blocker).
+    coverage: list[RequirementCoverage] = field(default_factory=list)
+    coverage_missing: list[str] = field(default_factory=list)
+    # Ticket 19 D: the declared test-case contract failures (missing/unpassed file or
+    # node names) after the bounded repair; a claim blocker.
+    test_case_problems: list[str] = field(default_factory=list)
+    # Ticket 19 A: an environment_broken judge verdict parks the node needs-user without
+    # burning the remaining budget (distinct from a spec bubble, which needs the parent).
+    needs_user: bool = False
 
 
 @dataclass(frozen=True)
@@ -481,6 +592,39 @@ class IndependentTestVerdict:
     def coverage_skipped(self) -> bool:
         """True when there were no extracted acceptance criteria to cover."""
         return self.criteria_count == 0
+
+
+@dataclass(frozen=True)
+class ReviewRequest:
+    """Everything the mandatory REVIEW-BASED verifier may see (ticket 19 B): the goal,
+    the acceptance criteria, and the final diff of the files the run changed — never a
+    grader path and never the run's own test source. ``reason`` records WHY review
+    replaced the test (no red target / a non-discriminating repaired test / an
+    unwritable test path)."""
+
+    goal: str
+    acs: list[str]
+    original: dict[str, str]
+    final: dict[str, str]
+    reason: str = ""
+
+
+@dataclass(frozen=True)
+class ReviewVerdict:
+    """A fresh-context reviewer's verdict on the final diff (ticket 19 B).
+
+    ``approved`` is honoured ONLY when ``evidence`` is non-empty AND names a concrete
+    changed file or line (the deterministic filter, :func:`apply_review_filter`), so a
+    bare "looks good" cannot carry a claim. ``detail`` is the human-readable detail
+    (the reviewer's own comment/defect) and ``raw`` the unedited verdict.
+    """
+
+    approved: bool
+    evidence: str = ""
+    detail: str = ""
+    raw: str = ""
+    coerced: bool = False
+    coercion_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -737,6 +881,131 @@ def _repo_view(spec: LeafSpec, workdir: Path, extra: Sequence[str] = ()) -> dict
     return view
 
 
+# ---------------------------------------------------------------------------
+# ticket 19 E: per-requirement artifact coverage of the diff
+# ---------------------------------------------------------------------------
+
+#: Symbols a criterion may name: a backticked span, a dotted identifier
+#: (``pkg.calc.result``), or a call (``result(...)``).
+_SPAN = re.compile(r"`([^`]+)`")
+_DOTTED = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+)\b")
+_CALL = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]{2,})\s*\(")
+
+
+def _symbol_candidates(text: str) -> set[str]:
+    """Deterministic symbol tokens named by a criterion's text."""
+    out: set[str] = set()
+    for span in _SPAN.findall(text or ""):
+        for token in re.split(r"[\s,]+", span.strip()):
+            token = token.strip().strip("()")
+            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*", token or ""):
+                out.add(token)
+    out |= set(_DOTTED.findall(text or ""))
+    out |= set(_CALL.findall(text or ""))
+    return {token for token in out if len(token) >= 3}
+
+
+def _word_present(symbol: str, text: str) -> bool:
+    """Boundary-aware presence of a symbol's FINAL segment in ``text``."""
+    segment = symbol.split(".")[-1]
+    return bool(re.search(rf"(?<![0-9A-Za-z_]){re.escape(segment)}(?![0-9A-Za-z_])", text or ""))
+
+
+def _changed_files(workdir: Path,
+                   baseline: Mapping[str, str | None]) -> dict[str, tuple[str | None, str]]:
+    """The node's final diff: changed (or created) source files, original -> final."""
+    changed: dict[str, tuple[str | None, str]] = {}
+    for rel, original in baseline.items():
+        if is_test_path(rel):
+            continue
+        path = workdir / rel
+        current = path.read_text() if path.is_file() else None
+        if current is not None and current != original:
+            changed[rel] = (original, current)
+    return changed
+
+
+def _requirement_coverage(
+    spec: LeafSpec,
+    workdir: Path,
+    baseline: Mapping[str, str | None],
+) -> list[RequirementCoverage]:
+    """Per-criterion ARTIFACT coverage of the final diff (ticket 19 E).
+
+    For every acceptance criterion the artifacts its text names — file paths and symbols
+    that actually exist in the injected view — are checked against the node's final diff.
+    A named file that is untouched, or a named symbol absent from every added line, is
+    ``missing``: the requirement was not implemented and the node may not claim. A
+    criterion that names no resolvable artifact is recorded with an empty missing set
+    (nothing could be checked).
+    """
+    from harness.envelopes import file_tokens
+
+    available = set(spec.files) | set(spec.candidate_files) | set(spec.write_boundary or ())
+    source_text = {rel: text for rel, text in spec.files.items()}
+    changed = _changed_files(workdir, baseline)
+    records: list[RequirementCoverage] = []
+    for index, statement in enumerate(spec.acs, 1):
+        files: list[str] = []
+        for token in file_tokens(statement):
+            canon = _canonical_write_path(token)
+            if canon and canon in available and canon not in files and not is_test_path(canon):
+                files.append(canon)
+        symbols: list[str] = []
+        for symbol in sorted(_symbol_candidates(statement)):
+            # resolvable only when the symbol actually occurs in the injected source view
+            if any(_word_present(symbol, text) for text in source_text.values()):
+                if symbol not in symbols:
+                    symbols.append(symbol)
+        missing: list[str] = []
+        for rel in files:
+            if rel not in changed:
+                missing.append(rel)
+        # A symbol is covered when it appears in a CHANGED file's final content: the file
+        # that defines/uses it was part of the diff. (Checking only ADDED lines would fail
+        # a criterion whose symbol was already declared but whose behavior changed.)
+        changed_text = "\n".join(after for _, after in changed.values())
+        for symbol in symbols:
+            if not _word_present(symbol, changed_text):
+                missing.append(symbol)
+        records.append(RequirementCoverage(
+            index=index, statement=statement, files=tuple(files),
+            symbols=tuple(symbols), missing=tuple(missing)))
+    return records
+
+
+def _declared_test_case_problems(
+    report: GateReport | None,
+    declared: Sequence[DeclaredTestCase],
+) -> list[str]:
+    """The declared test-case contract failures (ticket 19 D).
+
+    Mechanically, from the machine-readable report: each declared file must collect, and
+    every declared function name must be present as a collected node id AND pass. A
+    missing file, a missing name, and a failing name are all distinct problems (the loop
+    may repair them). The name match is exact on the node's final ``::`` segment, so
+    ``test_ac1_goal`` never matches ``test_ac1_goal_extra``.
+    """
+    problems: list[str] = []
+    if report is None or not report.observed:
+        return ["no machine-readable report to verify the declared test cases"]
+    passed, failed = list(report.passed_ids), list(report.failed_ids)
+    for case in declared:
+        prefix = f"{case.file}::"
+        file_ids = [nid for nid in (*passed, *failed) if nid.startswith(prefix)]
+        if not file_ids:
+            problems.append(f"{case.ac_id}: declared test file {case.file} did not collect")
+            continue
+        for name in case.names:
+            passed_name = any(nid[len(prefix):].split("::")[-1] == name for nid in passed)
+            failed_name = any(nid[len(prefix):].split("::")[-1] == name for nid in failed)
+            if failed_name:
+                problems.append(f"{case.ac_id}: declared test {case.file}::{name} did not pass")
+            elif not passed_name:
+                problems.append(f"{case.ac_id}: declared test {case.file}::{name} was not collected")
+    return problems
+
+
 def _erase_draft(workdir: Path, baseline: Mapping[str, str | None]) -> None:
     """M1: restore every draft the run wrote to its pre-implement state."""
     for rel, original in baseline.items():
@@ -800,6 +1069,37 @@ def _claims_test_wrong(env: Any) -> bool:
     return any(phrase in comment for phrase in _TEST_BLAME_PHRASES)
 
 
+#: Ticket 19 A: consecutive RED attempts in which the run materially changed the code
+#: before the judge is consulted proactively (owner direction: K=2).
+ATTRIBUTION_RED_K = 2
+
+
+def _file_materially_changed(workdir: Path, baseline: Mapping[str, str | None], rel: str) -> bool:
+    """True when the attempt changed ``rel`` relative to its pre-run content."""
+    path = workdir / rel
+    current = path.read_text() if path.is_file() else None
+    if current is None:
+        return False
+    if rel not in baseline:
+        return True
+    return current != baseline[rel]
+
+
+def _declared_case_artifacts(
+    spec: LeafSpec, self_test: str, problems: Sequence[str]
+) -> dict[str, str]:
+    """The repair artifacts for a missing DECLARED test case (ticket 19 D)."""
+    declared = "\n".join(
+        f"{c.ac_id}: {c.file} :: {', '.join(c.names)}" for c in spec.test_cases)
+    return {
+        "goal": spec.goal,
+        "acceptance_criteria": "\n".join(f"- {a}" for a in spec.acs),
+        "declared_test_cases": declared,
+        "current_test_path": self_test,
+        "missing": "\n".join(problems),
+    }
+
+
 # ---------------------------------------------------------------------------
 # independent judge: deterministic filter over the model's attribution
 # ---------------------------------------------------------------------------
@@ -807,14 +1107,6 @@ def _claims_test_wrong(env: Any) -> bool:
 #: The canonical attribution domain (owner policy: implementation | tests | spec |
 #: environment). A judge's label is mapped onto this before anything is credited.
 ATTRIBUTIONS: tuple[str, ...] = ("implementation", "tests", "spec", "environment")
-
-#: Aliases a judge model may use for the same four attributions.
-_ATTRIBUTION_ALIASES = {
-    "implementation": "implementation", "code": "implementation", "source": "implementation",
-    "tests": "tests", "test": "tests",
-    "spec": "spec", "specification": "spec", "requirement": "spec",
-    "environment": "environment", "env": "environment", "harness": "environment",
-}
 
 _TEST_FN = re.compile(r"\bdef\s+(test_[A-Za-z0-9_]+)")
 _ASSERT = re.compile(r"\bassert\b\s+(.+)$")
@@ -855,37 +1147,54 @@ def _defect_names_the_test(defect: str, request: JudgeRequest) -> bool:
 
 
 def apply_judge_filter(verdict: JudgeVerdict, request: JudgeRequest) -> JudgeVerdict:
-    """The DETERMINISTIC FILTER — never trust the model's word alone.
+    """The DETERMINISTIC FILTER — never trust the model's word alone (ticket 19 A).
 
-    ``attribution == "tests"`` is honoured ONLY when ``defect`` is non-empty AND names
-    the failing test function or an assertion/expectation of the run's own test.
-    Anything else is coerced to ``implementation`` and the coercion is recorded
-    (``coerced`` + ``coercion_reason``) so the judge can be calibrated later. An
-    unknown attribution label is likewise coerced to ``implementation``.
+    A ``test_wrong`` label is honoured ONLY when the defect/reason is non-empty AND
+    names the failing test function or an assertion/expectation of the run's own test;
+    otherwise the label is dropped (coerced to ``implementation_wrong``) and the
+    coercion is recorded (``coerced`` + ``coercion_reason``). An unknown attribution
+    label is likewise coerced to ``implementation``. ``spec_wrong`` and
+    ``environment_broken`` pass through: the loop's decision is dominant-first, and a
+    bogus spec/environment claim only parks or bubbles, never claims.
     """
-    canonical = _ATTRIBUTION_ALIASES.get(_norm(verdict.attribution))
-    if canonical is None:
-        return verdict.model_copy(update={
-            "attribution": "implementation", "coerced": True,
-            "coercion_reason": f"unknown attribution {verdict.attribution!r} coerced to implementation"})
-    if canonical == "tests" and not _defect_names_the_test(verdict.defect, request):
-        return verdict.model_copy(update={
-            "attribution": "implementation", "coerced": True,
-            "coercion_reason": ("tests attribution without a defect naming the failing test "
-                                "or one of its assertions (deterministic filter)")})
-    if canonical != verdict.attribution:
-        return verdict.model_copy(update={"attribution": canonical})
+    verdict = normalize_judge_labels(verdict)
+    labels = judge_labels(verdict)
+    updates: dict[str, Any] = {}
+    if not labels and verdict.attribution and (
+            ATTRIBUTION_ALIASES.get(_norm(verdict.attribution)) is None):
+        updates.update(implementation_wrong=True, coerced=True,
+                       coercion_reason=(f"unknown attribution {verdict.attribution!r} "
+                                        "coerced to implementation"))
+    if verdict.test_wrong and not _defect_names_the_test(
+            verdict.defect or verdict.reason, request):
+        updates.update(test_wrong=False, coerced=True,
+                       coercion_reason=("test_wrong without a defect naming the failing "
+                                        "test or one of its assertions (deterministic filter)"))
+    if updates:
+        merged = verdict.model_copy(update=updates)
+        remaining = judge_labels(merged)
+        if not remaining:
+            merged = merged.model_copy(update={"implementation_wrong": True})
+            remaining = ("implementation_wrong",)
+        merged = merged.model_copy(update={"attribution": summary_attribution(remaining)})
+        return merged
     return verdict
 
 
 def _as_verdict(result: Any) -> JudgeVerdict:
-    """Accept a structured verdict, a raw payload dict, or a bare attribution string
-    (hand-authored oracles in tests use the string form)."""
+    """Accept a structured verdict, a raw payload dict (single-label or multi-label), or
+    a bare attribution string (hand-authored oracles in tests use the string form)."""
     if isinstance(result, JudgeVerdict):
         return result
     if isinstance(result, Mapping):
         return JudgeVerdict(
-            attribution=str(result.get("attribution", "implementation")),
+            implementation_wrong=bool(result.get("implementation_wrong", False)),
+            test_wrong=bool(result.get("test_wrong", False)),
+            spec_wrong=bool(result.get("spec_wrong", False)),
+            environment_broken=bool(result.get("environment_broken", False)),
+            reason=str(result.get("reason", "")),
+            evidence=str(result.get("evidence", "")),
+            attribution=str(result.get("attribution", "")),
             defect=str(result.get("defect", "")),
             raw=str(result.get("raw", "")),
         )
@@ -906,6 +1215,87 @@ async def _maybe_await(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any
     if inspect.isawaitable(result):
         return await result
     return result
+
+
+def _review_request(
+    spec: LeafSpec,
+    workdir: Path,
+    baseline: Mapping[str, str | None],
+    reason: str,
+) -> ReviewRequest:
+    """The blind review view: the goal, the ACs, and the ORIGINAL/FINAL source of exactly
+    the files the run changed (never the run's own test, never a grader path)."""
+    original = dict(spec.files)
+    final = _repo_view(spec, workdir, tuple(baseline))
+    changed = sorted(rel for rel in set(original) | set(final)
+                     if original.get(rel) != final.get(rel))
+    return ReviewRequest(
+        goal=spec.goal, acs=list(spec.acs),
+        original={rel: original.get(rel, "") for rel in changed},
+        final={rel: final.get(rel, "") for rel in changed},
+        reason=reason,
+    )
+
+
+#: A concrete artifact reference in review evidence: a changed file path, or a line
+#: reference (``file.py:12`` / ``line 12``). Boundary-aware at the ends so ``a.py``
+#: never matches ``ba.py`` and ``line 1`` never matches ``line 12``.
+_LINE_REF = re.compile(r"(?<![0-9])line\s+\d+(?![0-9])", re.IGNORECASE)
+
+
+def _evidence_names_an_artifact(evidence: str, request: ReviewRequest) -> bool:
+    """True when the evidence concretely points at a changed file or a line reference.
+
+    The deterministic filter for review (ticket 19 B): a pass verdict must carry the
+    evidence the owner requires (specific files/lines and the requirement it checks), so
+    a bare approval never becomes a claim."""
+    normalized = (evidence or "").lower()
+    if not normalized.strip():
+        return False
+    if _LINE_REF.search(evidence or ""):
+        return True
+    for rel in request.final:
+        for token in (rel.lower(), PurePosixPath(rel).name.lower()):
+            if token and re.search(rf"(?<![0-9a-z_]){re.escape(token)}(?![0-9a-z_])", normalized):
+                return True
+    return False
+
+
+def apply_review_filter(verdict: ReviewVerdict, request: ReviewRequest) -> ReviewVerdict:
+    """The DETERMINISTIC review filter (ticket 19 B): evidence or no claim.
+
+    A ``pass`` is honoured ONLY when its evidence names a concrete changed file or a
+    line reference; otherwise it is coerced to a fail and the coercion recorded, so the
+    reviewer (the same weak model) can never carry a claim on its word alone."""
+    if verdict.approved and not _evidence_names_an_artifact(verdict.evidence, request):
+        return replace(verdict, approved=False, coerced=True,
+                       coercion_reason=("review approval without evidence naming a changed "
+                                        "file or line (deterministic filter)"))
+    return verdict
+
+
+def _as_review_verdict(result: Any) -> ReviewVerdict:
+    """Accept a structured verdict, a payload dict, or a bare pass/fail string."""
+    if isinstance(result, ReviewVerdict):
+        return result
+    if isinstance(result, Mapping):
+        return ReviewVerdict(
+            approved=bool(result.get("approved", False)),
+            evidence=str(result.get("evidence", "")),
+            detail=str(result.get("detail", "")),
+            raw=str(result.get("raw", "")),
+        )
+    if isinstance(result, str):
+        approved = _norm(result) in ("pass", "approved", "ok", "true")
+        return ReviewVerdict(approved=approved, evidence=result, raw=result)
+    raise TypeError(
+        f"review returned {type(result).__name__}; expected a verdict, dict, or pass/fail")
+
+
+async def _call_review(review: Any, request: ReviewRequest) -> ReviewVerdict:
+    """One reviewer call including verdict conversion — a module-level helper so it can
+    be bound with :func:`functools.partial`."""
+    return _as_review_verdict(await _maybe_await(review, request))
 
 
 def _as_iv_candidate(result: Any) -> IndependentTestCandidate:
@@ -1249,6 +1639,16 @@ async def _run_iv_gate(
     return res, getattr(res, "gate", None)
 
 
+async def _repaired_test_is_red_on_pristine(
+    run_tests: Callable[..., Any], spec: LeafSpec, test_path: str, test_content: str,
+) -> bool:
+    """Ticket 19 D: a repaired own test must still DISCRIMINATE — RED on the pristine
+    pre-run source in a private copy. A test that passes there does not pin the goal, so a
+    declared-case repair cannot smuggle a weakened test into a claim."""
+    _, gate = await _run_iv_gate(run_tests, dict(spec.files), test_path, test_content)
+    return gate is not None and gate.observed and not gate.green
+
+
 async def evaluate_independent_test(
     candidate: IndependentTestCandidate,
     original_tree: Mapping[str, str],
@@ -1519,12 +1919,17 @@ def _implement_question(mode: str, esc: Escalation) -> str:
 
 
 def _self_test_artifacts(spec: LeafSpec) -> dict[str, str]:
-    return {
+    artifacts = {
         "goal": spec.goal,
         "acceptance_criteria": "\n".join(f"- {a}" for a in spec.acs),
         "interfaces": "\n".join(f"- {i}" for i in spec.interfaces),
         "repo_files": json.dumps(_source_view(spec), ensure_ascii=False),
     }
+    if spec.test_cases:
+        # Ticket 19 D: the plan DECLARES the test cases; the self-test must expose them.
+        artifacts["declared_test_cases"] = "\n".join(
+            f"{c.ac_id}: {c.file} :: {', '.join(c.names)}" for c in spec.test_cases)
+    return artifacts
 
 
 def _retry_self_test_artifacts(
@@ -1642,23 +2047,24 @@ async def run_leaf(
     judge: Callable[[JudgeRequest], Awaitable[JudgeVerdict | dict | str] | JudgeVerdict | dict | str]
     | None = None,
     iv: Callable[[IndependentTestRequest], Any] | None = None,
+    review: Callable[[ReviewRequest], Awaitable[ReviewVerdict | dict | str] | ReviewVerdict | dict | str]
+    | None = None,
     run_tests: Callable[[Path], Awaitable[ShapedResult] | ShapedResult] | None = None,
     now: Callable[[], float] | None = None,
     on_event: Callable[[str, dict], None] | None = None,
 ) -> LeafOutcome:
     clock = now or time.monotonic
     tests = run_tests or _default_run_tests
-    # No default judge: a test replacement needs an INDEPENDENT attribution. The
-    # model's own word is never enough, so ``judge=None`` means the claim is not
-    # credited (deterministic conservative default). A provided judge may return a
-    # ``JudgeVerdict`` (or a dict / bare attribution string); its ``tests`` claim is
-    # still filtered by :func:`apply_judge_filter` before it is credited.
+    # The judge is PROACTIVE (ticket 19 A): it is consulted when the run's own test
+    # REPORTS RED, not only when the model volunteers a blame. ``attribution`` keeps the
+    # old name for the seam; ``judge=None`` means no attribution and the conservative
+    # default (the model's own "the test is wrong" claim is never credited).
     attribution = judge
-    # ``iv=None`` is the own-test-only basis (``claimed_basis="own-test"``): the green
-    # is delivered on the run's own unmodified test. A provided ``iv`` producer adds an
-    # INDEPENDENT test whose deterministic two-gate check (red on original, green on
-    # final) must approve before any claim (ticket 17 round 7); a missing/malformed/
-    # unevaluable independent test never becomes a claim.
+    # ``review=None`` keeps the own-test-only path: when no test can carry verification
+    # the node stops honestly instead of reviewing. A provided ``review`` producer makes
+    # the REVIEW-BASED verification mandatory in that case (ticket 19 B).
+    # ``iv`` stays available as an EXTRA LABEL (ticket 19 C): its verdict is recorded but
+    # no longer the veto between the run and a claim.
     workdir = Path(workdir)
     started = clock()
 
@@ -1673,6 +2079,7 @@ async def run_leaf(
     stop_reason = ""
     node_exhausted = False
     needs_parent = False
+    needs_user = False
     self_test: str | None = None
     last_excerpts: list[str] = []
     baseline: dict[str, str | None] = {}
@@ -1685,6 +2092,19 @@ async def run_leaf(
     iv_repairs = 0
     refusals: list[str] = []
     gate_anomalies: list[str] = []
+    # Ticket 19 A: consecutive RED attempts in which the run materially changed the code.
+    # At K=2 the judge is consulted proactively (with the run's own test, the failing
+    # output, and the diff as evidence).
+    red_code_changes = 0
+    # Ticket 19 B/C: REVIEW-BASED verification state.
+    verification_basis = "test"
+    review_verdicts: list[ReviewVerdict] = []
+    review_reason = ""
+    # Ticket 19 D/E coverage evidence from the LAST claim evaluation.
+    coverage: list[RequirementCoverage] = []
+    coverage_missing: list[str] = []
+    test_case_problems: list[str] = []
+    test_case_repairs = 0
     attempt_cap = min(9, 3 * max(1, len(spec.files)))
 
     def emit(kind: str, **data: Any) -> None:
@@ -1791,12 +2211,137 @@ async def run_leaf(
                          if verdict.final_gate is not None else None),
              raw=verdict.raw)
 
+    async def run_review(reason: str) -> tuple[ReviewVerdict | None, str]:
+        """Author and FILTER one fresh-context review of the final diff (ticket 19 B).
+
+        The reviewer sees the goal, the ACs, and the changed files' original and final
+        source — never a grader path and never the run's own test. Its verdict is put
+        through :func:`apply_review_filter`, so only a pass WITH concrete evidence
+        (a changed file or line reference) can carry a claim. Returns ``(verdict, "")``
+        or ``(None, failure_reason)`` where ``failure_reason`` is ``"calls"`` or
+        ``"malformed-output"``.
+        """
+        request = _review_request(spec, workdir, baseline, reason or review_reason)
+        raw, failure = await request_bounded(
+            partial(_call_review, review, request), "review")
+        if failure:
+            return None, failure
+        verdict = apply_review_filter(raw, request)
+        review_verdicts.append(verdict)
+        emit("review_verdict", approved=verdict.approved, evidence=verdict.evidence,
+             detail=verdict.detail, coerced=verdict.coerced)
+        if verdict.coerced:
+            emit("review_coerced", reason=verdict.coercion_reason)
+        return verdict, ""
+
+    async def handle_verdict(verdict: JudgeVerdict, esc: Escalation, env: Any) -> str:
+        """Apply the judge's MULTI-LABEL decision (ticket 19 A). Returns the action:
+
+        - ``"stop"`` — a stop was set (always required for spec_wrong / environment_broken)
+        - ``"repair"`` — the own test was rewritten (a bounded replacement); continue the loop
+        - ``"implementation"`` — implementation_wrong alone (or an uncredited verdict): keep
+          implementing with the failure as context.
+
+        Dominance: spec_wrong (bubble: an implementation and a test are meaningless against
+        a wrong spec) → environment_broken (park needs-user; nothing in-process can fix it)
+        → test_wrong (repair/replace the own test, bounded) → implementation_wrong.
+        """
+        nonlocal test_rewrites, self_test, last_excerpts, verification_basis, review_reason
+        judge_verdicts.append(verdict)
+        emit("judge_verdict", implementation_wrong=verdict.implementation_wrong,
+             test_wrong=verdict.test_wrong, spec_wrong=verdict.spec_wrong,
+             environment_broken=verdict.environment_broken,
+             attribution=verdict.attribution, reason=verdict.reason,
+             evidence=verdict.evidence, coerced=verdict.coerced, raw=verdict.raw)
+        if verdict.coerced:
+            emit("judge_coerced", reason=verdict.coercion_reason)
+        if verdict.spec_wrong:
+            attempts.append(Attempt(
+                node_id="leaf", layer="spec", strategy=esc.strategy,
+                claimed_delta="judge attributed the failure to the spec",
+                outcome="fail", verdict="novel", judge=verdict))
+            queue.open(
+                f"spec:{spec.goal[:40]}",
+                "the leaf's failure was attributed to the specification; the "
+                "parent owns the spec",
+                default_choice="park the node and bubble the spec up",
+            )
+            emit("spec_bubbled_up", reason="judge attributed the failure to the spec")
+            stop("bubble", "spec-bubble", "spec-bubble", parent=True)
+            return "stop"
+        if verdict.environment_broken:
+            queue.open(
+                f"environment:{spec.goal[:40]}",
+                "the leaf's failure was attributed to a broken environment",
+                default_choice="park the node; the environment cannot be fixed in-process",
+            )
+            emit("environment_broken", reason=verdict.reason or verdict.defect)
+            stop("honest-failure", "environment", "environment", user=True)
+            return "stop"
+        if verdict.test_wrong and self_test:
+            repaired, failure = await request_bounded(
+                partial(_repair_test, model, spec, workdir, self_test,
+                        last_excerpts, env),
+                "test-rewrite")
+            if failure == "calls":
+                stop("honest-failure", "call-budget", "calls")
+                return "stop"
+            if failure:
+                stop("honest-failure", "malformed-output after bounded retries",
+                     "malformed-output")
+                return "stop"
+            if (getattr(repaired, "status", "unable") == "ok"
+                    and getattr(repaired, "content", "")):
+                try:
+                    _write(workdir, self_test, repaired.content)
+                except WriteShapeRefused as exc:
+                    emit("write_shape_refused", path=exc.path, reason=exc.detail)
+                    refusals.append(f"{exc.path}: {exc.detail} (test rewrite)")
+                    stop("honest-failure",
+                         f"unwritable test rewrite: {exc.detail}", "write-shape")
+                    return "stop"
+                test_rewrites += 1
+                rres = await _maybe_await(tests, workdir)
+                record_gate(rres)
+                repair_excerpts = excerpts_of(rres)
+                if _is_green(rres):
+                    # A rewrite that passes on arrival does not pin the goal, and a
+                    # repaired test that cannot be made to discriminate can never carry
+                    # the claim (ticket 19 B): switch to mandatory REVIEW verification.
+                    emit("test_rewrite_green_on_arrival", path=self_test)
+                    (workdir / self_test).unlink(missing_ok=True)
+                    self_test = None
+                    if review is not None:
+                        verification_basis = "review"
+                        review_reason = "the repaired test could not be made to discriminate"
+                        emit("review_verification", reason=review_reason)
+                        return "repair"
+                    stop("honest-failure", "no-red-target", "no-red-target")
+                    return "stop"
+                last_excerpts = repair_excerpts
+                signature = failure_signature(repair_excerpts, repair_excerpts)
+                repair_attempt = Attempt(
+                    node_id="leaf", layer="tests", strategy=esc.strategy,
+                    claimed_delta=(getattr(repaired, "comment", "")
+                                   or "rewrote the run's own test"),
+                    failure_signature=signature, touched_files=[self_test],
+                    outcome="fail", judge=verdict)
+                repair_attempt.verdict = prefilter(attempts, repair_attempt)
+                attempts.append(repair_attempt)
+                emit("test_rewritten", path=self_test, verdict=repair_attempt.verdict)
+                return "repair"
+            emit("test_repair_unavailable",
+                 status=getattr(repaired, "status", "unknown"))
+        # implementation_wrong alone (or an uncredited/ambiguous verdict): keep implementing
+        return "implementation"
+
     def stop(sig: str, reason: str, why: str, *, exhausted: bool = False,
-             parent: bool = False) -> None:
-        nonlocal signal, exhaustion_reason, stop_reason, node_exhausted, needs_parent
+             parent: bool = False, user: bool = False) -> None:
+        nonlocal signal, exhaustion_reason, stop_reason, node_exhausted, needs_parent, needs_user
         signal, exhaustion_reason, stop_reason = sig, reason, why
         node_exhausted = exhausted
         needs_parent = parent
+        needs_user = user
 
     def record_gate(res: ShapedResult | Any) -> GateReport | None:
         """Surface the machine-readable gate verdict; record an anomaly LOUDLY (F1).
@@ -1834,16 +2379,19 @@ async def run_leaf(
             return [f"gate_report_anomaly {gate.anomaly}: {gate.detail}", *excerpts]
         return excerpts
 
-    def write_self_test(rel: str, content: str) -> bool:
-        """Write the run's own test; a filesystem refusal stops honestly (F3)."""
+    def write_self_test(rel: str, content: str) -> str:
+        """Write the run's own test; returns "" on success, else the write-shape detail.
+
+        The caller decides the stop (or the switch to review-based verification when the
+        test path itself is unwritable, ticket 19 C2).
+        """
         try:
             _write(workdir, rel, content)
         except WriteShapeRefused as exc:
             emit("write_shape_refused", path=exc.path, reason=exc.detail)
             refusals.append(f"{exc.path}: {exc.detail} (self-test)")
-            stop("honest-failure", f"unwritable self-test target: {exc.detail}", "write-shape")
-            return False
-        return True
+            return exc.detail
+        return ""
 
     def refuse_self_test(env: Any, message: str, reason: str, *, open_question: bool) -> None:
         """Honest stop for a self-test envelope with no usable landing spot.
@@ -1907,7 +2455,28 @@ async def run_leaf(
             iv_shared_node_ids=list(last.shared_node_ids) if last is not None else [],
             refusals=list(refusals),
             gate_anomalies=list(gate_anomalies),
+            verification_basis=verification_basis,
+            review_verdicts=list(review_verdicts),
+            review_verdict=(review_verdicts[-1] if review_verdicts else None),
+            coverage=list(coverage),
+            coverage_missing=list(coverage_missing),
+            test_case_problems=list(test_case_problems),
+            needs_user=needs_user,
         )
+
+    def enter_review(why: str) -> bool:
+        """Switch to mandatory REVIEW-BASED verification (ticket 19 B).
+
+        Returns False when no ``review`` producer was injected (the leaf then keeps its
+        conservative honest stop, since nothing can verify the diff).
+        """
+        nonlocal verification_basis, review_reason
+        if review is None:
+            return False
+        verification_basis = "review"
+        review_reason = why
+        emit("review_verification", reason=why)
+        return True
 
     # ---- deadline before the first call (an already-expired budget writes nothing)
     if budget.expired(clock()):
@@ -1926,67 +2495,111 @@ async def run_leaf(
         return finish()
     normalized = _relocate_self_test(self_env, spec, workdir, emit)
     if normalized is None:
-        refuse_self_test(self_env, "self-test-refused", "self-test", open_question=True)
-        return finish()
-    if normalized != getattr(self_env, "file_path", ""):
-        _, problem = _self_test_problem(self_env, spec, workdir)
-        refusals.append(f"{getattr(self_env, 'file_path', '')}: {problem} -> "
-                        f"{normalized} (self-test relocated)")
-    if not write_self_test(normalized, self_env.content):
-        return finish()
-    self_test = normalized
-
-    res = await _maybe_await(tests, workdir)
-    gate = record_gate(res)
-    if _is_green(res):
-        # A test that passes on arrival does not exercise the failure. Re-ask ONCE
-        # with that evidence; never emit red=True without having observed a red.
-        emit("self_test_green_on_arrival", path=self_test)
-        previous_path = self_test
-        previous_content = _read(workdir, self_test)
-        (workdir / self_test).unlink(missing_ok=True)
-        self_test = None
-        retry_env, failure = await request_bounded(
-            partial(_request_write, model,
-                    _retry_self_test_artifacts(spec, previous_path, previous_content),
-                    _RETRY_SELF_TEST_QUESTION),
-            "self-test-retry")
-        if failure == "calls":
-            stop("honest-failure", "call-budget", "calls")
+        # No usable test path. Ticket 19 C2: an unwritable test path means review is the
+        # mandatory verification (a review verdict with evidence may carry the claim);
+        # otherwise the honest self-test refusal stands.
+        if not enter_review("the run's own test could not be written at a safe path"):
+            refuse_self_test(self_env, "self-test-refused", "self-test", open_question=True)
             return finish()
-        if failure:
-            stop("honest-failure", "malformed-output after bounded retries", "malformed-output")
-            return finish()
-        normalized = _relocate_self_test(retry_env, spec, workdir, emit)
-        if normalized is None:
-            refuse_self_test(retry_env, "no-red-target", "no-red-target", open_question=False)
-            return finish()
-        if normalized != getattr(retry_env, "file_path", ""):
-            _, problem = _self_test_problem(retry_env, spec, workdir)
-            refusals.append(f"{getattr(retry_env, 'file_path', '')}: {problem} -> "
+    else:
+        if normalized != getattr(self_env, "file_path", ""):
+            _, problem = _self_test_problem(self_env, spec, workdir)
+            refusals.append(f"{getattr(self_env, 'file_path', '')}: {problem} -> "
                             f"{normalized} (self-test relocated)")
-        if not write_self_test(normalized, retry_env.content):
-            return finish()
-        self_test = normalized
+        problem = write_self_test(normalized, self_env.content)
+        if problem:
+            if not enter_review(f"the run's own test path was unwritable: {problem}"):
+                stop("honest-failure", f"unwritable self-test target: {problem}", "write-shape")
+                return finish()
+        else:
+            self_test = normalized
+
+    if verification_basis != "review":
         res = await _maybe_await(tests, workdir)
         gate = record_gate(res)
         if _is_green(res):
+            # A test that passes on arrival does not exercise the failure. Re-ask ONCE
+            # with that evidence; never emit red=True without having observed a red.
             emit("self_test_green_on_arrival", path=self_test)
+            previous_path = self_test
+            previous_content = _read(workdir, self_test)
             (workdir / self_test).unlink(missing_ok=True)
             self_test = None
-            stop("honest-failure", "no-red-target", "no-red-target")
+            retry_env, failure = await request_bounded(
+                partial(_request_write, model,
+                        _retry_self_test_artifacts(spec, previous_path, previous_content),
+                        _RETRY_SELF_TEST_QUESTION),
+                "self-test-retry")
+            if failure == "calls":
+                stop("honest-failure", "call-budget", "calls")
+                return finish()
+            if failure:
+                stop("honest-failure", "malformed-output after bounded retries", "malformed-output")
+                return finish()
+            normalized = _relocate_self_test(retry_env, spec, workdir, emit)
+            if normalized is None:
+                if not enter_review("the run's own test could not be written at a safe path"):
+                    refuse_self_test(retry_env, "no-red-target", "no-red-target",
+                                     open_question=False)
+                    return finish()
+            else:
+                if normalized != getattr(retry_env, "file_path", ""):
+                    _, problem = _self_test_problem(retry_env, spec, workdir)
+                    refusals.append(f"{getattr(retry_env, 'file_path', '')}: {problem} -> "
+                                    f"{normalized} (self-test relocated)")
+                problem = write_self_test(normalized, retry_env.content)
+                if problem:
+                    if not enter_review(f"the run's own test path was unwritable: {problem}"):
+                        stop("honest-failure",
+                             f"unwritable self-test target: {problem}", "write-shape")
+                        return finish()
+                else:
+                    self_test = normalized
+                    res = await _maybe_await(tests, workdir)
+                    gate = record_gate(res)
+        if verification_basis != "review" and (
+                _exit_code(res) is None or (gate is not None and not gate.observed)):
+            # We could not trust an observation of the run's own tests: a transport error /
+            # sandbox block, or a gate report that is missing or holds no testcase. Nothing
+            # may be recorded as a red, so no target is kept.
+            emit("self_test_unverified", path=self_test, reason="tests did not run")
+            (workdir / self_test).unlink(missing_ok=True)
+            self_test = None
+            stop("honest-failure", "self-test-unverified", "self-test")
             return finish()
-    if _exit_code(res) is None or (gate is not None and not gate.observed):
-        # We could not trust an observation of the run's own tests: a transport error /
-        # sandbox block, or a gate report that is missing or holds no testcase. Nothing
-        # may be recorded as a red, so no target is kept.
-        emit("self_test_unverified", path=self_test, reason="tests did not run")
-        (workdir / self_test).unlink(missing_ok=True)
-        self_test = None
-        stop("honest-failure", "self-test-unverified", "self-test")
-        return finish()
-    last_excerpts = excerpts_of(res)
-    emit("self_test_written", path=self_test, red=True)
+        if verification_basis != "review" and _is_green(res):
+            # The one re-ask was green too: no red target. Ticket 19 A: consult the judge
+            # IMMEDIATELY (spec / environment are actionable here); ticket 19 B: otherwise
+            # switch to mandatory review verification when a reviewer is injected.
+            emit("self_test_green_on_arrival", path=self_test)
+            previous_path = self_test
+            previous_content = _read(workdir, self_test)
+            (workdir / self_test).unlink(missing_ok=True)
+            self_test = None
+            if attribution is not None and can_afford(2):
+                jr = _no_red_judge_request(spec, workdir, previous_path, previous_content,
+                                           baseline)
+                raw_verdict, failure = await request_bounded(
+                    partial(_call_judge, attribution, jr), "judge")
+                if failure == "calls":
+                    stop("honest-failure", "call-budget", "calls")
+                    return finish()
+                if failure:
+                    stop("honest-failure", "malformed-output after bounded retries",
+                         "malformed-output")
+                    return finish()
+                verdict = apply_judge_filter(raw_verdict, jr)
+                action = await handle_verdict(
+                    verdict, Escalation("L1-resample", "sampling", False, "no red target"),
+                    None)
+                if action == "stop":
+                    return finish()
+            if not enter_review("the run's own test could not be made to fail on arrival"):
+                stop("honest-failure", "no-red-target", "no-red-target")
+                return finish()
+        if verification_basis != "review":
+            last_excerpts = excerpts_of(res)
+            emit("self_test_written", path=self_test, red=True)
 
     # ---- step 2: attempt loop (bounded by Budget and 3 × files, cap 9) ----
     while True:
@@ -2037,7 +2650,10 @@ async def run_leaf(
             stop("honest-failure", "malformed-output after bounded retries", "malformed-output")
             break
 
-        # the model claims its own TEST is wrong -> independent attribution only
+        # The model claims its own TEST is wrong: an INDEPENDENT judge is the only way
+        # that claim is credited (ticket 17 policy, kept by ticket 19). The PROACTIVE
+        # trigger below is the ticket-19 addition: the judge is consulted on a red REPORTS
+        # signal even when the model volunteers nothing.
         if _claims_test_wrong(env):
             if attribution is None:
                 # No independent judge: the model's own word is never enough. Treat
@@ -2049,9 +2665,6 @@ async def run_leaf(
                 stop("honest-failure", "call-budget", "calls")
                 break
             else:
-                # a FRESH-CONTEXT judge call, wrapped like every other envelope request.
-                # Conversion/validation errors are malformed output too, so they are
-                # raised inside the bounded call and get the same retry/stop treatment.
                 jr = _judge_request(spec, workdir, self_test, last_excerpts, env, baseline)
                 raw_verdict, failure = await request_bounded(
                     partial(_call_judge, attribution, jr), "judge")
@@ -2063,76 +2676,12 @@ async def run_leaf(
                          "malformed-output")
                     break
                 verdict = apply_judge_filter(raw_verdict, jr)
-                judge_verdicts.append(verdict)
-                emit("judge_verdict", attribution=verdict.attribution, defect=verdict.defect,
-                     coerced=verdict.coerced, raw=verdict.raw)
-                if verdict.coerced:
-                    emit("judge_coerced", reason=verdict.coercion_reason)
                 pending_verdict = verdict
-                attribution_result = verdict.attribution
-                if attribution_result == "spec":
-                    attempts.append(Attempt(
-                        node_id="leaf", layer="spec", strategy=esc.strategy,
-                        claimed_delta="judge attributed the failure to the spec",
-                        outcome="fail", verdict="novel", judge=verdict))
-                    queue.open(
-                        f"spec:{spec.goal[:40]}",
-                        "the leaf's failure was attributed to the specification; the "
-                        "parent owns the spec",
-                        default_choice="park the node and bubble the spec up",
-                    )
-                    emit("spec_bubbled_up", reason="judge attributed the failure to the spec")
-                    stop("bubble", "spec-bubble", "spec-bubble", parent=True)
+                action = await handle_verdict(verdict, esc, env)
+                if action == "stop":
                     break
-                if attribution_result == "tests" and self_test:
-                    repaired, failure = await request_bounded(
-                        partial(_repair_test, model, spec, workdir, self_test,
-                                last_excerpts, env),
-                        "test-rewrite")
-                    if failure == "calls":
-                        stop("honest-failure", "call-budget", "calls")
-                        break
-                    if failure:
-                        stop("honest-failure", "malformed-output after bounded retries",
-                             "malformed-output")
-                        break
-                    if (getattr(repaired, "status", "unable") == "ok"
-                            and getattr(repaired, "content", "")):
-                        try:
-                            _write(workdir, self_test, repaired.content)
-                        except WriteShapeRefused as exc:
-                            emit("write_shape_refused", path=exc.path, reason=exc.detail)
-                            refusals.append(f"{exc.path}: {exc.detail} (test rewrite)")
-                            stop("honest-failure",
-                                 f"unwritable test rewrite: {exc.detail}", "write-shape")
-                            break
-                        test_rewrites += 1
-                        rres = await _maybe_await(tests, workdir)
-                        record_gate(rres)
-                        repair_excerpts = excerpts_of(rres)
-                        if _is_green(rres):
-                            # a rewrite that passes on arrival does not pin the goal:
-                            # leave no bogus target behind
-                            emit("test_rewrite_green_on_arrival", path=self_test)
-                            (workdir / self_test).unlink(missing_ok=True)
-                            self_test = None
-                            stop("honest-failure", "no-red-target", "no-red-target")
-                            break
-                        last_excerpts = repair_excerpts
-                        signature = failure_signature(repair_excerpts, repair_excerpts)
-                        repair_attempt = Attempt(
-                            node_id="leaf", layer="tests", strategy=esc.strategy,
-                            claimed_delta=(getattr(repaired, "comment", "")
-                                           or "rewrote the run's own test"),
-                            failure_signature=signature, touched_files=[self_test],
-                            outcome="fail", judge=verdict)
-                        repair_attempt.verdict = prefilter(attempts, repair_attempt)
-                        attempts.append(repair_attempt)
-                        emit("test_rewritten", path=self_test, verdict=repair_attempt.verdict)
-                        continue
-                    emit("test_repair_unavailable",
-                         status=getattr(repaired, "status", "unknown"))
-                # implementation / environment / uncredited: fall through to the red path
+                if action == "repair":
+                    continue
 
         # normal path: write the source candidate (guarded) and run the tests
         wrote, source_rel, refusal, shape = _write_candidate(env, spec, workdir, self_test, baseline)
@@ -2155,7 +2704,56 @@ async def run_leaf(
             record_gate(res)
             last_excerpts = excerpts_of(res)
 
+        # Ticket 19 A: PROACTIVE attribution. After K consecutive RED attempts in which
+        # the run materially changed the code, consult the judge even though the model
+        # volunteered nothing. The judge sees the goal, the ACs, the run's own test, the
+        # failing output, and the current diff; its labels decide the next move.
+        if res is not None and not _is_green(res) and wrote and source_rel:
+            red_code_changes = (red_code_changes + 1
+                                if _file_materially_changed(workdir, baseline, source_rel)
+                                else 0)
+            if (attribution is not None and pending_verdict is None
+                    and red_code_changes == ATTRIBUTION_RED_K and can_afford(2)):
+                emit("judge_triggered", reason="red-code-changes", count=red_code_changes)
+                jr = _judge_request(spec, workdir, self_test, last_excerpts, env, baseline)
+                raw_verdict, failure = await request_bounded(
+                    partial(_call_judge, attribution, jr), "judge")
+                if failure == "calls":
+                    stop("honest-failure", "call-budget", "calls")
+                    break
+                if failure:
+                    stop("honest-failure", "malformed-output after bounded retries",
+                         "malformed-output")
+                    break
+                pending_verdict = apply_judge_filter(raw_verdict, jr)
+                action = await handle_verdict(pending_verdict, esc, env)
+                if action == "stop":
+                    break
+                if action == "repair":
+                    red_code_changes = 0
+                    continue
+        else:
+            red_code_changes = 0
+
+        # Ticket 19 B: when no test can carry verification, the reviewer is the gate.
+        review_verdict: ReviewVerdict | None = None
+        if verification_basis == "review" and wrote and source_rel:
+            review_verdict, failure = await run_review(review_reason)
+            if failure == "calls":
+                stop("honest-failure", "call-budget", "calls")
+                break
+            if failure:
+                stop("honest-failure", "malformed-output after bounded retries",
+                     "malformed-output")
+                break
+            if not review_verdict.approved:
+                last_excerpts = [f"review rejected: {review_verdict.detail or review_verdict.evidence}"]
+
         signature = failure_signature(last_excerpts, last_excerpts)
+        if verification_basis == "review":
+            approved = bool(review_verdict is not None and review_verdict.approved)
+        else:
+            approved = _is_green(res)
         candidate = Attempt(
             node_id="leaf",
             layer=esc.layer,
@@ -2163,7 +2761,7 @@ async def run_leaf(
             claimed_delta=getattr(env, "comment", "") or "",
             failure_signature=signature,
             touched_files=[source_rel] if wrote else [],
-            outcome="pass" if _is_green(res) else "fail",
+            outcome="pass" if approved else "fail",
             judge=pending_verdict,
         )
         if not wrote:
@@ -2172,79 +2770,122 @@ async def run_leaf(
             candidate.verdict = prefilter(attempts, candidate)
 
         if candidate.outcome == "pass":
-            attempts.append(candidate)
-            if test_rewrites:
+            report = getattr(res, "gate", None)
+            if test_rewrites and verification_basis != "review":
                 # A green after the run REPLACED its own test is not a claim: the
                 # implementation satisfied a substituted test, so the result is
-                # unverified (ticket 17 round 4). Keep the rewrite machinery and the
-                # judge filter — they now stop honestly and hand the node a status.
+                # unverified (ticket 17 round 4).
+                attempts.append(candidate)
                 emit("leaf_green_after_test_rewrite", strategy=esc.strategy)
                 stop("green-after-test-rewrite", "", "green-after-test-rewrite")
                 break
-            if iv is None:
-                # Own-test-only basis (conservative baseline): the run's OWN unmodified
-                # test went green. With --iv the driver injects the independent test that
-                # must pass its two-gate check before any claim (ticket 17 round 7).
-                claimed = True
-                claimed_basis = "own-test"
-                stop("green", "", "green")
-                emit("leaf_green", strategy=esc.strategy, after_test_rewrite=False)
-                break
-            if not can_afford(1):
-                stop("honest-failure", "call-budget", "calls")
-                break
-            iv_request = _iv_request(spec, workdir, baseline)
-            original_tree = dict(spec.files)
-            final_tree = _repo_view(spec, workdir, tuple(baseline))
-            verdict, failure = await iv_verdict_for(iv_request, original_tree, final_tree)
-            if failure == "calls":
-                stop("honest-failure", "call-budget", "calls")
-                break
-            if failure:
-                # An independent test that could not be produced never becomes a claim.
-                stop("honest-failure", "independent-test-unverified", "malformed-output")
-                break
-            record_iv(verdict)
-            # Bounded IV repair (ticket 17 round 8): a defective TEST — vacuous (it
-            # passed on the original) or uncollected — gets exactly ONE re-ask of the
-            # same fresh-context producer with the verdict as evidence, then the two
-            # gates run again. ``independent-test-red-on-final`` is a FIX failure, not a
-            # test defect: it is never repaired here and the loop continues with it.
-            if not verdict.approved and verdict.reason in _IV_REPAIRABLE and can_afford(1):
-                iv_repairs += 1
-                emit("independent_test_repair", reason=verdict.reason,
-                     detail=verdict.detail, requested=verdict.requested_path)
-                repaired, failure = await iv_verdict_for(
-                    _iv_repair_request(iv_request, verdict), original_tree, final_tree)
+            # Ticket 19 E: per-requirement ARTIFACT coverage of the final diff. A
+            # criterion whose named file/symbol is untouched was not implemented; the
+            # node may NOT claim (the design answer to T-31's one-of-two call sites).
+            new_coverage = _requirement_coverage(spec, workdir, baseline)
+            new_missing = [f"{c.statement!r} names {m}, untouched by the diff"
+                           for c in new_coverage for m in c.missing]
+            if new_missing:
+                coverage, coverage_missing = new_coverage, new_missing
+                candidate.outcome = "fail"
+                candidate.verdict = prefilter(attempts, candidate)
+                attempts.append(candidate)
+                emit("requirement_uncovered", missing=new_missing)
+                last_excerpts = [f"requirement artifact untouched: {m}" for m in new_missing]
+                rung += 1
+                continue
+            coverage, coverage_missing = new_coverage, []
+            # Ticket 19 D: the DECLARED test-case contract, verified mechanically from
+            # the report. A missing file/name is a distinct, repairable failure.
+            tc_problems = ([] if verification_basis == "review"
+                           else _declared_test_case_problems(report, spec.test_cases))
+            if tc_problems and test_case_repairs < 1 and self_test and can_afford(1):
+                test_case_repairs += 1
+                emit("test_case_repair", problems=tc_problems)
+                repaired_env, failure = await request_bounded(
+                    partial(_request_write, model,
+                            _declared_case_artifacts(spec, self_test, tc_problems),
+                            _MISSING_TEST_CASES_QUESTION),
+                    "test-cases")
                 if failure == "calls":
                     stop("honest-failure", "call-budget", "calls")
                     break
                 if failure:
-                    stop("honest-failure", "independent-test-unverified", "malformed-output")
+                    stop("honest-failure", "malformed-output after bounded retries",
+                         "malformed-output")
                     break
-                record_iv(repaired)
-                verdict = repaired
-            if verdict.approved:
-                claimed = True
-                claimed_basis = "own-test+independent-test"
-                stop("green", "", "green")
-                emit("leaf_green", strategy=esc.strategy, after_test_rewrite=False)
+                if (getattr(repaired_env, "status", "unable") == "ok"
+                        and getattr(repaired_env, "content", "")):
+                    try:
+                        _write(workdir, self_test, repaired_env.content)
+                    except WriteShapeRefused as exc:
+                        refusals.append(f"{exc.path}: {exc.detail} (test cases)")
+                        stop("honest-failure",
+                             f"unwritable test repair: {exc.detail}", "write-shape")
+                        break
+                    rres = await _maybe_await(tests, workdir)
+                    record_gate(rres)
+                    res = rres
+                    report = getattr(rres, "gate", None)
+                    tc_problems = _declared_test_case_problems(report, spec.test_cases)
+                    if _is_green(rres) and not tc_problems:
+                        # The repair replaced the run's own test AFTER the red observation,
+                        # so it must re-prove it is a real discriminator: RED on the
+                        # PRISTINE source (in a private copy, never the workdir).
+                        if not await _repaired_test_is_red_on_pristine(
+                                tests, spec, self_test, repaired_env.content):
+                            tc_problems = ["the repaired test still PASSES on the pristine "
+                                           "source (it does not discriminate)"]
+                    if not _is_green(rres):
+                        # the repair broke the target: record a red attempt and continue
+                        candidate.outcome = "fail"
+                        candidate.verdict = prefilter(attempts, candidate)
+                        attempts.append(candidate)
+                        last_excerpts = excerpts_of(rres)
+                        rung += 1
+                        continue
+            if tc_problems:
+                test_case_problems = tc_problems
+                attempts.append(candidate)
+                emit("test_cases_missing", problems=tc_problems)
+                stop("honest-failure", "test-cases", "test-cases")
                 break
-            # Rejected: the independent test's output is the next attempt's failure
-            # context and the loop CONTINUES (never a claim, never silently dropped).
-            last_iv_reason = f"{verdict.reason}: {verdict.detail}"
-            last_excerpts = [f"independent test rejected ({verdict.reason}): {verdict.detail}",
-                             *(verdict.output or ())]
-            attempts.append(Attempt(
-                node_id="leaf", layer=esc.layer, strategy=esc.strategy or "L1-resample",
-                claimed_delta=f"independent test: {verdict.reason}",
-                failure_signature=failure_signature(last_excerpts, last_excerpts),
-                touched_files=[source_rel] if wrote else [],
-                outcome="fail", verdict="novel"))
-            emit("independent_test_rejected", strategy=esc.strategy,
-                 reason=verdict.reason, detail=verdict.detail)
-            rung += 1
-            continue
+            test_case_problems = []
+            attempts.append(candidate)
+            # Ticket 19 C: the independent test is an EXTRA LABEL, never the veto. Its
+            # verdict is recorded (with its one bounded repair) but never stands between
+            # the run and a claim authorised by the run's own discriminating test.
+            iv_approved = False
+            if verification_basis != "review" and iv is not None and can_afford(1):
+                iv_request = _iv_request(spec, workdir, baseline)
+                original_tree = dict(spec.files)
+                final_tree = _repo_view(spec, workdir, tuple(baseline))
+                label, failure = await iv_verdict_for(iv_request, original_tree, final_tree)
+                if failure:
+                    last_iv_reason = f"{failure}: independent label not collected"
+                    emit("independent_test_uncollected", reason=failure)
+                else:
+                    record_iv(label)
+                    if (not label.approved and label.reason in _IV_REPAIRABLE
+                            and can_afford(1)):
+                        iv_repairs += 1
+                        emit("independent_test_repair", reason=label.reason,
+                             detail=label.detail, requested=label.requested_path)
+                        repaired, failure = await iv_verdict_for(
+                            _iv_repair_request(iv_request, label), original_tree, final_tree)
+                        if not failure:
+                            record_iv(repaired)
+                            label = repaired
+                    iv_approved = label.approved
+                    if not label.approved:
+                        last_iv_reason = f"{label.reason}: {label.detail}"
+            claimed = True
+            claimed_basis = ("review" if verification_basis == "review"
+                             else "own-test+independent-test" if iv_approved
+                             else "own-test")
+            stop("green", "", "green")
+            emit("leaf_green", strategy=esc.strategy, after_test_rewrite=False)
+            break
 
         attempts.append(candidate)
         emit("attempt_recorded", strategy=esc.strategy, layer=esc.layer,
@@ -2293,6 +2934,23 @@ def _write_candidate(
     except (ValueError, OSError) as exc:      # embedded NUL / ENAMETOOLONG on the probe-free path
         return False, rel, f"unwritable path ({type(exc).__name__}: {exc})", True
     return True, rel, "", False
+
+
+def _no_red_judge_request(
+    spec: LeafSpec, workdir: Path, test_path: str, test_content: str,
+    baseline: Mapping[str, str | None],
+) -> JudgeRequest:
+    """The judge view for the ticket-19 A no-red-target trigger: the run's own test PASSED
+    on arrival, so there is no red report but there is still a failure to attribute."""
+    return JudgeRequest(
+        goal=spec.goal,
+        acs=list(spec.acs),
+        failure=("the run's own test PASSED on arrival (exit 0): it does not exercise the "
+                 "failure"),
+        test_path=test_path,
+        test_content=test_content,
+        files=_repo_view(spec, workdir, tuple(baseline)),
+    )
 
 
 def _judge_request(

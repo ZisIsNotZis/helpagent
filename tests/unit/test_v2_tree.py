@@ -33,13 +33,14 @@ from harness.envelopes import PlanNode
 from harness.exec import ShapedResult
 from harness.fake_model import FakeModelRunner
 from harness.gate_report import GateReport
-from harness.leaf import LeafOutcome, LeafSpec, _source_write_problem
+from harness.leaf import DeclaredTestCase, LeafOutcome, LeafSpec, _source_write_problem
 from harness.node import (
     Decomposition,
     NodeSpec,
     SplitHistory,
     can_decompose,
     canonical_path,
+    decomposition_from_envelope,
     plan_node,
     validate_decomposition,
 )
@@ -92,7 +93,7 @@ class FakeLeaf:
         self.extras: list[dict] = []
         self.calls = 0
 
-    async def __call__(self, model, spec, workdir, budget, *, judge=None, iv=None,
+    async def __call__(self, model, spec, workdir, budget, *, judge=None, iv=None, review=None,
                        run_tests=None, now=None, on_event=None):
         self.specs.append(spec)
         self.budgets.append(budget)
@@ -158,13 +159,14 @@ def ledger_with(kind: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# 1-2. sibling disjointness and path canonicalization
+# 1-2. ticket 19 F: sibling files may OVERLAP (the tree serializes writers)
 # ---------------------------------------------------------------------------
 
 
-def test_sibling_files_must_be_disjoint():
-    """Two children declaring the same file are refused at build time: two writers
-    cannot share one file and still have an integratable boundary."""
+def test_sibling_files_may_overlap_and_boundaries_still_narrow():
+    """Ticket 19 F: two children declaring the same file are ALLOWED (two requirements may
+    legitimately change one file). The tree SERIALIZES overlapping writers and audits each
+    node's declared boundary; child ⊆ parent is still enforced."""
     d = Decomposition(
         spec=NodeSpec(goal="root", files=("pkg/a.py", "pkg/b.py"), kind="internal"),
         children=(NodeSpec(goal="one", files=("pkg/a.py",), acs=("c",), kind="leaf"),
@@ -173,13 +175,20 @@ def test_sibling_files_must_be_disjoint():
     findings = validate_decomposition(
         d, parent_files={"pkg/a.py", "pkg/b.py"},
         candidate_files={"pkg/a.py", "pkg/b.py"}, depth=0, depth_cap=4, max_children=15)
-    assert [f.kind for f in findings.items] == ["sibling-overlap"]
-    assert "pkg/a.py" in findings.items[0].detail
+    assert findings.ok                                  # overlapping is no longer a finding
+    # a child outside the parent boundary is still refused (narrowing-only)
+    out_of_boundary = Decomposition(
+        spec=NodeSpec(goal="root", files=("pkg/a.py",), kind="internal"),
+        children=(NodeSpec(goal="one", files=("pkg/c.py",), acs=("c",), kind="leaf"),),
+        signature="sig")
+    assert any(f.kind == "child-outside-boundary" for f in validate_decomposition(
+        out_of_boundary, parent_files={"pkg/a.py"}, candidate_files={"pkg/a.py"},
+        depth=0, depth_cap=4, max_children=15).items)
 
 
-def test_path_canonicalization_blocks_disjointness_evasion():
-    """``./pkg/a.py`` and ``pkg/./a.py`` are the same file as ``pkg/a.py`` — the
-    disjointness check must canonicalize first or it is bypassable."""
+def test_path_canonicalization_keeps_boundary_narrowing_honest():
+    """``./pkg/a.py`` and ``pkg/./a.py`` are the same file as ``pkg/a.py`` — the boundary
+    check must canonicalize first or it is bypassable."""
     assert canonical_path("./pkg/a.py") == "pkg/a.py"
     assert canonical_path("pkg/./a.py") == "pkg/a.py"
     assert canonical_path("pkg/nested/../a.py") == "pkg/a.py"
@@ -191,10 +200,11 @@ def test_path_canonicalization_blocks_disjointness_evasion():
         children=(NodeSpec(goal="one", files=("./pkg/a.py",), acs=("c",), kind="leaf"),
                   NodeSpec(goal="two", files=("pkg/./a.py",), acs=("c",), kind="leaf")),
         signature="sig")
+    # canonicalized aliases are inside the boundary AND no longer an overlap finding
     findings = validate_decomposition(
         d, parent_files={"pkg/a.py"}, candidate_files={"pkg/a.py"},
         depth=0, depth_cap=4, max_children=15)
-    assert any(f.kind == "sibling-overlap" for f in findings.items)
+    assert findings.ok
     # an unusable path is its own structured finding, never an exception
     bad = Decomposition(
         spec=NodeSpec(goal="root", files=("pkg/a.py",), kind="internal"),
@@ -513,9 +523,9 @@ def test_tree_calls_run_leaf_unchanged(tmp_path, monkeypatch):
     stage(tmp_path)
     captured = []
 
-    async def fake(model, spec, workdir, budget, *, judge=None, iv=None, run_tests=None,
+    async def fake(model, spec, workdir, budget, *, judge=None, iv=None, review=None, run_tests=None,
                    now=None, on_event=None):
-        captured.append((spec, budget, judge, iv, run_tests))
+        captured.append((spec, budget, judge, iv, review, run_tests))
         budget.take(1)
         return leaf_outcome()
 
@@ -527,12 +537,13 @@ def test_tree_calls_run_leaf_unchanged(tmp_path, monkeypatch):
         plan_env([], files=("pkg/a.py", "pkg/b.py"), goal="the only goal",
                  acs=[ac("the only criterion")])]})   # children=[] ⇒ this node is a leaf
     out = run_tree_sync(model, root, make_tree(), tmp_path,
-                        Budget(calls=10, deadline_ts=_FAR), judge=marker, run_tests=None)
+                        Budget(calls=10, deadline_ts=_FAR), judge=marker, review=marker,
+                        run_tests=None)
 
     assert len(captured) == 1
-    spec, budget, judge, iv, run_tests = captured[0]
+    spec, budget, judge, iv, review, run_tests = captured[0]
     assert isinstance(spec, LeafSpec) and isinstance(budget, Budget)
-    assert judge is marker
+    assert judge is marker and review is marker
     assert iv is None and run_tests is None
     assert spec.grader_paths == (_GRADER,)
     assert out.claimed
@@ -560,7 +571,7 @@ class WritingTree:
         self._integration_self_test = integration_self_test
         self._integration_claims = integration_claims
 
-    async def __call__(self, model, spec, workdir, budget, *, judge=None, iv=None,
+    async def __call__(self, model, spec, workdir, budget, *, judge=None, iv=None, review=None,
                        run_tests=None, now=None, on_event=None):
         budget.take(1)
         self.specs.append(spec)
@@ -801,8 +812,7 @@ def test_validate_decomposition_shape_rules():
 def test_plan_node_one_call_reasks_once_then_forces_a_leaf():
     """Invalid output never crashes and never silently produces a child: one re-ask with
     the findings as evidence, then a force-leaf (``None``)."""
-    bad = plan_env([child("one", ["pkg/a.py"]), child("two", ["pkg/a.py"])],
-                   files=("pkg/a.py",))
+    bad = plan_env([child("one", ["pkg/a.py"], acs=[])], files=("pkg/a.py",))
     model = FakeModelRunner({"plan_node": [bad, bad]})
     budget = Budget(calls=5, deadline_ts=_FAR)
     result = asyncio.run(plan_node(model, goal="root", boundary={"pkg/a.py"},
@@ -849,8 +859,11 @@ def test_v2_tree_driver_builds_the_root_and_withholds_grader_paths():
 
     args = v2_tree.build_parser().parse_args(["--task", "x"])
     assert args.judge is True and args.iv is True             # independent machinery ON
+    assert args.review is True                                # review verification ON
     off = v2_tree.build_parser().parse_args(["--task", "x", "--no-judge", "--no-iv"])
     assert off.judge is False and off.iv is False
+    assert v2_tree.build_parser().parse_args(
+        ["--task", "x", "--no-review"]).review is False
 
 
 # ---------------------------------------------------------------------------
@@ -869,7 +882,7 @@ class EscapingLeaf:
         self.specs: list[LeafSpec] = []
         self.calls = 0
 
-    async def __call__(self, model, spec, workdir, budget, *, judge=None, iv=None,
+    async def __call__(self, model, spec, workdir, budget, *, judge=None, iv=None, review=None,
                        run_tests=None, now=None, on_event=None):
         budget.take(1)
         self.calls += 1
@@ -1315,3 +1328,188 @@ def test_an_incomplete_snapshot_cannot_certify_a_leaf(tmp_path, monkeypatch):
     assert audit.violations == []
     assert audit.skipped
     assert audit.clean is False
+
+
+# ===========================================================================
+# ticket 19 D/F: split by requirement, declare expected test cases
+# ===========================================================================
+
+
+def test_planner_guidance_splits_by_requirement_and_declares_test_cases():
+    """Ticket 19 F/D: the PlanNode prompt tells the planner to split by requirement (not
+    by file, since overlapping writers are allowed) and to declare expected test cases."""
+    from harness.node import _plan_node_question
+
+    question = _plan_node_question("", 0)
+    assert "REQUIREMENT" in question
+    assert "test_cases" in question
+    assert "outside this node's write boundary" in question
+
+
+def test_plan_node_carries_declared_test_cases():
+    """Ticket 19 D: the fused plan envelope carries per-criterion declared test cases and
+    they survive the translation into a :class:`Decomposition`."""
+    payload = {
+        "status": "ok", "comment": "planned", "goal": "root", "behavior": "b",
+        "implementation_notes": "n", "files": ["pkg/a.py"], "acs": [ac("criterion")],
+        "interfaces": [],
+        "test_cases": [{"ac_id": "AC-1", "file": "tests/test_a.py",
+                        "names": ["test_ac1_ok", "test_ac1_edge"]}],
+        "children": [],
+    }
+    env = PlanNode.model_validate(payload)
+    decomp = decomposition_from_envelope(env)
+    assert decomp.spec.test_cases == (
+        DeclaredTestCase("AC-1", "tests/test_a.py", ("test_ac1_ok", "test_ac1_edge")),)
+
+
+def test_a_child_carries_declared_test_cases():
+    base = plan_env([{**child("one", ["pkg/a.py"]),
+                      "test_cases": [{"ac_id": "AC-1", "file": "tests/test_a.py",
+                                      "names": ["test_ac1"]}]}],
+                    files=("pkg/a.py",))
+    decomp = decomposition_from_envelope(PlanNode.model_validate(
+        {"status": "ok", "comment": "c", **base}))
+    assert decomp.children[0].test_cases == (
+        DeclaredTestCase("AC-1", "tests/test_a.py", ("test_ac1",)),)
+
+
+def test_leaf_spec_from_carries_declared_test_cases(tmp_path):
+    """Ticket 19 D wiring: the declared test cases reach the leaf's ``LeafSpec``."""
+    from harness.tree_run import leaf_spec_from
+
+    spec = NodeSpec(goal="g", files=("pkg/a.py",), acs=("c",), kind="leaf",
+                    test_cases=(DeclaredTestCase("AC-1", "tests/test_a.py", ("test_ac1",)),))
+    leaf_spec = leaf_spec_from(spec, tmp_path, root_grader_paths=("tests/test_grader_secret.py",),
+                               candidate_files=("pkg/a.py", "pkg/b.py"))
+    assert leaf_spec.test_cases == spec.test_cases
+    assert leaf_spec.write_boundary == ("pkg/a.py",)
+    assert leaf_spec.candidate_files == ("pkg/a.py", "pkg/b.py")
+
+
+# ===========================================================================
+# ticket 19 F: overlapping siblings are allowed, serialized, and boundary-audited
+# ===========================================================================
+
+
+class OverlapLeaf:
+    """Scripted ``run_leaf`` for overlapping siblings: records concurrency, writes the
+    shared declared boundary, and (optionally) escapes it for one child keyed on its goal."""
+
+    def __init__(self, *, escape_for: str = "", escape_rel: str = "pkg/b.py"):
+        self._escape_for = escape_for
+        self._escape_rel = escape_rel
+        self.active = 0
+        self.max_concurrent = 0
+        self.writes: list[str] = []
+
+    async def __call__(self, model, spec, workdir, budget, *, judge=None, iv=None, review=None,
+                       run_tests=None, now=None, on_event=None):
+        self.active += 1
+        self.max_concurrent = max(self.max_concurrent, self.active)
+        try:
+            budget.take(1)
+            boundary = list(spec.write_boundary or ())
+            if boundary:
+                rel = boundary[0]
+                target = workdir / rel
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("# written\n")
+                self.writes.append(rel)
+                if self._escape_for and self._escape_for in spec.goal:
+                    (workdir / self._escape_rel).write_text("hijacked\n")
+                attempt = Attempt(node_id="leaf", layer="implementation",
+                                  strategy="L1-resample", outcome="pass",
+                                  touched_files=[rel], claimed_delta=f"wrote {rel}")
+                return leaf_outcome(claimed=True, attempts=[attempt])
+            # the dedicated integration leaf: expose a test artifact
+            path = workdir / "tests/test_integration.py"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("def test_integration():\n    assert True\n")
+            return leaf_outcome(self_test="tests/test_integration.py")
+        finally:
+            self.active -= 1
+
+
+def _overlap_root(tmp_path, monkeypatch, fake):
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py",), acs=(), kind="internal")
+    model = FakeModelRunner({"plan_node": [
+        plan_env([child("add the timeout argument", ["pkg/a.py"]),
+                  child("thread the timeout to callers", ["pkg/a.py"])],
+                 files=("pkg/a.py",))]})
+    return run_tree_sync(model, root, make_tree(), tmp_path,
+                         Budget(calls=40, deadline_ts=_FAR), run_tests=Gates(green=True))
+
+
+def test_overlapping_siblings_are_allowed_and_serialized(tmp_path, monkeypatch):
+    """Ticket 19 F: two children may declare the SAME file (two requirements, one file);
+    the tree accepts the plan, runs both, and never runs them concurrently."""
+    stage(tmp_path)
+    fake = OverlapLeaf()
+    out = _overlap_root(tmp_path, monkeypatch, fake)
+
+    assert out.claimed and out.root.stop_reason == "closed"
+    assert fake.max_concurrent == 1                     # serialized, never concurrent
+    assert fake.writes.count("pkg/a.py") == 2           # both overlapping writers ran
+    # two writing descendants ⇒ the node still owes a report-gated integration verdict
+    assert out.root.close_rule == "integration"
+    assert set(out.root.integration_verdicts.values()) == {"pass"}
+
+
+def test_boundary_audit_still_holds_for_overlapping_siblings(tmp_path, monkeypatch):
+    """Ticket 19 F: relaxing sibling disjointness does NOT relax the per-node boundary
+    audit. With two siblings on ``pkg/a.py``, a write to an UNDECLARED path is still caught,
+    restored from the pre-leaf snapshot, and the escaping node never closes."""
+    stage(tmp_path)
+    fake = OverlapLeaf(escape_for="thread the timeout to callers")
+    out = _overlap_root(tmp_path, monkeypatch, fake)
+
+    assert not out.claimed
+    assert (tmp_path / "pkg/b.py").read_text() == "y = 2\n"          # restored
+    escaping = [c for c in out.root.children
+                if c.boundary_audit is not None and c.stop_reason == "boundary-escape"]
+    assert escaping and escaping[0].boundary_audit.violations == ["pkg/b.py"]
+    clean = [c for c in out.root.children
+             if c.boundary_audit is not None and c.boundary_audit.clean]
+    # the sibling that respected its declared boundary (the shared file) kept its claim
+    assert clean and (tmp_path / "pkg/a.py").read_text() == "# written\n"
+
+
+def test_tree_run_record_carries_the_new_leaf_fields():
+    """Ticket 19 item 3: the tree's persisted record carries each leaf's claim basis,
+    verification basis, review verdicts, coverage results, attribution labels and
+    needs-user flag."""
+    from bench import v2_tree
+    from bench.external_score import ExternalScore
+    from harness.attempts import JudgeVerdict
+    from harness.leaf import LeafOutcome, RequirementCoverage, ReviewVerdict
+    from harness.tree_run import NodeOutcome, TreeOutcome
+
+    leaf = LeafOutcome(
+        claimed=True, signal="green", attempts=[], calls=1, wall_s=0.0,
+        self_test=None, questions=[], exhausted=False, exhaustion_reason="",
+        layers_used=[], stop_reason="green", claimed_basis="review",
+        verification_basis="review",
+        review_verdicts=[ReviewVerdict(approved=True, evidence="pkg/a.py:1 implements AC-1")],
+        coverage=[RequirementCoverage(1, "c", files=("pkg/a.py",), symbols=("result",))],
+        judge_verdicts=[JudgeVerdict(implementation_wrong=True, reason="r", evidence="e")])
+    node = NodeOutcome(node_id="n1", claimed=True, stop_reason="closed", leaf=leaf)
+    tree_outcome = TreeOutcome(root=node, claimed=True, calls=1, wall_s=0.0,
+                               budget=Budget(calls=5, deadline_ts=_FAR),
+                               checkpoints={}, split_history={})
+    score = ExternalScore(passed=True, exit=0, notes=[], work_root="", applied=[], skipped=[])
+
+    record = v2_tree.build_record("T-x", "goal", tree_outcome, withheld=[], produced={},
+                                  score=score, quad="true-success", run_wall_s=0.0,
+                                  judge_enabled=True, iv_enabled=True, review_enabled=True,
+                                  acs=[])
+
+    assert record["review"] is True
+    node_rec = record["nodes"]
+    assert node_rec["claimed_basis"] == "review"
+    assert node_rec["verification_basis"] == "review"
+    assert node_rec["review_verdicts"][0]["approved"] is True
+    assert node_rec["coverage"][0]["files"] == ("pkg/a.py",)
+    assert node_rec["judge_verdicts"][0]["implementation_wrong"] is True
+    assert node_rec["needs_user"] is False

@@ -715,11 +715,24 @@ class ProposeGrowth(Envelope):
 # ---------------------------------------------------------------------------
 
 
+class DeclaredTest(BaseModel):
+    """One DECLARED test case (ENVELOPE_SCHEMAS §23; ticket 19 D): the test FILE and the
+    test FUNCTION NAMES a planner expects for one acceptance criterion. The harness
+    verifies mechanically from the report that the file exists and every name is a
+    collected, passing node id; a missing file/name is a distinct repairable failure."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ac_id: str = req(pattern=r"^AC-[0-9]{1,3}$")
+    file: str = req(min_length=1)
+    names: list[str] = req(min_length=1, max_length=8)
+
+
 class ChildPlan(BaseModel):
     """One child of a decomposition (ENVELOPE_SCHEMAS §23): goal + boundary + ACs +
-    a budget weight. ``what``/``why``/``kind``/``est_calls`` are REQUIRED;
-    ``files``/``acs``/``interfaces`` default to empty (a leaf child's AC map is
-    enforced by :func:`harness.node.validate_decomposition`, not here)."""
+    the DECLARED test cases + a budget weight. ``what``/``why``/``kind``/``est_calls`` are
+    REQUIRED; ``files``/``acs``/``interfaces``/``test_cases`` default to empty (a leaf
+    child's AC map is enforced by :func:`harness.node.validate_decomposition`, not here)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -729,6 +742,8 @@ class ChildPlan(BaseModel):
     files: list[str] = Field(default_factory=list)   # leaf write boundary; [] for pure internal
     acs: list[DraftAC] = Field(default_factory=list)  # leaf: mandatory; internal: integration view
     interfaces: list[Interface] = Field(default_factory=list)
+    #: Ticket 19 D: per-criterion expected test cases (file + function names).
+    test_cases: list[DeclaredTest] = Field(default_factory=list)
     est_calls: int = Field(ge=1, le=8)            # budget-allocation weight
 
 
@@ -738,6 +753,11 @@ class PlanNode(Envelope):
     ``children == []`` declares this node a LEAF (its own ``acs`` are then mandatory and
     must be non-empty); a non-empty list declares it INTERNAL, with ``acs`` as the
     integration view over descendant checks.
+
+    Ticket 19 D/F: a node declares its expected test cases (``test_cases``) and the
+    guidance tells the planner to split by REQUIREMENT/acceptance criterion, not by file
+    (two requirements may legitimately change the same file; the tree serializes
+    overlapping writers).
     """
 
     goal: str = req(min_length=1)                 # THIS node's goal
@@ -746,6 +766,7 @@ class PlanNode(Envelope):
     files: list[str] = req(max_length=10)         # THIS node's write boundary
     acs: list[DraftAC] = req(max_length=10)       # THIS node's AC map (leaf mandatory)
     interfaces: list[Interface] = req(max_length=8)
+    test_cases: list[DeclaredTest] = Field(default_factory=list, max_length=10)  # 19 D
     children: list[ChildPlan] = req(max_length=15)  # [] ⇒ this node is a LEAF
 
 
@@ -764,9 +785,25 @@ class FixPlan(Envelope):
     steps: list[str] = req(min_length=2, max_length=8)
 
 
+class LeafReview(Envelope):
+    """Review-based verification of the final diff (ticket 19 B, ENVELOPE_SCHEMAS §26).
+
+    Used ONLY when no test can carry verification (the own test could not be made red, a
+    judge-attributed test could not be repaired into a discriminator, or the test path is
+    unwritable). A fresh-context reviewer sees the goal, the acceptance criteria and the
+    final diff; ``verdict`` is pass/fail and ``evidence`` MUST name the concrete files/
+    lines and the requirement it checked (the harness's deterministic filter rejects a
+    pass without it).
+    """
+
+    verdict: Literal["pass", "fail"] = req()
+    evidence: str = req(min_length=1)
+
+
 SCHEMAS: dict[str, type[Envelope]] = {
     "task_card": TaskCard,  # §1
     "fix_plan": FixPlan,  # §2.2 guided implement (ticket 05 A/B)
+    "leaf_review": LeafReview,  # §26 review-based verification (ticket 19 B)
     "find_ambiguities": FindAmbiguities,  # §2
     "revise_task_card": ReviseTaskCard,  # §3
     "expand": Expand,  # §4

@@ -43,6 +43,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help="run the independent attribution judge (default ON)")
     ap.add_argument("--iv", action=argparse.BooleanOptionalAction, default=True,
                     help="run the independent test (default ON)")
+    # Ticket 19 B: review-based verification when no test can carry verification.
+    ap.add_argument("--review", action=argparse.BooleanOptionalAction, default=True,
+                    help="run the mandatory review verification (default ON)")
     return ap
 
 
@@ -69,7 +72,8 @@ def main() -> int:
             t0 = time.monotonic()
             try:
                 record = run_once(task, out_dir, args.server, args.calls, args.deadline_hours,
-                                  use_judge=args.judge, use_iv=args.iv)
+                                  use_judge=args.judge, use_iv=args.iv,
+                                  use_review=args.review)
             except Exception as exc:                       # keep the sweep recoverable
                 record = {"task": task.name, "run_idx": idx, "claimed": False, "actual": False,
                           "quadrant": "honest-failure", "signal": "crashed",

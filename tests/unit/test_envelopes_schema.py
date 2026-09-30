@@ -39,7 +39,7 @@ def test_envelope_rejects_missing_self_summary():
 def test_unable_alternative_is_in_every_envelope_schema():
     """Iterate the per-leaf-type schema library; assert each has a discriminant
     accepting `unable: reason` — and that the unable alternative actually parses."""
-    assert len(SCHEMAS) == 24
+    assert len(SCHEMAS) == 25
     for step_type, model in SCHEMAS.items():
         assert issubclass(model, Envelope), step_type
         values = get_args(model.model_fields["status"].annotation)
@@ -92,12 +92,15 @@ VALID_PAYLOADS = {
                  "check_kind": "test", "check_hint": "tests/test_auth.py::test_expiry"}],
         "interfaces": [{"name": "expire()", "signature": "expire() -> None",
                          "contract": "expires the session"}],
+        "test_cases": [{"ac_id": "AC-1", "file": "tests/test_auth.py",
+                         "names": ["test_ac1_expiry"]}],
         "children": [{"what": "fix the expiry computation", "why": "it uses seconds",
                       "kind": "leaf", "files": ["middleware/auth.py"],
                       "acs": [{"ac_id": "AC-1", "statement": "sessions expire per ttl",
                                "check_kind": "test", "check_hint": "tests/test_auth.py::test_expiry"}],
                       "interfaces": [], "est_calls": 3}],
     },
+    "leaf_review": {"verdict": "pass", "evidence": "middleware/auth.py:42 implements AC-1"},
 }
 
 

@@ -60,6 +60,8 @@ from harness.leaf import (  # noqa: E402
     JudgeVerdict,
     LeafOutcome,
     LeafSpec,
+    ReviewRequest,
+    ReviewVerdict,
     run_leaf,
 )
 from harness.model import LlamaServerRunner  # noqa: E402
@@ -73,14 +75,66 @@ from harness.staging import (  # noqa: E402
 )
 
 __all__ = ["build_parser", "build_record", "build_spec", "extract_acs", "load_task",
-           "main", "model_independent_test", "model_judge", "quadrant", "run_once"]
+           "main", "model_independent_test", "model_judge", "model_review", "quadrant",
+           "run_once"]
+
+def _review_question(request: ReviewRequest) -> str:
+    """The fresh-context REVIEW prompt (ticket 19 B). With ``fresh=True`` no artifacts are
+    injected, so the evidence rides the question verbatim. The reviewer sees the goal, the
+    NUMBERED ACs, and the ORIGINAL/FINAL source of the changed files — never a grader path
+    and never the run's own test."""
+    acs = _numbered_acs(request.acs)
+    original = "\n".join(f"--- {rel} (ORIGINAL) ---\n{text}"
+                          for rel, text in sorted(request.original.items())) or "(no source changed)"
+    final = "\n".join(f"--- {rel} (FINAL) ---\n{text}"
+                       for rel, text in sorted(request.final.items())) or "(no source changed)"
+    return (
+        "You are an INDEPENDENT reviewer. No test can carry verification for this node, so "
+        "YOU decide whether the final diff implements the acceptance criteria. You did not "
+        "write the code.\n"
+        f"GOAL:\n{request.goal}\n\n"
+        f"ACCEPTANCE CRITERIA (numbered):\n{acs}\n\n"
+        f"ORIGINAL SOURCE (before):\n{original}\n\n"
+        f"FINAL SOURCE (after):\n{final}\n\n"
+        f"WHY REVIEW IS REQUIRED: {request.reason or 'no test could carry verification'}\n\n"
+        "Return verdict=pass only if EVERY acceptance criterion is implemented by the "
+        "final diff. In 'evidence' name the CONCRETE file and line (e.g. \"api/x.py:42\") "
+        "and the requirement it satisfies; a bare approval is rejected."
+    )
+
+
+async def model_review(model: Any, request: ReviewRequest) -> ReviewVerdict:
+    """The driver's DEFAULT reviewer (ticket 19 B): a FRESH-CONTEXT model call that reads
+    the goal, the ACs, and the final diff and returns pass/fail WITH evidence. It reuses
+    the §26 ``leaf_review`` envelope; the deterministic filter in
+    :func:`harness.leaf.apply_review_filter` is applied by the leaf, not here."""
+    env = await llm_step(model, "leaf_review", artifacts={},
+                         question=_review_question(request), fresh=True)
+    raw = json.dumps({
+        "status": env.status,
+        "comment": getattr(env, "comment", ""),
+        "verdict": (getattr(env, "verdict", "") if isinstance(getattr(env, "verdict", ""), str) else ""),
+        "evidence": (getattr(env, "evidence", "") if isinstance(getattr(env, "evidence", ""), str) else ""),
+        "unable_reason": env.unable_reason or "",
+    }, ensure_ascii=False)
+    if env.status != "ok":
+        return ReviewVerdict(approved=False, evidence="",
+                             detail=env.unable_reason or "review unavailable", raw=raw)
+    evidence = getattr(env, "evidence", "") or env.comment
+    return ReviewVerdict(approved=getattr(env, "verdict", "") == "pass",
+                         evidence=evidence, detail=evidence, raw=raw)
+
 
 DEFAULT_SERVER = "http://127.0.0.1:8833"
 
-#: debug_judge ``blame`` → the judge's attribution domain. ``both`` is coerced to
-#: implementation (conservative: an ambiguous blame is never credited to the test).
-_JUDGE_ATTRIBUTION = {"code": "implementation", "test": "tests", "spec": "spec",
-                     "both": "implementation"}
+#: debug_judge ``blame`` → the judge's MULTI-LABEL verdict (ticket 19 A). ``both`` maps to
+#: implementation+test (an ambiguous verdict is still never credited to the test alone).
+_JUDGE_LABELS = {
+    "code": {"implementation_wrong": True},
+    "test": {"test_wrong": True},
+    "spec": {"spec_wrong": True},
+    "both": {"implementation_wrong": True, "test_wrong": True},
+}
 
 #: ``extract_acs`` splitting rules (deterministic, no model involved). A fenced code
 #: block is example output, not a requirement, so it is skipped; a sentence boundary is
@@ -192,7 +246,8 @@ def build_spec(task: dict) -> LeafSpec:
 def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: list[str],
                  produced: dict[str, str], score: ExternalScore, quad: str,
                  run_wall_s: float, judge_enabled: bool = False,
-                 iv_enabled: bool = False, acs: list[str] | None = None) -> dict:
+                 iv_enabled: bool = False, review_enabled: bool = False,
+                 acs: list[str] | None = None) -> dict:
     """Assemble the persisted run record. One place, so the JSON that lands in
     ``run.json`` and the shape the tests pin cannot drift apart — including the
     wasted escalations that used to live only in the process-global ledger, every
@@ -209,8 +264,17 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         "withheld_grader_paths": withheld,
         "judge": judge_enabled,
         "iv": iv_enabled,
+        "review": review_enabled,
         "claimed": outcome.claimed,
         "claimed_basis": outcome.claimed_basis,
+        "verification_basis": outcome.verification_basis,
+        "review_verdicts": [dataclasses.asdict(v) for v in outcome.review_verdicts],
+        # Ticket 19 E/D: per-requirement artifact coverage and the declared test-case
+        # contract failures that blocked a claim.
+        "coverage": [dataclasses.asdict(c) for c in outcome.coverage],
+        "coverage_missing": outcome.coverage_missing,
+        "test_case_problems": outcome.test_case_problems,
+        "needs_user": outcome.needs_user,
         "actual": score.passed,
         "quadrant": quad,
         "signal": outcome.signal,
@@ -321,11 +385,13 @@ async def model_judge(model: Any, request: JudgeRequest) -> JudgeVerdict:
         "unable_reason": env.unable_reason or "",
     }, ensure_ascii=False)
     if env.status == "unable":
-        return JudgeVerdict(attribution="environment",
-                            defect=(env.unable_reason or "").strip(), raw=raw)
-    attribution = _JUDGE_ATTRIBUTION.get(getattr(env, "blame", ""), "implementation")
-    return JudgeVerdict(attribution=attribution,
-                        defect=getattr(env, "problem", "") or "", raw=raw)
+        reason = (env.unable_reason or "").strip()
+        return JudgeVerdict(environment_broken=True, reason=reason,
+                            evidence=reason, defect=reason, raw=raw)
+    problem = getattr(env, "problem", "") or ""
+    return JudgeVerdict(
+        **_JUDGE_LABELS.get(getattr(env, "blame", ""), {"implementation_wrong": True}),
+        reason=problem, evidence=problem, defect=problem, raw=raw)
 
 
 def _numbered_acs(acs: list[str]) -> str:
@@ -420,7 +486,7 @@ async def model_independent_test(model: Any, request: IndependentTestRequest
 
 def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
              deadline_hours: float, use_judge: bool = True,
-             use_iv: bool = True) -> dict:
+             use_iv: bool = True, use_review: bool = True) -> dict:
     task = load_task(task_dir)
     spec = build_spec(task)
 
@@ -441,8 +507,12 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     # the final source) that must approve before any claim. --no-iv is the own-test-only
     # basis (claimed_basis="own-test").
     iv = (lambda request: model_independent_test(model, request)) if use_iv else None
+    # Default ON: the mandatory REVIEW-BASED verification seam (ticket 19 B), used only
+    # when no test can carry verification.
+    review = (lambda request: model_review(model, request)) if use_review else None
     started = time.monotonic()
-    outcome = asyncio.run(run_leaf(model, spec, workdir, budget, judge=judge, iv=iv))
+    outcome = asyncio.run(run_leaf(model, spec, workdir, budget, judge=judge, iv=iv,
+                                   review=review))
     wall = round(time.monotonic() - started, 1)
 
     produced = produced_files(workdir)
@@ -452,7 +522,7 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     record = build_record(
         task["task_id"], spec.goal, outcome, withheld=withheld, produced=produced,
         score=score, quad=quad, run_wall_s=wall, judge_enabled=use_judge,
-        iv_enabled=use_iv, acs=spec.acs)
+        iv_enabled=use_iv, review_enabled=use_review, acs=spec.acs)
 
     print(f"== v2 leaf: {task['task_id']} ==")
     print(f"[judge]  {'on' if use_judge else 'off (conservative baseline)'} "
@@ -485,6 +555,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--iv", action=argparse.BooleanOptionalAction, default=True,
                         help="run the independent test (red on original, green on final; "
                              "default ON); --no-iv for the own-test-only claim basis")
+    parser.add_argument("--review", action=argparse.BooleanOptionalAction, default=True,
+                        help="run the mandatory REVIEW-based verification when no test can "
+                             "carry verification (default ON); --no-review stops honestly")
     return parser
 
 
@@ -497,7 +570,7 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     record = run_once(task_dir, out_dir, args.server, args.calls, args.deadline_hours,
-                      use_judge=args.judge, use_iv=args.iv)
+                      use_judge=args.judge, use_iv=args.iv, use_review=args.review)
     record_path = out_dir / "run.json"
     record_path.write_text(json.dumps(record, indent=1, ensure_ascii=False))
     print(f"[persist] {record_path}")

@@ -35,6 +35,7 @@ from typing import Any, Literal
 
 from harness.budget import Budget, group_weights
 from harness.envelopes import ChildPlan, PlanNode, file_tokens
+from harness.leaf import DeclaredTestCase
 from harness.runner import llm_step
 from harness.tree import Finding, ValidationFindings
 
@@ -136,6 +137,9 @@ class NodeSpec:
     #: integration leaf sets this to the parent's declared files so it can author a test
     #: against the code under integration while its write boundary stays its own test.
     view_files: tuple[str, ...] = ()
+    #: Ticket 19 D: the DECLARED per-criterion test cases (file + function names) the
+    #: node's leaf must expose and pass. Empty when the plan declared none.
+    test_cases: tuple[DeclaredTestCase, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -168,6 +172,8 @@ def _child_spec_from(child: ChildPlan) -> NodeSpec:
         interfaces=tuple(i.name for i in child.interfaces),
         kind=child.kind,
         est_calls=child.est_calls,
+        test_cases=tuple(DeclaredTestCase(t.ac_id, t.file, tuple(t.names))
+                         for t in child.test_cases),
     )
 
 
@@ -182,6 +188,8 @@ def decomposition_from_envelope(env: PlanNode) -> Decomposition:
         kind="internal" if children else "leaf",
         behavior=env.behavior,
         implementation_notes=env.implementation_notes,
+        test_cases=tuple(DeclaredTestCase(t.ac_id, t.file, tuple(t.names))
+                         for t in env.test_cases),
     )
     return Decomposition(spec=spec, children=children,
                          signature=decomposition_signature(children))
@@ -214,10 +222,11 @@ def validate_decomposition(
 ) -> ValidationFindings:
     """The deterministic plan gate — structured findings, never an exception.
 
-    Steps (design §1): canonicalize; child ⊆ parent; sibling disjointness (pairwise);
-    leaf ⇒ no children + non-empty ACs; internal ⇒ children; ``est_calls >= 1``;
-    normalized-``what`` dedupe; depth and child-count caps; free-text file-token
-    grounding. A non-empty result routes the caller to re-ask once, then force a leaf.
+    Steps (design §1, relaxed by ticket 19 F): canonicalize; child ⊆ parent; leaf ⇒ no
+    children + non-empty ACs; internal ⇒ children; ``est_calls >= 1``; normalized-``what``
+    dedupe; depth and child-count caps; free-text file-token grounding. Sibling file sets
+    may OVERLAP (the tree serializes overlapping writers); A non-empty result routes the
+    caller to re-ask once, then force a leaf.
     """
     findings: list[Finding] = []
 
@@ -245,14 +254,12 @@ def validate_decomposition(
     if node.est_calls < 1:
         add("bad-est-calls", f"node est_calls={node.est_calls} must be >= 1")
 
-    child_sets: list[set[str]] = []
     for i, child in enumerate(d.children):
         cset = _canon_set(child.files, add, f"child {i}")
         outside = sorted(cset - parent_canon)
         if outside:
             add("child-outside-boundary",
                 f"child {i} files outside the parent boundary: {outside}")
-        child_sets.append(cset)
         if child.kind == "leaf" and not child.acs:
             add("leaf-child-empty-acs", f"child {i} is a leaf with an empty AC map")
         if child.est_calls < 1:
@@ -262,11 +269,11 @@ def validate_decomposition(
                 add("ungrounded-reference",
                     f"child {i} names {tok!r} not in the injected candidate scope")
 
-    for i in range(len(child_sets)):
-        for j in range(i + 1, len(child_sets)):
-            overlap = sorted(child_sets[i] & child_sets[j])
-            if overlap:
-                add("sibling-overlap", f"{', '.join(overlap)}: children {i},{j}")
+    # Ticket 19 F: overlapping declared file sets between siblings are ALLOWED — two
+    # requirements may legitimately change the same file. The tree SERIALIZES overlapping
+    # writers (:func:`harness.tree.ready_leaves` overlap grouping; ``run_tree`` runs
+    # children sequentially) and keeps the per-node write-boundary audit, so a shared file
+    # never has two simultaneous writers and no node can change a path it did not declare.
 
     seen: dict[str, int] = {}
     for i, child in enumerate(d.children):
@@ -372,11 +379,19 @@ def _plan_node_artifacts(goal: str, boundary: set[str], candidate_files: set[str
 def _plan_node_question(evidence: str, depth: int) -> str:
     lines = [
         ("Decompose and specify THIS node in one call. Return the node's own goal, "
-         "behavior, implementation_notes, files, acs and interfaces, plus its children. "
-         "Return children=[] to declare this node a LEAF (then its acs MUST be non-empty)."),
+         "behavior, implementation_notes, files, acs, interfaces and test_cases, plus "
+         "its children. Return children=[] to declare this node a LEAF (then its acs "
+         "MUST be non-empty)."),
         f"DEPTH: {depth} (a child must be at depth {depth + 1}).",
-        ("A child's files MUST be a subset of this node's write boundary, and two "
-         "siblings MUST NOT declare a same file."),
+        ("Split by REQUIREMENT / acceptance criterion, NOT by file: give each child "
+         "one requirement (or one coherent requirement group). Two children MAY declare "
+         "the same file — the harness serializes overlapping writers — but a child must "
+         "not declare a path outside this node's write boundary, and every node must "
+         "stay within its own declared boundary."),
+        ("For each acceptance criterion DECLARE its expected test cases in test_cases: "
+         "the ac_id, the test FILE, and the test FUNCTION NAMES that must exist and "
+         "pass. The harness verifies these mechanically from the report, so name them "
+         "concretely (e.g. ac_id AC-1, file tests/test_x.py, names [test_ac1_goal])."),
     ]
     if evidence:
         lines.append("PRIOR ATTEMPT WAS REJECTED — use this as evidence and differ:\n"
