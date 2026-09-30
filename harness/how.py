@@ -241,11 +241,13 @@ class HowList:
 def how_list_from_envelope(env) -> HowList:
     """Translate a validated :class:`harness.envelopes.HowList` into a :class:`HowList`.
 
-    Ranked in rank order; the prior is the deterministic :func:`prior_for_rank`, never a
-    model field.
+    The LIST ORDER is the priority: the harness assigns ``HOW-<i>`` and rank ``i`` (the
+    prior follows from the deterministic table). The model never supplies an id or a
+    rank.
     """
-    entries = sorted(env.hows, key=lambda h: h.rank)
-    return HowList(tuple(make_how(h.how_id, h.text, h.rank, h.reason) for h in entries))
+    return HowList(tuple(
+        make_how(f"HOW-{i}", entry.text, i, entry.reason)
+        for i, entry in enumerate(env.hows, start=1)))
 
 
 # ---------------------------------------------------------------------------

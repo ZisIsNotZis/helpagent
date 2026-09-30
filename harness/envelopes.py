@@ -797,45 +797,59 @@ class HowEntry(BaseModel):
     """One ranked HOW for a node (ENVELOPE_SCHEMAS §28).
 
     ``text`` is a short paragraph of HOW this would be done, ``reason`` why it is worth
-    a look; ``rank`` is the model's own priority order (1 = try first). The framework
-    PRIOR is derived from ``rank`` by the geometric decay table
-    (:func:`harness.how.prior_for_rank`) and is deliberately NOT a model field, so the
-    prior stays a deterministic scheduler hint and never becomes claimed evidence.
+    a look. The model does NOT name or rank them: a live measurement showed it writing
+    ``approach_1`` where the schema demanded ``HOW-1``, which silently discarded every
+    How. The HARNESS now assigns the id (``HOW-<i>``) and the rank from the LIST ORDER,
+    and derives the prior from that rank - so identity, priority and the scheduler hint
+    are all framework-owned, never model output.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    how_id: str = req(pattern=r"^HOW-[0-9]{1,3}$")
     text: str = req(min_length=1)
-    rank: int = req(ge=1, le=15)
     reason: str = req(min_length=1)
+
+    @model_validator(mode="after")
+    def _all_required_fields_present(self) -> Self:
+        """Nested models do not inherit Envelope's REQUIRED-sentinel guard.
+
+        Without this, a model that omits how_id/text leaves the REQUIRED sentinel in
+        place, validation passes, and the runner silently discards every How (the How
+        axis then never runs at all - found by a live measurement, ticket 20 step 2b-ii).
+        Raising here turns it into a schema violation, so the kernel's bounded repair
+        re-asks the model instead of losing the whole planning step.
+        """
+        missing = sorted(set(type(self).model_fields) - self.model_fields_set)
+        if missing:
+            raise ValueError(f"how entry requires fields: {missing} (ENVELOPE_SCHEMAS §28)")
+        return self
 
 
 class HowList(Envelope):
     """The FIRST planning step of a node: N ranked HOWs (ENVELOPE_SCHEMAS §28;
     ticket 20 step 2a).
 
-    The Hows are the DIVERSITY AXIS: one call lists the candidate approaches, then each
-    How the budget lets the node explore gets its own per-How decomposition via
-    :class:`PlanNode` bound to that :attr:`HowEntry.how_id`. Ranks are unique and
-    contiguous from 1 (the deterministic prior table is keyed by rank).
+    The Hows are the DIVERSITY AXIS: one call lists the candidate approaches IN PRIORITY
+    ORDER, then each How the budget lets the node explore gets its own per-How
+    decomposition bound to its harness-assigned id. Order is the rank, and the rank
+    keys the deterministic prior table.
     """
 
     hows: list[HowEntry] = req(min_length=1, max_length=8)
 
     @model_validator(mode="after")
-    def _ranks_unique_contiguous(self) -> Self:
+    def _entries_distinct(self) -> Self:
+        """Only what the MODEL is responsible for: distinct approaches in priority order.
+
+        Ids and ranks are assigned by the harness from the list order, so there is no
+        model-supplied identity to validate here (and no way for a bad id to lose the
+        whole planning step).
+        """
         if self._unset(self.hows):
             return self  # unable branch: payload absent
-        ranks = [h.rank for h in self.hows]
-        if len(set(ranks)) != len(ranks):
-            raise ValueError("How ranks must be unique (ENVELOPE_SCHEMAS §28)")
-        if sorted(ranks) != list(range(1, len(ranks) + 1)):
-            raise ValueError(
-                "How ranks must be contiguous starting at 1 (ENVELOPE_SCHEMAS §28)")
-        ids = [h.how_id for h in self.hows]
-        if len(set(ids)) != len(ids):
-            raise ValueError("How ids must be unique (ENVELOPE_SCHEMAS §28)")
+        texts = [h.text.strip() for h in self.hows]
+        if len(set(texts)) != len(texts):
+            raise ValueError("How texts must be distinct (ENVELOPE_SCHEMAS §28)")
         return self
 
 

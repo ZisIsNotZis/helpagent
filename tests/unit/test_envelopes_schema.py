@@ -104,10 +104,8 @@ VALID_PAYLOADS = {
                     "evidence": "middleware/auth.py:42 implements AC-1"},
     "verify": {"reason": "no test can pin this timing-dependent warning and no reviewer was available"},
     "how_list": {"hows": [
-        {"how_id": "HOW-1", "text": "clamp the ttl at read time", "rank": 1,
-         "reason": "smallest diff"},
-        {"how_id": "HOW-2", "text": "normalize the ttl at write time", "rank": 2,
-         "reason": "fixes the root"},
+        {"text": "clamp the ttl at read time", "reason": "smallest diff"},
+        {"text": "normalize the ttl at write time", "reason": "fixes the root"},
     ]},
     "manager_decision": {"decision": "author-a-new-how",
                          "reason": "the first How's decomposition conflicts with AC-1"},
@@ -349,3 +347,51 @@ def test_fix_plan_schema_round_trip_and_bounds():
     un = SCHEMAS["fix_plan"].model_validate(
         {"status": "unable", "comment": "c", "unable_reason": "unclear contract"})
     assert un.status == "unable"
+
+
+# ---------------------------------------------------------------------------
+# how_list contract pins (ticket 20 step 2b-ii): identity/rank are harness-owned
+# ---------------------------------------------------------------------------
+
+
+def test_how_list_rejects_harness_owned_identity_and_rank():
+    """Ticket 20 step 2b-ii: the envelope is ``HowEntry{text, reason}`` only — identity
+    and rank come from the LIST ORDER, so a model that still emits ``how_id``/``rank`` is
+    rejected (extra fields forbidden). A live measurement showed the model writing
+    ``approach_1`` where ``HOW-1`` was demanded, which silently discarded every How."""
+    from harness import HowList
+    base = {"status": "ok", "comment": "one approach",
+            "hows": [{"text": "clamp the ttl at read time", "reason": "smallest diff"}]}
+    HowList.model_validate(base)                       # the only valid shape
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        HowList.model_validate({**base, "hows": [
+            {"text": "clamp the ttl at read time", "reason": "smallest diff",
+             "how_id": "HOW-1"}]})
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        HowList.model_validate({**base, "hows": [
+            {"text": "clamp the ttl at read time", "reason": "smallest diff", "rank": 1}]})
+
+
+def test_how_entry_missing_text_or_reason_is_a_schema_violation():
+    """The REQUIRED-sentinel guard (ticket 20 step 2b-ii): a nested ``HowEntry`` that
+    omits ``text`` or ``reason`` must RAISE, not pass with the sentinel still in place.
+    Nested models do not inherit ``Envelope``'s guard, so without the explicit validator
+    the runner silently discarded every How and the How axis never ran."""
+    from harness import HowList
+    with pytest.raises(ValidationError, match="requires fields"):
+        HowList.model_validate({"status": "ok", "comment": "c",
+                                "hows": [{"text": "clamp the ttl"}]})
+    with pytest.raises(ValidationError, match="requires fields"):
+        HowList.model_validate({"status": "ok", "comment": "c",
+                                "hows": [{"reason": "smallest diff"}]})
+
+
+def test_how_list_rejects_duplicate_texts():
+    """Only what the model owns: distinct approaches in priority order. Two Hows with the
+    same text are the same approach twice and are rejected."""
+    from harness import HowList
+    with pytest.raises(ValidationError, match="distinct"):
+        HowList.model_validate({
+            "status": "ok", "comment": "duplicate approaches",
+            "hows": [{"text": "clamp the ttl at read time", "reason": "r1"},
+                     {"text": "clamp the ttl at read time", "reason": "r2"}]})

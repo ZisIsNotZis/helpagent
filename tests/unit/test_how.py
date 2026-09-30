@@ -91,22 +91,23 @@ def test_untried_returns_candidates_in_rank_order():
     assert [h.id for h in hows.untried()] == ["HOW-1", "HOW-3"]
 
 
-def test_how_list_envelope_ranks_contiguous_and_prior_from_rank():
+def test_how_list_from_envelope_assigns_ids_ranks_and_priors_from_order():
+    """Ticket 20 step 2b-ii: identity, rank and prior are HARNESS-OWNED. The model
+    supplies only ``text``/``reason``; the LIST ORDER is the rank, so
+    :func:`how_list_from_envelope` assigns ``HOW-1``..``HOW-n``, ranks ``1``..``n`` and
+    the deterministic priors — regardless of what the model wrote in the text."""
     env = HowList.model_validate({
         "status": "ok", "comment": "three approaches",
         "hows": [
-            {"how_id": "HOW-1", "text": "a", "rank": 1, "reason": "r1"},
-            {"how_id": "HOW-2", "text": "b", "rank": 3, "reason": "r2"},
-            {"how_id": "HOW-3", "text": "c", "rank": 2, "reason": "r3"},
+            {"text": "HOW-2: clamp the ttl at read time", "reason": "r1"},
+            {"text": "approach_3 - normalize the ttl at write time", "reason": "r2"},
+            {"text": "a third approach that names no rank at all", "reason": "r3"},
         ]})
-    with pytest.raises(Exception):
-        HowList.model_validate({
-            "status": "ok", "comment": "gap",
-            "hows": [{"how_id": "HOW-1", "text": "a", "rank": 1, "reason": "r"},
-                     {"how_id": "HOW-2", "text": "b", "rank": 3, "reason": "r"}]})
     data = how_list_from_envelope(env)
-    assert [h.id for h in data] == ["HOW-1", "HOW-3", "HOW-2"]
-    assert [h.prior for h in data] == [0.5, 0.25, 0.125]
+    assert [h.id for h in data] == ["HOW-1", "HOW-2", "HOW-3"]
+    assert [h.rank for h in data] == [1, 2, 3]
+    assert [h.prior for h in data] == [prior_for_rank(1), prior_for_rank(2),
+                                       prior_for_rank(3)]
 
 
 def test_plan_node_binds_result_to_a_how_id():

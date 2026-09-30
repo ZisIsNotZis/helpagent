@@ -1056,12 +1056,14 @@ async def _plan_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
         "depth": str(ctx.depths[node.id]),
     }
     question = (
-        "List the candidate APPROACHES (Hows) for THIS node in one call: one paragraph "
-        "of how it would be done, a unique rank (1 = try first), a reason why it is "
-        "worth a look, and a unique HOW-<n> id. Diversity comes from the How, not from "
-        "resampling one prompt. Each How the budget lets the node explore gets its own "
-        "decomposition and its own isolated candidate directory; a failed How is "
-        "abandoned and a NEW one appended, never edited.")
+        "List 2-3 genuinely DIFFERENT approaches for THIS node, BEST FIRST. For each one "
+        "give 'text' (a short paragraph of HOW it would be done) and 'reason' (why it is "
+        "worth a look). Do NOT invent ids or ranks: the order you list them in IS the "
+        "rank (ids and the scheduler prior are assigned by the harness). Diversity comes "
+        "from the approach, not from resampling one prompt. Each approach the budget "
+        "allows gets its own decomposition and its own isolated candidate directory; a "
+        "failed approach is abandoned and a NEW one appended, never edited. Reply with "
+        "status ok and a non-empty 'hows' list.")
     if evidence:
         question += "\nPRIOR ATTEMPT REJECTED — offer genuinely different Hows:\n" + evidence
     try:

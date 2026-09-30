@@ -89,9 +89,8 @@ def plan_env(children, *, files, goal: str = "root goal", acs=(), behavior: str 
             "interfaces": [], "children": list(children)}
 
 
-def how(how_id: str = "HOW-1", text: str = "try the direct fix", rank: int = 1,
-        reason: str = "smallest diff") -> dict:
-    return {"how_id": how_id, "text": text, "rank": rank, "reason": reason}
+def how(text: str = "try the direct fix", reason: str = "smallest diff") -> dict:
+    return {"text": text, "reason": reason}
 
 
 def how_env(hows) -> dict:
@@ -383,8 +382,8 @@ def test_resplit_appends_a_how_and_switches_candidate(tmp_path, monkeypatch):
                     kind="internal")
     model = FakeModelRunner({
         "how_list": [
-            how_env([how("HOW-1", "one-shot whole-set edit", 1)]),
-            how_env([how("HOW-2", "split into two smaller edits", 1)]),
+            how_env([how("one-shot whole-set edit")]),
+            how_env([how("split into two smaller edits")]),
         ],
         "plan_node": [
             plan_env([child("fix the whole working set", ["pkg/a.py", "pkg/b.py"])],
@@ -403,11 +402,11 @@ def test_resplit_appends_a_how_and_switches_candidate(tmp_path, monkeypatch):
     # the resplit authored a NEW How (append-only) and switched candidate
     assert len(model.calls("how_list")) == 2
     child_outcome = out.root.children[0]
-    assert child_outcome.winner == "HOW-2"
-    assert [h["how_id"] for h in child_outcome.hows] == ["HOW-2"]
+    assert child_outcome.winner == "HOW-1"
+    assert [h["how_id"] for h in child_outcome.hows] == ["HOW-1"]
     assert "how_list" in ledger_kinds()
     # the candidate lives in its own directory under the run output area
-    cand_dir = run_outdir / "candidates" / child_outcome.node_id / "HOW-2"
+    cand_dir = run_outdir / "candidates" / child_outcome.node_id / "HOW-1"
     assert cand_dir.is_dir()
     # and NO destructive reset/clean was ever invoked
     assert "subtree_reset" not in ledger_kinds()
@@ -434,8 +433,8 @@ def test_spec_bubble_appends_a_new_how_at_the_owning_node(tmp_path, monkeypatch)
                     kind="internal")
     model = FakeModelRunner({
         "how_list": [
-            how_env([how("HOW-1", "the approach whose spec bubbled", 1)]),
-            how_env([how("HOW-2", "a corrected approach", 1)]),
+            how_env([how("the approach whose spec bubbled")]),
+            how_env([how("a corrected approach")]),
         ],
         "plan_node": [
             plan_env([child("fix one", ["pkg/a.py"])], files=("pkg/a.py", "pkg/b.py")),
@@ -487,7 +486,7 @@ def test_identical_resplit_is_refused_as_wasted(tmp_path, monkeypatch):
     same = plan_env([child("fix one", ["pkg/a.py"]), child("fix two", ["pkg/b.py"])],
                     files=("pkg/a.py", "pkg/b.py"))
     model = FakeModelRunner({
-        "how_list": [how_env([how("HOW-1", "a", 1), how("HOW-2", "b", 2)])],
+        "how_list": [how_env([how("a"), how("b")])],
         "plan_node": [same, same],
     })
     out = run_tree_sync(model, root, make_tree(), workdir,
@@ -524,7 +523,7 @@ def test_no_git_reset_or_clean_on_a_candidate_path(tmp_path, monkeypatch):
     root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
                     kind="internal")
     model = FakeModelRunner({
-        "how_list": [how_env([how("HOW-1", "direct", 1), how("HOW-2", "indirect", 2)])],
+        "how_list": [how_env([how("direct"), how("indirect")])],
         "plan_node": [
             plan_env([child("fix one", ["pkg/a.py"])], files=("pkg/a.py", "pkg/b.py")),
             plan_env([child("fix two", ["pkg/b.py"])], files=("pkg/a.py", "pkg/b.py")),
@@ -1775,11 +1774,12 @@ def test_covenant_dilution_share_flags_a_weakened_run():
 # ---------------------------------------------------------------------------
 
 
-def test_how_id_collision_from_a_single_non_sequential_id_does_not_crash(tmp_path,
+def test_a_fresh_model_how_colliding_with_the_assigned_id_does_not_crash(tmp_path,
                                                                         monkeypatch):
-    """D1: the model named a single How ``HOW-2``. The harness-authored retry must get a
-    genuinely UNUSED id (scan the existing ids), so ``HowList.append`` cannot raise and
-    the runner survives it (a model naming cannot crash the run)."""
+    """D1 (ticket 20 step 2b-ii): the model no longer names Hows — the harness assigns
+    ``HOW-<i>`` from the list order — so a fresh model How after a failure repeats
+    ``HOW-1``. The harness-authored retry must still get a genuinely UNUSED id (scan the
+    existing ids), so ``HowList.append`` cannot raise and the runner survives it."""
     workdir = tmp_path / "work"
     stage(workdir)
     fake = FakeLeaf([
@@ -1792,9 +1792,9 @@ def test_how_id_collision_from_a_single_non_sequential_id_does_not_crash(tmp_pat
                     kind="internal")
     model = FakeModelRunner({
         "how_list": [
-            how_env([how("HOW-2", "the only approach", 1)]),
+            how_env([how("the only approach")]),
             # the fresh model How reuses the colliding id -> the harness must own a new one
-            how_env([how("HOW-2", "the model repeats the colliding id", 1)]),
+            how_env([how("a second approach offered by the model")]),
         ],
         "plan_node": [
             plan_env([child("fix one", ["pkg/a.py"])], files=("pkg/a.py", "pkg/b.py")),
@@ -1809,14 +1809,16 @@ def test_how_id_collision_from_a_single_non_sequential_id_does_not_crash(tmp_pat
                         Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
                         manager=manager)
     assert out.claimed                                   # the runner survived the collision
-    assert out.root.winner == "HOW-1"                    # a genuinely unused harness id
+    assert out.root.winner == "HOW-2"                    # a genuinely unused harness id
     ids = [h["how_id"] for h in out.root.hows]
-    assert ids[0] == "HOW-2" and "HOW-1" in ids
+    assert ids[0] == "HOW-1" and "HOW-2" in ids
 
 
-def test_how_id_gap_gets_an_unused_harness_id(tmp_path, monkeypatch):
-    """D1: the model named Hows ``HOW-1``/``HOW-3`` (an id gap, ranks still 1/2). The
-    harness-authored retry must take the unused ``HOW-2``, not the colliding ``HOW-3``."""
+def test_the_authored_retry_skips_every_id_already_assigned(tmp_path, monkeypatch):
+    """D1 (ticket 20 step 2b-ii): ids are harness-owned and sequential (``HOW-1``,
+    ``HOW-2`` from the list order), so a fresh model How after a failure repeats ids the
+    node already owns. The harness-authored retry must take the next genuinely UNUSED id
+    (``HOW-3``), not collide with an existing one."""
     workdir = tmp_path / "work"
     stage(workdir)
     fake = FakeLeaf([
@@ -1829,8 +1831,8 @@ def test_how_id_gap_gets_an_unused_harness_id(tmp_path, monkeypatch):
                     kind="internal")
     model = FakeModelRunner({
         "how_list": [
-            how_env([how("HOW-1", "first", 1), how("HOW-3", "third", 2)]),
-            how_env([how("HOW-1", "first again", 1), how("HOW-3", "third again", 2)]),
+            how_env([how("first"), how("third")]),
+            how_env([how("first again"), how("third again")]),
         ],
         "plan_node": [
             plan_env([child("fix one", ["pkg/a.py"])], files=("pkg/a.py", "pkg/b.py")),
@@ -1845,9 +1847,10 @@ def test_how_id_gap_gets_an_unused_harness_id(tmp_path, monkeypatch):
                         Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
                         manager=manager)
     assert out.claimed
-    # the harness allocated the genuinely unused id for its authored retry
-    assert "HOW-2" in [h["how_id"] for h in out.root.hows]
-    assert out.root.winner in ("HOW-2", "HOW-3")
+    # the harness-authored retry skipped both assigned ids and took HOW-3
+    by_id = {h["how_id"]: h for h in out.root.hows}
+    assert by_id["HOW-3"]["text"].startswith("new approach after failure:")
+    assert out.root.winner == "HOW-2"     # an initial untried How closed first
 
 
 def test_an_unusable_authored_how_parks_instead_of_crashing(tmp_path, monkeypatch):
@@ -1866,7 +1869,7 @@ def test_an_unusable_authored_how_parks_instead_of_crashing(tmp_path, monkeypatc
     root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
                     kind="internal")
     model = FakeModelRunner({
-        "how_list": [how_env([how("HOW-1", "the approach", 1)])],
+        "how_list": [how_env([how("the approach")])],
         "plan_node": [plan_env([child("fix one", ["pkg/a.py"])],
                                files=("pkg/a.py", "pkg/b.py"))],
     })
@@ -1904,7 +1907,7 @@ def test_first_failed_attempt_writes_do_not_seed_candidates_or_the_tree(tmp_path
     root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
                     kind="leaf")
     model = FakeModelRunner({
-        "how_list": [how_env([how("HOW-1", "the retry", 1)])],
+        "how_list": [how_env([how("the retry")])],
         "plan_node": [plan_env([child("fix the set", ["pkg/a.py", "pkg/b.py"])],
                                files=("pkg/a.py", "pkg/b.py"))],
     })
@@ -1930,7 +1933,7 @@ def test_merging_a_winner_applies_its_deletions(tmp_path, monkeypatch):
     root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
                     kind="internal")
     model = FakeModelRunner({
-        "how_list": [how_env([how("HOW-1", "drop b", 1)])],
+        "how_list": [how_env([how("drop b")])],
         "plan_node": [plan_env([child("remove b", ["pkg/b.py"])],
                                files=("pkg/a.py", "pkg/b.py"))],
     })
@@ -1955,8 +1958,8 @@ def test_feasibility_review_infeasible_auto_advances_to_the_next_how(tmp_path, m
     root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
                     kind="internal")
     model = FakeModelRunner({
-        "how_list": [how_env([how("HOW-1", "the infeasible approach", 1),
-                              how("HOW-2", "the fallback", 2)])],
+        "how_list": [how_env([how("the infeasible approach"),
+                              how("the fallback")])],
         "plan_node": [
             plan_env([child("one", ["pkg/a.py"])], files=("pkg/a.py", "pkg/b.py")),
             plan_env([child("two", ["pkg/b.py"])], files=("pkg/a.py", "pkg/b.py")),
@@ -2002,7 +2005,7 @@ def test_feasibility_review_feasible_returns_to_the_manager(tmp_path, monkeypatc
     root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
                     kind="internal")
     model = FakeModelRunner({
-        "how_list": [how_env([how("HOW-1", "the approach", 1)])],
+        "how_list": [how_env([how("the approach")])],
         "plan_node": [plan_env([child("one", ["pkg/a.py"])],
                                files=("pkg/a.py", "pkg/b.py"))],
     })
@@ -2049,8 +2052,8 @@ def test_the_exploration_cap_is_computed_once_and_cannot_be_raised(tmp_path, mon
                     kind="internal")
     model = FakeModelRunner({
         "how_list": [
-            how_env([how("HOW-1", "first", 1)]),
-            how_env([how("HOW-2", "second", 2)]),
+            how_env([how("first")]),
+            how_env([how("second")]),
         ],
         "plan_node": [
             plan_env([child("one", ["pkg/a.py"])], files=("pkg/a.py", "pkg/b.py")),
@@ -2160,8 +2163,8 @@ def test_candidate_selection_scores_the_declared_plan_before_review(tmp_path, mo
     root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
                     kind="internal")
     model = FakeModelRunner({
-        "how_list": [how_env([how("HOW-1", "two-point approach", 1),
-                              how("HOW-2", "one-point approach", 2)])],
+        "how_list": [how_env([how("two-point approach"),
+                              how("one-point approach")])],
         "plan_node": [_plan_with_declared_tests(["test_ac1_one", "test_ac1_two"],
                                                 child_goal="two-point fix"),
                       _plan_with_declared_tests(["test_ac1_one"],
@@ -2206,7 +2209,7 @@ def test_test_deviations_are_reported_to_the_manager_and_recorded(tmp_path, monk
     root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
                     kind="internal")
     model = FakeModelRunner({
-        "how_list": [how_env([how("HOW-1", "first", 1), how("HOW-2", "second", 2)])],
+        "how_list": [how_env([how("first"), how("second")])],
         "plan_node": [_plan_with_declared_tests(["test_ac1_one"], child_goal="first fix"),
                       _plan_with_declared_tests(["test_ac1_one"], child_goal="second fix")],
     })
