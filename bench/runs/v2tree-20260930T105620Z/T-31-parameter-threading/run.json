@@ -1,0 +1,421 @@
+{
+ "task": "T-31-parameter-threading",
+ "goal": "We need configurable timeouts end to end: the transport currently hard-codes a 1s deadline and every caller inherits it. Add a `timeout` parameter (default 1.0) to the transport's send(), thread it through the client's fetch(), and make sure BOTH call sites (the service sync and the bulk exporter) can pass their own timeout down. Existing callers without the argument must keep working.\n",
+ "acs": [
+  "We need configurable timeouts end to end: the transport currently hard-codes a 1s deadline and every caller inherits it.",
+  "Add a `timeout` parameter (default 1.0) to the transport's send(), thread it through the client's fetch(), and make sure BOTH call sites (the service sync and the bulk exporter) can pass their own timeout down.",
+  "Existing callers without the argument must keep working."
+ ],
+ "withheld_grader_paths": [
+  "pyproject.toml",
+  "tests/__init__.py",
+  "tests/test_chain.py"
+ ],
+ "judge": true,
+ "iv": true,
+ "review": true,
+ "claimed": false,
+ "actual": false,
+ "quadrant": "honest-failure",
+ "verified_quadrant": "verified-failure",
+ "best_effort_declared": 0,
+ "verification_downgrades": 0,
+ "covenant_weakened": 0,
+ "covenant_nodes": 1,
+ "covenant_diluted": false,
+ "calls": 42,
+ "tree_wall_s": 298.956,
+ "run_wall_s": 299.1,
+ "budget": {
+  "calls": 18,
+  "deadline_ts": 1790767580.3337777,
+  "reserve_fraction": 0.25,
+  "spent_calls": 40,
+  "grants": []
+ },
+ "checkpoints": {
+  "N-1": "89f82e8874cb2f7b519cd568e73ad7c4abaf6f6e"
+ },
+ "split_history": {
+  "N-1": [
+   {
+    "signature": "601213d632a3babdbd23a2f3b32e4ac18c414a40",
+    "n_children": 4,
+    "max_child_budget": 13,
+    "verdict": "novel"
+   },
+   {
+    "signature": "5f36d1bef339330d2675c9b25deeb3e115ef55f9",
+    "n_children": 2,
+    "max_child_budget": 23,
+    "verdict": "novel"
+   }
+  ]
+ },
+ "nodes": {
+  "node": "N-1",
+  "claimed": false,
+  "stop_reason": "parked",
+  "calls": 0,
+  "wall_s": 295.189,
+  "leaf_signal": "honest-failure",
+  "leaf_stop_reason": "ladder",
+  "self_test": "tests/test_transport_timeout.py",
+  "claimed_basis": "own-test",
+  "verification_basis": "test",
+  "verified": true,
+  "claim_status": "verified-failure",
+  "verification": {
+   "wrote_code": true,
+   "tier": "test",
+   "reason": "",
+   "reason_problem": "",
+   "reviews": [],
+   "review_angles": [
+    "ac-correctness",
+    "contract-compat",
+    "regression-risk"
+   ],
+   "review_level": "implementation",
+   "review_score": 0,
+   "required": "test",
+   "best_effort": false,
+   "downgraded": false,
+   "downgrade_reason": ""
+  },
+  "needs_user": false,
+  "review_verdicts": [],
+  "coverage": [
+   {
+    "index": 1,
+    "statement": "Add a configurable `timeout` parameter (default 1.0) to the transport's `send()` method.",
+    "files": [],
+    "symbols": [
+     "send"
+    ],
+    "missing": []
+   },
+   {
+    "index": 2,
+    "statement": "Thread the `timeout` parameter from the transport through the client's `fetch()` method.",
+    "files": [],
+    "symbols": [
+     "fetch"
+    ],
+    "missing": [
+     "fetch"
+    ]
+   },
+   {
+    "index": 3,
+    "statement": "Ensure both the service sync and bulk exporter call sites can pass their own `timeout` down to the transport.",
+    "files": [],
+    "symbols": [],
+    "missing": []
+   },
+   {
+    "index": 4,
+    "statement": "Existing callers without the new argument must keep working without modification (backward compatibility).",
+    "files": [],
+    "symbols": [],
+    "missing": []
+   }
+  ],
+  "coverage_missing": [
+   "\"Thread the `timeout` parameter from the transport through the client's `fetch()` method.\" names fetch, untouched by the diff"
+  ],
+  "coverage_unresolved": [],
+  "test_case_problems": [],
+  "malformed_steps": [],
+  "judge_unavailable": 0,
+  "judge_verdicts": [],
+  "integration_verdicts": {},
+  "close_rule": "",
+  "integration_reopen_rounds": 0,
+  "boundary_audit": null,
+  "hows": [
+   {
+    "how_id": "HOW-1",
+    "text": "Refactor the transport to accept a timeout parameter, thread it through the client and service, and update the bulk exporter to pass its own timeout, ensuring backward compatibility.",
+    "rank": 1,
+    "reason": "This is the direct, targeted implementation that strictly satisfies the node goal by adding the required parameter and propagating it end-to-end.",
+    "prior": 0.5,
+    "status": "failed"
+   },
+   {
+    "how_id": "HOW-2",
+    "text": "Introduce a centralized timeout configuration mechanism, allowing each caller (including the bulk exporter) to specify their own timeout value with a default fallback.",
+    "rank": 2,
+    "reason": "This approach offers a more flexible and centralized way to manage timeouts, providing better configurability and isolation for different call sites.",
+    "prior": 0.25,
+    "status": "failed"
+   },
+   {
+    "how_id": "HOW-3",
+    "text": "new approach after failure: needs-integration: the dedicated integration leaf exposed no test artifact (no keys -> no close)",
+    "rank": 3,
+    "reason": "no fresh model How was available; append one so the node can retry",
+    "prior": 0.125,
+    "status": "failed"
+   }
+  ],
+  "candidates": [
+   {
+    "how_id": "HOW-1",
+    "rank": 1,
+    "status": "failed",
+    "how_case": "leaf-How",
+    "leaf_stop_reason": "ladder",
+    "leaf_signal": "honest-failure",
+    "directory": "/home/z/vibe/helpagent/bench/runs/v2tree-20260930T105620Z/T-31-parameter-threading/candidates/N-1/HOW-1",
+    "selection": null,
+    "test_covered": 0,
+    "test_pass_rate": 0.0,
+    "review_score": 0,
+    "needs_repair": false,
+    "repair_reason": "",
+    "evidence": "ladder-exhausted",
+    "won": false,
+    "planned_points": [
+     {
+      "name": "test_ac1_transport_timeout_default",
+      "file": "tests/test_transport_timeout.py",
+      "verifies": "Add a configurable `timeout` parameter (default 1.0) to the transport's `send()` method.",
+      "ac_id": "AC-1",
+      "id": "tests/test_transport_timeout.py::test_ac1_transport_timeout_default"
+     },
+     {
+      "name": "test_ac1_transport_timeout_custom",
+      "file": "tests/test_transport_timeout.py",
+      "verifies": "Add a configurable `timeout` parameter (default 1.0) to the transport's `send()` method.",
+      "ac_id": "AC-1",
+      "id": "tests/test_transport_timeout.py::test_ac1_transport_timeout_custom"
+     },
+     {
+      "name": "test_ac2_client_timeout_propagation",
+      "file": "tests/test_client_timeout.py",
+      "verifies": "Thread the `timeout` parameter from the transport through the client's `fetch()` method.",
+      "ac_id": "AC-2",
+      "id": "tests/test_client_timeout.py::test_ac2_client_timeout_propagation"
+     },
+     {
+      "name": "test_ac3_service_timeout_passed",
+      "file": "tests/test_service_and_exporter_timeout.py",
+      "verifies": "Ensure both the service sync and bulk exporter call sites can pass their own `timeout` down to the transport.",
+      "ac_id": "AC-3",
+      "id": "tests/test_service_and_exporter_timeout.py::test_ac3_service_timeout_passed"
+     },
+     {
+      "name": "test_ac3_exporter_timeout_passed",
+      "file": "tests/test_service_and_exporter_timeout.py",
+      "verifies": "Ensure both the service sync and bulk exporter call sites can pass their own `timeout` down to the transport.",
+      "ac_id": "AC-3",
+      "id": "tests/test_service_and_exporter_timeout.py::test_ac3_exporter_timeout_passed"
+     },
+     {
+      "name": "test_ac4_existing_callers_without_timeout",
+      "file": "tests/test_backward_compatibility.py",
+      "verifies": "Existing callers without the new argument must keep working without modification (backward compatibility).",
+      "ac_id": "AC-4",
+      "id": "tests/test_backward_compatibility.py::test_ac4_existing_callers_without_timeout"
+     }
+    ],
+    "deviations": []
+   },
+   {
+    "how_id": "HOW-2",
+    "rank": 2,
+    "status": "failed",
+    "how_case": "decomposed-How",
+    "leaf_stop_reason": "",
+    "leaf_signal": "",
+    "directory": "/home/z/vibe/helpagent/bench/runs/v2tree-20260930T105620Z/T-31-parameter-threading/candidates/N-1/HOW-2",
+    "selection": null,
+    "test_covered": 0,
+    "test_pass_rate": 0.0,
+    "review_score": 0,
+    "needs_repair": false,
+    "repair_reason": "",
+    "evidence": "needs-integration: the dedicated integration leaf exposed no test artifact (no keys -> no close)",
+    "won": false,
+    "planned_points": [
+     {
+      "name": "test_ac1_transport_default_timeout",
+      "file": "tests/test_transport_timeout.py",
+      "verifies": "Add a configurable `timeout` parameter (default 1.0) to the transport's send() method.",
+      "ac_id": "AC-1",
+      "id": "tests/test_transport_timeout.py::test_ac1_transport_default_timeout"
+     },
+     {
+      "name": "test_ac1_transport_custom_timeout",
+      "file": "tests/test_transport_timeout.py",
+      "verifies": "Add a configurable `timeout` parameter (default 1.0) to the transport's send() method.",
+      "ac_id": "AC-1",
+      "id": "tests/test_transport_timeout.py::test_ac1_transport_custom_timeout"
+     },
+     {
+      "name": "test_ac2_client_default_timeout",
+      "file": "tests/test_client_timeout.py",
+      "verifies": "Thread the `timeout` parameter through the client's fetch() method.",
+      "ac_id": "AC-2",
+      "id": "tests/test_client_timeout.py::test_ac2_client_default_timeout"
+     },
+     {
+      "name": "test_ac2_client_custom_timeout",
+      "file": "tests/test_client_timeout.py",
+      "verifies": "Thread the `timeout` parameter through the client's fetch() method.",
+      "ac_id": "AC-2",
+      "id": "tests/test_client_timeout.py::test_ac2_client_custom_timeout"
+     },
+     {
+      "name": "test_ac3_service_sync_timeout_passed",
+      "file": "tests/test_service_timeout.py",
+      "verifies": "Enable the service sync call site to pass its own timeout down to the transport.",
+      "ac_id": "AC-3",
+      "id": "tests/test_service_timeout.py::test_ac3_service_sync_timeout_passed"
+     },
+     {
+      "name": "test_ac3_service_sync_default_timeout",
+      "file": "tests/test_service_timeout.py",
+      "verifies": "Enable the service sync call site to pass its own timeout down to the transport.",
+      "ac_id": "AC-3",
+      "id": "tests/test_service_timeout.py::test_ac3_service_sync_default_timeout"
+     },
+     {
+      "name": "test_ac4_bulk_exporter_timeout_passed",
+      "file": "tests/test_exporter_timeout.py",
+      "verifies": "Enable the bulk exporter call site to pass its own timeout down to the transport.",
+      "ac_id": "AC-4",
+      "id": "tests/test_exporter_timeout.py::test_ac4_bulk_exporter_timeout_passed"
+     },
+     {
+      "name": "test_ac4_bulk_exporter_default_timeout",
+      "file": "tests/test_exporter_timeout.py",
+      "verifies": "Enable the bulk exporter call site to pass its own timeout down to the transport.",
+      "ac_id": "AC-4",
+      "id": "tests/test_exporter_timeout.py::test_ac4_bulk_exporter_default_timeout"
+     },
+     {
+      "name": "test_ac5_existing_callers_no_argument",
+      "file": "tests/test_backward_compatibility.py",
+      "verifies": "Ensure existing callers without the timeout argument continue to work without modification.",
+      "ac_id": "AC-5",
+      "id": "tests/test_backward_compatibility.py::test_ac5_existing_callers_no_argument"
+     }
+    ],
+    "deviations": []
+   },
+   {
+    "how_id": "HOW-3",
+    "rank": 3,
+    "status": "failed",
+    "how_case": "failed-How",
+    "leaf_stop_reason": "",
+    "leaf_signal": "",
+    "directory": "/home/z/vibe/helpagent/bench/runs/v2tree-20260930T105620Z/T-31-parameter-threading/candidates/N-1/HOW-3",
+    "selection": null,
+    "test_covered": 0,
+    "test_pass_rate": 0.0,
+    "review_score": 0,
+    "needs_repair": false,
+    "repair_reason": "",
+    "evidence": "the How produced no decomposition",
+    "won": false,
+    "planned_points": [
+     {
+      "name": "test_ac1_default_timeout",
+      "file": "tests/test_transport_timeout.py",
+      "verifies": "Add a configurable `timeout` parameter (default 1.0) to the transport's send() method.",
+      "ac_id": "AC-1",
+      "id": "tests/test_transport_timeout.py::test_ac1_default_timeout"
+     },
+     {
+      "name": "test_ac1_custom_timeout",
+      "file": "tests/test_transport_timeout.py",
+      "verifies": "Add a configurable `timeout` parameter (default 1.0) to the transport's send() method.",
+      "ac_id": "AC-1",
+      "id": "tests/test_transport_timeout.py::test_ac1_custom_timeout"
+     },
+     {
+      "name": "test_ac2_default_timeout",
+      "file": "tests/test_client_timeout.py",
+      "verifies": "Thread the `timeout` parameter through the client's fetch() method.",
+      "ac_id": "AC-2",
+      "id": "tests/test_client_timeout.py::test_ac2_default_timeout"
+     },
+     {
+      "name": "test_ac2_custom_timeout",
+      "file": "tests/test_client_timeout.py",
+      "verifies": "Thread the `timeout` parameter through the client's fetch() method.",
+      "ac_id": "AC-2",
+      "id": "tests/test_client_timeout.py::test_ac2_custom_timeout"
+     },
+     {
+      "name": "test_ac3_service_timeout_passed",
+      "file": "tests/test_service_timeout.py",
+      "verifies": "Ensure the service sync call site passes its own timeout down to the transport.",
+      "ac_id": "AC-3",
+      "id": "tests/test_service_timeout.py::test_ac3_service_timeout_passed"
+     },
+     {
+      "name": "test_ac4_exporter_timeout_passed",
+      "file": "tests/test_exporter_timeout.py",
+      "verifies": "Ensure the bulk exporter call site passes its own timeout down to the transport.",
+      "ac_id": "AC-4",
+      "id": "tests/test_exporter_timeout.py::test_ac4_exporter_timeout_passed"
+     },
+     {
+      "name": "test_ac5_no_argument_compatibility",
+      "file": "tests/test_backward_compatibility.py",
+      "verifies": "Existing callers without the timeout argument must continue to work without modification.",
+      "ac_id": "AC-5",
+      "id": "tests/test_backward_compatibility.py::test_ac5_no_argument_compatibility"
+     }
+    ],
+    "deviations": []
+   }
+  ],
+  "manager_decisions": [
+   {
+    "decision": "continue-with-next-how",
+    "reason": "HOW-1 (ladder-exhausted) failed, so the next untried approach is HOW-2."
+   },
+   {
+    "decision": "author-a-new-how",
+    "reason": "HOW-2 failed with needs-integration (no test artifact exposed); no untried Hows remain, so the existing Hows are exhausted and require a new approach."
+   },
+   {
+    "decision": "escalate-or-park",
+    "reason": "HOW-3 failed with no-decomposition; no untried Hows or candidate selections are available."
+   }
+  ],
+  "manager_unavailable": [],
+  "winner": "",
+  "children": []
+ },
+ "produced": [
+  "README.md",
+  "api/__init__.py",
+  "api/client.py",
+  "api/service.py",
+  "api/transport.py",
+  "exporter/__init__.py",
+  "exporter/bulk.py"
+ ],
+ "grader_exit": 1,
+ "grader_notes": [
+  "           FAILED tests/test_chain.py::test_client_threads_timeout - TypeError: fetch() ...",
+  "           FAILED tests/test_chain.py::test_service_threads_timeout - TypeError: sync_re...",
+  "           FAILED tests/test_chain.py::test_exporter_threads_timeout - TypeError: export...",
+  "           4 failed in 0.04s",
+  "[contract] OK (6 untouched paths byte-identical)",
+  "result: FAIL"
+ ],
+ "grader_restored": [
+  "README.md: restored from the pristine copy",
+  "api/__init__.py: restored from the pristine copy",
+  "exporter/__init__.py: restored from the pristine copy"
+ ],
+ "grader_shadowed": [],
+ "grader_report_gate": null
+}

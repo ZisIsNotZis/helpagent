@@ -378,7 +378,8 @@ def test_resplit_appends_a_how_and_switches_candidate(tmp_path, monkeypatch):
                      exhaustion_reason="node exhausted"),
     ])
     monkeypatch.setattr(tree_run, "run_leaf", fake)
-    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+    root = NodeSpec(goal="root goal",
+                    files=("pkg/a.py", "pkg/b.py", "pkg/c.py", "pkg/d.py"), acs=(),
                     kind="internal")
     model = FakeModelRunner({
         "how_list": [
@@ -386,7 +387,8 @@ def test_resplit_appends_a_how_and_switches_candidate(tmp_path, monkeypatch):
             how_env([how("split into two smaller edits")]),
         ],
         "plan_node": [
-            plan_env([child("fix the whole working set", ["pkg/a.py", "pkg/b.py"])],
+            plan_env([child("fix the whole working set", ["pkg/a.py", "pkg/b.py"],
+                            acs=[ac(), ac("c2"), ac("c3"), ac("c4")])],
                      files=("pkg/a.py", "pkg/b.py")),
             plan_env([child("fix part one", ["pkg/a.py"]),
                       child("fix part two", ["pkg/b.py"])],
@@ -449,7 +451,7 @@ def test_spec_bubble_appends_a_new_how_at_the_owning_node(tmp_path, monkeypatch)
     run_outdir = tmp_path / "out"
     out = run_tree_sync(model, root, make_tree(), workdir,
                         Budget(calls=60, deadline_ts=_FAR), run_outdir=run_outdir,
-                        manager=manager)
+                        manager=manager, how_explore=2)
 
     assert out.claimed
     assert len(model.calls("how_list")) == 2                  # a NEW How was authored
@@ -481,7 +483,8 @@ def test_identical_resplit_is_refused_as_wasted(tmp_path, monkeypatch):
     stage(workdir)
     fake = FakeLeaf()
     monkeypatch.setattr(tree_run, "run_leaf", fake)
-    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+    root = NodeSpec(goal="root goal",
+                    files=("pkg/a.py", "pkg/b.py", "pkg/c.py", "pkg/d.py"), acs=(),
                     kind="internal")
     same = plan_env([child("fix one", ["pkg/a.py"]), child("fix two", ["pkg/b.py"])],
                     files=("pkg/a.py", "pkg/b.py"))
@@ -491,7 +494,7 @@ def test_identical_resplit_is_refused_as_wasted(tmp_path, monkeypatch):
     })
     out = run_tree_sync(model, root, make_tree(), workdir,
                         Budget(calls=60, deadline_ts=_FAR),
-                        run_outdir=tmp_path / "out")
+                        run_outdir=tmp_path / "out", how_explore=2)
     assert out.claimed                                             # the first candidate closes
     assert out.root.winner == "HOW-1"
     assert "split_wasted" in ledger_kinds()
@@ -926,12 +929,15 @@ def test_v2_tree_driver_builds_the_root_and_withholds_grader_paths():
     assert args.judge is True and args.iv is True             # independent machinery ON
     assert args.review is True                                # review verification ON
     assert args.manager is True                               # model manager wired in
+    assert args.how_explore == 1                              # ticket 20 step 2c: GREEDY
     off = v2_tree.build_parser().parse_args(["--task", "x", "--no-judge", "--no-iv"])
     assert off.judge is False and off.iv is False
     assert v2_tree.build_parser().parse_args(
         ["--task", "x", "--no-review"]).review is False
     assert v2_tree.build_parser().parse_args(
         ["--task", "x", "--no-manager"]).manager is False
+    assert v2_tree.build_parser().parse_args(
+        ["--task", "x", "--how-explore", "3"]).how_explore == 3
 
 
 # ---------------------------------------------------------------------------
@@ -1807,7 +1813,7 @@ def test_a_fresh_model_how_colliding_with_the_assigned_id_does_not_crash(tmp_pat
 
     out = run_tree_sync(model, root, make_tree(), workdir,
                         Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
-                        manager=manager)
+                        manager=manager, how_explore=2)
     assert out.claimed                                   # the runner survived the collision
     assert out.root.winner == "HOW-2"                    # a genuinely unused harness id
     ids = [h["how_id"] for h in out.root.hows]
@@ -1845,7 +1851,7 @@ def test_the_authored_retry_skips_every_id_already_assigned(tmp_path, monkeypatc
 
     out = run_tree_sync(model, root, make_tree(), workdir,
                         Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
-                        manager=manager)
+                        manager=manager, how_explore=2)
     assert out.claimed
     # the harness-authored retry skipped both assigned ids and took HOW-3
     by_id = {h["how_id"]: h for h in out.root.hows}
@@ -1979,7 +1985,7 @@ def test_feasibility_review_infeasible_auto_advances_to_the_next_how(tmp_path, m
 
     out = run_tree_sync(model, root, make_tree(), workdir,
                         Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
-                        manager=manager, review=review)
+                        manager=manager, review=review, how_explore=2)
     assert out.claimed and out.root.winner == "HOW-2"
     assert any(r.angle == "constraint-conflict" for r in reviews)   # plan angle ran
     assert any(r.angle == "dependency-availability" for r in reviews)
@@ -2066,7 +2072,7 @@ def test_the_exploration_cap_is_computed_once_and_cannot_be_raised(tmp_path, mon
 
     out = run_tree_sync(model, root, make_tree(), workdir,
                         Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
-                        manager=manager)
+                        manager=manager, how_explore=2)
     assert out.claimed
     assert seen == [None]          # computed exactly ONCE, budget-only (never the list)
 
@@ -2165,7 +2171,8 @@ def test_candidate_selection_scores_the_declared_plan_before_review(tmp_path, mo
                               evidence="pkg/a.py:2 keeps the contract")]),
     ])
     monkeypatch.setattr(tree_run, "run_leaf", fake)
-    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+    root = NodeSpec(goal="root goal",
+                    files=("pkg/a.py", "pkg/b.py", "pkg/c.py", "pkg/d.py"), acs=(),
                     kind="internal")
     model = FakeModelRunner({
         "how_list": [how_env([how("two-point approach"),
@@ -2177,7 +2184,7 @@ def test_candidate_selection_scores_the_declared_plan_before_review(tmp_path, mo
     })
     out = run_tree_sync(model, root, make_tree(), workdir,
                         Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
-                        run_tests=Gates(green=True))
+                        run_tests=Gates(green=True), how_explore=2)
 
     assert out.claimed and out.root.winner == "HOW-1"
     by_how = {record.how_id: record for record in out.root.candidates}
@@ -2211,7 +2218,8 @@ def test_test_deviations_are_reported_to_the_manager_and_recorded(tmp_path, monk
             "tests/test_a.py::test_ac1_one")),
     ])
     monkeypatch.setattr(tree_run, "run_leaf", fake)
-    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+    root = NodeSpec(goal="root goal",
+                    files=("pkg/a.py", "pkg/b.py", "pkg/c.py", "pkg/d.py"), acs=(),
                     kind="internal")
     model = FakeModelRunner({
         "how_list": [how_env([how("first"), how("second")])],
@@ -2226,7 +2234,7 @@ def test_test_deviations_are_reported_to_the_manager_and_recorded(tmp_path, monk
 
     out = run_tree_sync(model, root, make_tree(), workdir,
                         Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
-                        manager=manager, run_tests=Gates(green=True))
+                        manager=manager, run_tests=Gates(green=True), how_explore=2)
 
     assert out.claimed and out.root.winner == "HOW-2"
     assert len(seen) == 1
@@ -2264,7 +2272,7 @@ def test_an_async_manager_is_actually_awaited_and_recorded(tmp_path, monkeypatch
 
     out = run_tree_sync(model, root, make_tree(), workdir,
                         Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
-                        run_tests=Gates(green=True), manager=async_manager)
+                        run_tests=Gates(green=True), manager=async_manager, how_explore=2)
 
     assert seen, "the injected async manager was never awaited/consulted"
     decisions = [d["decision"] if isinstance(d, dict) else d
@@ -2341,17 +2349,50 @@ def test_a_zero_child_decomposition_is_a_leaf_how_that_actually_runs(tmp_path, m
     assert "do the whole change here in one place" in fake.specs[0].goal
 
 
-def test_a_how_with_no_usable_decomposition_is_a_failed_how(tmp_path, monkeypatch):
-    """Only an INVALID/unable How counts as failed (ticket 20 step 2b-iii): an ``unable``
-    plan (both attempts) records ``how_case == "failed-How"`` and consults the manager."""
+def test_an_unusable_decomposition_falls_back_to_a_leaf_how(tmp_path, monkeypatch):
+    """Ticket 20 step 2c (2): an unusable ``plan_node`` result is NOT a dead How. A How
+    whose bounded re-ask yields nothing usable is run as a LEAF How in its own candidate
+    directory, and the run record marks that fallback route."""
     workdir = tmp_path / "work"
     stage(workdir)
-    fake = FakeLeaf()
+    fake = FakeLeaf([leaf_outcome(claimed=True)])
     monkeypatch.setattr(tree_run, "run_leaf", fake)
     root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
                     kind="internal")
     model = FakeModelRunner({
-        "how_list": [how_env([how("an unusable approach")])],
+        "how_list": [how_env([how("an approach the planner cannot decompose")])],
+        "plan_node": [
+            {"status": "unable", "comment": "cannot plan", "unable_reason": "no seam"},
+            {"status": "unable", "comment": "cannot plan", "unable_reason": "no seam"},
+        ],
+    })
+    run_outdir = tmp_path / "out"
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=run_outdir)
+
+    assert out.claimed, "an unusable decomposition must not burn the How"
+    assert fake.calls == 1                                  # the fallback leaf actually ran
+    record = out.root.candidates[0]
+    assert record.how_case == "fallback-leaf-How"
+    assert record.status == "succeeded"
+    # the leaf ran in the How's own candidate copy, with the How text as context
+    assert (run_outdir / "candidates" / out.root.node_id / "HOW-1").is_dir()
+    assert "an approach the planner cannot decompose" in fake.specs[0].goal
+
+
+def test_a_failing_fallback_leaf_fails_the_how(tmp_path, monkeypatch):
+    """Ticket 20 step 2c (2): only a leaf that itself FAILS makes the How fail. An
+    unusable plan whose fallback leaf does not close is a failed How and consults the
+    manager, exactly like any other failed candidate."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([leaf_outcome(claimed=False, signal="honest-failure", stop="calls",
+                                  exhaustion_reason="no call budget left")])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("an approach the planner cannot decompose")])],
         "plan_node": [
             {"status": "unable", "comment": "cannot plan", "unable_reason": "no seam"},
             {"status": "unable", "comment": "cannot plan", "unable_reason": "no seam"},
@@ -2359,15 +2400,122 @@ def test_a_how_with_no_usable_decomposition_is_a_failed_how(tmp_path, monkeypatc
     })
 
     def manager(view):
-        return ManagerDecision("escalate-or-park", "no usable decomposition exists")
+        return ManagerDecision("escalate-or-park", "the fallback leaf did not close")
 
     out = run_tree_sync(model, root, make_tree(), workdir,
                         Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
                         manager=manager)
+    assert fake.calls == 1
     assert not out.claimed and out.root.stop_reason == "parked"
-    assert fake.calls == 0                                  # no leaf ran for an invalid How
-    assert out.root.candidates[0].how_case == "failed-How"
+    record = out.root.candidates[0]
+    assert record.how_case == "fallback-leaf-How" and record.status == "failed"
+    assert record.leaf_signal == "honest-failure"
     assert [d["decision"] for d in out.root.manager_decisions] == ["escalate-or-park"]
+
+
+def test_greedy_is_the_default_and_opens_only_the_top_ranked_how(tmp_path, monkeypatch):
+    """Ticket 20 step 2c (1): the DEFAULT plans every How but OPENS only the top-ranked
+    one and funds it; the other Hows stay untried. A second candidate requires opting in."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([leaf_outcome(claimed=True)])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("the top-ranked approach"),
+                              how("a second approach")])],
+        "plan_node": [plan_env([], files=("pkg/a.py", "pkg/b.py"), acs=[ac("holds")])],
+    })
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out")
+
+    assert out.claimed and out.root.winner == "HOW-1"
+    assert [h["how_id"] for h in out.root.hows] == ["HOW-1", "HOW-2"]   # both planned
+    assert [c.how_id for c in out.root.candidates] == ["HOW-1"]         # one opened
+    assert len(model.calls("plan_node")) == 1                           # one candidate planned
+    assert fake.calls == 1
+    # the untried How is still recorded as untried (never silently dropped)
+    assert {h["how_id"]: h["status"] for h in out.root.hows}["HOW-2"] == "untried"
+
+
+def test_how_explore_above_one_restores_the_tournament(tmp_path, monkeypatch):
+    """Ticket 20 step 2c (1): the tournament path is intact behind the ``how_explore``
+    option --- with N=2 a failed top How is followed by the second candidate."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([
+        leaf_outcome(claimed=False, signal="bubble", stop="spec-bubble", needs_parent=True,
+                     exhaustion_reason="bubble"),
+        leaf_outcome(claimed=True),
+    ])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("first"), how("second")])],
+        "plan_node": [plan_env([child("one", ["pkg/a.py"])],
+                               files=("pkg/a.py", "pkg/b.py")),
+                      plan_env([child("two", ["pkg/b.py"])],
+                               files=("pkg/a.py", "pkg/b.py"))],
+    })
+
+    def manager(view):
+        return ManagerDecision("continue-with-next-how", "try the second")
+
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                        manager=manager, how_explore=2)
+    assert out.claimed and out.root.winner == "HOW-2"
+    assert [c.how_id for c in out.root.candidates] == ["HOW-1", "HOW-2"]
+
+
+def test_greedy_reserves_the_chosen_candidates_slice_before_planning(tmp_path, monkeypatch):
+    """Ticket 20 step 2c (3): the chosen candidate's slice is reserved BEFORE its
+    planning calls run, so planning cannot starve it. Two runs whose ``plan_node`` spends
+    a different number of calls hand the leaf the SAME starting budget --- without the
+    reservation the second run would hand it one call fewer."""
+    def run_with(plan_replies):
+        workdir = tmp_path / f"work-{len(plan_replies)}"
+        stage(workdir)
+        fake = FakeLeaf([leaf_outcome(claimed=True)])
+        monkeypatch.setattr(tree_run, "run_leaf", fake)
+        root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                        kind="internal")
+        model = FakeModelRunner({
+            "how_list": [how_env([how("the chosen approach")])],
+            "plan_node": plan_replies,
+        })
+        out = run_tree_sync(model, root, make_tree(), workdir,
+                            Budget(calls=20, deadline_ts=_FAR),
+                            run_outdir=tmp_path / f"out-{len(plan_replies)}")
+        assert out.claimed
+        return fake.budgets[0]
+
+    one_call = run_with([plan_env([], files=("pkg/a.py", "pkg/b.py"),
+                                  acs=[ac("holds")])])
+    two_calls = run_with([
+        {"status": "unable", "comment": "cannot plan", "unable_reason": "no seam"},
+        plan_env([], files=("pkg/a.py", "pkg/b.py"), acs=[ac("holds")]),
+    ])
+    # the leaf's slice is the node's non-reserve pool, fixed before plan_node runs
+    assert one_call.calls == two_calls.calls
+    # and it is NOT the node pool (which planning would have drawn down)
+    assert one_call.spent_calls == 1 and two_calls.spent_calls == 1
+
+
+def test_run_tree_refuses_a_zero_how_explore(tmp_path):
+    """Ticket 20 step 2c (1): ``how_explore`` counts candidates to OPEN, so 0 is not a
+    valid setting (greedy is 1) and is refused loudly rather than silently parking."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=(),
+                    kind="internal")
+    with pytest.raises(ValueError, match="how_explore"):
+        run_tree_sync(FakeModelRunner({}), root, make_tree(), workdir,
+                      Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                      how_explore=0)
+
 
 
 def test_a_manager_that_does_not_decide_parks_as_manager_unavailable(tmp_path, monkeypatch):
@@ -2423,3 +2571,185 @@ def test_a_raise_while_translating_a_plan_becomes_a_force_leaf_not_a_crash(monke
 
     assert decomp is None                                   # a force-leaf, not a crash
     assert any(kind == "plan_node_malformed" for kind, _ in events)
+
+
+# ---------------------------------------------------------------------------
+# Ticket 20 step 2d: greedy is SEQUENTIAL (it still honours the manager), not inert
+# ---------------------------------------------------------------------------
+
+
+def _decompose_into_two(goal: str) -> dict:
+    """A plan with two leaf children (only the node's OWN boundary matters for the guard)."""
+    return plan_env([child(f"{goal} one", ["pkg/a.py"]),
+                     child(f"{goal} two", ["pkg/b.py"])],
+                    files=("pkg/a.py", "pkg/b.py"), goal="root goal")
+
+
+def test_greedy_still_honours_continue_with_next_how(tmp_path, monkeypatch):
+    """Ticket 20 step 2d (1): greedy means ONE CANDIDATE AT A TIME, not one How forever.
+    With the DEFAULT ``how_explore=1`` a failed How that the manager answers with
+    ``continue-with-next-how`` abandons its candidate and tries the next untried How in a
+    FRESH candidate (the second candidate really opens)."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([
+        leaf_outcome(claimed=False, signal="honest-failure", stop="calls",
+                     exhaustion_reason="the first approach did not close"),
+        leaf_outcome(claimed=True),
+    ])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal",
+                    files=("pkg/a.py", "pkg/b.py", "pkg/c.py", "pkg/d.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("first approach"), how("second approach")])],
+        "plan_node": [_decompose_into_two("first fix"), _decompose_into_two("second fix")],
+    })
+
+    def manager(view):
+        return ManagerDecision("continue-with-next-how", "try the second approach")
+
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                        manager=manager)                    # how_explore stays greedy (1)
+
+    assert out.claimed and out.root.winner == "HOW-2"
+    assert [c.how_id for c in out.root.candidates] == ["HOW-1", "HOW-2"]  # two candidates
+    assert out.root.sequential_attempts == 2               # the retry is RECORDED
+    assert [d["decision"] for d in out.root.manager_decisions] == ["continue-with-next-how"]
+
+
+def test_greedy_still_honours_author_a_new_how(tmp_path, monkeypatch):
+    """Ticket 20 step 2d (1): under greedy ``author-a-new-how`` APPENDS a new How and
+    tries it in its own fresh candidate instead of spending a call on a How that is then
+    ignored."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([
+        leaf_outcome(claimed=False, signal="honest-failure", stop="calls",
+                     exhaustion_reason="the first approach did not close"),
+        leaf_outcome(claimed=True),
+    ])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal",
+                    files=("pkg/a.py", "pkg/b.py", "pkg/c.py", "pkg/d.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("the first approach")]),
+                     how_env([how("a genuinely new approach")])],
+        "plan_node": [_decompose_into_two("first fix"), _decompose_into_two("new fix")],
+    })
+
+    def manager(view):
+        return ManagerDecision("author-a-new-how", "the first approach is wrong")
+
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                        manager=manager)
+
+    assert out.claimed
+    assert len(model.calls("how_list")) == 2               # a NEW How was authored
+    assert [c.how_id for c in out.root.candidates] == ["HOW-1", "HOW-2"]
+    assert out.root.winner == "HOW-2"
+    assert out.root.sequential_attempts == 2
+    assert "how_appended" in ledger_kinds()
+
+
+def test_sequential_attempts_are_bounded_by_the_small_constant(tmp_path, monkeypatch):
+    """Ticket 20 step 2d (1): sequential How attempts are bounded by the small constant
+    (:data:`harness.tree_run.SEQUENTIAL_HOW_LIMIT`) AND by the budget, so a manager that
+    keeps answering ``continue-with-next-how`` cannot retry forever."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([
+        leaf_outcome(claimed=False, signal="honest-failure", stop="calls",
+                     exhaustion_reason="still not closing")
+        for _ in range(tree_run.SEQUENTIAL_HOW_LIMIT + 2)
+    ])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal",
+                    files=("pkg/a.py", "pkg/b.py", "pkg/c.py", "pkg/d.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how(f"approach {i}") for i in range(6)])],
+        "plan_node": [_decompose_into_two(f"fix {i}") for i in range(6)],
+    })
+
+    def manager(view):
+        return ManagerDecision("continue-with-next-how", "keep going")
+
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                        manager=manager)
+
+    assert not out.claimed and out.root.stop_reason == "parked"
+    assert out.root.sequential_attempts == tree_run.SEQUENTIAL_HOW_LIMIT
+    assert len(out.root.candidates) == tree_run.SEQUENTIAL_HOW_LIMIT
+
+
+# ---------------------------------------------------------------------------
+# Ticket 20 step 2d: a node that fits a leaf is NOT decomposed
+# ---------------------------------------------------------------------------
+
+
+def test_a_small_node_is_forced_to_a_leaf_and_the_decision_is_recorded(tmp_path, monkeypatch):
+    """Ticket 20 step 2d (2): when the chosen How's decomposition would create children
+    but the node's own write boundary is small (<= 3 files) and it has few acceptance
+    criteria (<= 3), the deterministic guard FORCES a LEAF How. The How still goes through
+    the normal leaf machinery, and the decision (thresholds + counted files/ACs) is
+    recorded on the candidate and the node."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([leaf_outcome(claimed=True)])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"), acs=("c1", "c2"),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("do the one-file fix")])],
+        "plan_node": [_decompose_into_two("over-split")],
+    })
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out")
+
+    assert out.claimed
+    assert fake.calls == 1                                  # the leaf ran in ONE hit
+    record = out.root.candidates[0]
+    assert record.how_case == "forced-leaf"
+    assert record.leaf_stop_reason == "green"
+    assert record.allocation["forced"] is True
+    assert record.allocation["would_decompose"] is True
+    assert record.allocation["files"] == 2 and record.allocation["acs"] == 2
+    assert record.allocation["max_files"] == tree_run.FORCED_LEAF_MAX_FILES
+    assert record.allocation["max_acs"] == tree_run.FORCED_LEAF_MAX_ACS
+    assert out.root.allocation["forced"] is True           # mirrored on the node record
+    assert "forced-leaf" in ledger_kinds()
+    # the forced leaf ran on the NODE's own boundary (not the refused plan's) as context
+    assert "do the one-file fix" in fake.specs[0].goal
+    assert set(fake.specs[0].write_boundary) == {"pkg/a.py", "pkg/b.py"}
+
+
+def test_a_genuinely_multi_part_node_may_still_decompose(tmp_path, monkeypatch):
+    """Ticket 20 step 2d (2): the guard is an ALLOCATION rule with a threshold, not a ban.
+    A node with more than the force-leaf threshold of files is ALLOWED to decompose, and
+    the record says so (``forced=False``) so the decision can be recalibrated from data."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    fake = FakeLeaf([leaf_outcome(claimed=True), leaf_outcome(claimed=True)])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal",
+                    files=("pkg/a.py", "pkg/b.py", "pkg/c.py", "pkg/d.py"), acs=(),
+                    kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how("split the work")])],
+        "plan_node": [_decompose_into_two("multi-part")],
+    })
+    out = run_tree_sync(model, root, make_tree(), workdir,
+                        Budget(calls=60, deadline_ts=_FAR), run_outdir=tmp_path / "out",
+                        run_tests=Gates(green=True))
+
+    record = out.root.candidates[0]
+    assert record.how_case == "decomposed-How"
+    assert record.allocation["forced"] is False
+    assert record.allocation["would_decompose"] is True
+    assert record.allocation["files"] == 4
+    assert "forced-leaf" not in ledger_kinds()

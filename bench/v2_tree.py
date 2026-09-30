@@ -27,7 +27,16 @@ when the model is unavailable.
 
 Usage:
   uv run python bench/v2_tree.py --task bench/corpus/T-31-parameter-threading \
-      --calls 48 --deadline-hours 6 [--no-judge] [--no-iv]
+      --calls 48 --deadline-hours 6 [--no-judge] [--no-iv] [--how-explore N]
+
+The How axis is GREEDY by default (ticket 20 step 2c, ``--how-explore 1``): a node plans
+its Hows, takes the top-ranked one, and funds that single candidate. Greedy is
+SEQUENTIAL, not inert (ticket 20 step 2d): a failed How still goes to the manager, so
+``continue-with-next-how`` abandons the current candidate and tries the next untried How
+in a fresh copy and ``author-a-new-how`` appends and tries a new one (bounded by a small
+constant and the budget; the count is recorded as ``sequential_attempts``).
+``--how-explore N`` with ``N > 1`` restores the PARALLEL tournament (open up to N
+candidates and pick a winner with the picker).
 """
 
 from __future__ import annotations
@@ -241,6 +250,11 @@ def node_record(outcome: NodeOutcome, *, diluted: bool = False) -> dict:
         # blocked/unable envelope). Kept SEPARATE so a non-decision never reads as one.
         "manager_unavailable": list(outcome.manager_unavailable),
         "winner": outcome.winner,
+        # Ticket 20 step 2d: how many How candidates this node tried one after another
+        # (greedy sequential retries included), and the deterministic allocation guard's
+        # decision for the top How (thresholds, counted files/ACs, forced-to-leaf).
+        "sequential_attempts": outcome.sequential_attempts,
+        "allocation": dict(outcome.allocation),
         "children": [node_record(c, diluted=diluted) for c in outcome.children],
     }
 
@@ -284,6 +298,17 @@ def _covenant_counts(outcome: NodeOutcome) -> tuple[int, int]:
     return weakened, total
 
 
+def _sequential_attempts(outcome: NodeOutcome) -> int:
+    """Ticket 20 step 2d: total How candidates tried one after another across the tree.
+
+    Greedy is sequential, so ``> 1`` per node means the manager drove at least one retry
+    (``continue-with-next-how`` / ``author-a-new-how``); this is the run-level counter
+    that shows whether sequential retries actually happened.
+    """
+    return outcome.sequential_attempts + sum(_sequential_attempts(c)
+                                             for c in outcome.children)
+
+
 def _verification_tally(outcome: NodeOutcome) -> tuple[int, int]:
     """The run-level ``(best_effort_declared, downgrades)`` count across the tree
     (ticket 20 item 4): how many code-writing nodes opted into a weaker tier, and how
@@ -303,7 +328,8 @@ def _verification_tally(outcome: NodeOutcome) -> tuple[int, int]:
 def build_record(task_id: str, goal: str, outcome: TreeOutcome, *, withheld: list[str],
                  produced: dict[str, str], score: ExternalScore, quad: str,
                  run_wall_s: float, judge_enabled: bool, iv_enabled: bool,
-                 review_enabled: bool, acs: list[str], verified_quad: str = "") -> dict:
+                 review_enabled: bool, acs: list[str], verified_quad: str = "",
+                 how_explore: int = 1) -> dict:
     declared, downgrades = _verification_tally(outcome.root)
     weakened, nodes = _covenant_counts(outcome.root)
     diluted = covenant_diluted(weakened, nodes)
@@ -316,6 +342,11 @@ def build_record(task_id: str, goal: str, outcome: TreeOutcome, *, withheld: lis
         "judge": judge_enabled,
         "iv": iv_enabled,
         "review": review_enabled,
+        # Ticket 20 step 2c: the How-exploration setting (1 = greedy, the default).
+        "how_explore": how_explore,
+        # Ticket 20 step 2d: the run-level count of sequential How attempts (greedy still
+        # honours the manager: > 1 means a retry actually happened).
+        "sequential_attempts": _sequential_attempts(outcome.root),
         "claimed": outcome.claimed,
         "actual": score.passed,
         "quadrant": quad,
@@ -350,7 +381,8 @@ def build_record(task_id: str, goal: str, outcome: TreeOutcome, *, withheld: lis
 
 def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
              deadline_hours: float, use_judge: bool = True, use_iv: bool = True,
-             use_review: bool = True, use_manager: bool = True) -> dict:
+             use_review: bool = True, use_manager: bool = True,
+             how_explore: int = 1) -> dict:
     task = load_task(task_dir)
     root, grader_paths = build_root(task)
 
@@ -378,7 +410,7 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     outcome = asyncio.run(run_tree(
         model, root, tree, workdir, budget, root_grader_paths=grader_paths,
         judge=judge, iv=iv, review=review, min_leaf_calls=min_leaf_calls,
-        run_outdir=out_dir, manager=manager))
+        run_outdir=out_dir, manager=manager, how_explore=how_explore))
     wall = round(time.monotonic() - started, 1)
 
     produced = produced_files(workdir)
@@ -394,13 +426,15 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
         task["task_id"], root.goal, outcome, withheld=withheld, produced=produced,
         score=score, quad=quad, run_wall_s=wall, judge_enabled=use_judge,
         iv_enabled=use_iv, review_enabled=use_review, acs=list(root.acs),
-        verified_quad=vquad)
+        verified_quad=vquad, how_explore=how_explore)
 
     print(f"== v2 tree: {task['task_id']} ==")
     print(f"[judge]  {'on' if use_judge else 'off (conservative baseline)'}")
     print(f"[iv]  {'on' if use_iv else 'off (own-test basis)'} "
           f"min_leaf_calls={min_leaf_calls}")
     print(f"[manager]  {'on (model-backed)' if use_manager else 'off (park-only default)'}")
+    print(f"[explore]  how_explore={how_explore}: "
+          f"{'greedy (sequential Hows, one candidate at a time)' if how_explore <= 1 else 'tournament (parallel candidates)'}")
     print(f"[acs]  {len(root.acs)} extracted from the request")
     print(f"[claim]  claimed={outcome.claimed} root={outcome.root.stop_reason} "
           f"calls={outcome.calls} budget_left={outcome.budget.calls}")
@@ -427,6 +461,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--manager", action=argparse.BooleanOptionalAction, default=True,
                         help="wire the model-backed managing call into the failure loop "
                              "(default ON); --no-manager restores the safe park-only default")
+    parser.add_argument("--how-explore", type=int, default=1, dest="how_explore",
+                        help="How candidates a node may open in PARALLEL: 1 (default) is "
+                             "GREEDY --- plan the Hows, take the top-ranked one, and fund "
+                             "that single candidate while still honouring the manager for "
+                             "SEQUENTIAL retries; N>1 restores the parallel tournament")
     return parser
 
 
@@ -440,7 +479,7 @@ def main() -> int:
 
     record = run_once(task_dir, out_dir, args.server, args.calls, args.deadline_hours,
                       use_judge=args.judge, use_iv=args.iv, use_review=args.review,
-                      use_manager=args.manager)
+                      use_manager=args.manager, how_explore=args.how_explore)
     record_path = out_dir / "run.json"
     record_path.write_text(json.dumps(record, indent=1, ensure_ascii=False))
     print(f"[persist] {record_path}")

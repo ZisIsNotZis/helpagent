@@ -149,6 +149,25 @@ __all__ = [
 #: node parks with ``needs-integration``, so the reopen cannot loop forever.
 _MAX_INTEGRATION_REOPEN = 2
 
+#: Ticket 20 step 2d — THE ONE PLACE the force-leaf thresholds live. This is a
+#: deterministic ALLOCATION heuristic, NOT a model decision: a node whose OWN write
+#: boundary is small (``<= FORCED_LEAF_MAX_FILES`` files) and whose own plan carries few
+#: acceptance criteria (``<= FORCED_LEAF_MAX_ACS``) must not decompose even when the
+#: chosen How's plan would create children — the How is FORCED to a LEAF How and run in
+#: one hit. Both must hold to force; a genuinely multi-part node (4+ files OR 4+
+#: criteria) may still decompose. These two numbers are EXPECTED TO BE TUNED from
+#: measurements (ticket 20 step 2d) and are recorded per node/candidate so a run can be
+#: recalibrated from data instead of argued about.
+FORCED_LEAF_MAX_FILES = 3
+FORCED_LEAF_MAX_ACS = 3
+
+#: Ticket 20 step 2d — the small constant bounding SEQUENTIAL How attempts per node: a
+#: node may try at most this many distinct Hows one after another (each in its own fresh
+#: candidate with the previous candidate abandoned) before it must park. Sequential
+#: retries are ALWAYS allowed (the manager drives them); only the PARALLEL / COMPARATIVE
+#: exploration stays opt-in behind ``how_explore > 1``. The live budget caps this too.
+SEQUENTIAL_HOW_LIMIT = 3
+
 
 @dataclass
 class CandidateRecord:
@@ -172,11 +191,21 @@ class CandidateRecord:
     #: candidate was scored against — and any EXTRA tests it collected beyond them.
     planned_points: list[dict] = field(default_factory=list)
     deviations: list[str] = field(default_factory=list)
-    #: Ticket 20 step 2b-iii: which case this How turned out to be — ``"leaf-How"``
-    #: (the decomposition declared zero children, so the leaf ran in this candidate's own
-    #: directory), ``"decomposed-How"`` (it split into children), or ``"failed-How"``
-    #: (no runnable decomposition). Only INVALID/unable counts as a failed How.
+    #: Ticket 20 step 2b-iii: which route this How took — ``"decomposed-How"`` (it
+    #: split into children), ``"leaf-How"`` (the decomposition declared zero children, so
+    #: the leaf ran in this candidate's own directory), ``"fallback-leaf-How"``
+    #: (ticket 20 step 2c: ``plan_node`` yielded no usable decomposition, so the How was
+    #: treated as a LEAF How and run here instead of being burned), or ``"failed-How"``
+    #: (a decomposition was produced but could not be applied/funded). Ticket 20 step 2d
+    #: adds ``"forced-leaf"``: the decomposition would create children but the node's own
+    #: boundary is small, so the deterministic guard FORCED a leaf How.
     how_case: str = ""
+    #: Ticket 20 step 2d: the deterministic allocation guard's decision for THIS candidate
+    #: — the thresholds used, the counted write-boundary files / ACs, whether the
+    #: decomposition would create children, and whether the How was FORCED to a leaf
+    #: (with the reason). Always present so a run shows which nodes were allowed to
+    #: decompose and with what counts.
+    allocation: dict = field(default_factory=dict)
     #: Ticket 20 step 2b-iii: the leaf outcome this candidate's own How produced (its
     #: stop reason + signal), for a leaf-How; empty otherwise. This is the evidence that a
     #: LEAF actually EXECUTED.
@@ -203,6 +232,7 @@ class CandidateRecord:
             "evidence": self.evidence, "won": self.won,
             "planned_points": list(self.planned_points),
             "deviations": list(self.deviations),
+            "allocation": dict(self.allocation),
         }
 
 
@@ -240,6 +270,15 @@ class NodeOutcome:
     #: run record keeps them separate from ``manager_decisions``.
     manager_unavailable: list[dict] = field(default_factory=list)
     winner: str = ""
+    #: Ticket 20 step 2d: how many distinct How CANDIDATES this node actually attempted
+    #: (one per sequential try; the small constant :data:`SEQUENTIAL_HOW_LIMIT` and the
+    #: budget bound it). ``1`` means the top How alone was tried. Greedy still honours the
+    #: manager: ``continue-with-next-how`` / ``author-a-new-how`` raise this count.
+    sequential_attempts: int = 0
+    #: Ticket 20 step 2d: the FIRST candidate's deterministic allocation decision (the
+    #: thresholds, the counted files/ACs, and whether the top How was forced to a leaf).
+    #: The per-candidate copies live on each :class:`CandidateRecord`.
+    allocation: dict = field(default_factory=dict)
     #: Which close rule the deterministic structural gate applied (ticket 18 gap 1):
     #: ``integration`` (≥2 writing descendants, a passing report-gated integration
     #: verdict), ``close_single_writer`` (≤1 writing descendant — nothing to integrate),
@@ -799,6 +838,11 @@ class _TreeContext:
     #: safe default ``escalate-or-park``) and the run output area candidate copies live in.
     manager: Any = None
     run_outdir: Path = field(default_factory=lambda: Path("."))
+    #: Ticket 20 step 2c: how many How candidates a node may OPEN. ``1`` (the DEFAULT)
+    #: is GREEDY --- plan the Hows, take the top-ranked one, and put the whole budget into
+    #: that single candidate; a second candidate is opened only when the user opts in
+    #: (>1 restores the tournament). The budget-derived cap still applies on top.
+    how_explore: int = 1
 
     def emit(self, kind: str, **data: Any) -> None:
         note(kind, **data)
@@ -1261,10 +1305,66 @@ async def _consult_manager(ctx: _TreeContext, cs: CandidateSet, node_id: str, ho
     return decision
 
 
+def _allocation_guard(spec: NodeSpec, decomp: Decomposition | None) -> dict:
+    """Ticket 20 step 2d: the deterministic force-leaf ALLOCATION decision for one How.
+
+    A node whose OWN write boundary is small (``<= FORCED_LEAF_MAX_FILES`` files) and
+    whose plan carries few acceptance criteria (``<= FORCED_LEAF_MAX_ACS``) is NOT allowed
+    to decompose: when the chosen How's decomposition would create children it is FORCED
+    to a LEAF How instead. This is a deterministic allocation heuristic, not a model
+    decision, and the thresholds (:data:`FORCED_LEAF_MAX_FILES` / ``FORCED_LEAF_MAX_ACS``)
+    are expected to be tuned from measurements.
+
+    The returned record is persisted on the candidate (and the node's first candidate), so
+    every run shows the thresholds used, the counted files/ACs, whether the decomposition
+    would have created children, and — when they differ — which nodes were allowed to
+    decompose and which were forced to a leaf, with the reason.
+    """
+    files = len(spec.files)
+    acs = len(spec.acs)
+    would = bool(decomp is not None and decomp.children)
+    small = files <= FORCED_LEAF_MAX_FILES and acs <= FORCED_LEAF_MAX_ACS
+    forced = would and small
+    if forced:
+        reason = (
+            f"the How's decomposition would create children, but the node's write "
+            f"boundary is small ({files} <= {FORCED_LEAF_MAX_FILES} files) and it has "
+            f"few acceptance criteria ({acs} <= {FORCED_LEAF_MAX_ACS}); forced to a leaf "
+            "How")
+    elif would:
+        reason = (
+            f"the node's write boundary ({files} files) / acceptance criteria ({acs}) "
+            f"exceed the force-leaf thresholds ({FORCED_LEAF_MAX_FILES} files / "
+            f"{FORCED_LEAF_MAX_ACS} ACs); the decomposition is allowed")
+    else:
+        reason = (f"the How did not decompose (leaf How); node boundary {files} files, "
+                  f"{acs} acceptance criteria")
+    return {"forced": forced, "reason": reason, "files": files, "acs": acs,
+            "max_files": FORCED_LEAF_MAX_FILES, "max_acs": FORCED_LEAF_MAX_ACS,
+            "would_decompose": would}
+
+
 async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget: Budget,
                     workdir: Path, hows: HowList, *,
                     source: Path | None = None) -> NodeOutcome:
     """Explore the node's How candidates, pick the winner, with NO destructive reset.
+
+    Ticket 20 step 2c: the DEFAULT is GREEDY --- the node plans its Hows, takes the
+    top-ranked one, and puts the whole budget into that single candidate (``how_explore=1``);
+    a second candidate opens only when the run opts in (``how_explore > 1`` restores the
+    tournament). In greedy mode the chosen candidate's slice is reserved out of the node
+    pool before that candidate's planning / manager / feasibility calls so none of them can
+    starve it. An unusable ``plan_node`` result is not a dead How: it falls back to running
+    the How as a leaf in its own candidate directory (only a failing leaf fails the How).
+
+    Ticket 20 step 2d: GREEDY means ONE CANDIDATE AT A TIME, not one How forever. Greedy
+    still honours the manager: ``continue-with-next-how`` abandons the current candidate
+    and moves to the next untried How in a FRESH candidate, and ``author-a-new-how``
+    appends a new How and tries it. Those SEQUENTIAL attempts are always allowed, bounded
+    by the small constant :data:`SEQUENTIAL_HOW_LIMIT` and by the budget (the count is
+    recorded as ``sequential_attempts``). Only the PARALLEL / COMPARATIVE exploration ---
+    opening several candidates and picking a winner with :func:`harness.how.pick` --- stays
+    opt-in behind ``how_explore > 1``.
 
     Each How gets its OWN isolated candidate copy (never a git worktree / reset) and its
     own decomposition; the How's children run inside that copy. ``source`` is the pristine
@@ -1285,51 +1385,115 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
         if cs.hows.get(how.id) is None:
             cs.add_how(how)
     # The exploration cap is CUMULATIVE per node: computed ONCE from the node's non-reserve
-    # pool and never recounted, so a manager that authors Hows cannot raise it (D5).
-    exploration_limit = how_exploration_limit(budget, None,
-                                              min_leaf_calls=ctx.min_leaf_calls)
+    # pool and never recounted, so a manager that authors Hows cannot raise it (D5). Ticket
+    # 20 step 2d: the PARALLEL/COMPARATIVE cap stays behind ``how_explore`` (``1`` = greedy),
+    # while SEQUENTIAL How retries are always allowed, bounded by :data:`SEQUENTIAL_HOW_LIMIT`
+    # and by the same budget-derived ceiling (never 0: the top How is always tried once).
+    budget_cap = how_exploration_limit(budget, None, min_leaf_calls=ctx.min_leaf_calls)
+    parallel_limit = min(max(1, ctx.how_explore), budget_cap)
+    sequential_limit = min(SEQUENTIAL_HOW_LIMIT, budget_cap)
+    attempt_cap = max(1, parallel_limit, sequential_limit)
+    greedy = ctx.how_explore <= 1
     records: list[CandidateRecord] = []
     closed: list[tuple[CandidateRecord, NodeOutcome]] = []
     repair_action = ""
     refusal = ""
     reuse_handles: list[NodeHandle] = []
-    explored = 0
+    attempts = 0
     last_leaf: LeafOutcome | None = None
+    # Ticket 20 step 2c: the last candidate's outcome, kept so a parked node's record can
+    # show the candidate subtree (and therefore whether any leaf executed).
+    last_candidate: NodeOutcome | None = None
     stop = False
     reviewed_feasibility: set[str] = set()
     while not stop and not ctx.expired(budget):
-        if explored >= exploration_limit:
+        if attempts >= attempt_cap:
             break
         untried = list(cs.hows.untried())
         if not untried:
             break
         how = untried[0]
-        explored += 1
+        attempts += 1
         ws = cs.open(how.id)
         before = budget.spent_calls
-        decomp = await _plan_how(ctx, node, spec, budget, how)
+        # Ticket 20 step 2c: FUND THE CHOSEN CANDIDATE. Greedy explores ONE candidate, so
+        # reserve that candidate's slice out of the node pool BEFORE its planning /
+        # manager / feasibility calls run and run the candidate on that slice. Those calls
+        # draw on the node's reserve (its own overhead), so they can never starve the
+        # candidate; whatever the candidate does not spend is released back. The
+        # tournament path (how_explore > 1) keeps the shared node pool.
+        candidate_budget: Budget | None = None
+        if greedy:
+            try:
+                candidate_budget = budget.split(1)[0]
+            except BudgetError:  # too small to reserve: run on the node pool
+                candidate_budget = None
+        slice_budget = candidate_budget if candidate_budget is not None else budget
         result: NodeOutcome | None = None
         how_case = "failed-How"
-        if decomp is not None and decomp.children:
-            applied = await _apply_decomposition(ctx, node, spec, budget, decomp,
-                                                 reuse_handles, ws.path)
-            if applied is not None:
-                result, reuse_handles = applied
-                how_case = "decomposed-How"
-        elif decomp is not None:
-            # A decomposition with ZERO children is a legitimate LEAF How ("do it
-            # here"): run the leaf for THIS How inside its own candidate directory and
-            # score its outcome (ticket 20 step 2b-iii; the How's own spec carries
-            # goal/behavior/files/acs/test_cases, and the How text rides as context).
-            how_case = "leaf-How"
-            result = await _run_leaf_node(ctx, node, decomp.spec, budget, ws.path, how=how)
-            if result.leaf is not None:
-                last_leaf = result.leaf
+        decomp: Decomposition | None = None
+        allocation: dict = {}
+        try:
+            decomp = await _plan_how(ctx, node, spec, budget, how)
+            allocation = _allocation_guard(spec, decomp)
+            if allocation["forced"]:
+                # Ticket 20 step 2d: the How's decomposition would create children, but the
+                # node's own boundary is small --- the deterministic guard FORCES a LEAF
+                # How. It still goes through the WHOLE normal leaf machinery (covenant,
+                # review angles, boundary audit); only the decomposition is skipped.
+                how_case = "forced-leaf"
+                ctx.emit("forced-leaf", node=nid, how=how.id,
+                         reason=allocation["reason"], files=allocation["files"],
+                         acs=allocation["acs"])
+                result = await _run_leaf_node(ctx, node, spec, slice_budget, ws.path,
+                                              how=how)
+                if result.leaf is not None:
+                    last_leaf = result.leaf
+            elif decomp is not None and decomp.children:
+                # A decomposition pools the whole remaining node budget (its children get
+                # the usual weighted split), so return the reserved slice before applying.
+                if candidate_budget is not None:
+                    budget.release(candidate_budget)
+                    candidate_budget = None
+                applied = await _apply_decomposition(ctx, node, spec, budget, decomp,
+                                                     reuse_handles, ws.path)
+                if applied is not None:
+                    result, reuse_handles = applied
+                    how_case = "decomposed-How"
+            elif decomp is not None:
+                # A decomposition with ZERO children is a legitimate LEAF How ("do it
+                # here"): run the leaf for THIS How inside its own candidate directory and
+                # score its outcome (ticket 20 step 2b-iii; the How's own spec carries
+                # goal/behavior/files/acs/test_cases, and the How text rides as context).
+                how_case = "leaf-How"
+                result = await _run_leaf_node(ctx, node, decomp.spec, slice_budget,
+                                              ws.path, how=how)
+                if result.leaf is not None:
+                    last_leaf = result.leaf
+            else:
+                # Ticket 20 step 2c: an UNUSABLE decomposition is NOT a dead How. When
+                # ``plan_node`` yields nothing usable (unable/invalid after the bounded
+                # re-ask), treat this How as a LEAF How and run it in its candidate
+                # directory instead of burning the candidate; only a leaf that itself
+                # fails makes the How fail.
+                how_case = "fallback-leaf-How"
+                result = await _run_leaf_node(ctx, node, spec, slice_budget,
+                                              ws.path, how=how)
+                if result.leaf is not None:
+                    last_leaf = result.leaf
+        finally:
+            if candidate_budget is not None:
+                budget.release(candidate_budget)
         cost = budget.spent_calls - before
+        if candidate_budget is not None:
+            cost += candidate_budget.spent_calls
         # Ticket 20 step 2b-ii: the candidate's plan-time test list is its contract. Its
         # DEVIATIONS (extra tests beyond the declared points) do not score, but are
         # reported to the managing call; the candidate is scored over the declared points.
-        points = _candidate_test_points(decomp)
+        # A forced-leaf How ran on the NODE's own spec, so its declared points are the
+        # node's, not the refused decomposition's.
+        points = (tuple(planned_test_points(spec)) if how_case == "forced-leaf"
+                  else _candidate_test_points(decomp))
         plan_dicts = [point.to_dict() for point in points]
         leaves = list(_leaf_outcomes(result)) if result is not None else []
         deviations = extra_test_points(points, leaves)
@@ -1343,6 +1507,7 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
             record = CandidateRecord(how.id, how.rank, "succeeded", str(ws.path), selection,
                                      planned_points=plan_dicts,
                                      deviations=list(deviations), how_case=how_case,
+                                     allocation=dict(allocation),
                                      leaf_stop_reason=(result.leaf.stop_reason
                                                        if result.leaf is not None else ""),
                                      leaf_signal=(result.leaf.signal
@@ -1360,19 +1525,30 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
             else:
                 cs.succeed(how.id)
                 closed.append((record, result))
+                if len(closed) >= parallel_limit:
+                    # Greedy (``parallel_limit == 1``): the first candidate that closes is
+                    # the winner. Tournament: at most ``how_explore`` successful candidates
+                    # are collected for the picker. Either way a FAILURE below is not
+                    # capped here --- the manager may still drive a sequential retry.
+                    break
             continue
         # Failure: the structured evidence + reason go to the manager loop.
-        stop_reason = result.stop_reason if result is not None else "no-decomposition"
+        stop_reason = result.stop_reason if result is not None else "decomposition-refused"
         if result is None:
-            evidence = "the How produced no decomposition"
+            # ``result is None`` now means the decomposition WAS produced but could not be
+            # applied (unfundable, or refused as a non-shrinking repeat); an unusable plan
+            # no longer reaches here --- it falls back to a leaf How (ticket 20 step 2c).
+            evidence = "the How's decomposition could not be applied"
         else:
             evidence = result.evidence or (
                 (result.leaf.exhaustion_reason if result.leaf is not None else "")
                 or f"the leaf did not close (stop_reason={stop_reason})")
         cs.fail(how.id, evidence=evidence, reason=stop_reason)
+        last_candidate = result
         records.append(CandidateRecord(how.id, how.rank, "failed", str(ws.path), None,
                                        evidence, planned_points=plan_dicts,
                                        deviations=list(deviations), how_case=how_case,
+                                       allocation=dict(allocation),
                                        leaf_stop_reason=(result.leaf.stop_reason
                                                          if result is not None
                                                          and result.leaf is not None else ""),
@@ -1423,11 +1599,21 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
         evidence = repair_action or refusal or "no candidate closed"
         parked = _parked(nid, "parked", round(ctx.now() - started, 3),
                          evidence=f"no How candidate closed: {evidence}", leaf=last_leaf)
+        if last_candidate is not None:
+            # Keep the last candidate's subtree so the record answers whether any leaf
+            # actually executed (ticket 20 step 2c).
+            parked.children = list(last_candidate.children)
+            parked.calls = last_candidate.calls
+            parked.close_rule = last_candidate.close_rule
+            parked.integration_verdicts = dict(last_candidate.integration_verdicts)
+            parked.integration_reopen_rounds = last_candidate.integration_reopen_rounds
         parked.hows = [_how_dict(h) for h in cs.hows]
         parked.candidates = records
         parked.manager_decisions = [{"decision": d.decision, "reason": d.reason}
                                     for d in cs.decisions]
         parked.manager_unavailable = list(cs.manager_unavailable)
+        parked.sequential_attempts = attempts
+        parked.allocation = dict(records[0].allocation) if records else {}
         return parked
 
     # SELECTION DRIVES THE OUTCOME: the ONE picker, never a model vote.
@@ -1456,6 +1642,8 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
                                         for d in cs.decisions]
     winner_outcome.manager_unavailable = list(cs.manager_unavailable)
     winner_outcome.winner = winner_record.how_id
+    winner_outcome.sequential_attempts = attempts
+    winner_outcome.allocation = dict(records[0].allocation) if records else {}
     return winner_outcome
 
 
@@ -2011,6 +2199,7 @@ async def run_tree(
     trajectory: Trajectory | None = None,
     run_outdir: Path | None = None,
     manager: Any = None,
+    how_explore: int = 1,
 ) -> TreeOutcome:
     """Run the whole tree over an already-built :class:`TaskTree` and root :class:`NodeSpec`.
 
@@ -2019,8 +2208,13 @@ async def run_tree(
     final stop (no new node starts once it passes). ``run_outdir`` is the run output area
     How candidate copies live under (ticket 20 step 2b); ``manager`` is the node's
     managing call the failure loop consults (``None`` ⇒ the safe default
-    ``escalate-or-park``).
+    ``escalate-or-park``). ``how_explore`` (ticket 20 step 2c) is how many How candidates
+    a node may OPEN: ``1`` (the default) is GREEDY --- plan the Hows, take the top-ranked
+    one, and fund that single candidate; ``>1`` restores the tournament. The budget-derived
+    cap still applies on top.
     """
+    if how_explore < 1:
+        raise ValueError(f"how_explore must be >= 1 (1 = greedy), got {how_explore}")
     workdir = Path(workdir)
     trajectory = trajectory or Trajectory(workdir)
     trajectory.ensure_git()
@@ -2032,7 +2226,7 @@ async def run_tree(
         judge=judge, iv=iv, review=review, run_tests=run_tests, now=clock, on_event=on_event,
         depth_cap=depth_cap, max_children=max_children, min_leaf_calls=min_leaf_calls,
         run_outdir=Path(run_outdir) if run_outdir is not None else workdir.parent,
-        manager=manager)
+        manager=manager, how_explore=how_explore)
     ctx.specs[tree.root_id] = root
     ctx.depths[tree.root_id] = 0
     started = clock()

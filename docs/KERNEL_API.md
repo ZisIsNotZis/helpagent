@@ -505,3 +505,13 @@ manager loop are composition over the six primitives (the first planning call is
 - **Budget.** `how_exploration_limit(budget, n_hows)` bounds how many Hows a node may
   explore: the non-reserve pool divided by `min_leaf_calls + 1` (one per-How decomposition
   call plus a leaf's worth of work), capped by the number of Hows.
+- **Greedy is the default (ticket 20 step 2c).** `run_tree(..., how_explore=1)` and
+  `bench/v2_tree.py --how-explore N` (default `1`) control how many How candidates a node
+  may OPEN. With `1` the node plans its Hows, takes the TOP-ranked one, and puts the
+  budget into that single candidate; a second candidate opens only with `N > 1` (the
+  tournament path is otherwise unchanged). The setting is recorded in the run record
+  (`run.json` key `how_explore`). Two further greedy rules: an unusable `plan_node` result
+  is not a dead How --- it falls back to running that How as a leaf in its candidate
+  directory (`how_case == "fallback-leaf-How"`; only a failing leaf fails the How); and the
+  chosen candidate's slice is reserved out of the node pool BEFORE its planning / manager /
+  feasibility calls, which draw on the node's reserve, so they cannot starve it.

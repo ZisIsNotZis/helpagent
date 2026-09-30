@@ -1,0 +1,266 @@
+{
+ "task": "T-05-mutable-default",
+ "goal": "Something's wrong with our note tagging — tags keep bleeding between notes. I tagged one\nnote \"errand\" this morning and now a completely unrelated note shows the same tag, even\nthough I never tagged it. Tags are supposed to stick to the note they were added to;\nnotes are independent. Can you fix the tagger?\n",
+ "acs": [
+  "Something's wrong with our note tagging — tags keep bleeding between notes.",
+  "I tagged one note \"errand\" this morning and now a completely unrelated note shows the same tag, even though I never tagged it.",
+  "Tags are supposed to stick to the note they were added to; notes are independent.",
+  "Can you fix the tagger?"
+ ],
+ "withheld_grader_paths": [
+  "pyproject.toml",
+  "tests/test_notes.py"
+ ],
+ "judge": true,
+ "iv": true,
+ "review": true,
+ "claimed": false,
+ "actual": false,
+ "quadrant": "honest-failure",
+ "verified_quadrant": "unverified-failure",
+ "best_effort_declared": 0,
+ "verification_downgrades": 0,
+ "covenant_weakened": 1,
+ "covenant_nodes": 1,
+ "covenant_diluted": true,
+ "calls": 25,
+ "tree_wall_s": 178.413,
+ "run_wall_s": 178.5,
+ "budget": {
+  "calls": 35,
+  "deadline_ts": 1790767005.9584496,
+  "reserve_fraction": 0.25,
+  "spent_calls": 25,
+  "grants": []
+ },
+ "checkpoints": {
+  "N-1": "aed64813cf1dc94432e050ff1847e50afad4d7e2"
+ },
+ "split_history": {},
+ "nodes": {
+  "node": "N-1",
+  "claimed": false,
+  "stop_reason": "parked",
+  "calls": 0,
+  "wall_s": 175.038,
+  "leaf_signal": "honest-failure",
+  "leaf_stop_reason": "ladder",
+  "self_test": "tests/test_tag_bleed.py",
+  "claimed_basis": "own-test",
+  "verification_basis": "test",
+  "verified": false,
+  "claim_status": "unverified-failure",
+  "verification": {
+   "wrote_code": true,
+   "tier": "none",
+   "reason": "",
+   "reason_problem": "",
+   "reviews": [],
+   "review_angles": [
+    "ac-correctness",
+    "contract-compat"
+   ],
+   "review_level": "implementation",
+   "review_score": 0,
+   "required": "test",
+   "best_effort": false,
+   "downgraded": false,
+   "downgrade_reason": ""
+  },
+  "needs_user": false,
+  "review_verdicts": [],
+  "coverage": [],
+  "coverage_missing": [],
+  "coverage_unresolved": [],
+  "test_case_problems": [],
+  "malformed_steps": [],
+  "judge_unavailable": 0,
+  "judge_verdicts": [
+   {
+    "implementation_wrong": false,
+    "test_wrong": true,
+    "spec_wrong": false,
+    "environment_broken": false,
+    "reason": "The test expects each note to have its own independent tag list, but add_tag mutates a shared tag list via note['tags'].append().",
+    "evidence": "The test expects each note to have its own independent tag list, but add_tag mutates a shared tag list via note['tags'].append().",
+    "attribution": "tests",
+    "defect": "The test expects each note to have its own independent tag list, but add_tag mutates a shared tag list via note['tags'].append().",
+    "raw": "{\"status\": \"failed\", \"comment\": \"Failure stems from shared mutable tag state in add_tag.\", \"blame\": \"test\", \"problem\": \"The test expects each note to have its own independent tag list, but add_tag mutates a shared tag list via note['tags'].append().\", \"unable_reason\": \"\"}",
+    "coerced": false,
+    "coercion_reason": ""
+   },
+   {
+    "implementation_wrong": false,
+    "test_wrong": true,
+    "spec_wrong": false,
+    "environment_broken": false,
+    "reason": "add_tag in tagger/notes.py mutates a shared mutable list for tags, causing tag bleeding across notes.",
+    "evidence": "add_tag in tagger/notes.py mutates a shared mutable list for tags, causing tag bleeding across notes.",
+    "attribution": "tests",
+    "defect": "add_tag in tagger/notes.py mutates a shared mutable list for tags, causing tag bleeding across notes.",
+    "raw": "{\"status\": \"failed\", \"comment\": \"Root cause identified in tagger/notes.py: add_tag mutates a shared mutable list instead of creating an independent list per note.\", \"blame\": \"test\", \"problem\": \"add_tag in tagger/notes.py mutates a shared mutable list for tags, causing tag bleeding across notes.\", \"unable_reason\": \"\"}",
+    "coerced": false,
+    "coercion_reason": ""
+   },
+   {
+    "implementation_wrong": false,
+    "test_wrong": true,
+    "spec_wrong": false,
+    "environment_broken": false,
+    "reason": "The add_tag function mutates a shared tags list instead of using each note's own independent tag list.",
+    "evidence": "The add_tag function mutates a shared tags list instead of using each note's own independent tag list.",
+    "attribution": "tests",
+    "defect": "The add_tag function mutates a shared tags list instead of using each note's own independent tag list.",
+    "raw": "{\"status\": \"failed\", \"comment\": \"Root cause identified: shared mutable tag state in add_tag.\", \"blame\": \"test\", \"problem\": \"The add_tag function mutates a shared tags list instead of using each note's own independent tag list.\", \"unable_reason\": \"\"}",
+    "coerced": false,
+    "coercion_reason": ""
+   }
+  ],
+  "integration_verdicts": {},
+  "close_rule": "",
+  "integration_reopen_rounds": 0,
+  "boundary_audit": null,
+  "hows": [
+   {
+    "how_id": "HOW-1",
+    "text": "Implement a strict, isolated tagging state machine in tagger/notes.py that enforces a single active tag per note, preventing cross-note tag bleed by strictly validating and applying tags independently.",
+    "rank": 1,
+    "reason": "This directly addresses the core issue of tags bleeding between unrelated notes by enforcing strict isolation and validation at the source of tagging logic.",
+    "prior": 0.5,
+    "status": "failed"
+   },
+   {
+    "how_id": "HOW-2",
+    "text": "Audit and isolate the tagging logic within tagger/notes.py by removing any shared mutable tag state or global variables that could inadvertently carry over tags between different note objects.",
+    "rank": 2,
+    "reason": "This approach targets the root cause of the bleeding by eliminating shared mutable state, ensuring each note maintains its own independent tagging context.",
+    "prior": 0.25,
+    "status": "failed"
+   }
+  ],
+  "candidates": [
+   {
+    "how_id": "HOW-1",
+    "rank": 1,
+    "status": "failed",
+    "how_case": "leaf-How",
+    "leaf_stop_reason": "ladder",
+    "leaf_signal": "honest-failure",
+    "directory": "/home/z/vibe/helpagent/bench/runs/v2tree-20260930T104645Z/T-05-mutable-default/candidates/N-1/HOW-1",
+    "selection": null,
+    "test_covered": 0,
+    "test_pass_rate": 0.0,
+    "review_score": 0,
+    "needs_repair": false,
+    "repair_reason": "",
+    "evidence": "ladder-exhausted",
+    "won": false,
+    "planned_points": [
+     {
+      "name": "test_ac1_strict_isolated_tag_state",
+      "file": "tests/test_tag_isolation.py",
+      "verifies": "Enforce a strict, isolated tagging state machine in tagger/notes.py that strictly validates and applies tags independently per note, preventing cross-note tag bleed.",
+      "ac_id": "AC-1",
+      "id": "tests/test_tag_isolation.py::test_ac1_strict_isolated_tag_state"
+     },
+     {
+      "name": "test_ac1_no_cross_note_tag_bleed",
+      "file": "tests/test_tag_isolation.py",
+      "verifies": "Enforce a strict, isolated tagging state machine in tagger/notes.py that strictly validates and applies tags independently per note, preventing cross-note tag bleed.",
+      "ac_id": "AC-1",
+      "id": "tests/test_tag_isolation.py::test_ac1_no_cross_note_tag_bleed"
+     },
+     {
+      "name": "test_ac2_tag_strictly_bound_to_note",
+      "file": "tests/test_tag_isolation.py",
+      "verifies": "Ensure tags are strictly isolated to the specific note they are added to, with no shared or transferred state between unrelated notes.",
+      "ac_id": "AC-2",
+      "id": "tests/test_tag_isolation.py::test_ac2_tag_strictly_bound_to_note"
+     },
+     {
+      "name": "test_ac2_no_tag_transfer_between_notes",
+      "file": "tests/test_tag_isolation.py",
+      "verifies": "Ensure tags are strictly isolated to the specific note they are added to, with no shared or transferred state between unrelated notes.",
+      "ac_id": "AC-2",
+      "id": "tests/test_tag_isolation.py::test_ac2_no_tag_transfer_between_notes"
+     }
+    ],
+    "deviations": []
+   },
+   {
+    "how_id": "HOW-2",
+    "rank": 2,
+    "status": "failed",
+    "how_case": "leaf-How",
+    "leaf_stop_reason": "ladder",
+    "leaf_signal": "honest-failure",
+    "directory": "/home/z/vibe/helpagent/bench/runs/v2tree-20260930T104645Z/T-05-mutable-default/candidates/N-1/HOW-2",
+    "selection": null,
+    "test_covered": 0,
+    "test_pass_rate": 0.0,
+    "review_score": 0,
+    "needs_repair": false,
+    "repair_reason": "",
+    "evidence": "ladder-exhausted",
+    "won": false,
+    "planned_points": [
+     {
+      "name": "test_no_shared_mutable_tag_state",
+      "file": "tests/test_tag_bleed.py",
+      "verifies": "Remove all shared mutable tag state or global variables from tagger/notes.py to prevent tags from bleeding between notes.",
+      "ac_id": "AC-1",
+      "id": "tests/test_tag_bleed.py::test_no_shared_mutable_tag_state"
+     },
+     {
+      "name": "test_no_global_tag_variables",
+      "file": "tests/test_tag_bleed.py",
+      "verifies": "Remove all shared mutable tag state or global variables from tagger/notes.py to prevent tags from bleeding between notes.",
+      "ac_id": "AC-1",
+      "id": "tests/test_tag_bleed.py::test_no_global_tag_variables"
+     },
+     {
+      "name": "test_note_independent_tagging_context",
+      "file": "tests/test_tag_bleed.py",
+      "verifies": "Ensure each note object maintains its own independent tagging context without relying on shared mutable state.",
+      "ac_id": "AC-2",
+      "id": "tests/test_tag_bleed.py::test_note_independent_tagging_context"
+     }
+    ],
+    "deviations": []
+   }
+  ],
+  "manager_decisions": [
+   {
+    "decision": "continue-with-next-how",
+    "reason": "HOW-1 failed with a ladder-exhausted error; HOW-2 is untried and targets the root cause of the tag bleeding."
+   },
+   {
+    "decision": "escalate-or-park",
+    "reason": "HOW-2 ladder-exhausted: both HOW-1 and HOW-2 failed, and no untried Hows or candidate selections exist."
+   }
+  ],
+  "manager_unavailable": [],
+  "winner": "",
+  "children": []
+ },
+ "produced": [
+  "README.md",
+  "tagger/__init__.py",
+  "tagger/notes.py"
+ ],
+ "grader_exit": 1,
+ "grader_notes": [
+  "           tests/test_notes.py:17: AssertionError",
+  "           =========================== short test summary info ============================",
+  "           FAILED tests/test_notes.py::test_notes_do_not_share_tags - AssertionError: as...",
+  "           1 failed, 1 passed in 0.04s",
+  "[contract] OK (4 untouched paths byte-identical)",
+  "result: FAIL"
+ ],
+ "grader_restored": [
+  "README.md: restored from the pristine copy",
+  "tagger/__init__.py: restored from the pristine copy"
+ ],
+ "grader_shadowed": [],
+ "grader_report_gate": null
+}

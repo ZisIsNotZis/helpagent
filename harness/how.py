@@ -738,6 +738,10 @@ def how_exploration_limit(budget, n_hows: int | None = None, *,
     ``n_hows`` optionally caps the result by the number of Hows that already exist; pass
     ``None`` (what the runner does) to leave the bound purely budget-derived, because
     Hows authored LATER must not change the node's cap.
+
+    Ticket 20 step 2c: this is the BUDGET-derived ceiling only. The runner additionally
+    caps it by the run's ``how_explore`` setting (``1`` = greedy, the default), so with
+    greedy a node opens the top-ranked How and nothing else.
     """
     spendable = int(budget.calls * (1.0 - budget.reserve_fraction))
     per_how = min_leaf_calls + 1
