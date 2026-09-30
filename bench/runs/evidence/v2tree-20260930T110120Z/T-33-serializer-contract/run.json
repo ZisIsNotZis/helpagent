@@ -1,0 +1,254 @@
+{
+ "task": "T-33-serializer-contract",
+ "goal": "Our serializer layer has a binding contract in serialize/base.py: every\nimplementation must roundtrip any JSON-representable object (including\nnon-ASCII text) and must REJECT bytes it did not produce with ValueError.\nBoth shipped implementations violate it in places: JSON mangles non-ASCII\nnames and crashes on foreign bytes with the wrong error; pickle lets foreign\nbytes raise its own UnpicklingError instead of the contract's ValueError.\nBring BOTH implementations into the contract (base.py itself is frozen).\n",
+ "acs": [
+  "Our serializer layer has a binding contract in serialize/base.py: every implementation must roundtrip any JSON-representable object (including non-ASCII text) and must REJECT bytes it did not produce with ValueError.",
+  "Both shipped implementations violate it in places: JSON mangles non-ASCII names and crashes on foreign bytes with the wrong error; pickle lets foreign bytes raise its own UnpicklingError instead of the contract's ValueError.",
+  "Bring BOTH implementations into the contract (base.py itself is frozen)."
+ ],
+ "withheld_grader_paths": [
+  "pyproject.toml",
+  "tests/__init__.py",
+  "tests/test_contract.py"
+ ],
+ "judge": true,
+ "iv": true,
+ "review": true,
+ "claimed": false,
+ "actual": false,
+ "quadrant": "honest-failure",
+ "verified_quadrant": "verified-failure",
+ "best_effort_declared": 0,
+ "verification_downgrades": 0,
+ "covenant_weakened": 0,
+ "covenant_nodes": 0,
+ "covenant_diluted": false,
+ "calls": 54,
+ "tree_wall_s": 315.675,
+ "run_wall_s": 315.8,
+ "budget": {
+  "calls": 0,
+  "deadline_ts": 1790767880.5713472,
+  "reserve_fraction": 0.25,
+  "spent_calls": 43,
+  "grants": []
+ },
+ "checkpoints": {
+  "N-1": "e13538b3e4b82d0553a0a2c80f744a70e7fc15ee"
+ },
+ "split_history": {
+  "N-1": [
+   {
+    "signature": "6b24be0d8dfba54e0ddf089901a4128ef1d4b686",
+    "n_children": 3,
+    "max_child_budget": 14,
+    "verdict": "novel"
+   }
+  ]
+ },
+ "nodes": {
+  "node": "N-1",
+  "claimed": false,
+  "stop_reason": "parked",
+  "calls": 0,
+  "wall_s": 311.424,
+  "leaf_signal": "honest-failure",
+  "leaf_stop_reason": "calls",
+  "self_test": "tests/test_contract_unified_serializers.py",
+  "claimed_basis": "own-test",
+  "verification_basis": "test",
+  "verified": true,
+  "claim_status": "verified-failure",
+  "verification": null,
+  "needs_user": false,
+  "review_verdicts": [],
+  "coverage": [],
+  "coverage_missing": [],
+  "coverage_unresolved": [],
+  "test_case_problems": [],
+  "malformed_steps": [],
+  "judge_unavailable": 0,
+  "judge_verdicts": [],
+  "integration_verdicts": {},
+  "close_rule": "",
+  "integration_reopen_rounds": 0,
+  "boundary_audit": null,
+  "hows": [
+   {
+    "how_id": "HOW-1",
+    "text": "Implement a strict validation wrapper around the existing serializers that enforces the contract by explicitly catching and converting all non-ASCII and foreign bytes into ValueError, ensuring both implementations meet the binding requirements.",
+    "rank": 1,
+    "reason": "This approach directly enforces the binding contract by normalizing error handling, guaranteeing compliance with the node's core requirements without altering the underlying serialization logic.",
+    "prior": 0.5,
+    "status": "failed"
+   },
+   {
+    "how_id": "HOW-2",
+    "text": "Refactor the serialization logic to use a unified, contract-compliant base implementation that inherently rejects non-produced bytes with ValueError, replacing the current divergent implementations.",
+    "rank": 2,
+    "reason": "This approach ensures a single, unified standard for both serializers, directly resolving the divergence between JSON and pickle implementations and strictly adhering to the contract.",
+    "prior": 0.25,
+    "status": "failed"
+   },
+   {
+    "how_id": "HOW-3",
+    "text": "new approach after failure: calls",
+    "rank": 3,
+    "reason": "no fresh model How was available; append one so the node can retry",
+    "prior": 0.125,
+    "status": "failed"
+   }
+  ],
+  "candidates": [
+   {
+    "how_id": "HOW-1",
+    "rank": 1,
+    "status": "failed",
+    "how_case": "decomposed-How",
+    "leaf_stop_reason": "",
+    "leaf_signal": "",
+    "directory": "/home/z/vibe/helpagent/bench/runs/v2tree-20260930T110120Z/T-33-serializer-contract/candidates/N-1/HOW-1",
+    "selection": null,
+    "test_covered": 0,
+    "test_pass_rate": 0.0,
+    "review_score": 0,
+    "needs_repair": false,
+    "repair_reason": "",
+    "evidence": "needs-integration: no call budget left to re-run the responsible writers after a failing integration verdict",
+    "won": false,
+    "planned_points": [
+     {
+      "name": "test_ac1_json_non_ascii_roundtrip",
+      "file": "tests/test_json_non_ascii.py",
+      "verifies": "JSON serializer must roundtrip any JSON-representable object including non-ASCII text without mangling.",
+      "ac_id": "AC-1",
+      "id": "tests/test_json_non_ascii.py::test_ac1_json_non_ascii_roundtrip"
+     },
+     {
+      "name": "test_ac2_json_bytes_value_error",
+      "file": "tests/test_json_bytes_error.py",
+      "verifies": "JSON serializer must reject foreign bytes it did not produce with ValueError.",
+      "ac_id": "AC-2",
+      "id": "tests/test_json_bytes_error.py::test_ac2_json_bytes_value_error"
+     },
+     {
+      "name": "test_ac3_pickle_bytes_value_error",
+      "file": "tests/test_pickle_bytes_error.py",
+      "verifies": "Pickle serializer must reject foreign bytes it did not produce with ValueError instead of raising its own UnpicklingError.",
+      "ac_id": "AC-3",
+      "id": "tests/test_pickle_bytes_error.py::test_ac3_pickle_bytes_value_error"
+     }
+    ],
+    "deviations": []
+   },
+   {
+    "how_id": "HOW-2",
+    "rank": 2,
+    "status": "failed",
+    "how_case": "leaf-How",
+    "leaf_stop_reason": "calls",
+    "leaf_signal": "honest-failure",
+    "directory": "/home/z/vibe/helpagent/bench/runs/v2tree-20260930T110120Z/T-33-serializer-contract/candidates/N-1/HOW-2",
+    "selection": null,
+    "test_covered": 0,
+    "test_pass_rate": 0.0,
+    "review_score": 0,
+    "needs_repair": false,
+    "repair_reason": "",
+    "evidence": "calls",
+    "won": false,
+    "planned_points": [
+     {
+      "name": "test_ac1_json_roundtrip_non_ascii",
+      "file": "tests/test_json_non_ascii.py",
+      "verifies": "JSON serializer must roundtrip any JSON-representable object including non-ASCII text without mangling.",
+      "ac_id": "AC-1",
+      "id": "tests/test_json_non_ascii.py::test_ac1_json_roundtrip_non_ascii"
+     },
+     {
+      "name": "test_ac2_json_rejects_foreign_bytes",
+      "file": "tests/test_json_bytes_error.py",
+      "verifies": "JSON serializer must reject bytes it did not produce with ValueError.",
+      "ac_id": "AC-2",
+      "id": "tests/test_json_bytes_error.py::test_ac2_json_rejects_foreign_bytes"
+     },
+     {
+      "name": "test_ac3_pickle_roundtrip_json_object",
+      "file": "tests/test_pickle_roundtrip.py",
+      "verifies": "Pickle serializer must roundtrip any JSON-representable object.",
+      "ac_id": "AC-3",
+      "id": "tests/test_pickle_roundtrip.py::test_ac3_pickle_roundtrip_json_object"
+     },
+     {
+      "name": "test_ac4_pickle_rejects_foreign_bytes",
+      "file": "tests/test_pickle_bytes_error.py",
+      "verifies": "Pickle serializer must reject foreign bytes with ValueError instead of its own UnpicklingError.",
+      "ac_id": "AC-4",
+      "id": "tests/test_pickle_bytes_error.py::test_ac4_pickle_rejects_foreign_bytes"
+     }
+    ],
+    "deviations": []
+   },
+   {
+    "how_id": "HOW-3",
+    "rank": 3,
+    "status": "failed",
+    "how_case": "failed-How",
+    "leaf_stop_reason": "",
+    "leaf_signal": "",
+    "directory": "/home/z/vibe/helpagent/bench/runs/v2tree-20260930T110120Z/T-33-serializer-contract/candidates/N-1/HOW-3",
+    "selection": null,
+    "test_covered": 0,
+    "test_pass_rate": 0.0,
+    "review_score": 0,
+    "needs_repair": false,
+    "repair_reason": "",
+    "evidence": "the How produced no decomposition",
+    "won": false,
+    "planned_points": [],
+    "deviations": []
+   }
+  ],
+  "manager_decisions": [
+   {
+    "decision": "continue-with-next-how",
+    "reason": "HOW-1 failed with 'parked' due to a 'needs-integration' failure, so the next untried How is selected."
+   },
+   {
+    "decision": "author-a-new-how",
+    "reason": "HOW-2 (calls) failed and no untried Hows exist, so the existing Hows are exhausted and require a new How."
+   },
+   {
+    "decision": "escalate-or-park",
+    "reason": "HOW-3 failed with no-decomposition; no untried Hows remain, so the node is parked."
+   }
+  ],
+  "manager_unavailable": [],
+  "winner": "",
+  "children": []
+ },
+ "produced": [
+  "README.md",
+  "serialize/__init__.py",
+  "serialize/base.py",
+  "serialize/json_ser.py",
+  "serialize/pickle_ser.py"
+ ],
+ "grader_exit": 1,
+ "grader_notes": [
+  "           serialize/pickle_ser.py:13: UnpicklingError",
+  "           =========================== short test summary info ============================",
+  "           FAILED tests/test_contract.py::test_load_refuses_foreign_bytes[PickleSerializer]",
+  "           1 failed, 5 passed in 0.05s",
+  "[contract] OK (7 untouched paths byte-identical)",
+  "result: FAIL"
+ ],
+ "grader_restored": [
+  "README.md: restored from the pristine copy",
+  "serialize/__init__.py: restored from the pristine copy",
+  "serialize/base.py: restored from the pristine copy",
+  "serialize/pickle_ser.py: restored from the pristine copy"
+ ],
+ "grader_shadowed": [],
+ "grader_report_gate": null
+}

@@ -114,3 +114,55 @@ tests. It does NOT yet drive real runs:
   or field that would read as "candidates used" while the runner still resets git.
 - Step 2b replaces the L6/L7 git-reset design with the candidate-directory path and
   updates the tests that encode the old reset behaviour (`tests/unit/test_v2_tree.py`).
+
+## First usable measurement of the How axis (2026-09-30, reference model, six corpus tasks, N=1)
+
+The axis now genuinely executes (this took four rounds: a nested-envelope sentinel leak, a
+decode grammar that marked REQUIRED fields optional, a zero-children decomposition being
+treated as a failure instead of a leaf How, and an async manager passed into a sync helper).
+Every run planned 2-3 Hows, opened 2-3 candidates (both `leaf-How` and `decomposed-How`),
+consulted the manager, and actually executed a leaf.
+
+| task | claimed | actual | quadrant | calls | wall | Hows | manager decisions |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| T-02 | F | F | honest-failure | 47 | 485s | 3 | continue → author-new-how → park |
+| T-05 | F | F | honest-failure | 25 | 178s | 2 | continue → park |
+| T-14 | F | F | honest-failure | 49 | 326s | 2 | continue → park |
+| T-20 | T | T | true-success | 14 | 65s | 2 | continue |
+| T-31 | F | F | honest-failure | 42 | 299s | 3 | continue → author-new-how → park |
+| T-33 | F | F | honest-failure | 54 | 316s | 3 | continue → author-new-how → park |
+
+Totals: actual 1/6, claimed 1/6, **false success 0**, 231 calls, 1670s (mean 278s and ~38
+calls per run).
+
+The leaf-only driver on the same tasks (round-11 measurement, N=2) scored 6/12 actual at
+~7 calls and ~20s per run. So the How axis currently costs ~5x the calls and ~15x the wall
+time and fixes FEWER tasks: the exploration and the extra planning/evaluation calls consume
+the budget that the single leaf spends on iterating toward the fix. N=1 is noisy (T-05
+passed in the pre-measurement acceptance run), but the cost gap is not noise.
+
+DECISION: the How axis is NOT the default. It stays behind its flag as the right shape for
+genuinely multi-part work (which this corpus does not contain) and should be revisited on
+tasks that a single leaf measurably cannot do.
+
+Also retracts ticket 18's "the planner never decomposes": that was a grammar artifact (the
+decode schema marked REQUIRED fields optional, so an omitted `children` became an empty
+list). Decomposition demonstrably happens now.
+
+## The generalisation (five data points)
+
+Mechanisms we built and measured, and what they did to the metrics:
+
+| mechanism | verdict |
+| --- | --- |
+| knowledge pack injection | no gain (4/15 vs 3/15) |
+| module importers in the write spec | no gain (10/15 vs 10/15) |
+| forced file ordering | harmful (14/15 vs 7/15) |
+| boundary completion on rule evidence | no gain (1/5 vs 1/5) |
+| How-axis exploration | works, but 5x cost for fewer actual fixes |
+
+What DID move the numbers was never more structure for the model to follow: it was giving
+the model MORE SIGNAL - the forced red-then-green test loop, the deterministic diagnosis
+rules, the report gate that stops a process from lying about its own tests, and the
+coverage/discrimination checks. Structure that costs calls without adding information
+consistently loses. That is the lesson to carry into the next mechanism we consider.
