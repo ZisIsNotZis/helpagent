@@ -44,6 +44,7 @@ from harness.leaf import (
     LeafSpec,
     ReviewRequest,
     ReviewVerdict,
+    _criterion_unresolved,
     _declared_test_case_problems,
     _requirement_coverage,
     apply_judge_filter,
@@ -901,11 +902,15 @@ def test_rewrite_green_on_arrival_leaves_no_bogus_target_on_disk(tmp_path):
 
 
 # ------------------------------------------------------- malformed-output robustness
-# A model failure is DATA, not a crash: every envelope request is retried a bounded
-# number of times and a persistent malformed output stops the run as malformed-output.
+# Ticket 19 round 2, F5: a model failure is DATA, not a crash AND not a stop. Every
+# envelope request is retried a bounded number of times; a persistent malformed output
+# consumes its calls, is recorded, and the node CONTINUES (bounded by the call budget /
+# attempt cap / ladder stops). The old ``malformed-output`` stop was superseded.
 
 
-def test_malformed_self_test_envelope_is_retried_then_stops_malformed_output(tmp_path):
+def test_malformed_self_test_envelope_is_retried_then_the_node_continues(tmp_path):
+    """F5: a persistently malformed self-test no longer ends the node — it is retried
+    (each try spends a call) until the CALL BUDGET is the stop."""
     spec = make_spec()
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [schema_violation()] * 3})
@@ -913,11 +918,11 @@ def test_malformed_self_test_envelope_is_retried_then_stops_malformed_output(tmp
                         Budget(calls=9, deadline_ts=_FAR_FUTURE), run_tests=ScriptedTests([1]))
 
     assert out.claimed is False
-    assert out.signal == "honest-failure"
-    assert out.stop_reason == "malformed-output"
-    assert "malformed-output" in out.exhaustion_reason
-    assert len(model.calls("write_test")) == 3          # 1 attempt + 2 retries
+    assert out.stop_reason == "calls"                 # the budget, not malformed-output
+    assert len(model.calls("write_test")) == 9         # it consumed the budget, never crashed
+    assert "self-test" in out.malformed_steps
     assert "envelope_malformed" in ledger_kinds()
+    assert "envelope_malformed_step" in ledger_kinds()
     assert "self_test_written" not in ledger_kinds()
 
 
@@ -944,12 +949,14 @@ def test_a_raising_model_never_crashes_the_leaf(tmp_path):
     out = run_leaf_sync(model, spec, tmp_path,
                         Budget(calls=9, deadline_ts=_FAR_FUTURE), run_tests=ScriptedTests([1]))
 
-    assert out.stop_reason == "malformed-output"
+    assert out.stop_reason == "calls"                 # F5: no crash and no malformed stop
     assert out.claimed is False
-    assert len(model.calls("write_test")) == 3
+    assert len(model.calls("write_test")) == 9
 
 
-def test_malformed_implement_envelope_stops_malformed_output(tmp_path):
+def test_malformed_implement_envelope_does_not_end_the_node(tmp_path):
+    """F5: a malformed implement envelope is recorded and the loop continues; the red
+    target is kept and the node stops only on the call budget."""
     spec = make_spec()
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, *[schema_violation()] * 3]})
@@ -957,11 +964,14 @@ def test_malformed_implement_envelope_stops_malformed_output(tmp_path):
                         Budget(calls=9, deadline_ts=_FAR_FUTURE), run_tests=ScriptedTests([1]))
 
     assert out.self_test == "tests/test_leaf_self.py"          # the red target is kept
-    assert out.stop_reason == "malformed-output"
-    assert len(model.calls("write_test")) == 4                 # self-test + 3 implement tries
+    assert out.claimed is False
+    assert out.stop_reason == "calls"                          # not malformed-output
+    assert "implement" in out.malformed_steps
 
 
-def test_malformed_judge_output_is_retried_then_stops_malformed_output(tmp_path):
+def test_malformed_judge_output_is_recorded_and_the_node_continues(tmp_path):
+    """F5: a malformed judge is retried a bounded number of times, recorded, and the run
+    keeps going with no credited verdict instead of stopping."""
     spec = make_spec()
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, blocked()]})
@@ -974,21 +984,27 @@ def test_malformed_judge_output_is_retried_then_stops_malformed_output(tmp_path)
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=9, deadline_ts=_FAR_FUTURE),
                         judge=judge, run_tests=ScriptedTests([1] * 4))
 
-    assert out.stop_reason == "malformed-output"
+    assert out.stop_reason == "calls"
     assert out.claimed is False
-    assert len(seen) == 3                                      # 1 attempt + 2 retries
+    assert len(seen) == 3                                      # 1 attempt + 2 retries, then on
+    assert "judge" in out.malformed_steps
+    assert "judge_unavailable" in ledger_kinds()
 
 
-def test_malformed_test_rewrite_is_retried_then_stops_malformed_output(tmp_path):
+def test_malformed_test_rewrite_is_recorded_and_the_node_continues(tmp_path):
+    """F5: a malformed test rewrite is recorded; the own test is left intact and the node
+    keeps implementing rather than stopping."""
     spec = make_spec()
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, blocked(), *[schema_violation()] * 3]})
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
                         judge=judge_blames_test, run_tests=ScriptedTests([1] * 6))
 
-    assert out.stop_reason == "malformed-output"
+    assert out.claimed is False
+    assert out.stop_reason == "calls"                          # not malformed-output
     assert out.test_rewrites == 0
     assert (tmp_path / "tests/test_leaf_self.py").read_text() == SELF_TEST["content"]
+    assert "test-rewrite" in out.malformed_steps
 
 
 def test_malformed_output_with_no_budget_for_a_retry_stops_calls(tmp_path):
@@ -1840,24 +1856,34 @@ def test_incomplete_coverage_after_repair_is_recorded_on_the_outcome(tmp_path):
     assert out.iv_covered_indices == [1] and out.iv_uncovered_indices == [2]
 
 
-def test_empty_acceptance_criteria_skips_coverage_and_is_recorded(tmp_path):
-    """No extracted acceptance criteria ⇒ the coverage rule is skipped (a test that names
-    no ``ac<i>`` can approve) and ``no_acceptance_criteria`` is recorded."""
+def test_empty_acceptance_criteria_cannot_claim_on_the_test_basis(tmp_path):
+    """Ticket 19 round 2 (F2): with no extracted acceptance criteria the run may NOT claim
+    on the test basis alone. Without a reviewer there is no claim route, so it stops with
+    the distinct ``no-acceptance-criteria`` reason."""
     spec = dataclasses.replace(make_spec(), acs=[])
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
-    # self red(1), impl green(0), IV orig red(1), IV final green with NO ac token
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
-                        iv=lambda request: iv_candidate(),
-                        run_tests=ScriptedTests([
-                            1, 0, 1,
-                            _green_result("tests/test_independent.py::test_goal"),
-                        ]))
+                        run_tests=ScriptedTests([1, 0]))
 
-    assert out.claimed is True
-    assert out.iv_criteria_count == 0
-    assert out.iv_covered_indices == [] and out.iv_uncovered_indices == []
-    assert "no_acceptance_criteria" in ledger_kinds()
+    assert out.claimed is False
+    assert out.stop_reason == "no-acceptance-criteria"
+    assert "no_acceptance_criteria_claim_blocked" in ledger_kinds()
+
+
+def test_empty_acceptance_criteria_forces_review_and_claims_with_evidence(tmp_path):
+    """F2: with a reviewer, an empty criteria list goes through review (grounded evidence,
+    F1) and may claim on that basis."""
+    spec = dataclasses.replace(make_spec(), acs=[])
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        review=_approving_review, run_tests=ScriptedTests([1, 0]))
+
+    assert out.verification_basis == "review"
+    assert out.claimed is True and out.claimed_basis == "review"
+    assert out.stop_reason == "green"
+    assert "review_verification" in ledger_kinds()
 
 
 def test_evaluate_independent_test_real_gate_rejects_incomplete_coverage():
@@ -2818,20 +2844,34 @@ def test_no_red_target_switches_to_review_and_claims_with_evidence(tmp_path):
     assert "review_verification" in ledger_kinds() and "review_verdict" in ledger_kinds()
 
 
-def test_apply_review_filter_requires_naming_a_changed_file_or_line():
-    """Ticket 19 B: a review pass is honoured ONLY with concrete evidence (a changed file
-    or a line reference); a bare approval is coerced to a fail."""
+def test_apply_review_filter_requires_a_changed_artifact_not_a_bare_line():
+    """Ticket 19 B / round 2 (F1): a pass is honoured only with a CHANGED file (or a symbol
+    in a changed file's final text). A bare line reference is coerced, and a zero-change
+    diff can never claim by any route."""
     request = ReviewRequest(goal="g", acs=["a"], original={"pkg/calc.py": "x"},
                             final={"pkg/calc.py": "y"})
     good = apply_review_filter(
         ReviewVerdict(approved=True, evidence="pkg/calc.py:1 implements AC-1"), request)
     assert good.approved is True and good.coerced is False
+    # F1: a bare line reference names no changed artifact and is no longer enough
     line = apply_review_filter(
         ReviewVerdict(approved=True, evidence="line 3 satisfies the requirement"), request)
-    assert line.approved is True
+    assert line.approved is False and line.coerced is True
     vibes = apply_review_filter(ReviewVerdict(approved=True, evidence="looks good"), request)
     assert vibes.approved is False and vibes.coerced is True
-    assert "ba.py" not in vibes.evidence  # (sanity: the filter used the request, not a guess)
+    # a symbol that occurs in a changed file's final text is accepted
+    request2 = ReviewRequest(goal="g", acs=["a"], original={"pkg/calc.py": "def compute_total():\n    return 1\n"},
+                             final={"pkg/calc.py": "def compute_total():\n    return 7\n"})
+    symbol = apply_review_filter(
+        ReviewVerdict(approved=True, evidence="`compute_total` now returns 7"), request2)
+    assert symbol.approved is True
+    # F1 zero-change pin: an UNCHANGED tree can NEVER claim, path or line reference alike
+    no_op = ReviewRequest(goal="g", acs=["a"], original={}, final={})
+    assert apply_review_filter(
+        ReviewVerdict(approved=True, evidence="pkg/calc.py:1 fixes AC-1"),
+        no_op).approved is False
+    assert apply_review_filter(
+        ReviewVerdict(approved=True, evidence="line 1 is fine"), no_op).approved is False
 
 
 def test_review_without_evidence_cannot_claim(tmp_path):
@@ -2947,14 +2987,18 @@ def test_requirement_artifact_coverage_blocks_a_claim_when_the_named_file_is_unt
     assert "requirement_uncovered" in ledger_kinds()
 
 
-def test_requirement_coverage_records_symbols_and_skips_unresolvable_text(tmp_path):
+def test_requirement_coverage_records_symbols_and_flags_unresolvable_text(tmp_path):
+    """Ticket 19 E / round 2 (F2): a resolvable criterion records its symbol; a criterion
+    that names NO artifact is flagged ``unresolved`` — it is NOT silently skipped."""
     spec = dataclasses.replace(make_spec(), acs=["result() returns 42", "the widget is blue"])
     stage(tmp_path, spec.files)
     (tmp_path / "pkg" / "calc.py").write_text("def result():\n    return 1\n")
     baseline = {"pkg/calc.py": "def result():\n    return 0\n"}
     coverage = _requirement_coverage(spec, tmp_path, baseline)
     assert coverage[0].ok and "result" in coverage[0].symbols
-    assert coverage[1].ok and not coverage[1].files and not coverage[1].symbols
+    assert not _criterion_unresolved(coverage[0])
+    assert not coverage[1].files and not coverage[1].symbols
+    assert _criterion_unresolved(coverage[1])
 
 
 def test_driver_review_defaults_on_and_maps_the_leaf_review_envelope():
@@ -3140,4 +3184,156 @@ def test_run_record_carries_the_attribution_labels(tmp_path):
     assert labels["spec_wrong"] is False and labels["environment_broken"] is False
     assert labels["reason"] == "both wrong" and labels["evidence"] == "pkg/calc.py:1"
     assert record["claimed_basis"] == "own-test"
+    json.dumps(record)
+
+
+# ===========================================================================
+# Ticket 19 round 2 — the adversarial fixes (F1–F5)
+# ===========================================================================
+
+
+def _pristine_distinguishing_runner(tmp_path, *, pristine_red: bool,
+                                    own_test_node="tests/test_leaf_self.py::test_goal"):
+    """A run_tests seam for the unresolved-criterion tests.
+
+    On the workdir (``tmp_path``) the run's own test is RED then GREEN; in the private
+    pristine copy (used by :func:`harness.leaf._declared_case_discriminates`) the declared
+    test is RED (a real discriminator) or GREEN (a placeholder that asserts True)."""
+    state = {"n": 0}
+
+    def runner(workdir, node_ids=None):
+        if Path(workdir) != tmp_path:
+            return (_red_result(own_test_node) if pristine_red
+                    else _green_result(own_test_node))
+        state["n"] += 1
+        return (_red_result(own_test_node) if state["n"] == 1
+                else _green_result(own_test_node))
+
+    return runner
+
+
+def test_unresolved_criterion_is_carried_by_a_discriminating_declared_test(tmp_path):
+    """F2/F4: a criterion that names NO artifact is not skipped — a declared test that is
+    RED on the pristine source carries it, so the node may claim."""
+    spec = dataclasses.replace(
+        make_spec(),
+        acs=["thread the timeout through the result and helper call sites"],
+        test_cases=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_goal",)),))
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+        run_tests=_pristine_distinguishing_runner(tmp_path, pristine_red=True))
+
+    assert out.claimed is True and out.stop_reason == "green"
+    assert out.coverage_unresolved == []
+    assert _criterion_unresolved(out.coverage[0])
+
+
+def test_unresolved_criterion_without_a_declared_test_cannot_claim(tmp_path):
+    """F2: with no declared discriminating test to carry it, an unresolvable criterion
+    blocks the claim with a distinct, recorded reason."""
+    spec = dataclasses.replace(
+        make_spec(), acs=["thread the timeout through the result and helper call sites"])
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, *[impl()] * 6]})
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
+        run_tests=_pristine_distinguishing_runner(tmp_path, pristine_red=True))
+
+    assert out.claimed is False
+    assert out.coverage_unresolved and "AC1" in out.coverage_unresolved[0]
+    assert "criterion_unresolved" in ledger_kinds()
+
+
+def test_unresolved_criterion_with_a_placeholder_declared_test_cannot_claim(tmp_path):
+    """F4: a placeholder declared test (green on the pristine source) does not discriminate
+    and cannot carry an unresolvable criterion."""
+    spec = dataclasses.replace(
+        make_spec(),
+        acs=["thread the timeout through the result and helper call sites"],
+        test_cases=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_goal",)),))
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, *[impl()] * 6]})
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
+        run_tests=_pristine_distinguishing_runner(tmp_path, pristine_red=False))
+
+    assert out.claimed is False
+    assert out.coverage_unresolved and "AC1" in out.coverage_unresolved[0]
+    assert "criterion_unresolved" in ledger_kinds()
+
+
+def test_comment_only_edit_is_not_a_change(tmp_path):
+    """F3: a criterion's named file is NOT covered by a comment-only edit."""
+    spec = dataclasses.replace(make_spec(), acs=["pkg/calc.py must return 42"])
+    stage(tmp_path, spec.files)
+    (tmp_path / "pkg" / "calc.py").write_text(
+        "# a brand new comment\ndef result():\n    return 0\n")
+    baseline = {"pkg/calc.py": "def result():\n    return 0\n"}
+    coverage = _requirement_coverage(spec, tmp_path, baseline)
+    assert not coverage[0].ok and "pkg/calc.py" in coverage[0].missing
+
+
+def test_symbol_that_only_moved_in_a_comment_is_not_covered(tmp_path):
+    """F3: a symbol that already existed is not 'covered' by a comment-only edit."""
+    spec = dataclasses.replace(make_spec(), acs=["result() returns 42"])
+    stage(tmp_path, spec.files)
+    (tmp_path / "pkg" / "calc.py").write_text(
+        "def result():\n    return 0\n# result() is covered now\n")
+    baseline = {"pkg/calc.py": "def result():\n    return 0\n"}
+    coverage = _requirement_coverage(spec, tmp_path, baseline)
+    assert "result" in coverage[0].symbols
+    assert "result" in coverage[0].missing
+
+
+def test_changed_files_ignore_comments_and_whitespace(tmp_path):
+    """F3: the node diff is compared with comments and whitespace stripped."""
+    from harness.leaf import _changed_files
+
+    (tmp_path / "pkg").mkdir(parents=True)
+    baseline = {"pkg/calc.py": "def result():\n    return 0\n"}
+    (tmp_path / "pkg" / "calc.py").write_text("# note\ndef result():\n\n    return 0\n")
+    assert _changed_files(tmp_path, baseline) == {}      # comment/whitespace only
+    (tmp_path / "pkg" / "calc.py").write_text("def result():\n    return 1\n")
+    assert "pkg/calc.py" in _changed_files(tmp_path, baseline)
+
+
+def test_review_of_a_no_op_diff_cannot_claim(tmp_path):
+    """F1+F3: review cannot carry a diff that changed nothing, even with a concrete line
+    reference to an unchanged file — and a COMMENT-ONLY edit is not a change."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    # both self tests green on arrival ⇒ review; the implement adds only a comment.
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST, SELF_TEST_ALT,
+        impl(content="# a meaningless comment\ndef result():\n    return 0\n")]})
+    seen: list[ReviewRequest] = []
+
+    def review(request: ReviewRequest) -> ReviewVerdict:
+        seen.append(request)
+        return ReviewVerdict(approved=True, evidence="pkg/calc.py:1 implements the goal")
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        review=review, run_tests=ScriptedTests([0, 0, 0]))
+
+    assert seen and seen[0].final == {}                 # comment-only ⇒ nothing changed
+    assert out.claimed is False
+    assert out.review_verdict is not None and out.review_verdict.coerced
+
+
+def test_malformed_steps_are_recorded_on_the_run_record():
+    """F5: the persisted run record carries every malformed step."""
+    from bench.external_score import ExternalScore
+    from bench.v2_leaf import build_record
+
+    outcome = LeafOutcome(
+        claimed=False, signal="honest-failure", attempts=[], calls=4, wall_s=1.0,
+        self_test=None, questions=[], exhausted=False, exhaustion_reason="",
+        layers_used=[], stop_reason="calls", malformed_steps=["self-test", "implement"])
+    score = ExternalScore(passed=False, exit=1, notes=[], work_root="", applied=[], skipped=[])
+
+    record = build_record("T-x", "goal", outcome, withheld=[], produced={}, score=score,
+                          quad="missed-success", run_wall_s=1.0)
+    assert record["malformed_steps"] == ["self-test", "implement"]
     json.dumps(record)

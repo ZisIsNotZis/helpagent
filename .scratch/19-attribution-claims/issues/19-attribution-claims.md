@@ -89,3 +89,46 @@ Re-run the matched 9×2 comparison with the default rule (own test + proactive j
 + review) against the traditional and strict arms; watch for true/missed/honest/false and
 calls. Any false success is a blocker; a large missed-success band at ~2× calls is the
 tuning target for coverage strictness (symbol extraction).
+
+---
+
+# 19 round 2 — the adversarial holes (implemented)
+
+Status: round 2 implemented (delegated worker lane); suite 403 green (394 round-1 tests,
+4 renamed/updated for superseded decisions, 9 added). No benchmark sweep was run.
+
+An independent adversarial verification of the round-1 claim rules, plus the blind
+measurement, found five concrete holes. They are fixed in `harness/leaf.py` (with the new
+`malformed_steps` / `coverage_unresolved` fields surfaced by `bench/v2_leaf.build_record`
+and `bench/v2_tree.node_record`).
+
+## Round 2 — finding → code → test
+
+| finding | code | tests |
+| --- | --- | --- |
+| F1 review evidence must name a REAL diff artifact; a bare `line N` no longer bypasses; an unchanged tree can never claim | `_evidence_names_an_artifact` (drop `_LINE_REF` bypass; require a changed path or a symbol in a changed file's final text; empty `ReviewRequest.final` ⇒ False); `_review_request` uses the stripped diff | `test_apply_review_filter_requires_a_changed_artifact_not_a_bare_line`, `test_review_of_a_no_op_diff_cannot_claim` |
+| F2 an unresolvable criterion is NOT skipped — a DECLARED discriminating test must carry it; an empty criteria list cannot claim on the test basis | `_criterion_unresolved`, `_declared_case_index`, `_declared_case_discriminates`; claim path blockers `coverage_unresolved` / `criterion_unresolved`; empty-criteria force-review + `no-acceptance-criteria` | `test_unresolved_criterion_is_carried_by_a_discriminating_declared_test`, `test_unresolved_criterion_without_a_declared_test_cannot_claim`, `test_empty_acceptance_criteria_cannot_claim_on_the_test_basis`, `test_empty_acceptance_criteria_forces_review_and_claims_with_evidence`, `test_requirement_coverage_records_symbols_and_flags_unresolvable_text` |
+| F3 file coverage satisfied by a comment/unrelated edit; symbol coverage by a pre-existing token | `_stripped` (comments + whitespace); `_changed_files` and `_review_request` compare stripped | `test_comment_only_edit_is_not_a_change`, `test_symbol_that_only_moved_in_a_comment_is_not_covered`, `test_changed_files_ignore_comments_and_whitespace` |
+| F4 a declared test carried by a placeholder | the F2 discrimination check (red on pristine, green on final) | `test_unresolved_criterion_with_a_placeholder_declared_test_cannot_claim` |
+| F5 malformed output ended the node (missed successes) | `request_bounded` records the step and never stops; `request_envelope` (self-test) is budget-bounded; every call site continues (implement/judge/review/rewrite/test-cases); `malformed-output` removed from `STOP_REASONS` | `test_malformed_self_test_envelope_is_retried_then_the_node_continues`, `test_a_raising_model_never_crashes_the_leaf`, `test_malformed_implement_envelope_does_not_end_the_node`, `test_malformed_judge_output_is_recorded_and_the_node_continues`, `test_malformed_test_rewrite_is_recorded_and_the_node_continues`, `test_malformed_steps_are_recorded_on_the_run_record` |
+
+## New reason / event values
+
+- stop_reason `no-acceptance-criteria` (empty criteria list, no reviewer ⇒ no test-basis
+  claim). stop_reason `malformed-output` is REMOVED: a malformed envelope consumes its
+  calls and the node continues (bounded by calls/attempts/ladder).
+- claim blockers (kept working, not stops): `coverage_unresolved` + `criterion_unresolved`
+  event (an unresolvable criterion with no declared discriminating test).
+- events `envelope_malformed_step`, `judge_unavailable`, `no_acceptance_criteria_claim_blocked`;
+  outcome/record fields `coverage_unresolved`, `malformed_steps`.
+
+## Round-2 residual routes (not closed here)
+
+- F1: review evidence still matches a CHANGED file by basename, so a different same-named
+  file can be cited; and a symbol that pre-existed in a really-changed file still counts
+  (the accepted "behavior changed" note). The stripped-diff relaxation in F3 removes only
+  comment/whitespace-only edits.
+- F2/F4: the declared-test discrimination check is only applied on the TEST basis; in
+  review mode the reviewer's grounded evidence (F1) is the only carrier.
+- Coverage over-gating from round 1 is unchanged (a request-wide symbol the run did not
+  touch still blocks the claim).

@@ -273,6 +273,9 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         # contract failures that blocked a claim.
         "coverage": [dataclasses.asdict(c) for c in outcome.coverage],
         "coverage_missing": outcome.coverage_missing,
+        # Ticket 19 round 2 (F2): the criteria that named no artifact and had no declared
+        # discriminating test to carry them (a distinct claim blocker).
+        "coverage_unresolved": outcome.coverage_unresolved,
         "test_case_problems": outcome.test_case_problems,
         "needs_user": outcome.needs_user,
         "actual": score.passed,
@@ -326,6 +329,9 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
                                if score.report_gate is not None else None),
         "grader_suspected_contaminated_grade": score.suspected_contaminated_grade,
         "gate_anomalies": outcome.gate_anomalies,
+        # Ticket 19 round 2 (F5): every envelope step that stayed malformed past its
+        # bounded retries. A malformed step no longer ends the node.
+        "malformed_steps": outcome.malformed_steps,
         "refusals": outcome.refusals,
         # Interpreter isolation (ticket 17 round 5) and the report policy (round 6):
         # both the leaf's own pytest and the grader's pytest run the same env/args,
