@@ -6,9 +6,9 @@ deterministic checks it cannot talk its way past, and an honest record of what w
 not verified.
 
 Measured position (same reference model, nine corpus tasks, two runs each, grader run
-OUTSIDE the run): the harness fixes roughly two thirds of the tasks and never claims a
-task the grader rejects without recording exactly why. Numbers, method and known limits:
-[`docs/STATUS.md`](docs/STATUS.md).
+OUTSIDE the run): the harness fixes roughly two thirds of the tasks, claims only what it can
+back with evidence, and records exactly what evidence every claim — or refusal to claim —
+rested on. Numbers, method and known limits: [`docs/STATUS.md`](docs/STATUS.md).
 
 ## The idea in one page
 

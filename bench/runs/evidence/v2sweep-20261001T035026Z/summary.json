@@ -1,0 +1,33 @@
+{
+ "tasks": 9,
+ "runs": 18,
+ "actual_pass": "14/18",
+ "claimed_pass": "4/18",
+ "quadrants": {
+  "missed-success": 10,
+  "honest-failure": 4,
+  "true-success": 4
+ },
+ "calls_total": 156,
+ "iv_attempts_total": 21,
+ "iv_repairs_total": 7,
+ "per_task": {
+  "T-02-off-by-one": "missed-success",
+  "T-03-wrong-comparison": "missed-success",
+  "T-05-mutable-default": "missed-success",
+  "T-08-add-cache-invalidation": "true-success",
+  "T-14-add-export-sorting": "honest-failure",
+  "T-20-average-truncation": "missed-success",
+  "T-25-chunked-helper": "true-success",
+  "T-31-parameter-threading": "true-success",
+  "T-33-serializer-contract": "honest-failure"
+ },
+ "stop_reasons": [
+  "attempts",
+  "green",
+  "independent-test-red-on-final",
+  "ladder",
+  "spec-bubble",
+  "verifier-conflict"
+ ]
+}

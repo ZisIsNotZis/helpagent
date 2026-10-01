@@ -1,0 +1,1 @@
+Three teams are each hand-rolling the same batching loop and two of the copies have off-by-one bugs. Utils was supposed to ship a shared chunked(seq, size) helper — ordered chunks of at most `size` items, last chunk takes the remainder. Please land it in utils/batch.py so everyone can switch over.
