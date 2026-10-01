@@ -320,7 +320,7 @@ The flow is FIXED — no step fuses or self-selects its depth; complexity may co
 4. **implementation and tests** — the two sides are written separately (test writer never sees the implementation), then meet: run, review (optional), and judge.
 5. **judgement** — on test or review failure, an independent judge attributes the failure (implementation / tests / spec / environment) against the specification as the highest contract; spec defects bubble to the parent.
 6. **completion** — a leaf closes only with implementation + passing tests; an internal node closes when its children close and its own integration ACs pass.
-7. **discovery mid-flight** — a node that learns its decomposition or requirement is wrong returns to the owning node for re-decomposition; the node's content is reset via Git (discard that subtree's commits).
+7. **discovery mid-flight** — a node that learns its decomposition or requirement is wrong returns to the owning node: the failed approach (How) is marked abandoned and a NEW How is appended with its own decomposition, and the node's work continues in that How's own candidate directory. Nothing is rolled back destructively (there is no git reset on a candidate path); approaches and decompositions are append-only, and only the winning candidate is merged into the node tree.
 
 ### 10.2 Budget
 
@@ -520,3 +520,40 @@ New stops: `environment` (park needs-user) and `test-cases` (a declared test cas
 missing/unpassed). Per-requirement artifact coverage is a claim blocker (`coverage_missing`
 + the `requirement_uncovered` event), not a stop of its own. Full decision-to-code-to-test
 mapping and the round-1 measurement plan live in the ticket-19 work record.
+
+### 10.10 Implementation status (2026-10-01, handover)
+
+The measured results, the method, and the working limits live in
+[`STATUS.md`](STATUS.md). This section records only what is implemented versus what is
+still design.
+
+**Implemented and covered by the test gate** (each with its own pinned rules; the suite is
+the authority):
+
+- the blind protocol (source-only staging, the external grader, the corpus-integrity suite)
+  and the evidence-based gate (private report path, per-run canary, expected test ids);
+- the leaf loop: red-on-arrival self-test, M2-then-M1 retries, the L1–L5 ladder, attempt
+  accounting with the novelty prefilter and the exhaustion rule;
+- budget: deadline-primary, weighted split with a reserve, release and grant with reasons,
+  and an exact conservation record on every run and node;
+- the verification covenant: ordered tiers, a checked written reason, plan-time
+  `best_effort` with a dilution cap, and an UNVERIFIED claim state;
+- reviews as predefined ANGLES per level with weights and a critical-angle veto;
+- the judge (proactive on red, multi-label, given the goal, the criteria and the failing
+  assertion) and the independent per-criterion verification, consulted at exhaustion;
+- the declared test-case contract, requirement coverage as a hard block, the per-criterion
+  ledger, the EVIDENCE GAP state, and the single claim gate with its structural test;
+- the tree: ranked Hows (greedy by default, competitive exploration opt-in), isolated
+  candidate directories, the four-decision manager loop, the dedicated integration leaf,
+  the structural close rule, and the per-node boundary audit.
+
+**Designed but NOT built** (do not assume these exist):
+
+- the requirement-triage layer (a request is turned into a root spec directly);
+- model-side context curation (§10.7): the harness injects bounded views, the model does
+  not yet compress what it has read;
+- the knowledge service (M6) — present behind a flag, measured as no gain on this corpus;
+- git worktrees / parallel trees: candidate isolation is a directory copy;
+- L6–L8 as distinct leaf rungs: re-split and parent-spec correction live in the tree's
+  manager loop instead;
+- a human-facing piloting surface: questions are recorded in the run record only.
