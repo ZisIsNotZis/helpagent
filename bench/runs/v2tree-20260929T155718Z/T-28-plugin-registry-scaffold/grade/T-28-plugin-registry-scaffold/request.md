@@ -1,1 +1,0 @@
-We're scaffolding the plugin system. Create the registry module: plugins can register a callable under a name, look it up, and run it with arguments. Registering the same name twice must be rejected, and looking up an unknown name must raise KeyError. The design doc calls the module plugins/registry.py.

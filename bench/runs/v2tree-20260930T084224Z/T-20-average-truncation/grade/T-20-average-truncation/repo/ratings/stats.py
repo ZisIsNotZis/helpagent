@@ -1,6 +1,0 @@
-"""Aggregates for the review service."""
-
-
-def average(scores: list[float]) -> float:
-    """Mean of the given scores, rounded to 2 decimal places."""
-    return round(sum(scores) / len(scores), 2)
