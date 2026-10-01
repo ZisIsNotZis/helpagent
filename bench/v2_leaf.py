@@ -319,6 +319,12 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         "failure_report": (dataclasses.asdict(outcome.failure_report)
                            if outcome.failure_report is not None else None),
         "evidence_gap": outcome.evidence_gap,
+        # Ticket 21 round 3 (fix A), tightened round 4 (fix 1): the run's own test was red
+        # on the final code while the independent verification passed — two imperfect
+        # verifiers DISAGREE at the same revision, so the node did not claim (agreement is
+        # required; no judge can override it).
+        "own_test_conflict": outcome.own_test_conflict,
+        "own_test_conflict_reason": outcome.own_test_conflict_reason,
         "needs_user": outcome.needs_user,
         "actual": score.passed,
         "quadrant": quad,
@@ -404,9 +410,14 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
 
 def _judge_question(request: JudgeRequest) -> str:
     """The fresh-context judge prompt. With ``fresh=True`` the runner injects no
-    artifacts, so the evidence rides the question verbatim (DESIGN §2.4 / §10.1)."""
+    artifacts, so the evidence rides the question verbatim (DESIGN §2.4 / §10.1).
+
+    Ticket 21 round 2 (fix 2): the run's own failing ASSERTION lines are surfaced
+    explicitly (not only inside the full test and the possibly-truncated excerpt), so a
+    symptom-pinning assertion (a hard-coded buggy value) can be recognized."""
     acs = "\n".join(f"- {a}" for a in request.acs) or "- (none given)"
     files = "\n".join(f"--- {rel} ---\n{text}" for rel, text in sorted(request.files.items()))
+    assertions = "\n".join(request.failing_assertions) or "(none captured)"
     return (
         "You are an INDEPENDENT judge attributing a red test failure. You did not write "
         "the source and you did not write the test.\n"
@@ -414,6 +425,7 @@ def _judge_question(request: JudgeRequest) -> str:
         f"ACCEPTANCE CRITERIA:\n{acs}\n\n"
         f"THE RUN'S OWN TEST ({request.test_path or 'none'}):\n{request.test_content}\n\n"
         f"FAILING TEST OUTPUT:\n{request.failure}\n\n"
+        f"FAILING ASSERTION(S):\n{assertions}\n\n"
         f"CURRENT SOURCE FILES:\n{files}\n\n"
         "Decide whether the failure is caused by the code, the test, the spec, or the "
         "environment. Put the CONCRETE defect in one sentence in 'problem'. If you blame "
@@ -473,6 +485,7 @@ def _judge_fallback_question(request: JudgeRequest) -> str:
     for ranked fixes."""
     acs = "\n".join(f"- {a}" for a in request.acs) or "- (none given)"
     files = "\n".join(f"--- {rel} ---\n{text}" for rel, text in sorted(request.files.items()))
+    assertions = "\n".join(request.failing_assertions) or "(none captured)"
     return (
         "You are an INDEPENDENT judge attributing a red test failure. You did not write "
         "the source and you did not write the test.\n"
@@ -480,6 +493,7 @@ def _judge_fallback_question(request: JudgeRequest) -> str:
         f"ACCEPTANCE CRITERIA:\n{acs}\n\n"
         f"THE RUN'S OWN TEST ({request.test_path or 'none'}):\n{request.test_content}\n\n"
         f"FAILING TEST OUTPUT:\n{request.failure}\n\n"
+        f"FAILING ASSERTION(S):\n{assertions}\n\n"
         f"CURRENT SOURCE FILES:\n{files}\n\n"
         "Return ONE problem: `side` is `code` for a wrong implementation, `test` for a "
         "wrong test, or `spec` for an ambiguous requirement; put the CONCRETE defect in "

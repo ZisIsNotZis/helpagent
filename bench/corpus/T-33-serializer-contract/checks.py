@@ -30,13 +30,13 @@ REPO_DIR = TASK_DIR / "repo"
 DEFAULT_BASELINE = TASK_DIR / ".untouched.baseline.json"
 
 # Paths (relative to the task dir) that a correct run must not modify byte-for-byte.
-# The file(s) the minimal fix touches (serialize/json_ser.py) deliberately absent from the list.
+# The file(s) the minimal fix touches (serialize/json_ser.py and serialize/pickle_ser.py)
+# are deliberately absent from the list.
 UNTOUCHED = [
     "repo/README.md",
     "repo/pyproject.toml",
     "repo/serialize/__init__.py",
     "repo/serialize/base.py",
-    "repo/serialize/pickle_ser.py",
     "repo/tests/__init__.py",
     "repo/tests/test_contract.py",
 ]

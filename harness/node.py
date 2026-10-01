@@ -43,6 +43,7 @@ from harness.leaf import (
     review_angles_for_level,
 )
 from harness.runner import llm_step
+from harness.staging import owned_paths
 from harness.tree import Finding, ValidationFindings
 
 __all__ = [
@@ -60,6 +61,7 @@ __all__ = [
     "decomposition_from_envelope",
     "decomposition_signature",
     "group_weights",
+    "hidden_only",
     "plan_node",
     "split_weighted",
     "validate_decomposition",
@@ -274,6 +276,25 @@ def _verification_findings(label: str, files: Sequence[str], required: str,
             f"{label} declares best_effort without a plan-level best_effort_reason")
 
 
+def hidden_only(paths: Sequence[str] | set[str] | None) -> set[str]:
+    """The genuinely-HIDDEN subset of ``paths``: canonicalized and filtered to
+    :func:`harness.staging.owned_paths` (ticket 21 round 4, fix 3).
+
+    The leaf write guard needs the GRADER UNION (staged-owned test/infrastructure paths
+    plus the corpus ``UNTOUCHED`` visible-but-frozen files), but the plan-time guard may
+    only fire on what the run genuinely CANNOT SEE. Deriving the hidden set HERE, inside
+    the API, means a caller that passes the union cannot accidentally reject a plan for a
+    visible frozen source file (``README.md``, ``serialize/base.py``) while a genuinely
+    hidden test path is still rejected.
+    """
+    out: set[str] = set()
+    for raw in (paths or ()):
+        canon = canonical_path(raw)
+        if canon is not None and owned_paths(canon):
+            out.add(canon)
+    return out
+
+
 def validate_decomposition(
     d: Decomposition,
     *,
@@ -282,6 +303,7 @@ def validate_decomposition(
     depth: int,
     depth_cap: int,
     max_children: int,
+    withheld_paths: set[str] | None = None,
 ) -> ValidationFindings:
     """The deterministic plan gate — structured findings, never an exception.
 
@@ -290,11 +312,45 @@ def validate_decomposition(
     dedupe; depth and child-count caps; free-text file-token grounding. Sibling file sets
     may OVERLAP (the tree serializes overlapping writers); A non-empty result routes the
     caller to re-ask once, then force a leaf.
+
+    Ticket 21 round 2 (fix 4), fixed round 3 (fix C), made footgun-proof round 4
+    (fix 3): ``withheld_paths`` are the paths the run genuinely CANNOT SEE — the
+    staged-owned test / infrastructure set (:func:`harness.staging.owned_paths`), NOT the
+    corpus ``UNTOUCHED`` list. The ``UNTOUCHED`` list is visible-but-frozen SOURCE
+    (``README.md``, a package ``__init__.py``, ``serialize/base.py``): a plan that
+    legitimately declares one must be ACCEPTED. The hidden set is derived HERE via
+    :func:`hidden_only`, so passing the grader UNION (hidden ∪ frozen) cannot mislabel a
+    visible frozen file as hidden. Only a declared FILE or DECLARED TEST POINT inside the
+    genuinely-hidden set is rejected at PLAN TIME (a run that planned a test point inside
+    a withheld grader path, ``tests/test_pagination.py``, could otherwise spend its budget
+    writing where the grader will overwrite).
     """
     findings: list[Finding] = []
+    withheld = hidden_only(withheld_paths)
 
     def add(kind: str, detail: str) -> None:
         findings.append(Finding(kind=kind, detail=detail))
+
+    def withheld_hits(label: str, spec: NodeSpec) -> None:
+        """Reject a declared file or test point inside a withheld grader path."""
+        if not withheld:
+            return
+
+        def inside(canon: str) -> bool:
+            return any(canon == w or canon.startswith(w.rstrip("/") + "/")
+                       for w in withheld)
+
+        for rel in spec.files:
+            canon = canonical_path(rel) or rel
+            if inside(canon):
+                add("withheld-file-path",
+                    f"{label} declares the withheld grader path {rel!r} as a source file")
+        for case in spec.test_cases:
+            canon = canonical_path(case.file) or case.file
+            if inside(canon):
+                add("withheld-test-path",
+                    f"{label} plans test point {case.ac_id} at {case.file!r}, inside "
+                    "a withheld grader path")
 
     node = d.spec
     parent_canon = {p for p in (canonical_path(f) for f in parent_files) if p is not None}
@@ -305,6 +361,7 @@ def validate_decomposition(
         add("child-count", f"{len(d.children)} children exceeds max_children {max_children}")
 
     _canon_set(node.files, add, "node")
+    withheld_hits("node", node)
     _verification_findings("node", node.files, node.verification_required,
                            node.review_angles, node.review_level, node.best_effort,
                            node.best_effort_reason, node.kind,
@@ -323,6 +380,7 @@ def validate_decomposition(
 
     for i, child in enumerate(d.children):
         cset = _canon_set(child.files, add, f"child {i}")
+        withheld_hits(f"child {i}", child)
         _verification_findings(f"child {i}", child.files, child.verification_required,
                                child.review_angles, child.review_level, child.best_effort,
                                child.best_effort_reason, child.kind,
@@ -514,6 +572,7 @@ async def plan_node(
     max_children: int = 15,
     budget: Budget | None = None,
     on_event: Any = None,
+    withheld_paths: Sequence[str] = (),
 ) -> Decomposition | None:
     """ONE ``llm_step("plan_node")`` for one node — with a bounded one-shot re-ask.
 
@@ -521,6 +580,13 @@ async def plan_node(
     leaf (an ``unable`` envelope, malformed output, or findings that survive the one
     re-ask). Each call spends one call from ``budget`` when one is injected. Never
     raises out: invalid output becomes a force-leaf.
+
+    ``withheld_paths`` are the paths the run genuinely CANNOT SEE (the staged-owned test
+    / infrastructure set) — a caller MAY pass the grader UNION (hidden ∪ visible frozen)
+    and the hidden set is derived here via :func:`hidden_only`, so a visible-but-frozen
+    ``UNTOUCHED`` file can never be rejected. The plan guard
+    (:func:`validate_decomposition`) rejects a declared file or test point inside one of
+    the genuinely-hidden paths (ticket 21 round 3 fix C, tightened round 4 fix 3).
     """
     boundary = set(boundary)
     candidate_files = set(candidate_files)
@@ -559,7 +625,8 @@ async def plan_node(
             decomp = decomposition_from_envelope(env)
             findings = validate_decomposition(
                 decomp, parent_files=boundary, candidate_files=candidate_files,
-                depth=depth, depth_cap=depth_cap, max_children=max_children)
+                depth=depth, depth_cap=depth_cap, max_children=max_children,
+                withheld_paths=hidden_only(withheld_paths))
         except Exception as exc:  # noqa: BLE001 — malformed output is data, not a crash
             # NO model output may crash the run: a raise while translating/validating a
             # schema-valid envelope (ticket 20 step 2b-iii: a sentinel reaching

@@ -149,6 +149,27 @@ Fixed contract points, each deliberate:
   so a same-verdict tail without a structural lever or three exercised layers keeps
   the node alive. The leaf's ``exhausted`` flag is set only by that function; a call
   budget or a deadline is a distinct, honestly-named stop (``stop_reason``).
+- **VERIFY AT EXHAUSTION — AGREEMENT IS REQUIRED (ticket 21 round 2, fix 1;
+  TIGHTENED round 4, fix 1).** When the ladder exhausts (or attempts/attempt-cap is hit)
+  and the tree changed, the run consults the INDEPENDENT verification on the FINAL code
+  — a per-criterion independent test authored fresh from the goal + criteria (never the
+  run's own test) plus, where the test cannot carry a criterion, the review path. Because
+  BOTH verifiers are authored by the same weak model, the independent test alone does NOT
+  authorise a claim at exhaustion: the run CLAIMS ONLY when the independent per-criterion
+  verification passes AND the run's OWN test is GREEN on the same final revision — two
+  independent checks that AGREE. When the own test is RED while the independent test is
+  green, that is a VERIFIER CONFLICT: the node records it (``own_test_conflict``, naming
+  the own test's FAILING assertions and the independent test's assertions at the same
+  revision) and does NOT claim, REGARDLESS of what any judge says. There is no
+  judge-confirmation escape (ticket 21 round 3 added one; round 4 REMOVED it as the
+  weak-verifier-collusion route: a rubber-stamping judge names a test anchor and so
+  satisfied the filter). The judge survives ONLY on the normal-path test-repair decision,
+  where its verdict cannot by itself produce a claim. The ledger marks the disputed
+  criterion ``verifier-conflict``. A criterion the independent test fails ⇒ the ledger
+  marks it VIOLATED and the node stays unclaimed.
+- **Coverage is a HARD block, not advice (fix 3).** A non-empty requirement-coverage miss
+  (a criterion naming a file/symbol the final diff never touches) blocks BOTH a claim and
+  an ``ok`` review verdict — the T-31 false-success route.
 """
 
 from __future__ import annotations
@@ -159,7 +180,7 @@ import posixpath
 import re
 import tempfile
 import time
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, fields, replace
 from functools import partial
 from pathlib import Path, PurePosixPath
@@ -279,7 +300,8 @@ STOP_REASONS: tuple[str, ...] = (
     "environment",      # the judge attributed the failure to a broken environment
     "test-cases",       # a declared test case is still missing/unpassed (no claim)
     "criterion-unresolved",  # an unresolvable criterion with no reviewer (no claim)
-    "no-acceptance-criteria",  # an empty criteria list cannot claim on the test basis
+    "no-acceptance-criteria",  # an empty criteria list cannot claim on any basis
+    "verifier-conflict",  # own test red + independent green on the final code (no claim)
     "no-red-target",    # the run's own test could not be made to fail on arrival
     "self-test",        # the run's own test could not be written at a safe path / could not run
     "green",            # the run's own tests exited 0 and the claim held
@@ -902,6 +924,9 @@ class LeafOutcome:
     the claim rested on the run's own test alone or on the own test plus the
     independent test; ``iv_verdicts`` carries every independent-test evaluation and
     the last verdict's source, node ids, and both gate reports for audit.
+    Ticket 21 round 2 (fix 1) adds the exhaustion bases: a claim the independent
+    per-criterion verification carried on the final code is ``independent-test`` (with
+    the review route recorded as ``review``/``review+independent-test``).
     ``iv_attempts``/``iv_repairs`` count the independent-test mechanism's cost (every
     evaluated test, and every bounded one-shot repair of a defective verdict).
     """
@@ -1024,6 +1049,15 @@ class LeafOutcome:
     #: Ticket 21: the visible EVIDENCE-GAP state (mirrors ``failure_report.evidence_gap``
     #: so a reader sees it without unwrapping the report).
     evidence_gap: bool = False
+    #: Ticket 21 round 3 (fix A), tightened round 4 (fix 1): True when the run's own test
+    #: was red on the final code while the independent per-criterion verification passed.
+    #: Two imperfect verifiers disagree at the same revision, so the node may NOT claim on
+    #: either — agreement is required and no judge can override it;
+    #: ``own_test_conflict_reason`` names both expectations only when they really differ
+    #: (else ``cannot characterise the difference``) and the ledger marks the disputed
+    #: criterion ``verifier-conflict``.
+    own_test_conflict: bool = False
+    own_test_conflict_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -1032,6 +1066,11 @@ class JudgeRequest:
 
     The blind view: the goal, the acceptance criteria, the run's OWN test file, the
     failing test output, and the current source (source-only, never a grader path).
+
+    Ticket 21 round 2 (fix 2): ``failing_assertions`` carries the run's own failing
+    ``assert`` lines EXPLICITLY (not only inside the full test file and the possibly
+    truncated failure excerpt), so a judge asked about a test-vs-implementation
+    conflict can recognize a SYMPTOM-PINNING assertion (a hard-coded buggy value).
     """
 
     goal: str
@@ -1040,6 +1079,7 @@ class JudgeRequest:
     test_content: str
     files: dict[str, str]
     acs: list[str] = field(default_factory=list)
+    failing_assertions: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         reject_node_record_fields(self)
@@ -1773,6 +1813,69 @@ _STRING_LITERAL = re.compile(r"(['\"])(.+?)\1")
 _FAILED_TEST_ID = re.compile(r"::\s*([A-Za-z_][A-Za-z0-9_]*)")
 
 
+def _failing_assertion_lines(test_content: str, failure: str) -> tuple[str, ...]:
+    """The run's own failing ``assert`` lines (ticket 21 round 2, fix 2).
+
+    The judge is given the goal, the ACs and the failing assertion so it can recognize a
+    SYMPTOM-PINNING assertion (the test hard-codes the buggy value, so a correct fix can
+    never go green). Assert lines of the test FUNCTIONS named in the failure come first;
+    when the failure names no function (or those functions hold no plain assert, e.g. a
+    ``pytest.raises`` body) every assert line of the test is returned. Bounded and
+    de-duplicated, never model prose.
+    """
+    content = test_content or ""
+    failed = set(_FAILED_TEST_ID.findall(failure or ""))
+    targeted: list[str] = []
+    fallback: list[str] = []
+    current = ""
+    for raw in content.splitlines():
+        stripped = raw.strip()
+        match = _TEST_FN.match(stripped)
+        if match:
+            current = match.group(1)
+        if not stripped.startswith("assert"):
+            continue
+        fallback.append(stripped)
+        if not failed or current in failed:
+            targeted.append(stripped)
+    lines = targeted or fallback
+    return tuple(dict.fromkeys(lines))[:5]
+
+
+def _assert_lines_in_functions(test_content: str, functions: Collection[str]) -> tuple[str, ...]:
+    """The ``assert`` lines belonging to the NAMED test functions, in file order.
+
+    Empty when no function is named, so a caller can never silently fall back to every
+    assert in the file (the round-3 conflict-text defect).
+    """
+    if not functions:
+        return ()
+    content = test_content or ""
+    current = ""
+    out: list[str] = []
+    for raw in content.splitlines():
+        stripped = raw.strip()
+        match = _TEST_FN.match(stripped)
+        if match:
+            current = match.group(1)
+        if stripped.startswith("assert") and current in functions:
+            out.append(stripped)
+    return tuple(dict.fromkeys(out))[:5]
+
+
+def _failed_assertion_lines(test_content: str, gate: Any) -> tuple[str, ...]:
+    """ONLY the ``assert`` lines of the test FUNCTIONS that actually FAILED in ``gate``.
+
+    The failing pytest node ids are read from the machine-readable gate report and each is
+    mapped to its test function; that function's assert lines are returned. Unlike
+    :func:`_failing_assertion_lines` there is NO fallback to every assert in the file, so a
+    PASSING assertion can never be presented as a failing one (ticket 21 round 4, fix 2).
+    """
+    failed = {nid.split("::")[-1].split("[", 1)[0]
+              for nid in (getattr(gate, "failed_ids", ()) or ()) if "::" in nid}
+    return _assert_lines_in_functions(test_content, failed)
+
+
 def _test_anchors(request: JudgeRequest) -> set[str]:
     """Deterministic anchors that make a defect *about the test* rather than a vibe:
     the test function names, each assertion expression and its string-literal
@@ -2373,6 +2476,9 @@ def build_criterion_ledger(
     failure_excerpts: Sequence[str] = (),
     own_test_discriminating: bool = False,
     routes: Mapping[str, str] | None = None,
+    iv_reason: str = "",
+    iv_detail: str = "",
+    verifier_conflict: str = "",
 ) -> list[CriterionLedgerEntry]:
     """The DETERMINISTIC per-criterion ledger for a node that wrote code (ticket 21).
 
@@ -2388,6 +2494,16 @@ def build_criterion_ledger(
     (``review:<angle>``) for criteria no test could carry; else (6) ``unverifiable``
     with a pointer to what was attempted and why it could not discriminate.
 
+    Ticket 21 round 2 (fix 1): a terminal ``independent-test-red-on-final`` verdict with
+    NO per-index evidence (the whole-file final gate failed before the per-criterion
+    gates ran) marks every criterion VIOLATED with the independent evidence, unless the
+    run's own test already greens the criterion or a review positively carried it.
+
+    Ticket 21 round 3 (fix A): when the own test is red and the independent test is green
+    on the same final code, ``verifier_conflict`` is non-empty and the DISPUTED criterion
+    is VIOLATED with a ``verifier-conflict`` check naming both expectations — the
+    disagreement is evidence, not a claim.
+
     ``routes`` (ac_id -> route) is attached verbatim; the builder never guesses a route.
     """
     routes = dict(routes or {})
@@ -2402,15 +2518,16 @@ def build_criterion_ledger(
     own_passed = tuple(getattr(own_test_gate, "passed_ids", ()) or ())
     own_failed = tuple(getattr(own_test_gate, "failed_ids", ()) or ())
     own_observed = bool(own_test_gate is not None and own_test_gate.observed)
+    own_green = bool(own_test_gate is not None and own_test_gate.green)
     single = len(spec.acs) == 1
     entries: list[CriterionLedgerEntry] = []
     for index, statement in enumerate(spec.acs, 1):
         ac_id = f"AC-{index}"
         row = _ledger_row_for(
             index, statement, coverage_by_index.get(index), tc_by_index.get(index),
-            iv_by_index.get(index), own_passed, own_failed, own_observed,
+            iv_by_index.get(index), own_passed, own_failed, own_observed, own_green,
             single, own_test_discriminating, iv_ran, index in unresolved,
-            review_verdicts, failure_excerpts)
+            review_verdicts, failure_excerpts, iv_reason, iv_detail, verifier_conflict)
         entries.append(replace(row, ac_id=ac_id, route=routes.get(ac_id, "")))
     return entries
 
@@ -2434,12 +2551,16 @@ def _ledger_row_for(
     own_passed: Sequence[str],
     own_failed: Sequence[str],
     own_observed: bool,
+    own_green: bool,
     single: bool,
     own_test_discriminating: bool,
     iv_ran: bool,
     unresolved: bool,
     review_verdicts: Sequence[ReviewVerdict],
     failure_excerpts: Sequence[str],
+    iv_reason: str = "",
+    iv_detail: str = "",
+    verifier_conflict: str = "",
 ) -> CriterionLedgerEntry:
     """One criterion's ledger row (the precedence in :func:`build_criterion_ledger`)."""
     ac_id = f"AC-{index}"
@@ -2456,6 +2577,14 @@ def _ledger_row_for(
     # (2) a declared test case still missing/unpassed.
     if tc_problems:
         return row("violated", "declared-test-case", "; ".join(tc_problems))
+    failed_ids = [nid for nid in own_failed if index in _criterion_indices_in_node(nid)]
+    own_fails_this = bool(failed_ids) or (
+        single and own_observed and not failed_ids and bool(own_failed))
+    # (2b) ticket 21 round 3 (fix A): the own test and the independent test disagree at
+    # the SAME final revision. The disputed criterion records both expectations and is
+    # VIOLATED — the disagreement is evidence, never a claim.
+    if verifier_conflict and own_fails_this:
+        return row("violated", "verifier-conflict", verifier_conflict)
     # (3) the independent test's per-criterion discrimination.
     if iv is not None:
         if iv.reason == "red-on-final":
@@ -2468,8 +2597,13 @@ def _ledger_row_for(
                        "and passed on the final source")
         # not-discriminating / incomplete / shared / unobserved: fall through with a note.
     # (4) the run's own test gate.
-    failed_ids = [nid for nid in own_failed if index in _criterion_indices_in_node(nid)]
     passed_ids = [nid for nid in own_passed if index in _criterion_indices_in_node(nid)]
+    # Ticket 21 round 2 (fix 1): a terminal independent-test red-on-final with no
+    # per-index evidence and NO green own test is the criterion's observed check.
+    if (iv_reason == "independent-test-red-on-final" and not own_green
+            and not any(v.approved and not v.coerced for v in review_verdicts)):
+        return row("violated", "independent-test",
+                   iv_detail or "the independent test still failed on the final source")
     if failed_ids:
         excerpt = _failure_excerpt(failed_ids[0], failure_excerpts)
         return row("violated", "own-test",
@@ -3057,6 +3191,12 @@ async def run_leaf(
     coverage_unresolved: list[str] = []
     test_case_problems: list[str] = []
     test_case_repairs = 0
+    # Ticket 21 round 3 (fix A), tightened round 4 (fix 1): the run's own test was red on
+    # the final code while the independent per-criterion verification passed. Two
+    # imperfect verifiers disagree at the same revision, so the node records a verifier
+    # CONFLICT and does not claim — never an invalid own test (the judge escape is gone).
+    own_test_conflict = False
+    own_test_conflict_reason = ""
     # Ticket 20 step 2b-ii: the last own-test gate report, surfaced on the outcome so the
     # tree can score the candidate over the DECLARED test points.
     own_test_report: GateReport | None = None
@@ -3257,6 +3397,19 @@ async def run_leaf(
             emit("review_angle_rejected", angles=rejected)
         return tuple(angles) or critical_review_angles(level)
 
+    def coverage_missing_now() -> list[str]:
+        """The current requirement-coverage miss (ticket 21 round 2, fix 3).
+
+        A non-empty result is a HARD block, never advice: an acceptance criterion naming
+        a file/symbol the final diff never touches blocks BOTH a claim and an ``ok``
+        review verdict (the T-31 false-success route). Deterministic; reads the final
+        diff, never model prose. Only called after a candidate was written (the caller
+        guards on ``wrote``), so the baseline reflects that candidate.
+        """
+        return [f"{c.statement!r} names {m}, untouched by the final diff"
+                for c in _requirement_coverage(spec, workdir, baseline)
+                for m in c.missing]
+
     async def run_reviews(reason: str) -> tuple[bool | None, str]:
         """Ticket 20 (items 1-3): run ONE fresh-context review per declared ANGLE and
         combine the graded verdicts by the PREDEFINED weights + the critical-angle veto.
@@ -3265,7 +3418,9 @@ async def run_leaf(
         records ``uncertain`` for that angle (it cannot contribute a positive score). The
         claim may proceed ONLY when :func:`combine_review_verdicts` says so — no negative
         grade, every critical angle run, and a positive weighted score. ``(None, "calls")``
-        means the call budget ran out; ``(False, why)`` keeps the loop working.
+        means the call budget ran out; ``(False, why)`` keeps the loop working. Ticket 21
+        round 2 (fix 3): a non-empty requirement-coverage miss ALSO vetoes an otherwise
+        ``ok`` review verdict (a hard block, not advice).
         """
         nonlocal verification_review_score
         level = spec.review_level if spec.review_level in REVIEW_ANGLES_BY_LEVEL \
@@ -3285,6 +3440,11 @@ async def run_leaf(
         verification_review_score = score
         if not ok:
             return False, why or "the weighted review did not carry the claim"
+        missing = coverage_missing_now()
+        if missing:
+            emit("review_coverage_blocked", missing=missing)
+            return False, ("requirement artifact untouched (coverage is a hard block): "
+                           + "; ".join(missing))
         return True, ""
 
     async def obtain_verification_reason() -> tuple[str, str]:
@@ -3654,7 +3814,10 @@ async def run_leaf(
             review_verdicts=review_verdicts,
             failure_excerpts=last_excerpts,
             own_test_discriminating=(self_test is not None and test_rewrites == 0),
-            routes=ledger_routes)
+            routes=ledger_routes,
+            iv_reason=(last_iv.reason if last_iv is not None else ""),
+            iv_detail=(last_iv.detail if last_iv is not None else ""),
+            verifier_conflict=own_test_conflict_reason)
 
     def route_failed_candidate() -> None:
         """Ticket 21 item 3: USE the ledger on a non-claiming candidate.
@@ -3677,6 +3840,161 @@ async def run_leaf(
             last_excerpts = [*last_excerpts, *targeted]
             for entry in violated:
                 ledger_routes.setdefault(entry.ac_id, "rework")
+
+    def verifier_conflict_reason() -> str:
+        """The explicit two-verifier disagreement record (ticket 21 rounds 3-4).
+
+        Names ONLY the run's own assertions that actually FAILED on the final revision
+        (read from the last gate report's failing node ids) against the independent
+        test's assertions, and says both were evaluated at the SAME final revision. Both
+        verifiers were authored by the same weak model, so a disagreement is evidence of
+        uncertainty, never a claim.
+
+        Record fidelity (round 4, fix 2): the record claims a DIFFERENCE only when the two
+        assertion sets really differ; two identical assertions (or assertions that could
+        not be extracted) yield ``cannot characterise the difference`` instead of an
+        invented disagreement.
+        """
+        own_failed = _failed_assertion_lines(_read(workdir, self_test), last_gate)
+        last_iv = iv_verdicts[-1] if iv_verdicts else None
+        iv_asserts = _failing_assertion_lines(
+            last_iv.content if last_iv is not None else "", "")
+        own_desc = "; ".join(own_failed)
+        iv_desc = "; ".join(iv_asserts)
+        if own_failed and iv_asserts and set(own_failed) != set(iv_asserts):
+            return (
+                f"the run's own test is RED on the final source (failed assertion(s): "
+                f"{own_desc}) while the independent test is GREEN on the same revision "
+                f"(assertion(s): {iv_desc}); two imperfect verifiers disagree, so the "
+                "node may not claim on either")
+        return (
+            "the run's own test is RED on the final source while the independent test is "
+            "GREEN on the same revision, but the two records do not characterise a real "
+            f"difference (own failed assertion(s): {own_desc or 'none'}; independent "
+            f"assertion(s): {iv_desc or 'none'}) — cannot characterise the difference")
+
+    async def final_verification() -> None:
+        """Ticket 21 round 2 (fix 1), tightened round 3 (fix A): verify the FINAL code
+        before accepting a give-up — and do NOT let one weak verifier rubber-stamp
+        another.
+
+        When the ladder exhausts (or attempts/attempt-cap is hit) and the tree actually
+        changed, this consults the INDEPENDENT verification on the final code: a
+        per-criterion independent test authored FRESH from the goal + criteria (never the
+        run's own test) plus, where the test cannot carry the criteria, the review path.
+
+        The claim rule (ticket 21 round 4, fix 1): a claim at exhaustion is allowed ONLY
+        when the independent per-criterion verification passes AND the run's OWN test is
+        GREEN on the same final code — two independent checks that AGREE. If the own test
+        is RED while the independent test is green, that is a VERIFIER CONFLICT: the node
+        records it (the own test's FAILING assertions against the independent test's
+        assertions, same revision) and does NOT claim, regardless of any judge. A
+        criterion the independent test fails to verify keeps the node unclaimed and the
+        ledger marks it VIOLATED. A run with no surviving own test cannot agree, so its
+        independent test routes to review instead. Zero acceptance criteria can never
+        claim on any path (fix B).
+        """
+        nonlocal claimed, claimed_basis, coverage, coverage_missing
+        nonlocal coverage_unresolved, last_iv_reason, iv_repairs, review_approved
+        nonlocal own_test_conflict, own_test_conflict_reason
+        nonlocal node_exhausted
+        if claimed or (iv is None and review is None):
+            return
+        # Fix B: no claim with zero criteria on ANY path (mirror the normal claim gate).
+        if not spec.acs:
+            emit("no_acceptance_criteria_claim_blocked")
+            return
+        # Fix 3: coverage is a HARD block before any exhaustion claim.
+        new_coverage = _requirement_coverage(spec, workdir, baseline)
+        missing = [f"{c.statement!r} names {m}, untouched by the final diff"
+                   for c in new_coverage for m in c.missing]
+        coverage = new_coverage
+        if missing:
+            coverage_missing = missing
+            # The run is ending, so no rework route ran: the ledger route stays the
+            # finish() default (``unresolved``) rather than a label-only ``rework``.
+            coverage_unresolved = []
+            emit("requirement_uncovered", missing=missing)
+            return
+        coverage_missing = []
+        iv_approved = False
+        test_could_not_carry = iv is None
+        if iv is not None and can_afford(1):
+            iv_request = _iv_request(spec, workdir, baseline)
+            original_tree = dict(spec.files)
+            final_tree = _repo_view(spec, workdir, tuple(baseline))
+            label, failure = await iv_verdict_for(iv_request, original_tree, final_tree)
+            if failure:
+                last_iv_reason = f"{failure}: independent label not collected"
+                emit("independent_test_uncollected", reason=failure)
+                test_could_not_carry = True
+            else:
+                record_iv(label)
+                if (not label.approved and label.reason in _IV_REPAIRABLE
+                        and can_afford(1)):
+                    iv_repairs += 1
+                    emit("independent_test_repair", reason=label.reason,
+                         detail=label.detail, requested=label.requested_path)
+                    repaired, failure = await iv_verdict_for(
+                        _iv_repair_request(iv_request, label), original_tree, final_tree)
+                    if not failure:
+                        record_iv(repaired)
+                        label = repaired
+                iv_approved = label.approved
+                # Only a TEST defect (or no producer) leaves room for the review path; a
+                # red-on-final verdict is a FIX failure and stands as a VIOLATED criterion.
+                test_could_not_carry = (not label.approved
+                                        and label.reason in _IV_REPAIRABLE)
+                if not label.approved:
+                    last_iv_reason = f"{label.reason}: {label.detail}"
+        if iv_approved:
+            allowed, tier_failure = await enforce_verification("test")
+            if allowed:
+                if self_test is not None and not _is_green(last_gate):
+                    # AGREEMENT IS REQUIRED (round 4, fix 1): the run's own test is RED on
+                    # the final code while the independent test is GREEN on the same
+                    # revision. Two checks disagree, so there is no claim — regardless of
+                    # what any judge says (the round-3 judge-confirmation escape was the
+                    # weak-verifier-collusion route and is REMOVED). Record both verifiers'
+                    # evidence and stop honestly.
+                    own_test_conflict = True
+                    own_test_conflict_reason = verifier_conflict_reason()
+                    emit("verifier_conflict", own_test=self_test,
+                         evidence=own_test_conflict_reason)
+                    stop("honest-failure", "verifier-conflict", "verifier-conflict")
+                    return
+                if self_test is None:
+                    # No surviving own test to agree with the independent one, so a single
+                    # weak verifier cannot carry the claim on its own: route to review (the
+                    # second independent check) instead.
+                    test_could_not_carry = True
+                else:
+                    claimed = True
+                    claimed_basis = "independent-test"
+                    node_exhausted = False
+                    stop("green", "", "green")
+                    emit("leaf_green_at_exhaustion", basis="independent-test")
+                    return
+            if tier_failure == "calls":
+                return
+        # The test could not carry the criteria (or there is no test producer): the review
+        # path is the owner's "another agent confirms". A fix failure stays unclaimed.
+        if review is not None and test_could_not_carry:
+            if not enter_review("the ladder exhausted and no independent test could carry "
+                                "the criteria"):
+                return
+            status, _why = await run_reviews(
+                "the ladder exhausted and no independent test could carry the criteria")
+            if status:
+                review_approved = True
+                allowed, tier_failure = await enforce_verification("review")
+                if allowed:
+                    claimed = True
+                    claimed_basis = ("review+independent-test" if iv_approved
+                                     else "review")
+                    node_exhausted = False
+                    stop("green", "", "green")
+                    emit("leaf_green_at_exhaustion", basis="review")
 
     def finish() -> LeafOutcome:
         reason = exhaustion_reason
@@ -3806,6 +4124,8 @@ async def run_leaf(
             ledger=ledger,
             failure_report=report,
             evidence_gap=evidence_gap,
+            own_test_conflict=own_test_conflict,
+            own_test_conflict_reason=own_test_conflict_reason,
         )
 
     def enter_review(why: str) -> bool:
@@ -4125,11 +4445,12 @@ async def run_leaf(
             candidate.verdict = prefilter(attempts, candidate)
 
         if candidate.outcome == "pass":
-            if not spec.acs and verification_basis == "test":
-                # Ticket 19 round 2 (F2): with no acceptance criteria a test basis alone
-                # can never carry the claim. A reviewer would have switched the run to
-                # review above; without one there is no claim route, so stop honestly
-                # (the distinct reason is recorded on the outcome).
+            if not spec.acs:
+                # Ticket 19 round 2 (F2), tightened ticket 21 round 3 (fix B): with no
+                # acceptance criteria NO basis can carry the claim — neither the run's own
+                # test nor a review can be checked against an empty criteria list, so the
+                # ledger would be empty. Stop honestly on every path (the distinct reason
+                # is recorded on the outcome).
                 attempts.append(candidate)
                 emit("no_acceptance_criteria_claim_blocked")
                 stop("honest-failure", "no-acceptance-criteria", "no-acceptance-criteria")
@@ -4321,6 +4642,17 @@ async def run_leaf(
                     iv_approved = label.approved
                     if not label.approved:
                         last_iv_reason = f"{label.reason}: {label.detail}"
+            if test_rewrites and not iv_approved:
+                # Ticket 21 round 4 (fix 4): a run that REPLACED its own test cannot claim
+                # on the replacement (or on a review that followed it) alone. The repaired
+                # test is red-on-pristine at best — not evidence the fix is right — so the
+                # claim requires the INDEPENDENT verification to AGREE on the same final
+                # revision (the test-basis case already stopped above). Without it the green
+                # is recorded as an UNVERIFIED basis and the node does not claim.
+                emit("leaf_green_after_test_rewrite", strategy=esc.strategy,
+                     basis=verification_basis, independent=False)
+                stop("green-after-test-rewrite", "", "green-after-test-rewrite")
+                break
             # --- ticket 20: the ORDERED verification tier + covenant enforcement ---
             if iv_approved:
                 # An independently authored, red-on-pristine/green-on-final test is the
@@ -4372,6 +4704,15 @@ async def run_leaf(
         route_failed_candidate()
         emit("attempt_recorded", strategy=esc.strategy, layer=esc.layer,
              verdict=candidate.verdict, signature=signature)
+
+    # ---- ticket 21 round 2 (fix 1): verify the FINAL code before accepting a give-up.
+    # When the ladder exhausts (or attempts/attempt-cap is hit) and the tree changed, the
+    # run consults the independent per-criterion verification (and, where the test cannot
+    # carry a criterion, the review path) ON THE FINAL CODE. Its verdict decides the claim.
+    if (not claimed and stop_reason in ("attempts", "ladder", "attempt-cap")
+            and _changed_files(workdir, baseline)):
+        emit("final_verification", stop_reason=stop_reason)
+        await final_verification()
 
     emit("leaf_stop", signal=signal, claimed=claimed, calls=calls,
          reason=exhaustion_reason, stop_reason=stop_reason)
@@ -4432,6 +4773,7 @@ def _no_red_judge_request(
         test_path=test_path,
         test_content=test_content,
         files=_repo_view(spec, workdir, tuple(baseline)),
+        failing_assertions=_failing_assertion_lines(test_content, ""),
     )
 
 
@@ -4463,4 +4805,6 @@ def _judge_request(
         test_path=self_test or "",
         test_content=_read(workdir, self_test),
         files=files,
+        failing_assertions=_failing_assertion_lines(
+            _read(workdir, self_test), "\n".join(last_excerpts)),
     )

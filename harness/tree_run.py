@@ -26,7 +26,10 @@ intact. What the tree adds:
 - **Grader paths from the ROOT only.** :func:`leaf_spec_from` always injects
   ``root_grader_paths``, so no child can widen its withheld set — and it hands each child
   its declared files as BOTH the blind view and the runtime WRITE BOUNDARY, so two
-  siblings with disjoint declared boundaries cannot edit each other's files.
+  siblings with disjoint declared boundaries cannot edit each other's files. The
+  PLAN-TIME guard consults only ``root_withheld_paths`` (the genuinely-hidden subset),
+  never the visible-but-frozen ``UNTOUCHED`` paths also in ``root_grader_paths`` (ticket
+  21 round 3, fix C).
 - **The write boundary is audited, not trusted (ticket 18 gap A).** The leaf's guard
   inspects the model's DECLARED path, but a run-authored TEST is executed by pytest
   inside the shared workdir, so import-time code in it can write or rename any sibling
@@ -142,6 +145,7 @@ __all__ = [
     "run_node",
     "run_tree",
     "snapshot_workdir",
+    "withheld_paths_from",
 ]
 
 #: Bound on integration-verdict reopen rounds per node (ticket 18 gap 2): a failing
@@ -822,6 +826,11 @@ class _TreeContext:
     workdir: Path
     trajectory: Trajectory
     root_grader_paths: tuple[str, ...]
+    #: Ticket 21 round 3 (fix C): the genuinely-HIDDEN subset of ``root_grader_paths`` —
+    #: the staged-owned test/infrastructure paths the run cannot see. The plan-time
+    #: withheld-path guard consults ONLY this, never the visible-but-frozen ``UNTOUCHED``
+    #: paths also carried in ``root_grader_paths`` (which only the write guard needs).
+    root_withheld_paths: tuple[str, ...]
     candidate_files: set[str]
     judge: Any
     iv: Any
@@ -985,7 +994,8 @@ async def _plan(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget: Bud
         ctx.model, goal=spec.goal, evidence=evidence, boundary=set(spec.files),
         candidate_files=ctx.candidate_files, depth=ctx.depths[node.id],
         depth_cap=ctx.depth_cap, max_children=ctx.max_children,
-        budget=budget, on_event=ctx.on_event)
+        budget=budget, on_event=ctx.on_event,
+        withheld_paths=ctx.root_withheld_paths)
     ctx.total_calls += budget.spent_calls - before
     if decomp is None or not decomp.children:
         return None
@@ -1165,7 +1175,8 @@ async def _plan_how(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
         ctx.model, goal=spec.goal, evidence=evidence, boundary=set(spec.files),
         candidate_files=ctx.candidate_files, depth=ctx.depths[node.id],
         depth_cap=ctx.depth_cap, max_children=ctx.max_children,
-        budget=budget, on_event=ctx.on_event)
+        budget=budget, on_event=ctx.on_event,
+        withheld_paths=ctx.root_withheld_paths)
     ctx.total_calls += budget.spent_calls - before
     if decomp is None:
         return None
@@ -2210,6 +2221,19 @@ async def _attempt_internal(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
 # ---------------------------------------------------------------------------
 
 
+def withheld_paths_from(grader_paths: Sequence[str]) -> tuple[str, ...]:
+    """The genuinely-HIDDEN subset of a grader path set (ticket 21 round 3, fix C).
+
+    ``grader_paths`` is the UNION of the staged-owned (hidden) test/infrastructure paths
+    and the corpus ``UNTOUCHED`` (visible-but-frozen) paths, because the leaf write guard
+    must refuse both (ticket 17 F2). The PLAN-TIME guard may only fire on what the run
+    genuinely CANNOT SEE, so it takes this subset: the paths
+    :func:`harness.staging.owned_paths` owns. A visible frozen source file (``README.md``,
+    ``api/__init__.py``, ``serialize/base.py``) is therefore never treated as hidden.
+    """
+    return tuple(sorted(p for p in grader_paths if owned_paths(p)))
+
+
 async def run_tree(
     model: Any,
     root: NodeSpec,
@@ -2218,6 +2242,7 @@ async def run_tree(
     budget: Budget,
     *,
     root_grader_paths: Sequence[str],
+    root_withheld_paths: Sequence[str] | None = None,
     judge: Any = None,
     iv: Any = None,
     review: Any = None,
@@ -2235,10 +2260,15 @@ async def run_tree(
     """Run the whole tree over an already-built :class:`TaskTree` and root :class:`NodeSpec`.
 
     ``run_leaf`` is called verbatim for every leaf; ``root_grader_paths`` is the single
-    grader set every descendant leaf inherits; the shared ``budget`` deadline is the
-    final stop (no new node starts once it passes). ``run_outdir`` is the run output area
-    How candidate copies live under (ticket 20 step 2b); ``manager`` is the node's
-    managing call the failure loop consults (``None`` ⇒ the safe default
+    grader set every descendant leaf inherits (write guard + restore semantics).
+    ``root_withheld_paths`` is the genuinely-hidden subset the PLAN-TIME guard consults;
+    whether omitted or passed explicitly, it is filtered through
+    :func:`withheld_paths_from` (the staged-owned subset), so a caller that passes a UNION
+    of hidden + visible-frozen paths never rejects a plan for a visible frozen file and a
+    genuinely hidden path is still rejected (ticket 21 rounds 3-4, fixes C/3). The shared
+    ``budget`` deadline is the final stop (no new node starts once it passes). ``run_outdir``
+    is the run output area How candidate copies live under (ticket 20 step 2b); ``manager``
+    is the node's managing call the failure loop consults (``None`` ⇒ the safe default
     ``escalate-or-park``). ``how_explore`` (ticket 20 step 2c) is how many How candidates
     a node may OPEN: ``1`` (the default) is GREEDY --- plan the Hows, take the top-ranked
     one, and fund that single candidate; ``>1`` restores the tournament. The budget-derived
@@ -2250,9 +2280,13 @@ async def run_tree(
     trajectory = trajectory or Trajectory(workdir)
     trajectory.ensure_git()
     clock = now or time.monotonic
+    planner_withheld = withheld_paths_from(
+        tuple(root_withheld_paths) if root_withheld_paths is not None
+        else root_grader_paths)
     ctx = _TreeContext(
         model=model, tree=tree, workdir=workdir, trajectory=trajectory,
         root_grader_paths=tuple(root_grader_paths),
+        root_withheld_paths=planner_withheld,
         candidate_files=set(_source_only_view(workdir)),
         judge=judge, iv=iv, review=review, run_tests=run_tests, now=clock, on_event=on_event,
         depth_cap=depth_cap, max_children=max_children, min_leaf_calls=min_leaf_calls,

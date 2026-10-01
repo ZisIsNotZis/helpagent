@@ -175,7 +175,11 @@ def build_root(task: dict) -> tuple[NodeSpec, tuple[str, ...]]:
     ACs are the extracted task requirements — cross-child integration criteria, which the
     tree puts in a dedicated integration leaf. ``grader_paths`` is the same definition
     ``bench/v2_leaf.build_spec`` uses (staged-owned paths ∪ the task's ``UNTOUCHED`` list),
-    injected from the root so no child can widen it.
+    injected from the root so no child can widen it. This union serves the LEAF WRITE
+    guard (frozen visible files are restored by the grader, so writing one can never
+    green). The PLAN-TIME guard is fed only the genuinely-HIDDEN subset
+    (``stage_blind``'s return) so a plan that legitimately touches a visible frozen file
+    is accepted (ticket 21 round 3, fix C).
     """
     frozen = untouched_paths(Path(task["task_dir"])) if task.get("task_dir") else set()
     grader_paths = tuple(sorted(set(excluded_paths(task["files"])) | frozen))
@@ -409,6 +413,8 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     if workdir.exists():
         shutil.rmtree(workdir)
     workdir.mkdir(parents=True)
+    # The genuinely-hidden set the run cannot see. The plan guard uses THIS; the leaf
+    # write guard uses ``grader_paths`` (this set ∪ the visible-but-frozen UNTOUCHED list).
     withheld = stage_blind(workdir, task["files"])
 
     budget = Budget(calls=calls,
@@ -428,6 +434,7 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     started = time.monotonic()
     outcome = asyncio.run(run_tree(
         model, root, tree, workdir, budget, root_grader_paths=grader_paths,
+        root_withheld_paths=withheld,
         judge=judge, iv=iv, review=review, min_leaf_calls=min_leaf_calls,
         run_outdir=out_dir, manager=manager, how_explore=how_explore))
     wall = round(time.monotonic() - started, 1)

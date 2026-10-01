@@ -627,6 +627,27 @@ def test_judge_tests_rewrites_the_test_and_later_green_is_green_after_rewrite(tm
     assert out.claimed_basis == "own-test"
 
 
+def test_repaired_test_green_under_review_does_not_claim_without_agreement(tmp_path):
+    """Ticket 21 round 4 (fix 4): the SIBLING route. A judge-authorized replacement that
+    GREENS ON ARRIVAL switches the run to review; a later review approval, with NO
+    independent verification to agree with, must still never produce a claim — the repaired
+    test is not evidence the fix is right. It stops unverified as
+    ``green-after-test-rewrite`` (never a claim on the replacement or the review alone)."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    vacuous = write_env("tests/test_leaf_self.py", "def test_goal():\n    assert True\n")
+    model = FakeModelRunner({"write_test": [SELF_TEST, blocked(), vacuous, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path,
+                        Budget(calls=14, deadline_ts=_FAR_FUTURE),
+                        judge=judge_blames_test, review=_passing_review,
+                        run_tests=ScriptedTests([1, 0, 0, 0]))
+
+    assert out.test_rewrites == 1 and out.own_test_mutated is True
+    assert out.verification_basis == "review"
+    assert out.claimed is False
+    assert out.stop_reason == "green-after-test-rewrite"
+
+
 def test_rewrite_green_on_arrival_is_rejected_as_no_red_target(tmp_path):
     """A judge-authorized replacement must itself be RED ON ARRIVAL; a vacuous green
     rewrite is not a target and cannot become a success."""
@@ -1927,9 +1948,11 @@ def test_empty_acceptance_criteria_cannot_claim_on_the_test_basis(tmp_path):
     assert "no_acceptance_criteria_claim_blocked" in ledger_kinds()
 
 
-def test_empty_acceptance_criteria_forces_review_and_claims_with_evidence(tmp_path):
-    """F2: with a reviewer, an empty criteria list goes through review (grounded evidence,
-    F1) and may claim on that basis."""
+def test_empty_acceptance_criteria_cannot_claim_on_any_basis(tmp_path):
+    """Ticket 21 round 3 (fix B): with no extracted acceptance criteria NO basis can
+    carry the claim — not the run's own test and not a review. An empty criteria list
+    would otherwise produce an EMPTY ledger presented as ``verified-success``. The run
+    enters review (the existing F2 route) but the claim gate blocks it on every path."""
     spec = dataclasses.replace(make_spec(), acs=[])
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
@@ -1937,9 +1960,10 @@ def test_empty_acceptance_criteria_forces_review_and_claims_with_evidence(tmp_pa
                         review=_approving_review, run_tests=ScriptedTests([1, 0]))
 
     assert out.verification_basis == "review"
-    assert out.claimed is True and out.claimed_basis == "review"
-    assert out.stop_reason == "green"
-    assert "review_verification" in ledger_kinds()
+    assert out.claimed is False
+    assert out.stop_reason == "no-acceptance-criteria"
+    assert out.ledger == []
+    assert "no_acceptance_criteria_claim_blocked" in ledger_kinds()
 
 
 def test_evaluate_independent_test_real_gate_rejects_incomplete_coverage():
@@ -2945,8 +2969,11 @@ def test_review_without_evidence_cannot_claim(tmp_path):
 
 
 def test_repaired_test_that_cannot_discriminate_switches_to_review(tmp_path):
-    """Ticket 19 B: the judge says the test is wrong, but the bounded repair still cannot
-    produce a discriminating test (it greens on arrival) — review becomes mandatory."""
+    """Ticket 19 B, tightened ticket 21 round 4 (fix 4): the judge says the test is wrong,
+    but the bounded repair still cannot produce a discriminating test (it greens on arrival)
+    — review becomes mandatory. A review pass alone can no longer claim: the run REPLACED
+    its own test, so a claim would require the independent verification to agree, and with
+    none injected the green is an UNVERIFIED basis (``green-after-test-rewrite``)."""
     spec = make_spec()
     stage(tmp_path, spec.files)
     repaired = write_env("tests/test_leaf_self.py", "def test_goal():\n    assert True\n")
@@ -2956,8 +2983,9 @@ def test_repaired_test_that_cannot_discriminate_switches_to_review(tmp_path):
                         run_tests=ScriptedTests([1, 0, 0]))
 
     assert out.verification_basis == "review"
-    assert out.claimed is True and out.claimed_basis == "review"
     assert out.test_rewrites == 1
+    assert out.claimed is False
+    assert out.stop_reason == "green-after-test-rewrite"
 
 
 def test_unwritable_self_test_path_switches_to_review(tmp_path, monkeypatch):
@@ -4145,3 +4173,244 @@ def test_run_record_carries_the_ledger_and_failure_report():
     assert record["failure_report"]["criteria"][0]["evidence"] == "node x fails"
     assert record["evidence_gap"] is False
     json.dumps(record)
+
+
+# ===========================================================================
+# ticket 21 round 2: the run's OWN verification may be wrong, so the INDEPENDENT one is
+# consulted at exhaustion; the own test may not outvote it; coverage is a hard block.
+# ===========================================================================
+
+#: A run test that pins the SYMPTOM (asserts ``result() == 3``) while the goal is
+#: ``result() == 42``: the correct fix can never make it green. This is the T-02
+#: mechanism (asserting the buggy value makes a correct fix unwinnable from inside).
+SYMPTOM_TEST = write_env("tests/test_leaf_self.py",
+                         "def test_ac1():\n    assert result() == 3\n")
+
+#: A WEAK independent test: red on the pristine source (``result() == 0``) and green on a
+#: WRONG fix (``result() == 100``). Paired with the run's own CORRECT test it reproduces the
+#: proven wrong-green route (ticket 21 round 4).
+WEAK_IV = iv_candidate(
+    content="from pkg.calc import result\n\n\ndef test_ac1_weak():\n    assert result() != 0\n")
+
+#: An independent test whose assertion TEXT is identical to ``SYMPTOM_TEST``'s, so the two
+#: verifier records cannot be told apart by their assertions (the round-4 fix-2 case).
+SAME_ASSERT_IV = iv_candidate(
+    content="from pkg.calc import result\n\n\ndef test_ac1_goal():\n    assert result() == 3\n")
+
+
+def test_exhaustion_rubber_stamp_judge_cannot_confirm_a_claim(tmp_path):
+    """Ticket 21 round 4 (fix 1) — the REMOVED collusion route.
+
+    An independent verifier PROVED that a judge which rubber-stamps ``test_wrong`` (naming
+    the test anchor, which the deterministic filter accepts) used to authorise a claim at
+    exhaustion while the run's own CORRECT test was red on the wrong fix. AGREEMENT is now
+    required, so no judge can authorise anything: the run records the verifier CONFLICT and
+    does NOT claim. There is no exhaustion judge consultation and no ``own_test_invalid``
+    record any more."""
+    files = {"pkg/calc.py": "def result():\n    return 0\n"}
+    spec = LeafSpec(goal="make result() return 42", files=files,
+                    acs=["result() returns 42"], interfaces=["result() -> int"])
+    stage(tmp_path, files)
+    wrong = impl("def result():\n    return 100\n")   # the wrong green the weak IV accepts
+    model = FakeModelRunner({"write_test": [SELF_TEST] + [wrong] * 8})
+
+    def rubber_stamp(request):
+        # The loop's PROACTIVE trigger consults the judge first (round 4 removed the
+        # EXHAUSTION consultation, so this rubber stamp is never reached again).
+        if not rubber_stamp.seen:
+            rubber_stamp.seen = True
+            return JudgeVerdict(attribution="implementation",
+                                defect="the source is wrong; result() should return 42")
+        return JudgeVerdict(attribution="tests", raw="tests",
+                            defect="test_ac1 asserts result() == 42, which is wrong")
+    rubber_stamp.seen = False
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=14, deadline_ts=_FAR_FUTURE),
+                        judge=rubber_stamp, iv=lambda request: WEAK_IV,
+                        run_tests=ScriptedTests([1, 1, 1, 1, 1, 0]))
+
+    assert out.claimed is False
+    assert out.stop_reason == "verifier-conflict"
+    assert out.own_test_conflict is True
+    assert out.test_rewrites == 0                  # the judge never got to rewrite
+    assert "judge_verdict_at_exhaustion" not in ledger_kinds()
+    assert not hasattr(out, "own_test_invalid")
+    assert out.failure_report is not None and out.failure_report.violated
+
+
+def test_exhaustion_conflict_between_two_imperfect_verifiers_does_not_claim(tmp_path):
+    """Ticket 21 rounds 3-4 (the closed wrong-green route): the independent test is RED on
+    pristine and GREEN on a WRONG fix (``result() -> 100``) while the run's own TRUE test
+    stays red. The two imperfect verifiers DISAGREE at the same revision, so the node
+    records the conflict and does NOT claim. The conflict names ONLY the assertions that
+    really failed on the final revision, against the independent test's assertions.
+    """
+    files = {"pkg/calc.py": "def result():\n    return 0\n"}
+    spec = LeafSpec(goal="make result() return 42", files=files,
+                    acs=["result() returns 42"], interfaces=["result() -> int"])
+    stage(tmp_path, files)
+    wrong = impl("def result():\n    return 100\n")  # the WRONG fix the weak IV accepts
+    model = FakeModelRunner({"write_test": [SYMPTOM_TEST] + [wrong] * 8})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
+                        iv=lambda request: iv_candidate(),
+                        run_tests=ScriptedTests([1, 1, 1, 1, 1, 0]))
+
+    assert out.claimed is False
+    assert out.claimed_basis == "own-test"
+    assert out.stop_reason == "verifier-conflict"
+    assert out.own_test_conflict is True
+    # the conflict names BOTH expectations and the shared revision
+    assert "assert result() == 3" in out.own_test_conflict_reason
+    assert "assert result() == 42" in out.own_test_conflict_reason
+    assert "same revision" in out.own_test_conflict_reason
+    assert "cannot characterise" not in out.own_test_conflict_reason
+    assert "verifier_conflict" in ledger_kinds()
+    # the ledger row names the disagreement, not a bare own-test red
+    assert out.ledger[0].state == "violated"
+    assert out.ledger[0].check == "verifier-conflict"
+    assert out.failure_report is not None and out.failure_report.violated
+
+
+def test_conflict_text_says_cannot_characterise_when_the_assertions_are_identical(tmp_path):
+    """Ticket 21 round 4 (fix 2), record fidelity: when the run's own FAILING assertion and
+    the independent test's assertion carry the SAME text, the conflict must NOT invent a
+    disagreement — it must say ``cannot characterise the difference``."""
+    files = {"pkg/calc.py": "def result():\n    return 0\n"}
+    spec = LeafSpec(goal="make result() return 42", files=files,
+                    acs=["result() returns 42"], interfaces=["result() -> int"])
+    stage(tmp_path, files)
+    wrong = impl("def result():\n    return 100\n")
+    model = FakeModelRunner({"write_test": [SYMPTOM_TEST] + [wrong] * 8})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
+                        iv=lambda request: SAME_ASSERT_IV,
+                        run_tests=ScriptedTests([1, 1, 1, 1, 1, 0]))
+
+    assert out.claimed is False and out.stop_reason == "verifier-conflict"
+    assert "cannot characterise the difference" in out.own_test_conflict_reason
+
+
+def test_exhaustion_judge_that_does_not_confirm_keeps_the_own_test_valid(tmp_path):
+    """Ticket 21 rounds 3-4: a judge that does NOT confirm ``test_wrong`` leaves the own
+    test VALID, so the run records the conflict rather than branding a correct test
+    invalid — and (round 4) a judge that DOES rubber-stamp it changes nothing."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    wrong = impl("def result():\n    return 100\n")
+    model = FakeModelRunner({"write_test": [SYMPTOM_TEST] + [wrong] * 8})
+
+    def judge_blames_code(request):
+        return JudgeVerdict(attribution="implementation",
+                            defect="the source is wrong; result() should return 42")
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
+                        judge=judge_blames_code,
+                        iv=lambda request: iv_candidate(),
+                        run_tests=ScriptedTests([1, 1, 1, 1, 1, 0]))
+
+    assert out.claimed is False
+    assert out.own_test_conflict is True
+    assert out.stop_reason == "verifier-conflict"
+
+
+def test_exhaustion_with_zero_criteria_never_claims_on_an_empty_ledger(tmp_path):
+    """Ticket 21 round 3 (fix B): with zero acceptance criteria ``final_verification``
+    used to claim ``verified-success`` on an EMPTY ledger while the normal path hard-
+    blocked. No claim with zero criteria on ANY path, and no empty ledger for a claim."""
+    spec = dataclasses.replace(make_spec(), acs=[])
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SYMPTOM_TEST] + [impl()] * 8})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
+                        iv=lambda request: iv_candidate(),
+                        run_tests=ScriptedTests([1] * 6))
+
+    assert out.claimed is False
+    assert out.ledger == []
+    assert "no_acceptance_criteria_claim_blocked" in ledger_kinds()
+
+
+def test_exhaustion_independent_verification_failure_marks_the_criterion_violated(tmp_path):
+    """Ticket 21 round 2 (fix 1): when the independent verification FAILS on the final
+    code, the node stays unclaimed and the ledger names the violated criterion with the
+    independent evidence — never a bare ``attempts`` stop."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    wrong = impl("def result():\n    return 1\n")
+    model = FakeModelRunner({"write_test": [SYMPTOM_TEST] + [wrong] * 8})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
+                        iv=lambda request: iv_candidate(),
+                        run_tests=ScriptedTests([1, 1, 1, 1, 1, 1]))
+
+    assert out.claimed is False
+    assert out.own_test_conflict is False
+    assert out.iv_verdicts and out.iv_verdicts[-1].reason == "independent-test-red-on-final"
+    assert out.ledger[0].state == "violated"
+    assert out.ledger[0].check == "independent-test"
+    assert out.failure_report is not None and out.failure_report.violated
+
+
+def test_judge_request_carries_the_failing_assertion_lines(tmp_path):
+    """Ticket 21 round 2 (fix 2): the judge is given the run's failing ASSERTION lines
+    explicitly (not only inside the full test and the failure excerpt), so a
+    symptom-pinning expectation can be recognized."""
+    from harness.leaf import _judge_request
+
+    spec = make_spec()
+    stage(tmp_path, {"pkg/calc.py": spec.files["pkg/calc.py"],
+                     "tests/test_leaf_self.py":
+                         "def test_goal():\n    assert result() == 3\n"})
+    request = _judge_request(
+        spec, tmp_path, "tests/test_leaf_self.py",
+        ["FAILED tests/test_leaf_self.py::test_goal",
+         "E   AssertionError: assert 42 == 3"],
+        impl(), {})
+
+    assert request.failing_assertions == ("assert result() == 3",)
+    from bench.v2_leaf import _judge_question
+    assert "assert result() == 3" in _judge_question(request)
+
+
+def test_failing_assertion_lines_fall_back_to_every_assert():
+    from harness.leaf import _failing_assertion_lines
+
+    assert _failing_assertion_lines("def test_a():\n    assert x == 1\n",
+                                    "no failing id here") == ("assert x == 1",)
+    assert _failing_assertion_lines("", "FAILED t.py::test_a") == ()
+
+
+def test_failed_assertion_lines_cite_only_the_failing_functions_asserts():
+    """Ticket 21 round 4 (fix 2): the conflict record cites ONLY the asserts of the test
+    functions that actually FAILED in the gate report — never a passing assertion — and
+    never falls back to every assert in the file."""
+    from harness.leaf import _failed_assertion_lines
+
+    content = ("def test_a():\n    assert x == 1\n    assert y == 2\n"
+               "def test_b():\n    assert z == 3\n")
+    gate = _gate_report("tests/t.py", failed=("tests/t.py::test_a",))
+    assert _failed_assertion_lines(content, gate) == ("assert x == 1", "assert y == 2")
+    # a passing function's asserts are never cited
+    assert "assert z == 3" not in _failed_assertion_lines(content, gate)
+    # no failing node ids → no asserts at all (no silent all-asserts fallback)
+    assert _failed_assertion_lines(content, _gate_report("tests/t.py")) == ()
+
+
+def test_coverage_miss_blocks_an_ok_review_verdict(tmp_path):
+    """Ticket 21 round 2 (fix 3): a non-empty requirement-coverage miss is a HARD block,
+    not advice. A review that says ``ok`` cannot carry a claim while a criterion names a
+    file the final diff never touches (the T-31 false-success route)."""
+    files = {"pkg/calc.py": "def result():\n    return 0\n",
+             "pkg/other.py": "def helper():\n    return 1\n"}
+    spec = LeafSpec(goal="make result() return 42", files=files,
+                    acs=["result() returns 42", "pkg/other.py exposes helper"],
+                    interfaces=[])
+    stage(tmp_path, files)
+    # SELF_TEST is green on arrival -> the bounded re-ask also green -> REVIEW is the
+    # mandatory basis; the run only ever writes pkg/calc.py, never pkg/other.py.
+    model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT]
+                                          + [impl()] * 12})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=30, deadline_ts=_FAR_FUTURE),
+                        review=_passing_review, run_tests=ScriptedTests([0, 0, 0]))
+
+    assert out.claimed is False
+    assert out.coverage_missing
+    assert any("pkg/other.py" in m for m in out.coverage_missing)
+    assert "review_coverage_blocked" in ledger_kinds()

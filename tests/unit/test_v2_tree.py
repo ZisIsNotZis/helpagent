@@ -877,6 +877,111 @@ def test_validate_decomposition_shape_rules():
                      NodeSpec(goal="two", files=("pkg/b.py",), acs=("c",))]) == []
 
 
+def test_plan_guard_accepts_a_visible_frozen_file_and_rejects_only_the_hidden_set():
+    """Ticket 21 round 3 (fix C): the plan-time guard fires ONLY on the genuinely-hidden
+    staged-owned set, never on the visible-but-frozen corpus ``UNTOUCHED`` files. The
+    driver hands the leaf write guard the UNION (hidden ∪ frozen), so a plan that
+    declares a visible frozen source (``README.md`` / ``serialize/base.py``) must be
+    ACCEPTED while a plan whose test point is in the hidden set is REJECTED."""
+    visible_frozen = ("README.md", "serialize/base.py")
+    # The driver's grader_paths is the union; the plan guard gets the hidden subset only.
+    union = (*visible_frozen, "tests/test_contract.py")
+    hidden = tree_run.withheld_paths_from(union)
+    assert hidden == ("tests/test_contract.py",)          # only the staged-owned path
+
+    frozen_plan = Decomposition(
+        spec=NodeSpec(goal="root", files=visible_frozen, acs=("c",), kind="leaf"),
+        children=(), signature="frozen")
+    accepted = validate_decomposition(
+        frozen_plan, parent_files=set(visible_frozen),
+        candidate_files=set(visible_frozen), depth=0, depth_cap=4, max_children=15,
+        withheld_paths=set(hidden))
+    assert accepted.ok, accepted.items
+
+    hidden_plan = Decomposition(
+        spec=NodeSpec(
+            goal="root", files=("pkg/a.py",), acs=("c",), kind="leaf",
+            test_cases=(DeclaredTestCase("AC-1", "tests/test_contract.py",
+                                         ("test_x",)),)),
+        children=(), signature="hidden")
+    rejected = validate_decomposition(
+        hidden_plan, parent_files={"pkg/a.py"}, candidate_files={"pkg/a.py"},
+        depth=0, depth_cap=4, max_children=15, withheld_paths=set(hidden))
+    assert any(f.kind == "withheld-test-path" for f in rejected.items), rejected.items
+
+
+def test_driver_grader_union_keeps_the_leaf_guard_but_not_the_plan_guard(tmp_path):
+    """Ticket 21 round 3 (fix C) at the driver seam: ``build_root`` returns the UNION
+    (so the leaf write guard refuses a frozen visible file), while the genuinely-hidden
+    subset the plan guard needs excludes every visible frozen file."""
+    from bench import v2_tree
+
+    # a real task dir so the corpus UNTOUCHED list is parsed
+    (tmp_path / "checks.py").write_text('UNTOUCHED = ["repo/README.md"]\n')
+    task = {"task_id": "T-demo", "task_dir": str(tmp_path),
+            "request": "Fix it.",
+            "files": {"pkg/a.py": "x = 1\n", "README.md": "readme\n",
+                      "tests/test_a.py": "def test_x():\n    pass\n"}}
+    _root, grader_paths = v2_tree.build_root(task)
+    # the leaf write guard sees BOTH the hidden test path and the visible frozen README
+    assert set(grader_paths) == {"tests/test_a.py", "README.md"}
+    # the plan guard sees only the genuinely-hidden test path
+    assert tree_run.withheld_paths_from(grader_paths) == ("tests/test_a.py",)
+
+
+def test_planned_test_point_inside_a_withheld_grader_path_is_rejected_at_plan_time():
+    """Ticket 21 round 2 (fix 4): a plan that places a test point (or a declared file)
+    inside the genuinely-hidden set is rejected at PLAN TIME - one run planned
+    ``tests/test_pagination.py``, a withheld path. The same plan without the withheld set
+    is clean, so the guard is causal."""
+    child_spec = NodeSpec(
+        goal="one", files=("pkg/a.py",), acs=("c",), kind="leaf",
+        test_cases=(DeclaredTestCase("AC-1", "tests/test_pagination.py",
+                                     ("test_page_one",)),))
+    d = Decomposition(
+        spec=NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",), kind="internal"),
+        children=(child_spec,), signature="sig")
+    guarded = validate_decomposition(
+        d, parent_files={"pkg/a.py"}, candidate_files={"pkg/a.py"}, depth=0,
+        depth_cap=4, max_children=15, withheld_paths={"tests/test_pagination.py"})
+    assert any(f.kind == "withheld-test-path" for f in guarded.items), guarded.items
+    assert not guarded.ok
+    # the same plan is clean when nothing is withheld
+    assert validate_decomposition(
+        d, parent_files={"pkg/a.py"}, candidate_files={"pkg/a.py"}, depth=0,
+        depth_cap=4, max_children=15).ok
+    # a declared FILE at a withheld path is rejected too
+    file_plan = Decomposition(
+        spec=NodeSpec(goal="root", files=("tests/test_pagination.py",), acs=("c",),
+                      kind="leaf"),
+        children=(), signature="sig2")
+    assert any(f.kind == "withheld-file-path" for f in validate_decomposition(
+        file_plan, parent_files={"tests/test_pagination.py"},
+        candidate_files={"tests/test_pagination.py"}, depth=0, depth_cap=4,
+        max_children=15, withheld_paths={"tests/test_pagination.py"}).items)
+
+
+def test_plan_node_rejects_a_withheld_test_point_then_forces_a_leaf():
+    """Ticket 21 round 2 (fix 4): the guard lives at the real plan seam. A plan whose
+    test point is inside a withheld grader path is rejected, re-asked once with the
+    finding as evidence, then force-leafed (``None``)."""
+    blocked = plan_env(
+        [{"what": "page tests", "why": "because", "kind": "leaf",
+          "files": ["pkg/a.py"], "acs": [ac()], "interfaces": [], "est_calls": 3,
+          "test_cases": [{"ac_id": "AC-1", "file": "tests/test_pagination.py",
+                           "names": ["test_page_one"]}]}],
+        files=("pkg/a.py",))
+    model = FakeModelRunner({"plan_node": [blocked, blocked]})
+    result = asyncio.run(plan_node(
+        model, goal="root", boundary={"pkg/a.py"}, candidate_files={"pkg/a.py"}, depth=0,
+        budget=Budget(calls=5, deadline_ts=_FAR),
+        withheld_paths=("tests/test_pagination.py",)))
+    assert result is None
+    calls = model.calls("plan_node")
+    assert len(calls) == 2
+    assert "withheld-test-path" in calls[1].question
+
+
 def test_plan_node_one_call_reasks_once_then_forces_a_leaf():
     """Invalid output never crashes and never silently produces a child: one re-ask with
     the findings as evidence, then a force-leaf (``None``)."""
