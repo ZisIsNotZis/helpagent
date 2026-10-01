@@ -4,7 +4,10 @@ __pycache__/
 *.pyc
 .venv/
 .untouched.baseline.json
-bench/runs/**/work/
+# Run artifacts: the curated evidence directory is tracked; raw run output is not.
+# Records (run.json / results.jsonl / *.log) stay on disk for inspection.
+bench/runs/*
+!bench/runs/evidence/
 
 # Common local caches and temporary workspaces
 node_modules/
