@@ -166,3 +166,31 @@ the model MORE SIGNAL - the forced red-then-green test loop, the deterministic d
 rules, the report gate that stops a process from lying about its own tests, and the
 coverage/discrimination checks. Structure that costs calls without adding information
 consistently loses. That is the lesson to carry into the next mechanism we consider.
+
+## Owner direction 2026-09-30 (evening): freeze the How axis; evidence in BOTH directions
+
+1. **Stop investing in the How axis.** In principle ONE How should solve the vast majority of
+   tasks. The How machinery stays in the tree behind its flag (greedy default) and gets no
+   further rounds. When a run fails, the next move is NOT a new mechanism: it is to find out
+   WHY it failed - was the How badly posed, or something else - from the recorded trajectory,
+   and then fix that root cause systemically rather than patching around it.
+
+2. **Claiming must never be a guess - in EITHER direction.** The owner's position is the middle
+   one, but with a hard condition: if the run says "not fixed", it must show EVIDENCE of what is
+   not fixed (which requirement, which check, which counterexample). It must not guess "done"
+   either. If it cannot produce such evidence, it must say exactly that (which is itself a
+   finding), then rework with that evidence or have another agent confirm.
+
+3. **Vacation autonomy.** The owner is away; the agent proceeds autonomously, makes its own
+   decisions, and aims to leave the project in a comparatively COMPLETE state on return:
+   coherent design, honest measurements, green tests, and a written status of what works,
+   what is measured, and what is still open.
+
+## Gap this creates (work item)
+
+Today a run that cannot succeed very often ends by burning its ladder and reporting
+"attempts exhausted" - that is a GIVE-UP WITHOUT EVIDENCE, the exact thing the owner rejects.
+Needed: an evidence-backed failure report per node - each acceptance criterion marked
+satisfied / violated / unverifiable, with a pointer to the concrete evidence (failing check,
+counterexample, or "no discriminating check could be produced") - and a loop that uses that
+report for targeted rework or independent confirmation instead of a blind retry.
