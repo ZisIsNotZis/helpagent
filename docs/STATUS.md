@@ -161,3 +161,13 @@ uv run python bench/v2_leaf.py --task bench/corpus/T-02-off-by-one --calls 24 --
 # the headline sweep (claimed vs grader), nine tasks, two runs each
 uv run python bench/v2_sweep.py --tasks T-02-off-by-one,T-03-wrong-comparison,T-05-mutable-default,T-08-add-cache-invalidation,T-14-add-export-sorting,T-20-average-truncation,T-25-chunked-helper,T-31-parameter-threading,T-33-serializer-contract --n 2 --calls 24
 ```
+
+The reference model server used for every number above:
+
+```sh
+llama-server \
+  -m /home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf \
+  --port 8833 --host 127.0.0.1 -ngl 99 -c 8192
+```
+
+`curl -fsS http://127.0.0.1:8833/health` must answer `{"status":"ok"}` before a sweep.
