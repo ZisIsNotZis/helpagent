@@ -312,6 +312,13 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         # discriminating test to carry them (a distinct claim blocker).
         "coverage_unresolved": outcome.coverage_unresolved,
         "test_case_problems": outcome.test_case_problems,
+        # Ticket 21: the per-criterion LEDGER on every code-writing node (its observed
+        # state + concrete evidence pointer + the route it took) and the evidence-backed
+        # FAILURE REPORT on a non-claim, with the distinct EVIDENCE-GAP state.
+        "ledger": [dataclasses.asdict(e) for e in outcome.ledger],
+        "failure_report": (dataclasses.asdict(outcome.failure_report)
+                           if outcome.failure_report is not None else None),
+        "evidence_gap": outcome.evidence_gap,
         "needs_user": outcome.needs_user,
         "actual": score.passed,
         "quadrant": quad,
@@ -674,6 +681,18 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
           f"tier={getattr(outcome.verification, 'tier', None)} "
           f"verified={outcome.verified} status={outcome.claim_status} -> {vquad}")
     print(f"[self_test] {outcome.self_test or 'none'}  withheld={len(withheld)} grader path(s)")
+    # Ticket 21: show the per-criterion ledger and, on a non-claim, the evidence-backed
+    # failure report — the run is never allowed to end on "attempts" alone.
+    if outcome.failure_report is not None:
+        gap = " EVIDENCE-GAP" if outcome.evidence_gap else ""
+        print(f"[failure-report] stop={outcome.failure_report.stop_reason}{gap} "
+              f"{len(outcome.failure_report.criteria)} criterion row(s)")
+        if outcome.failure_report.evidence_gap_reason:
+            print(f"            {outcome.failure_report.evidence_gap_reason}")
+    for entry in outcome.ledger:
+        print(f"[ledger] {entry.ac_id} {entry.state.upper():<12} "
+              f"check={entry.check or 'none'} route={entry.route or 'none'}")
+        print(f"          evidence: {entry.evidence}")
     return record
 
 

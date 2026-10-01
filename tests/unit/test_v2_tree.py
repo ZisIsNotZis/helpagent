@@ -2858,3 +2858,42 @@ def test_greedy_sequential_retry_returns_each_slice_exactly_once(tmp_path, monke
     assert out.claimed and out.root.winner == "HOW-2"
     assert out.root.sequential_attempts == 2                    # the retry really happened
     _assert_tree_conserves(out, 60)
+
+
+def test_tree_node_record_carries_the_per_criterion_ledger():
+    """Ticket 21: a node that did not close carries its per-criterion ledger and the
+    evidence-backed failure report (with the distinct evidence-gap flag) in the tree's
+    persisted record — never just a stop reason."""
+    from bench import v2_tree
+    from bench.external_score import ExternalScore
+    from harness.leaf import CriterionLedgerEntry, FailureReport, LeafOutcome
+    from harness.tree_run import NodeOutcome, TreeOutcome
+
+    ledger = [CriterionLedgerEntry(ac_id="AC-1", statement="s", state="violated",
+                                   check="independent-test",
+                                   evidence="AC-1 node ids [x] still FAIL on the final",
+                                   route="rework")]
+    report = FailureReport(stop_reason="attempts", criteria=tuple(ledger),
+                           evidence_gap=False)
+    leaf = LeafOutcome(
+        claimed=False, signal="exhausted", attempts=[], calls=2, wall_s=0.0,
+        self_test=None, questions=[], exhausted=True, exhaustion_reason="tail",
+        layers_used=[], stop_reason="attempts", ledger=ledger, failure_report=report)
+    node = NodeOutcome(node_id="n1", claimed=False, stop_reason="parked", leaf=leaf)
+    tree_outcome = TreeOutcome(root=node, claimed=False, calls=2, wall_s=0.0,
+                               budget=Budget(calls=5, deadline_ts=_FAR),
+                               checkpoints={}, split_history={})
+    score = ExternalScore(passed=False, exit=1, notes=[], work_root="", applied=[],
+                          skipped=[])
+
+    record = v2_tree.build_record("T-x", "goal", tree_outcome, withheld=[], produced={},
+                                  score=score, quad="honest-failure", run_wall_s=0.0,
+                                  judge_enabled=True, iv_enabled=True, review_enabled=True,
+                                  acs=[])
+
+    node_rec = record["nodes"]
+    assert node_rec["ledger"][0]["state"] == "violated"
+    assert node_rec["ledger"][0]["check"] == "independent-test"
+    assert node_rec["ledger"][0]["route"] == "rework"
+    assert node_rec["failure_report"]["stop_reason"] == "attempts"
+    assert node_rec["evidence_gap"] is False

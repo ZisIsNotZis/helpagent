@@ -160,7 +160,7 @@ import re
 import tempfile
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import dataclass, field, fields, replace
+from dataclasses import asdict, dataclass, field, fields, replace
 from functools import partial
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -206,10 +206,15 @@ from harness.staging import (
 )
 
 __all__ = [
+    "EVIDENCE_GAP_STOPS",
     "LADDER",
+    "LEDGER_ROUTES",
+    "LEDGER_STATES",
     "STRATEGY_LAYER",
     "CriterionEvidence",
+    "CriterionLedgerEntry",
     "Escalation",
+    "FailureReport",
     "IndependentTestCandidate",
     "IndependentTestRequest",
     "IndependentTestVerdict",
@@ -220,6 +225,7 @@ __all__ = [
     "VerificationRecord",
     "WriteShapeRefused",
     "apply_judge_filter",
+    "build_criterion_ledger",
     "escalate",
     "evaluate_independent_test",
     "run_leaf",
@@ -289,6 +295,31 @@ STOP_REASONS: tuple[str, ...] = (
 #: is a total order (``test`` > ``review`` > ``none``); a claim's tier is enforced
 #: against the plan's declared requirement.
 VERIFICATION_TIERS: tuple[str, ...] = ("test", "review", "none")
+
+# ---------------------------------------------------------------------------
+# The per-criterion LEDGER and the evidence-backed FAILURE REPORT (ticket 21)
+# ---------------------------------------------------------------------------
+
+#: The three states a criterion's ledger row may carry (ticket 21 item 1).
+#: ``satisfied`` — an observed check makes it true; ``violated`` — an observed check
+#: names the failing check/test/counterexample; ``unverifiable`` — no discriminating
+#: check could be produced, and the row says which verification was attempted and why.
+LEDGER_STATES: tuple[str, ...] = ("satisfied", "violated", "unverifiable")
+
+#: The routes a criterion may take (ticket 21 item 3): ``claim`` (its evidence carried
+#: the claim), ``rework`` (violated — it became the next attempt's targeted context),
+#: ``review`` (routed to the independent review path, the owner's "another agent
+#: confirms"), ``unresolved`` (ran out before either route could run), ``confirmed``
+#: (satisfied but the node did not claim), ``blocked`` (a claim was attempted but this
+#: criterion was not satisfied).
+LEDGER_ROUTES: tuple[str, ...] = ("claim", "confirmed", "rework", "review",
+                                   "unresolved", "blocked")
+
+#: The "ran out" stops that can never be the whole story (ticket 21 item 2): a stop on
+#: one of these whose ledger carries NO ``satisfied`` and NO ``violated`` row is recorded
+#: as an EVIDENCE GAP — a distinct, visible state, never a normal honest failure.
+EVIDENCE_GAP_STOPS: tuple[str, ...] = ("attempts", "ladder", "calls", "attempt-cap",
+                                       "deadline")
 
 #: The declared requirement domain a plan may set per node (ticket 20).
 VERIFICATION_REQUIREMENTS: tuple[str, ...] = ("test", "review", "any")
@@ -802,6 +833,59 @@ class RequirementCoverage:
         return not self.missing
 
 
+@dataclass(frozen=True)
+class CriterionLedgerEntry:
+    """One acceptance criterion's row in a code-writing node's LEDGER (ticket 21 item 1).
+
+    ``state`` is one of :data:`LEDGER_STATES`. ``check`` names the observed check that
+    decided it (``own-test``, ``independent-test``, ``declared-test-case``,
+    ``artifact-coverage``, ``review:<angle>``, or ``""`` when none could run) and
+    ``evidence`` is the CONCRETE pointer: the pytest node id and its failure excerpt, the
+    failing check name, the counterexample, the artifact the final diff left untouched,
+    or — for ``unverifiable`` — which verification was attempted and why it could not
+    discriminate. It is computed from the run's OBSERVED reports and verdicts (its own
+    test gate, the independent test, the declared test cases, the coverage checks, the
+    review verdicts), never from model prose. ``route`` records which route the loop
+    took for this criterion (:data:`LEDGER_ROUTES`).
+    """
+
+    ac_id: str
+    statement: str
+    state: str
+    check: str = ""
+    evidence: str = ""
+    route: str = ""
+
+
+@dataclass(frozen=True)
+class FailureReport:
+    """The EVIDENCE-BACKED failure report a NON-claiming node emits (ticket 21 item 2).
+
+    ``criteria`` is the per-criterion ledger; ``violated``/``unverifiable`` are its two
+    evidence-backed subsets. ``evidence_gap`` is True when the node stopped on a "ran
+    out" reason (:data:`EVIDENCE_GAP_STOPS`) without producing a single ``satisfied`` or
+    ``violated`` row — a distinct, visible state, never a normal honest failure — and
+    ``evidence_gap_reason`` says exactly that.
+    """
+
+    stop_reason: str
+    criteria: tuple[CriterionLedgerEntry, ...] = ()
+    evidence_gap: bool = False
+    evidence_gap_reason: str = ""
+
+    @property
+    def violated(self) -> tuple[CriterionLedgerEntry, ...]:
+        return tuple(e for e in self.criteria if e.state == "violated")
+
+    @property
+    def unverifiable(self) -> tuple[CriterionLedgerEntry, ...]:
+        return tuple(e for e in self.criteria if e.state == "unverifiable")
+
+    def routes(self) -> dict[str, str]:
+        """The recorded route per criterion (:data:`LEDGER_ROUTES`)."""
+        return {e.ac_id: e.route for e in self.criteria}
+
+
 @dataclass
 class LeafOutcome:
     """The two facts that matter — what the run CLAIMED and how it stopped — plus the
@@ -928,6 +1012,18 @@ class LeafOutcome:
     #: Ticket 20: the four-way separation the scoring layer reads — ``verified-success``,
     #: ``unverified-success``, ``verified-failure``, or ``unverified-failure``.
     claim_status: str = ""
+    #: Ticket 21 (item 1): the per-acceptance-criterion LEDGER on every node that wrote
+    #: code — one row per criterion with its observed state and concrete evidence
+    #: pointer, computed from the run's observed checks, never from model prose. Recorded
+    #: for a claim AND a non-claim, so a reader can check both at a glance (item 4).
+    ledger: list[CriterionLedgerEntry] = field(default_factory=list)
+    #: Ticket 21 (item 2): the evidence-backed FAILURE REPORT emitted when no claim was
+    #: made; ``None`` when the node claimed. Its ``evidence_gap`` flag is the distinct
+    #: state for a "ran out" stop that carries no concrete criterion evidence.
+    failure_report: FailureReport | None = None
+    #: Ticket 21: the visible EVIDENCE-GAP state (mirrors ``failure_report.evidence_gap``
+    #: so a reader sees it without unwrapping the report).
+    evidence_gap: bool = False
 
 
 @dataclass(frozen=True)
@@ -2233,6 +2329,220 @@ def _criterion_detail(reason: str, offending: Sequence[int]) -> str:
     return f"the independent test still FAILS on the final source for {indices}"
 
 
+# ---------------------------------------------------------------------------
+# The per-criterion ledger (ticket 21, items 1-2)
+# ---------------------------------------------------------------------------
+
+
+def _criterion_indices_in_node(node_id: str) -> tuple[int, ...]:
+    """The AC indices a pytest node id's NAME carries (boundary-aware, ticket 21).
+
+    Only the final ``::name`` segment is matched (the file part is not a test name) and
+    only a boundary-aware ``ac<i>`` token counts, so ``test_ac12_thing`` never carries
+    criterion 1.
+    """
+    name = node_id.split("::")[-1]
+    return tuple(sorted({int(match.group(1)) for match in _INDEX_TOKEN.finditer(name)}))
+
+
+def _failure_excerpt(node_id: str, excerpts: Sequence[str]) -> str:
+    """The failure excerpt that names ``node_id`` (or its function name), else "".
+
+    Ledger context lines the loop appended (``AC-i is VIOLATED by ...``) are skipped, so
+    a criterion's evidence points at the real failure excerpt rather than at itself.
+    """
+    name = node_id.split("::")[-1]
+    for line in excerpts:
+        if " is VIOLATED by " in line:
+            continue
+        if node_id in line or (name and name in line):
+            return line
+    return ""
+
+
+def build_criterion_ledger(
+    spec: LeafSpec,
+    *,
+    coverage: Sequence[RequirementCoverage] = (),
+    coverage_unresolved: Sequence[str] = (),
+    test_case_problems: Sequence[str] = (),
+    own_test_gate: GateReport | None = None,
+    iv_criteria: Sequence[CriterionEvidence] = (),
+    iv_ran: bool = False,
+    review_verdicts: Sequence[ReviewVerdict] = (),
+    failure_excerpts: Sequence[str] = (),
+    own_test_discriminating: bool = False,
+    routes: Mapping[str, str] | None = None,
+) -> list[CriterionLedgerEntry]:
+    """The DETERMINISTIC per-criterion ledger for a node that wrote code (ticket 21).
+
+    One row per acceptance criterion, decided ONLY from the run's observed evidence, in a
+    documented precedence: (1) a named artifact the final diff left untouched
+    (``artifact-coverage``); (2) a declared test case still missing/unpassed
+    (``declared-test-case``); (3) the independent test's per-criterion discrimination
+    (``independent-test``) — a criterion that still fails on the final source is
+    VIOLATED, one that failed on the pre-run source and passed on the final is
+    SATISFIED, and one the test could not pin is noted; (4) the run's own test gate
+    (``own-test``), matched by the boundary-aware AC index in the node name (or, for a
+    single criterion, the un-attributable goal test); (5) an independent review grade
+    (``review:<angle>``) for criteria no test could carry; else (6) ``unverifiable``
+    with a pointer to what was attempted and why it could not discriminate.
+
+    ``routes`` (ac_id -> route) is attached verbatim; the builder never guesses a route.
+    """
+    routes = dict(routes or {})
+    coverage_by_index = {c.index: c for c in coverage}
+    iv_by_index = {c.index: c for c in iv_criteria}
+    tc_by_index: dict[int, list[str]] = {}
+    for problem in test_case_problems:
+        match = _AC_ID_INDEX.search(problem)
+        if match:
+            tc_by_index.setdefault(int(match.group(1)), []).append(problem)
+    unresolved = {index for index in _indices_in_messages(coverage_unresolved)}
+    own_passed = tuple(getattr(own_test_gate, "passed_ids", ()) or ())
+    own_failed = tuple(getattr(own_test_gate, "failed_ids", ()) or ())
+    own_observed = bool(own_test_gate is not None and own_test_gate.observed)
+    single = len(spec.acs) == 1
+    entries: list[CriterionLedgerEntry] = []
+    for index, statement in enumerate(spec.acs, 1):
+        ac_id = f"AC-{index}"
+        row = _ledger_row_for(
+            index, statement, coverage_by_index.get(index), tc_by_index.get(index),
+            iv_by_index.get(index), own_passed, own_failed, own_observed,
+            single, own_test_discriminating, iv_ran, index in unresolved,
+            review_verdicts, failure_excerpts)
+        entries.append(replace(row, ac_id=ac_id, route=routes.get(ac_id, "")))
+    return entries
+
+
+def _indices_in_messages(messages: Sequence[str]) -> set[int]:
+    """Every AC index named by a list of ``AC<i>: ...`` problem strings."""
+    out: set[int] = set()
+    for message in messages:
+        match = _AC_ID_INDEX.search(message or "")
+        if match:
+            out.add(int(match.group(1)))
+    return out
+
+
+def _ledger_row_for(
+    index: int,
+    statement: str,
+    coverage: RequirementCoverage | None,
+    tc_problems: Sequence[str] | None,
+    iv: CriterionEvidence | None,
+    own_passed: Sequence[str],
+    own_failed: Sequence[str],
+    own_observed: bool,
+    single: bool,
+    own_test_discriminating: bool,
+    iv_ran: bool,
+    unresolved: bool,
+    review_verdicts: Sequence[ReviewVerdict],
+    failure_excerpts: Sequence[str],
+) -> CriterionLedgerEntry:
+    """One criterion's ledger row (the precedence in :func:`build_criterion_ledger`)."""
+    ac_id = f"AC-{index}"
+
+    def row(state: str, check: str, evidence: str) -> CriterionLedgerEntry:
+        return CriterionLedgerEntry(ac_id=ac_id, statement=statement, state=state,
+                                    check=check, evidence=evidence)
+
+    # (1) a named artifact the final diff left untouched.
+    if coverage is not None and coverage.missing:
+        return row("violated", "artifact-coverage",
+                   f"{statement!r} names {', '.join(coverage.missing)}, untouched by the "
+                   "final diff")
+    # (2) a declared test case still missing/unpassed.
+    if tc_problems:
+        return row("violated", "declared-test-case", "; ".join(tc_problems))
+    # (3) the independent test's per-criterion discrimination.
+    if iv is not None:
+        if iv.reason == "red-on-final":
+            return row("violated", "independent-test",
+                       f"{iv.detail} (AC{index} node ids [{iv.selection}]: "
+                       f"{iv.final_failures} failure(s) on the final source)")
+        if iv.reason == "":
+            return row("satisfied", "independent-test",
+                       f"AC{index} node ids [{iv.selection}] failed on the pre-run source "
+                       "and passed on the final source")
+        # not-discriminating / incomplete / shared / unobserved: fall through with a note.
+    # (4) the run's own test gate.
+    failed_ids = [nid for nid in own_failed if index in _criterion_indices_in_node(nid)]
+    passed_ids = [nid for nid in own_passed if index in _criterion_indices_in_node(nid)]
+    if failed_ids:
+        excerpt = _failure_excerpt(failed_ids[0], failure_excerpts)
+        return row("violated", "own-test",
+                   f"own-test node {failed_ids[0]} is failing in the last report"
+                   + (f": {excerpt}" if excerpt else ""))
+    if passed_ids and own_test_discriminating:
+        return row("satisfied", "own-test",
+                   f"own-test node {passed_ids[0]} passed (the test was red on arrival and "
+                   "is unmodified)")
+    if single and own_observed and own_failed and not failed_ids:
+        nid = sorted(own_failed)[0]
+        excerpt = _failure_excerpt(nid, failure_excerpts)
+        return row("violated", "own-test",
+                   f"the run's own goal test {nid} is failing in the last report"
+                   + (f": {excerpt}" if excerpt else ""))
+    # (5) an independent review grade for a criterion no test could carry.
+    negative = [v for v in review_verdicts if not v.coerced and review_grade_rank(v.grade) < 0]
+    positive = [v for v in review_verdicts if not v.coerced and v.approved]
+    if negative:
+        worst = min(negative, key=lambda v: review_grade_rank(v.grade))
+        return row("violated", f"review:{worst.angle}",
+                   worst.evidence or worst.detail or worst.grade)
+    if positive:
+        best = max(positive, key=lambda v: review_grade_rank(v.grade))
+        return row("satisfied", f"review:{best.angle}",
+                   best.evidence or best.detail)
+    # (6) nothing could discriminate: say which verification was attempted and why.
+    return row("unverifiable", "", _unverifiable_evidence(
+        index, coverage, own_passed, own_failed, own_observed, own_test_discriminating,
+        iv, iv_ran, unresolved, bool(tc_problems), review_verdicts))
+
+
+def _unverifiable_evidence(
+    index: int,
+    coverage: RequirementCoverage | None,
+    own_passed: Sequence[str],
+    own_failed: Sequence[str],
+    own_observed: bool,
+    own_test_discriminating: bool,
+    iv: CriterionEvidence | None,
+    iv_ran: bool,
+    unresolved: bool,
+    has_declared: bool,
+    review_verdicts: Sequence[ReviewVerdict],
+) -> str:
+    """Why no discriminating check for criterion ``index`` could be produced (item 2)."""
+    why: list[str] = []
+    if coverage is not None and not _criterion_unresolved(coverage):
+        names = ", ".join((*coverage.files, *coverage.symbols))
+        if names:
+            why.append(f"the named artifact(s) {names} moved in the diff, but no test or "
+                       "review pinned the behaviour")
+    if not own_observed:
+        why.append("the run produced no machine-readable own-test report")
+    elif own_failed or own_passed:
+        why.append(f"the run's own test nodes ({len(own_failed)} failing, "
+                   f"{len(own_passed)} passing) carry no AC{index} index")
+    elif not own_test_discriminating:
+        why.append("the run's own test passed on arrival, so it does not discriminate")
+    if iv is not None:
+        why.append(f"the independent test could not pin AC{index}: {iv.detail or iv.reason}")
+    elif not iv_ran:
+        why.append("the independent test did not run (it runs only after a passing candidate)")
+    if has_declared:
+        why.append("no declared test case for this criterion passed")
+    if unresolved:
+        why.append("the criterion names no artifact the coverage rule could check")
+    if review_verdicts:
+        why.append("the independent review returned no graded verdict that carries it")
+    return (f"no discriminating check could be produced for AC{index}: "
+            + ("; ".join(why) if why else "no observed check was attempted"))
+
+
 async def _run_iv_gate(
     run_tests: Callable[..., Awaitable[ShapedResult] | ShapedResult],
     tree: Mapping[str, str], iv_path: str, iv_content: str, *,
@@ -2750,6 +3060,13 @@ async def run_leaf(
     # Ticket 20 step 2b-ii: the last own-test gate report, surfaced on the outcome so the
     # tree can score the candidate over the DECLARED test points.
     own_test_report: GateReport | None = None
+    # Ticket 21: the LAST observed own-test gate report, red OR green, so the per-criterion
+    # ledger can name the failing node/test for a non-claiming run (the claim-path
+    # ``own_test_report`` is only set on a passing candidate).
+    last_gate: GateReport | None = None
+    # Ticket 21 item 3: the route each criterion took (ac_id -> LEDGER_ROUTES value),
+    # updated at every routing decision so the failure report records what the loop did.
+    ledger_routes: dict[str, str] = {}
     attempt_cap = min(9, 3 * max(1, len(spec.files)))
 
     def emit(kind: str, **data: Any) -> None:
@@ -3231,9 +3548,11 @@ async def run_leaf(
         contradicts the exit) lands in the ledger and on the outcome. A gate result
         with no report at all is the injected seam's, not the run's.
         """
+        nonlocal last_gate
         gate = getattr(res, "gate", None)
         if gate is None:
             return None
+        last_gate = gate
         if gate.structural_anomaly:
             emit("gate_report_anomaly", anomaly=gate.anomaly, detail=gate.detail,
                  report=gate.report_path, process_exit=gate.process_exit)
@@ -3314,6 +3633,51 @@ async def run_leaf(
             return "review"
         return "none"
 
+    def ledger_now() -> list[CriterionLedgerEntry]:
+        """The current per-criterion ledger, computed from OBSERVED evidence only.
+
+        The coverage rows are the last claim evaluation's when one ran, else a fresh
+        deterministic coverage check of the final diff — so a run that never reached a
+        passing candidate still gets artifact evidence for the criteria that name one.
+        """
+        last_iv = iv_verdicts[-1] if iv_verdicts else None
+        computed = list(coverage) or (
+            _requirement_coverage(spec, workdir, baseline) if _wrote_code() else [])
+        return build_criterion_ledger(
+            spec,
+            coverage=computed,
+            coverage_unresolved=coverage_unresolved,
+            test_case_problems=test_case_problems,
+            own_test_gate=last_gate,
+            iv_criteria=(last_iv.criteria if last_iv is not None else ()),
+            iv_ran=bool(iv_verdicts),
+            review_verdicts=review_verdicts,
+            failure_excerpts=last_excerpts,
+            own_test_discriminating=(self_test is not None and test_rewrites == 0),
+            routes=ledger_routes)
+
+    def route_failed_candidate() -> None:
+        """Ticket 21 item 3: USE the ledger on a non-claiming candidate.
+
+        A VIOLATED criterion becomes the next attempt's TARGETED failure context (rework
+        at that requirement, not a blind retry) — appended so the existing failure
+        signature and the escalation/exhaustion decisions are unchanged. An UNVERIFIABLE
+        criterion is routed to the EXISTING review path, which is the claim-time
+        ``review_blocker`` (``criterion-unresolved`` / ``test-cases``) already wired for a
+        criterion no test can carry; its route is recorded there and defaulted here.
+        """
+        nonlocal last_excerpts
+        if not _wrote_code():
+            return
+        entries = ledger_now()
+        violated = [e for e in entries if e.state == "violated"]
+        if violated:
+            targeted = [f"{e.ac_id} is VIOLATED by {e.check or 'a check'}: {e.evidence}"
+                        for e in violated]
+            last_excerpts = [*last_excerpts, *targeted]
+            for entry in violated:
+                ledger_routes.setdefault(entry.ac_id, "rework")
+
     def finish() -> LeafOutcome:
         reason = exhaustion_reason
         if last_iv_reason and not claimed:
@@ -3344,6 +3708,53 @@ async def run_leaf(
             claim_status = "verified-failure"
         else:
             claim_status = "unverified-failure"
+        # ---- ticket 21: the per-criterion ledger on EVERY code-writing node, and the
+        # evidence-backed failure report on every non-claim. Both are built from OBSERVED
+        # evidence only.
+        ledger = ledger_now()
+        review_performed = bool(review_verdicts)
+        filled: list[CriterionLedgerEntry] = []
+        for entry in ledger:
+            route = entry.route
+            if not route:
+                if claimed:
+                    if entry.state == "violated":
+                        route = "blocked"
+                    elif entry.check.startswith("review:"):
+                        route = "review"
+                    else:
+                        route = "claim"
+                elif entry.state == "violated":
+                    route = "rework" if entry.ac_id in ledger_routes else "unresolved"
+                elif entry.state == "unverifiable":
+                    route = "review" if review_performed else "unresolved"
+                else:
+                    route = "confirmed"
+            filled.append(replace(entry, route=route))
+        ledger = filled
+        concrete = any(e.state in ("satisfied", "violated") for e in ledger)
+        evidence_gap = bool(not claimed and not concrete
+                            and (stop_reason or signal) in EVIDENCE_GAP_STOPS)
+        report = None
+        if not claimed:
+            gap_reason = ""
+            if evidence_gap:
+                gap_reason = (
+                    f"the node stopped ({stop_reason or signal}) without one satisfied or "
+                    f"violated criterion: no discriminating check was produced for any of "
+                    f"the {len(ledger)} criterion row(s) — this is a GIVE-UP WITHOUT "
+                    "EVIDENCE, not a normal honest failure")
+            report = FailureReport(stop_reason=stop_reason or signal,
+                                   criteria=tuple(ledger), evidence_gap=evidence_gap,
+                                   evidence_gap_reason=gap_reason)
+        emit("criterion_ledger", claimed=claimed,
+             criteria=[asdict(e) for e in ledger], evidence_gap=evidence_gap)
+        if report is not None:
+            emit("failure_report", stop_reason=report.stop_reason,
+                 violated=[asdict(e) for e in report.violated],
+                 unverifiable=[asdict(e) for e in report.unverifiable],
+                 evidence_gap=evidence_gap,
+                 evidence_gap_reason=report.evidence_gap_reason)
         return LeafOutcome(
             claimed=claimed,
             signal=signal,
@@ -3392,6 +3803,9 @@ async def run_leaf(
             verification=record,
             verified=verified,
             claim_status=claim_status,
+            ledger=ledger,
+            failure_report=report,
+            evidence_gap=evidence_gap,
         )
 
     def enter_review(why: str) -> bool:
@@ -3741,6 +4155,12 @@ async def run_leaf(
                 candidate.outcome = "fail"
                 candidate.verdict = prefilter(attempts, candidate)
                 attempts.append(candidate)
+                # Ticket 21 item 3: a violated criterion (a named artifact untouched) is
+                # routed to targeted REWORK at that requirement; the evidence is the
+                # next attempt's context.
+                for criterion in new_coverage:
+                    if criterion.missing:
+                        ledger_routes.setdefault(f"AC-{criterion.index}", "rework")
                 emit("requirement_uncovered", missing=new_missing)
                 last_excerpts = [f"requirement artifact untouched: {m}" for m in new_missing]
                 rung += 1
@@ -3777,7 +4197,10 @@ async def run_leaf(
                 # node enters the owner's REVIEW path ("a test cannot carry the
                 # verification"). A grounded review pass then claims on
                 # verification_basis="review"; with no reviewer this is an honest stop,
-                # never a ladder burn.
+                # never a ladder burn. Ticket 21 item 3: the route taken is recorded.
+                for index in _indices_in_messages(unresolved):
+                    ledger_routes.setdefault(
+                        f"AC-{index}", "review" if review is not None else "unresolved")
                 if not await review_blocker(
                         "a criterion names no artifact and no declared test discriminates "
                         "for it", "criterion-unresolved"):
@@ -3849,6 +4272,10 @@ async def run_leaf(
                 # FIX 1: the declared test-case defect survived the bounded repair, and
                 # more implementation cannot clear it; enter the owner's REVIEW path.
                 # No reviewer is the honest ``test-cases`` stop (never a ladder burn).
+                # Ticket 21 item 3: the route taken is recorded.
+                for index in _indices_in_messages(tc_problems):
+                    ledger_routes.setdefault(
+                        f"AC-{index}", "review" if review is not None else "unresolved")
                 if not await review_blocker(
                         "a declared test case is missing or does not discriminate",
                         "test-cases"):
@@ -3939,6 +4366,10 @@ async def run_leaf(
             break
 
         attempts.append(candidate)
+        # Ticket 21 item 3: a non-claiming candidate DRIVES the next move from its
+        # per-criterion ledger (violated -> targeted rework context, unverifiable ->
+        # review path) instead of a blind retry.
+        route_failed_candidate()
         emit("attempt_recorded", strategy=esc.strategy, layer=esc.layer,
              verdict=candidate.verdict, signature=signature)
 

@@ -235,6 +235,15 @@ def node_record(outcome: NodeOutcome, *, diluted: bool = False) -> dict:
         "coverage_missing": (list(leaf.coverage_missing) if leaf is not None else []),
         "coverage_unresolved": (list(leaf.coverage_unresolved) if leaf is not None else []),
         "test_case_problems": (list(leaf.test_case_problems) if leaf is not None else []),
+        # Ticket 21: the per-criterion ledger + the evidence-backed failure report (with
+        # the distinct EVIDENCE-GAP state) so a node that did not close carries its own
+        # evidence, never just a stop reason.
+        "ledger": ([dataclasses.asdict(e) for e in leaf.ledger]
+                   if leaf is not None else []),
+        "failure_report": (dataclasses.asdict(leaf.failure_report)
+                           if leaf is not None and leaf.failure_report is not None
+                           else None),
+        "evidence_gap": (leaf.evidence_gap if leaf is not None else False),
         "malformed_steps": (list(leaf.malformed_steps) if leaf is not None else []),
         "judge_unavailable": (leaf.judge_unavailable if leaf is not None else 0),
         "judge_verdicts": ([v.model_dump(mode="json") for v in leaf.judge_verdicts]

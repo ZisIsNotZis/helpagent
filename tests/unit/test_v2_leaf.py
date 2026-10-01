@@ -3944,3 +3944,204 @@ def test_review_route_is_upgraded_to_the_test_tier_by_an_independent_test(tmp_pa
     assert out.claimed_basis == "review+independent-test"
     assert out.verification.tier == "test" and out.verified is True
     assert out.claim_status == "verified-success"
+
+
+# ===========================================================================
+# ticket 21: the per-criterion LEDGER, the evidence-backed FAILURE REPORT, and
+# a loop that USES the report (targeted rework / the review path)
+# ===========================================================================
+
+
+def test_criterion_ledger_is_built_from_observed_checks_only():
+    """Ticket 21 item 1: the ledger classifies each criterion from OBSERVED evidence —
+    an untouched named artifact is VIOLATED (``artifact-coverage``), a discriminating
+    independent test is SATISFIED (``independent-test``), the own-test node names the
+    failing check (``own-test``), and a criterion nothing could carry is UNVERIFIABLE
+    with the reason. Model prose is never an input."""
+    from harness.leaf import (
+        LEDGER_STATES,
+        CriterionEvidence,
+        RequirementCoverage,
+        build_criterion_ledger,
+    )
+
+    spec = dataclasses.replace(
+        make_spec(), acs=["pkg/calc.py must return 42", "result() is stable",
+                          "the widget is blue"])
+    coverage = [
+        RequirementCoverage(1, spec.acs[0], files=("pkg/calc.py",),
+                            missing=("pkg/calc.py",)),
+        RequirementCoverage(2, spec.acs[1], symbols=("result",)),
+    ]
+    iv = (CriterionEvidence(2, "tests/test_independent.py::test_ac2_ok", 1, 1, 1, 0),)
+    own = _green_gate("tests/test_leaf_self.py::test_ac1_goal")
+    entries = build_criterion_ledger(
+        spec, coverage=coverage, own_test_gate=own, iv_criteria=iv, iv_ran=True,
+        own_test_discriminating=True)
+    by_id = {e.ac_id: e for e in entries}
+
+    assert [e.state for e in entries] == ["violated", "satisfied", "unverifiable"]
+    assert all(e.state in LEDGER_STATES for e in entries)
+    assert by_id["AC-1"].check == "artifact-coverage"
+    assert "untouched" in by_id["AC-1"].evidence
+    assert by_id["AC-2"].check == "independent-test"
+    assert "pre-run source" in by_id["AC-2"].evidence
+    assert by_id["AC-3"].state == "unverifiable"
+    assert "no discriminating check" in by_id["AC-3"].evidence
+
+
+def test_non_claiming_run_emits_a_ledger_that_names_the_violated_check(tmp_path):
+    """Ticket 21 items 1-2/4: a run that does NOT claim still carries its evidence — the
+    ledger names the VIOLATED criterion, its failing check, and the failing node id, so
+    the stop is never just ``attempts``."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST, impl("def result():\n    return 1\n"),
+        impl("def result():\n    return 2\n")]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=3, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 1, 1]))
+
+    assert out.claimed is False
+    assert out.evidence_gap is False                 # there IS concrete evidence
+    assert out.failure_report is not None
+    assert len(out.failure_report.violated) == 1
+    rule = out.failure_report.violated[0]
+    assert rule.ac_id == "AC-1" and rule.state == "violated"
+    assert rule.check == "own-test" and rule.route == "rework"
+    assert "test_ac1" in rule.evidence
+    assert "criterion_ledger" in ledger_kinds() and "failure_report" in ledger_kinds()
+
+
+def test_violated_criterion_becomes_the_next_attempts_targeted_context(tmp_path):
+    """Ticket 21 item 3: a VIOLATED criterion is the next attempt's TARGETED failure
+    context (rework at that requirement) instead of a blind retry."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST, impl("def result():\n    return 1\n"),
+        impl("def result():\n    return 2\n")]})
+    run_leaf_sync(model, spec, tmp_path, Budget(calls=3, deadline_ts=_FAR_FUTURE),
+                  run_tests=ScriptedTests([1, 1, 1]))
+
+    second_implement = model.calls("write_test")[2]
+    assert "AC-1 is VIOLATED by own-test" in second_implement.artifacts["failure_output"]
+
+
+def test_ran_out_without_criterion_evidence_is_an_evidence_gap(tmp_path):
+    """Ticket 21 item 2: a run that runs out with NOTHING but unverifiable criteria — no
+    check it could point at — is recorded as an EVIDENCE GAP, a distinct visible state."""
+    spec = dataclasses.replace(make_spec(),
+                               acs=["the widget is blue", "the widget is round"])
+    stage(tmp_path, spec.files)
+    red = _red_result("tests/test_leaf_self.py::test_goal")   # no AC index in the name
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST, impl("def result():\n    return 1\n"),
+        impl("def result():\n    return 2\n")]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=3, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([red]))
+
+    assert out.claimed is False and out.stop_reason == "calls"
+    assert all(e.state == "unverifiable" for e in out.ledger)
+    assert out.evidence_gap is True
+    assert out.failure_report is not None and out.failure_report.evidence_gap is True
+    assert "GIVE-UP WITHOUT EVIDENCE" in out.failure_report.evidence_gap_reason
+    assert out.failure_report.routes() == {"AC-1": "unresolved", "AC-2": "unresolved"}
+    assert "no discriminating check" in out.ledger[0].evidence
+
+
+def test_unverifiable_criterion_routes_to_the_review_path(tmp_path):
+    """Ticket 21 item 3: an UNVERIFIABLE criterion (one no test can carry) is routed to
+    the existing REVIEW path — the owner's "another agent confirms" — and the route each
+    criterion took is recorded on the ledger."""
+    spec = dataclasses.replace(make_spec(), acs=["the widget is blue"])
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+        review=_passing_review,
+        run_tests=ScriptedTests([
+            _red_result("tests/test_leaf_self.py::test_goal"),
+            _green_result("tests/test_leaf_self.py::test_goal")]))
+
+    assert out.claimed is True and out.verification_basis == "review"
+    assert out.ledger[0].state == "satisfied"
+    assert out.ledger[0].check.startswith("review:")
+    assert out.ledger[0].route == "review"
+    assert "review_verification" in ledger_kinds()
+
+
+def test_unverifiable_without_a_reviewer_records_the_unresolved_route(tmp_path):
+    """Ticket 21 item 3: with no reviewer to confirm an unverifiable criterion, the route
+    is recorded as ``unresolved`` — the honest terminal state, never a silent claim."""
+    spec = dataclasses.replace(make_spec(),
+                               acs=["the widget is blue", "the widget is round"])
+    stage(tmp_path, spec.files)
+    red = _red_result("tests/test_leaf_self.py::test_goal")
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST, impl("def result():\n    return 1\n"),
+        impl("def result():\n    return 2\n")]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=3, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([red]))
+
+    assert out.claimed is False
+    assert {e.route for e in out.ledger} == {"unresolved"}
+
+
+def test_no_code_run_that_ran_out_is_an_evidence_gap(tmp_path):
+    """Ticket 21 item 2: a run that wrote NO code and ran out has a ledger with no
+    concrete row at all — the clearest give-up without evidence."""
+    spec = dataclasses.replace(make_spec(),
+                               acs=["the widget is blue", "the widget is round"])
+    stage(tmp_path, spec.files)
+    refused = write_env("tests/test_sneaky.py", "def test_x():\n    assert True\n")
+    model = FakeModelRunner({"write_test": [SELF_TEST, refused]})
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=2, deadline_ts=_FAR_FUTURE),
+        run_tests=ScriptedTests([
+            _red_result("tests/test_leaf_self.py::test_goal")]))
+
+    assert out.claimed is False and out.stop_reason == "calls"
+    assert out.verification is None                 # no code was written
+    assert all(e.state == "unverifiable" for e in out.ledger)
+    assert out.evidence_gap is True
+    assert out.failure_report is not None and out.failure_report.evidence_gap is True
+
+
+def test_evidence_gap_needs_a_ran_out_stop_not_any_non_claim():
+    """Ticket 21 item 2: the EVIDENCE-GAP state is reserved for a "ran out" stop with no
+    concrete criterion evidence — a no-red-target honest failure is NOT a gap."""
+    from harness.leaf import EVIDENCE_GAP_STOPS
+
+    assert "attempts" in EVIDENCE_GAP_STOPS and "ladder" in EVIDENCE_GAP_STOPS
+    assert "no-red-target" not in EVIDENCE_GAP_STOPS
+
+
+def test_run_record_carries_the_ledger_and_failure_report():
+    """Ticket 21 items 2/4: the persisted record carries the ledger, the failure report,
+    and the distinct evidence-gap flag so both directions are checkable at a glance."""
+    from bench.external_score import ExternalScore
+    from bench.v2_leaf import build_record
+    from harness.leaf import CriterionLedgerEntry, FailureReport
+
+    ledger = [CriterionLedgerEntry(ac_id="AC-1", statement="s", state="violated",
+                                   check="own-test", evidence="node x fails",
+                                   route="rework")]
+    report = FailureReport(stop_reason="attempts", criteria=tuple(ledger))
+    outcome = LeafOutcome(
+        claimed=False, signal="exhausted", attempts=[], calls=3, wall_s=1.0,
+        self_test=None, questions=[], exhausted=True, exhaustion_reason="tail",
+        layers_used=[], stop_reason="attempts", ledger=ledger, failure_report=report)
+    score = ExternalScore(passed=False, exit=1, notes=[], work_root="", applied=[],
+                          skipped=[])
+
+    record = build_record("T-x", "goal", outcome, withheld=[], produced={}, score=score,
+                          quad="honest-failure", run_wall_s=1.0)
+
+    assert record["ledger"][0]["state"] == "violated"
+    assert record["ledger"][0]["check"] == "own-test"
+    assert record["ledger"][0]["route"] == "rework"
+    assert record["failure_report"]["stop_reason"] == "attempts"
+    assert record["failure_report"]["criteria"][0]["evidence"] == "node x fails"
+    assert record["evidence_gap"] is False
+    json.dumps(record)
