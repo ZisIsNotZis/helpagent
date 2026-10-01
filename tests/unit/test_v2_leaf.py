@@ -34,6 +34,8 @@ from harness.gate_report import GateReport
 from harness.leaf import (
     LADDER,
     VERIFICATION_TIERS,
+    ClaimDecision,
+    CriterionLedgerEntry,
     DeclaredTestCase,
     Escalation,
     IndependentTestCandidate,
@@ -51,6 +53,7 @@ from harness.leaf import (
     _requirement_coverage,
     apply_judge_filter,
     apply_review_filter,
+    claim_decision,
     escalate,
     evaluate_independent_test,
     run_leaf,
@@ -3362,10 +3365,13 @@ def test_blocked_criterion_routes_to_review_and_claims_with_evidence(tmp_path):
     assert "review_verification" in ledger_kinds() and "review_verdict" in ledger_kinds()
 
 
-def test_blocked_declared_test_case_routes_to_review_and_claims(tmp_path):
-    """FIX 1: a declared test case that survives the bounded repair and cannot carry the
-    claim enters the REVIEW path, where a grounded pass allows the claim on the review
-    basis (the declared-case defect stays recorded)."""
+def test_blocked_declared_test_case_repair_does_not_claim_on_the_review_alone(tmp_path):
+    """FIX 1, tightened ticket 21 round 5 (fix 2): a declared test case that survives the
+    bounded repair and cannot carry the claim enters the REVIEW path — but because the
+    repair REPLACED the run's own test, a grounded review pass ALONE can no longer claim
+    (the replacement is red-on-pristine at best). The green is recorded as
+    ``green-after-test-rewrite`` with the rewrite accounted, and the declared-case defect
+    stays recorded."""
     spec = dataclasses.replace(
         make_spec(),
         test_cases=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_goal",)),))
@@ -3375,10 +3381,89 @@ def test_blocked_declared_test_case_routes_to_review_and_claims(tmp_path):
         model, spec, tmp_path, Budget(calls=10, deadline_ts=_FAR_FUTURE),
         review=_approving_review, run_tests=ScriptedTests([1, 0]))
 
-    assert out.claimed is True and out.stop_reason == "green"
-    assert out.verification_basis == "review" and out.claimed_basis == "review"
+    assert out.claimed is False
+    assert out.stop_reason == "green-after-test-rewrite"
+    assert out.test_rewrites == 1 and out.own_test_mutated is True
     assert out.test_case_problems and "test_goal" in out.test_case_problems[0]
     assert "review_verification" in ledger_kinds() and "review_verdict" in ledger_kinds()
+    assert "leaf_green_after_test_rewrite" in ledger_kinds()
+
+
+def _declared_case_repair_runner(tmp_path, *, pristine_green: bool = False,
+                                 repaired_node="tests/test_leaf_self.py::test_ac1"):
+    """A run_tests seam for the declared-case REPAIR accounting tests.
+
+    On the workdir the own test is red on arrival (``test_goal``), then green once the
+    repair has replaced it with the DECLARED ``test_ac1`` node; in the private pristine
+    copy (``_repaired_test_is_red_on_pristine``) the replacement is red (a real
+    discriminator) unless ``pristine_green`` makes it a placeholder."""
+    state = {"n": 0}
+
+    def runner(workdir, node_ids=None):
+        if Path(workdir) != tmp_path:
+            return (_green_result(repaired_node) if pristine_green
+                    else _red_result(repaired_node))
+        state["n"] += 1
+        if state["n"] == 1:
+            return _red_result("tests/test_leaf_self.py::test_goal")
+        content = (Path(workdir) / "tests/test_leaf_self.py").read_text()
+        if "test_ac1" in content:
+            return _green_result(repaired_node)
+        return _green_result("tests/test_leaf_self.py::test_goal")
+
+    return runner
+
+
+def test_declared_case_repair_is_accounted_exactly_like_a_test_rewrite(tmp_path):
+    """Ticket 21 round 5 (fix 2): a declared-case repair REPLACES the run's own test file,
+    so it must be accounted exactly like the judge-path repair — ``test_rewrites`` counts
+    it (and therefore ``own_test_mutated`` is true), and the replaced test can never be
+    the SOLE basis of a claim: the green is ``green-after-test-rewrite`` with no claim.
+    The ledger stays honest (the criterion is not satisfied by the replacement)."""
+    spec = dataclasses.replace(
+        make_spec(),
+        test_cases=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_ac1",)),))
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST,                                        # test_goal, not the declared test_ac1
+        impl(),                                           # green, declared case still missing
+        write_env("tests/test_leaf_self.py",              # the declared-case repair
+                  "def test_ac1():\n    assert result() == 42\n"),
+    ]})
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+        run_tests=_declared_case_repair_runner(tmp_path))
+
+    assert out.claimed is False
+    assert out.stop_reason == "green-after-test-rewrite"
+    assert out.test_rewrites == 1 and out.own_test_mutated is True
+    assert out.test_case_problems == []
+    assert "test_case_repair" in ledger_kinds()
+    assert "leaf_green_after_test_rewrite" in ledger_kinds()
+    # the replaced test cannot carry the criterion: the ledger does not claim it satisfied
+    assert [e.state for e in out.ledger] != ["satisfied"]
+
+
+def test_declared_case_repair_green_on_pristine_is_still_rejected(tmp_path):
+    """Ticket 19 D kept by round 5 (fix 2): the repaired own test must still DISCRIMINATE —
+    RED on the PRISTINE source. A replacement that also passes there is recorded as a
+    non-discriminating repaired test and cannot claim."""
+    spec = dataclasses.replace(
+        make_spec(),
+        test_cases=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_ac1",)),))
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST, impl(),
+        write_env("tests/test_leaf_self.py",
+                  "def test_ac1():\n    assert result() == 42\n"),
+    ]})
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+        run_tests=_declared_case_repair_runner(tmp_path, pristine_green=True))
+
+    assert out.claimed is False
+    assert any("still PASSES on the pristine source" in p for p in out.test_case_problems)
+    assert "test_cases_missing" in ledger_kinds()
 
 
 def test_malformed_judge_is_consulted_at_most_once_per_attempt(tmp_path):
@@ -4289,6 +4374,86 @@ def test_conflict_text_says_cannot_characterise_when_the_assertions_are_identica
     assert "cannot characterise the difference" in out.own_test_conflict_reason
 
 
+def test_exhaustion_review_without_a_green_own_test_cannot_claim(tmp_path):
+    """Ticket 21 round 5 (fix 1), the ``--no-iv`` route: at exhaustion the REVIEW branch
+    used to claim with NO own-test check. With the run's own test genuinely RED on the
+    final (wrong) source and NO independent test, an approving review must NOT carry a
+    claim — the two weak verifiers disagree, so the node records the conflict (own
+    failing assertion vs the APPROVING review, same revision) and stops unclaimed with an
+    honest ledger row."""
+    files = {"pkg/calc.py": "def result():\n    return 0\n"}
+    spec = LeafSpec(goal="make result() return 42", files=files,
+                    acs=["result() returns 42"], interfaces=["result() -> int"])
+    stage(tmp_path, files)
+    wrong = impl("def result():\n    return 100\n")     # the wrong fix the review accepts
+    model = FakeModelRunner({"write_test": [SYMPTOM_TEST] + [wrong] * 8})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=16, deadline_ts=_FAR_FUTURE),
+                        review=_passing_review,
+                        run_tests=ScriptedTests([1, 1, 1, 1, 1, 0]))
+
+    assert out.claimed is False and out.stop_reason == "verifier-conflict"
+    assert out.own_test_conflict is True
+    assert "assert result() == 3" in out.own_test_conflict_reason
+    assert "review APPROVED" in out.own_test_conflict_reason
+    assert "same revision" in out.own_test_conflict_reason
+    assert "verifier_conflict" in ledger_kinds()
+    assert out.ledger[0].state == "violated"
+    assert out.ledger[0].check == "verifier-conflict"
+    assert out.failure_report is not None and out.failure_report.violated
+
+
+def test_exhaustion_review_with_a_vacuous_independent_test_cannot_claim(tmp_path):
+    """Ticket 21 round 5 (fix 1), the vacuous/uncollected route: an independent test that
+    is NOT red on the pristine source (``independent-test-not-red`` after its one repair)
+    leaves the review path, but the run's own test is still RED on the wrong fix, so the
+    APPROVING review must not claim either."""
+    files = {"pkg/calc.py": "def result():\n    return 0\n"}
+    spec = LeafSpec(goal="make result() return 42", files=files,
+                    acs=["result() returns 42"], interfaces=["result() -> int"])
+    stage(tmp_path, files)
+    wrong = impl("def result():\n    return 100\n")
+    model = FakeModelRunner({"write_test": [SYMPTOM_TEST] + [wrong] * 8})
+    vacuous = iv_candidate(path="tests/test_vacuous.py",
+                           content="def test_goal():\n    assert True\n")
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=18, deadline_ts=_FAR_FUTURE),
+                        review=_passing_review, iv=lambda request: vacuous,
+                        run_tests=ScriptedTests([1, 1, 1, 1, 0, 0]))
+
+    assert out.claimed is False and out.stop_reason == "verifier-conflict"
+    assert out.own_test_conflict is True
+    assert out.iv_verdicts[-1].approved is False
+    assert "review APPROVED" in out.own_test_conflict_reason
+    assert out.ledger[0].check == "verifier-conflict"
+
+
+def test_exhaustion_review_with_no_own_test_still_claims(tmp_path):
+    """Ticket 21 round 5 (fix 1), the legitimate case: the agreement rule permits a
+    review-based claim when the run's own test is ABSENT (never written). With no own
+    test, the loop exhausts and an approving review DOES carry the claim on the review
+    basis (``leaf_green_at_exhaustion``)."""
+    files = {"pkg/calc.py": "def result():\n    return 0\n"}
+    spec = LeafSpec(goal="make result() return 42", files=files,
+                    acs=["result() returns 42"], interfaces=["result() -> int"])
+    stage(tmp_path, files)
+    # both self-tests are green on arrival -> no red target -> review mode, NO own test.
+    model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT] + [impl()] * 12})
+
+    def review(request: ReviewRequest) -> ReviewVerdict:
+        # reject on the normal path, approve only the exhaustion consultation
+        if "exhausted" in request.reason:
+            return _passing_review(request)
+        return ReviewVerdict(grade="probably-problematic", detail="not yet")
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=60, deadline_ts=_FAR_FUTURE),
+                        review=review, run_tests=ScriptedTests([0, 0] + [1] * 30))
+
+    assert out.self_test is None and out.test_rewrites == 0
+    assert out.claimed is True and out.stop_reason == "green"
+    assert out.claimed_basis == "review"
+    assert out.own_test_conflict is False
+    assert "leaf_green_at_exhaustion" in ledger_kinds()
+
+
 def test_exhaustion_judge_that_does_not_confirm_keeps_the_own_test_valid(tmp_path):
     """Ticket 21 rounds 3-4: a judge that does NOT confirm ``test_wrong`` leaves the own
     test VALID, so the run records the conflict rather than branding a correct test
@@ -4414,3 +4579,207 @@ def test_coverage_miss_blocks_an_ok_review_verdict(tmp_path):
     assert out.coverage_missing
     assert any("pkg/other.py" in m for m in out.coverage_missing)
     assert "review_coverage_blocked" in ledger_kinds()
+
+
+# ===========================================================================
+# ticket 21 round 6: ONE claim gate, enforced STRUCTURALLY. Rounds 2-5 each guarded
+# a single branch and the next verifier found the same wrong green in a sibling branch
+# (the last: the MAIN-PATH review route claimed while the run's own test was RED).
+# ===========================================================================
+
+def test_main_path_review_with_a_red_own_test_cannot_claim(tmp_path):
+    """THE round-6 blocker repro: the MAIN-PATH review route (``review_blocker`` ->
+    ``enter_review``) used to claim while the run's own test was RED on the SAME final
+    revision, because the round-5 agreement rule had only been added to the EXHAUSTION
+    branch. With the ONE gate, the second attempt's approving review cannot carry the
+    claim: the run records the verifier CONFLICT and stops unclaimed.
+
+    Sequence: attempt 1 makes the own test green but a criterion resolves to no artifact,
+    so review is forced and REJECTS; the loop keeps the RED own test as the target.
+    Attempt 2 writes a wrong fix (own test RED) that the reviewer approves — the exact
+    wrong-green shape — and the gate refuses it."""
+    spec = dataclasses.replace(
+        make_spec(), acs=["thread the timeout through the result and helper call sites"])
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST,                                    # own test RED on arrival
+        impl("def result():\n    return 1\n"),        # attempt 1: own test green, review rejects
+        impl("def result():\n    return 7\n"),        # attempt 2: wrong fix, own test RED
+    ]})
+    reviews = ScriptedReview([
+        ReviewVerdict(grade="probably-problematic",
+                      evidence="pkg/calc.py:1 does not thread the timeout"),
+        _approving_review,
+    ])
+    # gate order: self-test red, attempt1 green, attempt2 red (the review calls are separate)
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
+                        review=reviews, run_tests=ScriptedTests([1, 0, 1, 1]))
+
+    assert out.claimed is False
+    assert out.stop_reason == "verifier-conflict"
+    assert out.verification_basis == "review"
+    assert out.own_test_conflict is True
+    assert "RED on the final source" in out.own_test_conflict_reason
+    assert "APPROVED the same revision" in out.own_test_conflict_reason
+    assert "verifier_conflict" in ledger_kinds()
+    assert out.ledger[0].state == "violated"
+    assert out.ledger[0].check == "verifier-conflict"
+
+
+def _gate_ledger() -> list[CriterionLedgerEntry]:
+    return [CriterionLedgerEntry(ac_id="AC-1", statement="result() returns 42",
+                                 state="satisfied", check="own-test",
+                                 evidence="tests/t.py::test_goal passes")]
+
+
+def _grounded_review() -> ReviewVerdict:
+    return ReviewVerdict(angle="ac-correctness", grade="definitely-ok",
+                         evidence="pkg/calc.py:1 returns 42 for AC-1")
+
+
+def test_claim_gate_enforces_every_rule_directly():
+    """The ONE gate's rule list, pinned directly on :func:`claim_decision` (the code paths
+    that call it are pinned elsewhere)."""
+    base = {
+        "criteria_count": 1, "ledger": _gate_ledger(), "own_test": "tests/t.py",
+        "own_test_green": True, "test_rewrites": 0, "iv_approved": False,
+        "iv_red_on_final": False, "review_approved": False, "review_verdicts": (),
+        "coverage_missing": (), "test_case_problems": (),
+        "verification_basis": "test", "tier_allowed": True,
+    }
+
+    # rule 1: no claim with zero acceptance criteria
+    assert claim_decision(route="own-test", **{**base, "criteria_count": 0}).claimed is False
+    # rule 2: no claim with an empty ledger
+    assert claim_decision(route="own-test", **{**base, "ledger": ()}).claimed is False
+    # rule 3: no claim when the coverage check missed a named artifact
+    assert claim_decision(route="own-test",
+                          **{**base, "coverage_missing": ["'AC' names x"]}).claimed is False
+    # the legitimate own-test claim
+    granted = claim_decision(route="own-test", **base)
+    assert isinstance(granted, ClaimDecision)
+    assert granted.claimed is True and granted.basis == "own-test"
+    # rule 4: a RED own test on the FINAL revision can NEVER claim
+    assert claim_decision(route="own-test",
+                          **{**base, "own_test_green": False}).claimed is False
+    # ... and when an external verifier PASSED it, the disagreement is a CONFLICT record
+    conflict = claim_decision(
+        route="review",
+        **{**base, "own_test_green": False, "review_approved": True,
+           "review_verdicts": (_grounded_review(),), "conflict_detail": "own red vs review",
+           "verification_basis": "review"})
+    assert conflict.claimed is False and conflict.conflict is True
+    assert conflict.blocker == "verifier-conflict" and conflict.detail == "own red vs review"
+    # rule 5: a review carries a claim ONLY when the own test is ABSENT (never written)...
+    absent = claim_decision(
+        route="review",
+        **{**base, "own_test": None, "own_test_green": False, "test_rewrites": 0,
+           "review_approved": True, "review_verdicts": (_grounded_review(),),
+           "verification_basis": "review"})
+    assert absent.claimed is True and absent.basis == "review"
+    # ... not a test written and then REMOVED by a rewrite
+    removed = claim_decision(
+        route="review",
+        **{**base, "own_test": None, "own_test_green": False, "test_rewrites": 1,
+           "review_approved": True, "review_verdicts": (_grounded_review(),),
+           "verification_basis": "review"})
+    assert removed.claimed is False and removed.blocker == "green-after-test-rewrite"
+    # rule 6: any rewrite needs the independent verification to agree
+    rewritten = claim_decision(route="own-test", **{**base, "test_rewrites": 1})
+    assert rewritten.claimed is False and rewritten.blocker == "green-after-test-rewrite"
+    agreed = claim_decision(
+        route="review",
+        **{**base, "test_rewrites": 1, "iv_approved": True, "review_approved": True,
+           "review_verdicts": (_grounded_review(),), "verification_basis": "review"})
+    assert agreed.claimed is True and agreed.basis == "review+independent-test"
+    # rule 7: a red-on-final independent verdict never carries a claim
+    red = claim_decision(
+        route="independent-test",
+        **{**base, "iv_approved": False, "iv_red_on_final": True,
+           "verification_basis": "reason"})
+    assert red.claimed is False and red.blocker == "independent-test-red-on-final"
+    # ... but a green, unrewritten own test can still carry one (the IV red is a label)
+    own_carries = claim_decision(route="own-test",
+                                 **{**base, "iv_red_on_final": True})
+    assert own_carries.claimed is True
+    # the verification covenant (best-effort / required tier) is a precondition
+    assert claim_decision(route="review",
+                          **{**base, "own_test": None, "review_approved": True,
+                             "review_verdicts": (_grounded_review(),),
+                             "verification_basis": "review",
+                             "tier_allowed": False}).claimed is False
+    # the tree's internal close routes through the same gate
+    assert claim_decision(route="integration", criteria_count=0,
+                          integration_passed=True, all_children_closed=True).claimed is True
+    assert claim_decision(route="integration", criteria_count=0,
+                          integration_passed=True, all_children_closed=False).claimed is False
+    assert claim_decision(route="integration", criteria_count=0,
+                          integration_passed=False, all_children_closed=True).claimed is False
+
+
+def test_only_the_single_gate_can_produce_a_claimed_outcome():
+    """STRUCTURAL enforcement of the ONE gate (ticket 21 round 6).
+
+    Rounds 2-5 each fixed a single branch and the next verifier found the same wrong
+    green in a sibling branch, because a branch could simply SET a claim itself. This AST
+    check over the whole ``harness/`` package fails if ANY path other than the gate can
+    produce a claimed outcome:
+
+    * every ``claimed = <value>`` assignment must be ``False`` or read from a
+      ``ClaimDecision`` (an attribute ``.claimed``) — never a literal ``True``;
+    * every ``claimed=True`` keyword (a ``LeafOutcome``/``NodeOutcome``/``ClaimDecision``
+      construction) may appear only inside the gate's single grant constructor.
+
+    A future branch that bypasses the gate by writing ``claimed = True`` fails the suite.
+    """
+    import ast
+    from pathlib import Path
+
+    import harness
+    import harness.leaf
+    import harness.tree_run
+
+    harness_dir = Path(harness.__file__).parent
+    offenders: list[str] = []
+    call_sites = 0
+
+    for path in sorted(harness_dir.glob("*.py")):
+        tree = ast.parse(path.read_text(), filename=str(path))
+        grant_ranges: list[tuple[int, int]] = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name == "_granted_claim":
+                grant_ranges.append((node.lineno, getattr(node, "end_lineno", node.lineno)))
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) \
+                    and node.func.id == "claim_decision":
+                call_sites += 1
+
+        def in_grant(lineno: int, ranges: list[tuple[int, int]] = grant_ranges) -> bool:
+            return any(a <= lineno <= b for a, b in ranges)
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id == "claimed":
+                        value = node.value
+                        literal_false = (isinstance(value, ast.Constant)
+                                         and value.value is False)
+                        from_decision = (isinstance(value, ast.Attribute)
+                                         and value.attr == "claimed")
+                        literal_true = (isinstance(value, ast.Constant)
+                                        and value.value is True and in_grant(node.lineno))
+                        if not (literal_false or from_decision or literal_true):
+                            offenders.append(
+                                f"{path.name}:{node.lineno}: claimed = "
+                                f"{ast.unparse(value)}")
+            if isinstance(node, ast.keyword) and node.arg == "claimed" \
+                    and isinstance(node.value, ast.Constant) and node.value.value is True \
+                    and not in_grant(node.lineno):
+                offenders.append(f"{path.name}:{node.lineno}: claimed=True keyword")
+
+    assert offenders == [], offenders
+    # the gate is the one grant point AND every claim site actually calls it:
+    # 3 leaf sites (main path, exhaustion independent-test, exhaustion review) + the tree.
+    assert call_sites >= 4, f"expected the claim sites to call the gate, saw {call_sites}"
+    # the leaf's three routes and the tree close are wired to the SAME function.
+    assert "claim_decision(" in Path(harness.leaf.__file__).read_text()
+    assert "claim_decision(" in Path(harness.tree_run.__file__).read_text()

@@ -95,6 +95,7 @@ from harness.leaf import (
     ReviewVerdict,
     _call_review,  # one reviewer call incl. verdict conversion (shared with the leaf)
     _default_run_tests,  # the tree's default check runner
+    claim_decision,  # the tree close routes through the ONE claim gate (ticket 21 r6)
     combine_review_verdicts,
     review_angles_for_level,
     review_grade_rank,
@@ -1981,7 +1982,7 @@ async def _run_leaf_node(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
     if outcome.claimed:
         _force_done(ctx, node)
         ctx.emit("leaf_closed", node=node.id, stop_reason=outcome.stop_reason)
-        return NodeOutcome(node_id=node.id, claimed=True, stop_reason="closed",
+        return NodeOutcome(node_id=node.id, claimed=outcome.claimed, stop_reason="closed",
                            leaf=outcome, calls=outcome.calls, wall_s=outcome.wall_s,
                            boundary_audit=audit)
     if outcome.signal == "exhausted":
@@ -2043,7 +2044,13 @@ def _finish_internal(ctx: _TreeContext, node: NodeHandle,
                      rule: str, writers: int, started: float,
                      handles: list[NodeHandle],
                      integration_reopen_rounds: int = 0) -> tuple[NodeOutcome, list[NodeHandle]]:
-    """Close the parent and shape its outcome, recording which close rule applied."""
+    """Close the parent and shape its outcome, recording which close rule applied.
+
+    The close is a CLAIM, so it routes through the ONE gate (ticket 21 round 6): a
+    passing integration verdict over CLOSED children. The kernel's :meth:`close` already
+    re-checks every AC -> check -> verdict and fails closed, so the evidence the gate
+    receives is that verdict plus every child's ``closed`` stop.
+    """
     done = [o for o in outcomes if o is not None]
     if results is not None:
         closed = node.close(results=results)
@@ -2051,8 +2058,12 @@ def _finish_internal(ctx: _TreeContext, node: NodeHandle,
     else:
         closed = node.close()
         verdicts = {}
-    claimed = (bool(closed) and len(done) == len(outcomes)
-               and all(o.stop_reason == "closed" for o in done))
+    all_children_closed = (len(done) == len(outcomes)
+                           and all(o.stop_reason == "closed" for o in done))
+    decision = claim_decision(route="integration", criteria_count=0,
+                              integration_passed=bool(closed),
+                              all_children_closed=all_children_closed)
+    claimed = decision.claimed
     if closed:
         _force_done(ctx, node)
     ctx.emit("internal_close" if claimed else "internal_open", node=node.id, rule=rule,

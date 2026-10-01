@@ -910,6 +910,37 @@ def test_plan_guard_accepts_a_visible_frozen_file_and_rejects_only_the_hidden_se
     assert any(f.kind == "withheld-test-path" for f in rejected.items), rejected.items
 
 
+def test_plan_guard_derives_the_hidden_set_even_from_the_raw_grader_union():
+    """Ticket 21 round 4 (fix 3), both directions at the API seam: a caller may pass the
+    RAW grader UNION (hidden ∪ visible-frozen) and the guard derives the hidden set via
+    ``owned_paths`` inside the API, so
+
+    * a visible-but-frozen file (``README.md`` / ``serialize/base.py``) is ACCEPTED, and
+    * a declared test point inside the genuinely-hidden set is REJECTED.
+    """
+    union = {"README.md", "serialize/base.py", "tests/test_contract.py"}
+    frozen_plan = Decomposition(
+        spec=NodeSpec(goal="root", files=("README.md", "serialize/base.py"),
+                      acs=("c",), kind="leaf"),
+        children=(), signature="frozen-union")
+    accepted = validate_decomposition(
+        frozen_plan, parent_files=set(frozen_plan.spec.files),
+        candidate_files=set(frozen_plan.spec.files), depth=0, depth_cap=4,
+        max_children=15, withheld_paths=set(union))
+    assert accepted.ok, accepted.items
+
+    hidden_plan = Decomposition(
+        spec=NodeSpec(
+            goal="root", files=("pkg/a.py",), acs=("c",), kind="leaf",
+            test_cases=(DeclaredTestCase("AC-1", "tests/test_contract.py",
+                                         ("test_x",)),)),
+        children=(), signature="hidden-union")
+    rejected = validate_decomposition(
+        hidden_plan, parent_files={"pkg/a.py"}, candidate_files={"pkg/a.py"},
+        depth=0, depth_cap=4, max_children=15, withheld_paths=set(union))
+    assert any(f.kind == "withheld-test-path" for f in rejected.items), rejected.items
+
+
 def test_driver_grader_union_keeps_the_leaf_guard_but_not_the_plan_guard(tmp_path):
     """Ticket 21 round 3 (fix C) at the driver seam: ``build_root`` returns the UNION
     (so the leaf write guard refuses a frozen visible file), while the genuinely-hidden
@@ -980,6 +1011,25 @@ def test_plan_node_rejects_a_withheld_test_point_then_forces_a_leaf():
     calls = model.calls("plan_node")
     assert len(calls) == 2
     assert "withheld-test-path" in calls[1].question
+
+
+def test_plan_node_accepts_a_visible_frozen_file_when_handed_the_raw_union():
+    """Ticket 21 round 4 (fix 3): ``plan_node`` derives the hidden set via ``owned_paths``,
+    so handing it the RAW grader UNION (hidden ∪ visible-frozen) does NOT reject a plan that
+    declares the visible frozen file — only a genuinely hidden path fires the guard."""
+    ok = plan_env(
+        [{"what": "keep the readme", "why": "because", "kind": "leaf",
+          "files": ["README.md"], "acs": [ac()], "interfaces": [], "est_calls": 3,
+          "test_cases": []}],
+        files=("README.md", "pkg/a.py"))
+    model = FakeModelRunner({"plan_node": [ok]})
+    result = asyncio.run(plan_node(
+        model, goal="root", boundary={"README.md", "pkg/a.py"},
+        candidate_files={"README.md", "pkg/a.py"}, depth=0,
+        budget=Budget(calls=3, deadline_ts=_FAR),
+        withheld_paths=("README.md", "tests/test_pagination.py")))
+    assert result is not None
+    assert "withheld-file-path" not in model.calls("plan_node")[0].question
 
 
 def test_plan_node_one_call_reasks_once_then_forces_a_leaf():

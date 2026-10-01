@@ -346,7 +346,34 @@ The run's own tests gate the run, and a claim additionally needs an independent 
   verdict with concrete evidence passed. The independent test stays available as an EXTRA
   LABEL but is no longer the only thing standing between the run and a claim (it is
   authored by the same weak model and was wrong in both directions). Per-requirement
-  coverage (below) replaces the veto.
+  coverage (below) replaces the veto. Round 5 tightens the review path to the same
+  agreement rule: a review approval may carry a claim ONLY when the run's own test is
+  ABSENT (never written) or GREEN on the same final revision — an own test that exists
+  and is RED is a recorded verifier CONFLICT, never a claim — and a declared-case test
+  repair now counts as a test rewrite (`own_test_mutated`) that needs the independent
+  verification to agree. Two verifiers that share a misreading can still agree and
+  certify a wrong fix; that is the fundamental residual risk documented in §10.8a.
+- **ONE claim gate, enforced STRUCTURALLY (ticket 21 round 6).** Rounds 2-5 closed one
+  wrong-green branch at a time and every fix guarded only the branch it was written for;
+  the next verifier round found the same hole in a sibling branch (the last: the MAIN-PATH
+  review route claimed while the run's own test was RED on that final revision, because
+  the agreement rule had only been added to the exhaustion branch). There is now exactly
+  one decision function, `harness.leaf.claim_decision(...)`, and it is the ONLY place a
+  claim may be granted. It receives the evidence a branch has — the offered verification
+  ROUTE, the FINAL-revision own-test state (absent / green / red), the independent
+  per-criterion verdict, the review verdict(s) with their angles, the rewrite count, the
+  acceptance-criteria count, the ledger, the coverage result, and the declared-case
+  result — and returns the decision plus the basis. It enforces all of: no claim with zero
+  criteria; no claim with an empty ledger; no claim when coverage missed a named artifact;
+  no claim when the own test exists and is RED on the final revision (a passing review or
+  independent test turns that into a recorded verifier CONFLICT, never a claim); a review
+  may carry a claim only when the own test is ABSENT and never written (rewrite count 0)
+  or GREEN on the same revision; any test rewrite needs the independent verification to
+  agree; and a red-on-final independent verdict never carries a claim. The tree's internal
+  close routes through the same gate (`route="integration"`). Every claim site
+  (normal green, review, exhaustion independent-test, exhaustion review, the tree close)
+  only supplies evidence; a structural AST test fails the suite if any path other than the
+  gate can produce a claimed outcome.
 - **Proactive multi-label attribution (ticket 19).** The judge is consulted when the run's
   own test REPORTS RED — after K=2 consecutive red attempts that materially changed the
   code, or immediately when the own test cannot be made red on arrival — not only when the
@@ -430,6 +457,27 @@ sensitive to the old->new delta, never that it asserts the goal — a test can f
 pristine source for an unrelated reason (a missing symbol, a wrong type, `!= 0`) and
 pass on a wrong fix. The grader remains the only ground truth; the harness's own claim
 is evidence, not proof.
+
+Residual risk — shared misreading (FUNDAMENTAL, documented not fixed; ticket 21 round 5):
+two verifiers that share the same misreading AGREE, so agreement cannot catch a wrong fix.
+The harness's defense against a wrong green is two checks on the SAME final revision —
+the run's own discriminating test plus, at exhaustion, the independent per-criterion test
+and a fresh-context review — with a claim allowed only when they agree (rounds 4-5: a
+review approval cannot carry a claim while the own test is red on the same revision, and
+a test rewritten by the declared-case repair is accounted as a rewrite and needs the
+independent verification to agree). But BOTH verifiers are authored by the SAME weak model
+from the SAME goal text. When the model misreads the requirement the same way in both,
+they agree BECAUSE they share the error. Exact measured shape: goal "make `result()`
+return 42"; the run's own test asserts the wrong value (`assert result() == 100`), the
+independent test asserts the SAME wrong value, the fix returns `100`, and the reviewer
+reading the same misreading approves — the own test and the independent test are both
+red on the pristine source and green on the wrong fix, the two weak verifiers agree, the
+harness claims `verified-success`, and the grader fails the run. This is a false success
+from ordinary-model correlated error, not adversarial behaviour, and no deterministic
+in-process rule can catch it without a GROUND-TRUTH ORACLE, which the harness does not
+have. The external grader's independent check is therefore the only correctness check and
+the final arbiter of every claim; the measured table above counts false successes against
+the grader, never against the harness's own claim.
 
 ### 10.8 Scoring quadrants
 
