@@ -13,43 +13,50 @@ are applied to a pristine copy afterwards and scored there. Nine corpus tasks, t
 each, driver `bench/v2_leaf.py` (the leaf flow: own test, independent verification, review,
 the claim gate).
 
-Measured 2026-10-01 at commit `f0dc49a` (one claim gate), 9 tasks x 2 runs, `bench/v2_sweep.py`,
-run directory `bench/runs/v2sweep-20261001T035026Z`.
+Measured 2026-10-02 at commit `4aec0ac`, 9 tasks x 2 runs, `bench/v2_sweep.py`; run records in
+`bench/runs/evidence/` and under `bench/runs/v2sweep-*`.
 
 | metric | value |
 | --- | --- |
-| **actual** (the grader's verdict) | **14/18 (78%)** |
-| **claimed** (what the harness said) | 4/18 |
-| true success (claimed + grader passed) | 4 |
-| missed success (did not claim, grader passed) | 10 |
-| honest failure (did not claim, grader failed) | 4 |
+| **actual** (the grader's verdict) | **12/18 (67%)** |
+| **claimed** (what the harness said) | 8/18 |
+| true success (claimed + grader passed) | **8** |
+| missed success (did not claim, grader passed) | 4 |
+| honest failure (did not claim, grader failed) | 6 |
 | **false success (claimed, grader failed)** | **0** |
-| model calls | 156 (8.7 per run) |
+| model calls | 186 (10.3 per run) |
 
-Every claim was **review-based** (a graded, multi-angle review with the critical-angle veto);
-no run claimed on its own test alone. There is no false success to attribute, test-based or
-review-based.
+**Claims by evidence basis** — this is the table that decides whether a claim is trustworthy,
+and it is the reason the run record carries `claimed_basis`:
 
-**Why 10 graded-successes were not claimed** — the stop reasons of those runs, and what the
-ledger says:
+| tier | claims | true | **false** | false rate |
+| --- | --- | --- | --- | --- |
+| `review` (graded, grant-calibre review) | 7 | 7 | 0 | 0% |
+| `review+independent-test` | 1 | 1 | 0 | 0% |
+| `own-test` / `independent-test` alone | 0 | - | - | - |
 
-| blocker | runs | what the record shows |
-| --- | --- | --- |
-| the INDEPENDENT test was red on the final (correct) code | 5 | the ledger rows were **satisfied via `review:ac-correctness`** — the review judged the fix correct and the grader agreed; the blocker was the independent test's own expectation, not the fix |
-| the INDEPENDENT test asserted and failed against a passing fix | 2 | all criteria `violated` by `independent-test` while the grader passed (T-20: the same "wrong expected value" failure the forensics found in the run's own test, now in the independently authored one) |
-| verifier conflict (own test red, independent test green) | 1 | both criteria `satisfied` by the independent test; the gate refused because the run's own test disagreed on the same revision |
-| ladder exhausted with every criterion `unverifiable` | 2 of them are EVIDENCE GAPs | the ledger names exactly what was attempted and why no discriminating check existed |
-| artifact coverage blocked a criterion naming a frozen file | 1 | T-33: the criterion names `base.py`, which the task freezes — a criterion/corpus mismatch, not a code defect |
+**Three rules measured on the same nine tasks, same model** (the evolution of the claim rule,
+in order):
 
-The honest summary of this table: the harness **fixes** most of these tasks and the gate
-still refuses to claim, almost always because a *verification* (the independently authored
-test) is wrong, not because the code is. That is the current bottleneck, and it is a data
-problem, not a rule problem.
+| claim rule | actual | claimed | true | missed | **false** | calls |
+| --- | --- | --- | --- | --- | --- | --- |
+| agreement required (a red test could not be overridden) | 14/18 | 4/18 | 4 | 10 | 0 | 156 |
+| the graded review outranks a conflicting test | 12/18 | 11/18 | 9 | 3 | **2** (both on T-31) | 174 |
+| ... plus grant-calibre review evidence | 12/18 | 8/18 | **8** | 4 | **0** | 186 |
 
-How to read this: **actual** is what the grader decided; **claimed** is what the harness
-said; a *false success* is a claim the grader rejected (the number that must stay at zero);
-a *missed success* is a task the harness actually fixed but refused to claim, and the run
-record now names the criterion and the evidence that stopped it.
+The middle row is what the owner's rule bought on its own: more claims, and a 20% false-success
+rate on the review tier. The third row is the same rule with the evidence requirement that a
+granting review must name the acceptance criterion AND a specific observation (a value, or a
+behavioural verb with a symbol present in a changed file): the two false successes disappeared
+(T-31 was refused rather than claimed), the review tier measured 0/8 false, and the harness
+still claimed twice as many true successes as the conservative rule. One sweep is one sample;
+the review tier's error rate is not proven zero, it is measured zero here - which is why every
+claim records its basis.
+
+**Why the remaining successes were not claimed.** Four graded successes were refused: two were
+`ladder` runs whose ledger names the unverifiable criterion, and two were T-33 whose criteria
+name a file the task freezes (a criterion/corpus mismatch, not a code defect). The evidence is
+in each `run.json`.
 
 ## 2. What the harness does (one paragraph each)
 
@@ -117,6 +124,12 @@ loop, deterministic diagnosis rules, the report gate, coverage and discriminatio
    final) passes the harness's checks even if it does not encode the requirement.
 5. **The strongest residual on the quality axis is MISSED success**: runs that fix the task
    and cannot verify it. The ledger now names which criterion was unverifiable and why.
+6. **The review tier is measured, not proven.** In the last sweep its review-backed claims
+   were 0/8 false, down from 2/10 before the grant-calibre evidence rule; one sweep is one
+   sample, and the tier's error rate is the reviewing model's own. A consumer that cannot
+   tolerate that filters on `claimed_basis` (accept `own-test`, `own-test+independent-test`,
+   `independent-test`, `review+independent-test`; treat `review` alone as reviewed-but-weak).
+   `verification.tier` is NOT the filter to use - it can read `test` on a review-decided claim.
 
 ## 5. Where the evidence lives
 
@@ -129,42 +142,22 @@ loop, deterministic diagnosis rules, the report gate, coverage and discriminatio
 
 ## 6. Recommended next steps (ordered)
 
-1. **Attack the missed-success bucket with the data we now have.** Ten of the eighteen runs
-   fixed the task and could not claim it; the ledger says exactly which verification was
-   wrong. The measured bottleneck is the QUALITY of the independently authored test (the
-   same small model writes it): in five runs its expectation was wrong while the graded
-   review — and the grader — agreed with the fix.
+1. **The claim rule is settled by measurement; do not re-open it without new numbers.**
+   Three rules were measured on the same tasks and model (section 1): the owner's
+   review-outranks-tests rule, once requiring grant-calibre evidence, claims twice as many
+   true successes as the conservative rule at the same measured false-success count (0), and
+   the two false successes the unhardened rule produced are refused by the evidence rule.
 
-2. **The next experiment (DECIDED and BUILT as ticket 22).** The labelled review-backed
-   claim tier now exists: the graded review OUTRANKS a conflicting test in both directions,
-   so when the run's own test (or a wrong independent test) is red on a correct fix while
-   the multi-angle review approves, the run claims with `claimed_basis="review"` and the
-   disagreement recorded (`verification_disagreement`), with the basis label kept so a
-   consumer can filter to test-backed claims. The plan-time verification policy
-   (`test`/`review`/`either`, with a REQUIRED reason) is decided at SPEC time, and a `test`
-   node whose judge-confirmed test cannot be repaired records a PLAN UPDATE to review (at
-   most once). The review is now load-bearing: its mistakes turn directly into claims, which
-   is the accepted residual risk stated in DESIGN §10.8a. Re-run the three tasks that were
-   blocked this way (`T-03`, `T-14`, `T-25`): all three now claim on review and the grader
-   accepts them.
+2. **Attack the remaining missed-success bucket (4 of 18).** Every case's ledger says which
+   criterion was unverifiable and which check was attempted; two of the four are T-33, whose
+   criteria name a file the task freezes (a criterion/corpus mismatch worth fixing in the
+   task, not the harness).
 
-   The declared `verification_policy` is a FLOOR, not a mandate: `test` means a
-   discriminating test is required; `review` means a graded review is SUFFICIENT (a good
-   test is still accepted and is the stronger evidence); `either` means prefer a test and
-   fall back to review. **Reading the record: filter review-backed claims on `claimed_basis`
-   (e.g. `review` / `review+independent-test`), NEVER on `verification.tier`.** `tier`
-   reports the strongest evidence the node had, so an approving independent test alongside
-   a review-decided claim makes `tier` read `test`, and a tier-based count would
-   miscount. The record carries every field that filter needs: `claimed`, `claimed_basis`,
-   `verification_basis`, `verification.tier`, `verification.reviews` (each angle's
-   grade/evidence/coerced), `review_verdicts`, `review_score`,
-   `verification_disagreement`, `verification_policy`, `verification_policy_reason`, and
-   `plan_updates`.
-
-3. **A stronger verifier model** (even a modest remote one) for the test-authoring and review
-   roles is the single change most likely to raise true successes; every run already records
-   whether its verification was independent or reviewed, so the effect would be visible in the
-   very next sweep.
+3. **The independent test is still the weakest link** (14 attempts, 3 repairs, and it was the
+   blocker in the earlier conservative sweep). A stronger verifier model - even a modest
+   remote one - for the test-authoring and review roles is the single change most likely to
+   raise true successes; every run records whether its verification was independent or
+   reviewed, so the effect would show in the very next sweep.
 
 4. Build the designed-but-unbuilt layers only if a task needs them: requirement triage,
    model-side context curation, worktrees/parallel trees, a human-facing piloting surface
