@@ -117,13 +117,16 @@ def test_plan_node_binds_result_to_a_how_id():
         "status": "ok", "comment": "one how",
         "goal": "g", "behavior": "b", "implementation_notes": "n",
         "files": ["a.py"], "acs": [], "interfaces": [], "how_id": "HOW-2",
+        "verification_reason": "a unit test pins the behaviour",
         "children": []})
     assert bound.how_id == "HOW-2"
     with pytest.raises(Exception):
         PlanNode.model_validate({
             "status": "ok", "comment": "bad", "goal": "g", "behavior": "b",
             "implementation_notes": "n", "files": [], "acs": [],
-            "interfaces": [], "how_id": "not-a-how", "children": []})
+            "interfaces": [], "how_id": "not-a-how",
+            "verification_reason": "a unit test pins the behaviour",
+            "children": []})
 
 
 # ---------------------------------------------------------------------------

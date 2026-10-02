@@ -41,12 +41,9 @@ Fixed contract points, each deliberate:
   error), a policy-blocked shaped result, and a gate result with no report are all red.
   The run's own ``run_tests`` green is the precondition for ANY claim; a model
   ``comment`` claiming green is irrelevant. A green that follows a judge-authorized
-  test REWRITE never claims: it stops as ``green-after-test-rewrite`` (the
-  implementation satisfied a replaced test — unverified). Ticket 21 round 4 (fix 4)
-  closes the sibling review route too: when a repair switched the run to review, a
-  review approval WITHOUT the independent verification AGREEING on the same final
-  revision is also ``green-after-test-rewrite`` (no claim), because a repaired test —
-  red-on-pristine at best — is not evidence the fix is right.
+  test REWRITE never claims on its own: it stops as ``green-after-test-rewrite`` (the
+  implementation satisfied a replaced test — unverified) unless the node recorded a
+  ticket-22 PLAN UPDATE that switched it to review-based verification.
 - **A GREEN CLAIM IS VALIDATED REGARDLESS OF CAUSE (ticket 19 C, superseding the
   independent-test-as-VETO).** A claim is allowed only when (1) the run's own test is a
   real DISCRIMINATOR — it failed on the pristine source (observed red on arrival) and is
@@ -70,7 +67,8 @@ Fixed contract points, each deliberate:
   ``test_wrong`` label is still put through the deterministic filter
   (:func:`apply_judge_filter`): it is honoured only with a defect naming the failing test
   or one of its assertions, else it is coerced and recorded.
-- **REVIEW-BASED VERIFICATION WHEN NO TEST CAN CARRY IT (ticket 19 B).** If the own test
+- **REVIEW-BASED VERIFICATION WHEN NO TEST CAN CARRY IT (ticket 19 B), AND THE REVIEW
+  OUTRANKS A CONFLICTING TEST (ticket 22 item 3).** If the own test
   cannot be made red on arrival (after the bounded re-ask), or the judge's ``test_wrong``
   label survives a bounded repair that still cannot discriminate, or the test path is
   unwritable, the node switches to a fresh-context REVIEWER of the final diff
@@ -78,13 +76,25 @@ Fixed contract points, each deliberate:
   tightened the evidence filter: a pass counts only when its evidence names a path that
   REALLY changed in the original-vs-final diff, or a symbol that occurs in a changed
   file's final text; a bare line reference is no longer enough, so an UNCHANGED tree can
-  never claim by any route. Until then the node may NOT claim (``verification_basis
-  ="review"``, ``claimed_basis="review"``). With no reviewer injected the leaf keeps its
-  conservative honest stop. Round 5 (fix 1) extends the exhaustion agreement rule to the
-  review branch: an approving review carries a claim ONLY when the run's own test is
-  ABSENT (never written) or GREEN on the same final revision; an own test that exists and
-  is RED records a verifier CONFLICT (own failing assertion(s) against the APPROVING
-  review) and stops unclaimed.
+  never claim by any route. Ticket 22 replaces the round-5 agreement rule with a
+  PRECEDENCE rule: when the graded review and a test disagree on the SAME revision — a red
+  own/independent test while the review approves, or a green test while the review rejects
+  — the REVIEW'S VERDICT DECIDES. An approving review carries the claim
+  (``verification_basis="review"``, ``claimed_basis="review"``) with the disagreement
+  RECORDED (``verification_disagreement``); a rejecting review blocks it. The
+  ``claimed_basis``/strength label is kept so a consumer can filter to test-backed claims
+  only, and the price (a review can be wrong) is stated plainly in DESIGN §10.8a. Ticket
+  22 round 2 adds the GRANT-CALIBRE evidence rule: because the review route is now
+  load-bearing, a review that is about to GRANT must name the acceptance criterion it
+  serves AND the specific behaviour/observable/value it verified — a changed path, a bare
+  line reference, or a generic "looks correct" does not grant (a review that only informs
+  is left untouched). The refusal is recorded (`review_not_grant_calibre`).
+- **GIVING UP ON VERIFICATION IS A PLAN DECISION (ticket 22 item 2).** When the policy is
+  ``test`` and the judge has confirmed ``test_wrong`` with a named defect AND the bounded
+  repairs are exhausted, the node UPDATES ITS PLAN in place to review-based verification
+  for the remainder of the run, recording the update (:class:`PlanUpdate`: old policy, new
+  policy, reason, judge's defect, attempt/repair counts). At most once per node; never
+  silent.
 - **DECLARED TEST CASES AND PER-REQUIREMENT ARTIFACT COVERAGE (ticket 19 D/E).** A plan
   may DECLARE, per acceptance criterion, the test file and function names that must exist
   and pass (:class:`DeclaredTestCase`); the harness verifies them mechanically from the
@@ -161,24 +171,18 @@ Fixed contract points, each deliberate:
   so a same-verdict tail without a structural lever or three exercised layers keeps
   the node alive. The leaf's ``exhausted`` flag is set only by that function; a call
   budget or a deadline is a distinct, honestly-named stop (``stop_reason``).
-- **VERIFY AT EXHAUSTION — AGREEMENT IS REQUIRED (ticket 21 round 2, fix 1;
-  TIGHTENED round 4, fix 1).** When the ladder exhausts (or attempts/attempt-cap is hit)
-  and the tree changed, the run consults the INDEPENDENT verification on the FINAL code
-  — a per-criterion independent test authored fresh from the goal + criteria (never the
-  run's own test) plus, where the test cannot carry a criterion, the review path. Because
-  BOTH verifiers are authored by the same weak model, the independent test alone does NOT
-  authorise a claim at exhaustion: the run CLAIMS ONLY when the independent per-criterion
-  verification passes AND the run's OWN test is GREEN on the same final revision — two
-  independent checks that AGREE. When the own test is RED while the independent test is
-  green, that is a VERIFIER CONFLICT: the node records it (``own_test_conflict``, naming
-  the own test's FAILING assertions and the independent test's assertions at the same
-  revision) and does NOT claim, REGARDLESS of what any judge says. There is no
-  judge-confirmation escape (ticket 21 round 3 added one; round 4 REMOVED it as the
-  weak-verifier-collusion route: a rubber-stamping judge names a test anchor and so
-  satisfied the filter). The judge survives ONLY on the normal-path test-repair decision,
-  where its verdict cannot by itself produce a claim. The ledger marks the disputed
-  criterion ``verifier-conflict``. A criterion the independent test fails ⇒ the ledger
-  marks it VIOLATED and the node stays unclaimed.
+- **VERIFY AT EXHAUSTION — TEST AGREEMENT, OR A REVIEW THAT OUTRANKS (ticket 21 round 2
+  fix 1; tightened round 4 fix 1; redefined ticket 22).** When the ladder exhausts (or
+  attempts/attempt-cap is hit) and the tree changed, the run consults the INDEPENDENT
+  verification on the FINAL code — a per-criterion independent test authored fresh from
+  the goal + criteria (never the run's own test) plus, where the test cannot carry a
+  criterion (including a red-on-final FIX failure, ticket 22 item 3), the review path. On
+  the TEST routes the run CLAIMS ONLY when the independent per-criterion verification
+  passes AND the run's OWN test is GREEN on the same final revision — two independent
+  checks that AGREE; an own test RED while the independent test is green is a VERIFIER
+  CONFLICT the node records (``own_test_conflict``) and does NOT claim. On the REVIEW
+  route the graded review decides instead: an approving review carries the claim even when
+  a test is red (the disagreement is recorded), a rejecting review blocks it.
 - **Coverage is a HARD block, not advice (fix 3).** A non-empty requirement-coverage miss
   (a criterion naming a file/symbol the final diff never touches) blocks BOTH a claim and
   an ``ok`` review verdict — the T-31 false-success route.
@@ -255,6 +259,7 @@ __all__ = [
     "JudgeVerdict",
     "LeafOutcome",
     "LeafSpec",
+    "PlanUpdate",
     "VerificationRecord",
     "WriteShapeRefused",
     "apply_judge_filter",
@@ -355,14 +360,18 @@ LEDGER_ROUTES: tuple[str, ...] = ("claim", "confirmed", "rework", "review",
 EVIDENCE_GAP_STOPS: tuple[str, ...] = ("attempts", "ladder", "calls", "attempt-cap",
                                        "deadline")
 
-#: The declared requirement domain a plan may set per node (ticket 20).
-VERIFICATION_REQUIREMENTS: tuple[str, ...] = ("test", "review", "any")
+#: The declared PLAN-TIME verification policy a plan may set per node (ticket 20,
+#: renamed and re-specified ticket 22): ``test`` — a discriminating test is required;
+#: ``review`` — a graded, multi-angle review is the required evidence and no test is
+#: required; ``either`` — prefer a test, fall back to review. The old ``any`` value is
+#: gone (its behaviour is ``either``).
+VERIFICATION_REQUIREMENTS: tuple[str, ...] = ("test", "review", "either")
 
 _TIER_RANK: dict[str, int] = {"test": 2, "review": 1, "none": 0}
-#: The floor each declared requirement imposes on a claim. ``any`` imposes no verified
+#: The floor each declared policy imposes on a claim. ``either`` imposes no verified
 #: floor, but the ``none+reason`` tier is NEVER a normal claim: it always needs the
 #: ``best_effort`` opt-in plus a valid written reason (see :func:`verification_reason_problem`).
-_REQUIRED_FLOOR: dict[str, int] = {"test": 2, "review": 1, "any": 0}
+_REQUIRED_FLOOR: dict[str, int] = {"test": 2, "review": 1, "either": 0}
 
 # ---------------------------------------------------------------------------
 # Review ANGLES, weights, and the five ORDINAL grades (ticket 20, item 1-3)
@@ -803,13 +812,17 @@ class LeafSpec:
     #: projection of the whole repo the requirement text can reference; defaults to the
     #: blind view's keys when empty.
     candidate_files: tuple[str, ...] = ()
-    #: Ticket 20 planning-time covenant: the verification the plan requires of this node
-    #: (``test`` | ``review`` | ``any``), the REVIEW ANGLES the review tier must run (a
-    #: closed per-level set; empty means the level's critical angles), the review level
-    #: (``implementation`` | ``integration``; the plan level is not wired here), and
-    #: whether a weaker tier is an accepted best-effort fallback with a plan-level reason.
-    #: Defaults preserve the pre-ticket-20 policy (any tier, critical angles, no fallback).
-    verification_required: str = "any"
+    #: Ticket 22 PLAN-TIME POLICY: how this node will be verified — ``test`` (a
+    #: discriminating test is required), ``review`` (a graded review is the required
+    #: evidence; no test is required), or ``either`` (prefer a test, fall back to review).
+    #: ``verification_reason`` is the planner's REQUIRED justification (how hard a test is
+    #: to write for the requirement and why the policy was chosen). ``review_angles`` runs
+    #: the review tier's angles (a closed per-level set; empty means the level's critical
+    #: angles); ``review_level`` is ``implementation`` | ``integration``; ``best_effort``
+    #: is an optional weaker-tier fallback with a plan-level reason. The default preserves
+    #: the legacy policy (``either``, critical angles, no fallback).
+    verification_policy: str = "either"
+    verification_reason: str = ""
     review_angles: tuple[str, ...] = ()
     review_level: str = DEFAULT_REVIEW_LEVEL
     best_effort: bool = False
@@ -1070,6 +1083,14 @@ class LeafOutcome:
     #: criterion ``verifier-conflict``.
     own_test_conflict: bool = False
     own_test_conflict_reason: str = ""
+    #: Ticket 22: the DECLARED plan-time verification policy and its REQUIRED reason, and
+    #: every recorded runtime PLAN UPDATE (old policy, new policy, reason, attempt
+    #: counts). ``verification_disagreement`` records a review-vs-test disagreement in
+    #: either direction; the review still DECIDES the claim, but the disagreement is kept.
+    verification_policy: str = "either"
+    verification_policy_reason: str = ""
+    plan_updates: list["PlanUpdate"] = field(default_factory=list)
+    verification_disagreement: str = ""
 
 
 @dataclass(frozen=True)
@@ -1216,10 +1237,12 @@ class ReviewVerdict:
     ``grade`` is one of the five ORDINAL :data:`REVIEW_GRADES` (``definitely-ok`` +2 …
     ``definitely-problematic`` -2); ``angle`` says which angle it answers. A POSITIVE
     grade is honoured ONLY when ``evidence`` names a concrete changed artifact (the
-    deterministic filter, :func:`apply_review_filter}), so a bare "looks good" cannot
-    carry a claim. ``approved`` is the derived boolean (``grade`` is positive). ``detail``
-    is the human-readable detail (the reviewer's own comment/counterexample) and ``raw``
-    the unedited verdict.
+    deterministic filter, :func:`apply_review_filter}), and a review that is about to
+    GRANT must additionally name the acceptance criterion it serves AND the specific
+    behaviour/observable/value it verified (the grant-calibre rule,
+    :func:`_evidence_is_grant_calibre`, enforced by :func:`run_reviews`). ``approved`` is
+    the derived boolean (``grade`` is positive). ``detail`` is the human-readable detail
+    (the reviewer's own comment/counterexample) and ``raw`` the unedited verdict.
     """
 
     angle: str = ""
@@ -1266,10 +1289,13 @@ class ClaimDecision:
     ``tests/unit/test_v2_leaf.py::test_only_the_single_gate_can_produce_a_claimed_outcome``.
 
     ``claimed`` is the grant. ``basis`` names the verification that carried it.
-    ``blocker`` is the machine reason a claim was refused ("" on a grant); ``conflict``
-    marks the two-imperfect-verifiers disagreement (the run's own test is RED on the
-    final revision while an independent verifier PASSED it) and ``detail`` is the
-    recorded human-readable conflict text.
+    ``blocker`` is the machine reason a claim was refused ("" on a grant). ``conflict``
+    marks the two-imperfect-TESTS disagreement (the run's own test is RED on the final
+    revision while the independent test PASSED it) and ``detail`` is the recorded
+    human-readable text. ``disagreement`` (ticket 22 item 3) records a review-vs-test
+    disagreement in EITHER direction: the graded review still decides the claim, but the
+    disagreement is never hidden — a granted review-backed claim carries the text, as
+    does a review-rejected one.
     """
 
     claimed: bool
@@ -1277,15 +1303,18 @@ class ClaimDecision:
     blocker: str = ""
     conflict: bool = False
     detail: str = ""
+    disagreement: str = ""
 
 
-def _granted_claim(basis: str) -> ClaimDecision:
+def _granted_claim(basis: str, disagreement: str = "") -> ClaimDecision:
     """The ONLY constructor of a claimed decision (pinned by the structural test)."""
-    return ClaimDecision(claimed=True, basis=basis)
+    return ClaimDecision(claimed=True, basis=basis, disagreement=disagreement)
 
 
-def _blocked_claim(blocker: str, detail: str = "") -> ClaimDecision:
-    return ClaimDecision(claimed=False, blocker=blocker, detail=detail)
+def _blocked_claim(blocker: str, detail: str = "",
+                   disagreement: str = "") -> ClaimDecision:
+    return ClaimDecision(claimed=False, blocker=blocker, detail=detail,
+                         disagreement=disagreement)
 
 
 def _conflict_claim(detail: str) -> ClaimDecision:
@@ -1310,6 +1339,7 @@ def claim_decision(
     verification_basis: str = "test",
     tier_allowed: bool = True,
     conflict_detail: str = "",
+    plan_updated: bool = False,
     integration_passed: bool = False,
     all_children_closed: bool = False,
 ) -> ClaimDecision:
@@ -1325,14 +1355,19 @@ def claim_decision(
     1. no claim with zero acceptance criteria;
     2. no claim with an EMPTY ledger (nothing was checked);
     3. no claim when the coverage check missed a named artifact;
-    4. no claim when the run's own test exists and is RED on the final revision — a RED
-       own test can never claim, whatever any judge, review or independent test says
-       (nothing can make it green: RED and green are exclusive);
-    5. a review may carry a claim ONLY when the own test is ABSENT and was never written
-       (rewrite count 0) or GREEN on the same revision;
-    6. any test REWRITE requires the independent verification to AGREE;
-    7. a red-on-final independent verdict can never carry a claim (an own-test claim with
-       a green unrewritten own test is unaffected — there the independent red is a label);
+    4. on the REVIEW route the graded review DECIDES (ticket 22 item 3): an approving
+       review carries the claim even when the run's own test or the independent test is
+       red on the SAME final revision, and a rejecting review blocks it even when a test
+       is green; the disagreement is recorded on the decision, never hidden;
+    5. on every other route, no claim when the run's own test exists and is RED on the
+       final revision; when an independent TEST passed it, that is the two-imperfect-
+       tests CONFLICT (there is no review to outrank it);
+    6. a review carries a claim only when the own test is ABSENT and never written
+       (rewrite count 0), or otherwise agrees (rule 4/5);
+    7. any test REWRITE requires the independent verification to AGREE;
+    8. a red-on-final independent verdict never carries a NON-review claim (an own-test
+       claim with a green unrewritten own test is unaffected — the independent red is a
+       label there; on the review route the review decides per rule 4);
 
     plus the declared-case result (a declared case the own/independent route cannot carry
     blocks those routes) and the verification covenant (``tier_allowed``, resolved by the
@@ -1357,20 +1392,58 @@ def claim_decision(
     if coverage_missing:
         return _blocked_claim("requirement-uncovered")
 
-    # ---- rules 4-5: the FINAL-revision own-test agreement
     own_test_red = own_test is not None and not own_test_green
+
+    # ---- rule 4 (ticket 22 item 3): THE REVIEW DECIDES. When the graded, multi-angle
+    # review is the offered route, its verdict decides the claim in EITHER direction. An
+    # approving review carries the claim even when a test is red on the SAME final
+    # revision; a rejecting review blocks it even when a test is green. The disagreement
+    # is recorded on the decision, never hidden.
+    if route == "review":
+        disagreement = conflict_detail.strip()
+        if not disagreement:
+            if own_test_red:
+                disagreement = ("the run's own test is RED on the final revision while "
+                                "the graded review approved it")
+            elif own_test is not None and own_test_green and not review_approved:
+                disagreement = ("the run's own test is GREEN on the final revision while "
+                                "the graded review rejected it")
+        if iv_red_on_final and review_approved:
+            extra = ("the graded review approved a revision the independent test "
+                     "rejected")
+            disagreement = f"{disagreement}; {extra}" if disagreement else extra
+        if not review_approved:
+            return _blocked_claim("review-not-approved", disagreement=disagreement)
+        if not any(v.approved and not v.coerced for v in review_verdicts):
+            return _blocked_claim("review-not-grounded", disagreement=disagreement)
+        # rule 6: absent means NEVER written; a rewritten-and-removed test is not absent.
+        # Ticket 22 item 2: after a recorded PLAN UPDATE (test -> review) the test was
+        # deliberately GIVEN UP, so the review is the plan's verification and the old
+        # rewrite no longer needs the independent verification to agree.
+        if own_test is None and test_rewrites and not plan_updated:
+            return _blocked_claim("green-after-test-rewrite", disagreement=disagreement)
+        # rule 7: any rewrite needs the independent verification to agree.
+        if test_rewrites and not iv_approved and not plan_updated:
+            return _blocked_claim("green-after-test-rewrite", disagreement=disagreement)
+        if not tier_allowed:
+            return _blocked_claim("verification-required", disagreement=disagreement)
+        basis = "review+independent-test" if iv_approved else "review"
+        return _granted_claim(basis, disagreement=disagreement)
+
+    # ---- rule 5: the FINAL-revision own-test agreement on the non-review routes
     if own_test_red:
-        if iv_approved or review_approved:
+        # Two weak TESTS disagreeing with NO review to outrank them is a CONFLICT.
+        if iv_approved:
             return _conflict_claim(conflict_detail)
         return _blocked_claim("own-test-red")
 
-    # ---- rule 7: a red-on-final independent verdict never carries a claim
-    if iv_red_on_final and route != "own-test":
-        return _blocked_claim("independent-test-red-on-final")
-
-    # ---- rule 6: any rewrite needs the independent verification to agree
+    # ---- rule 7: any rewrite needs the independent verification to agree
     if test_rewrites and not iv_approved:
         return _blocked_claim("green-after-test-rewrite")
+
+    # ---- rule 8: a red-on-final independent verdict never carries a non-review claim
+    if iv_red_on_final and route != "own-test":
+        return _blocked_claim("independent-test-red-on-final")
 
     # ---- the declared-case contract: only a passing review carries a missing case
     if test_case_problems and route != "review":
@@ -1387,15 +1460,6 @@ def claim_decision(
         if not iv_approved:
             return _blocked_claim("independent-test-not-approved")
         basis = "independent-test"
-    elif route == "review":
-        if not review_approved:
-            return _blocked_claim("review-not-approved")
-        if not any(v.approved and not v.coerced for v in review_verdicts):
-            return _blocked_claim("review-not-grounded")
-        # rule 5: absent means NEVER written; a rewritten-and-removed test is not absent.
-        if own_test is None and test_rewrites:
-            return _blocked_claim("green-after-test-rewrite")
-        basis = "review+independent-test" if iv_approved else "review"
     else:  # reason
         basis = "reason"
     if not tier_allowed:
@@ -1411,11 +1475,15 @@ class VerificationRecord:
     ``none``): a real discriminating test, one or more independent fresh-context reviews,
     or neither with a REQUIRED written reason. ``reason`` is the written justification
     for the ``none`` tier and ``reason_problem`` is the deterministic check's verdict on
-    it (empty when the reason is acceptable). ``required``/``review_angles``/
-    ``review_level``/``best_effort`` echo the plan's declaration; ``downgraded``/
-    ``downgrade_reason`` record a best-effort claim at a weaker tier than the plan
-    required. ``reviews`` keeps every per-angle review verdict (with its grade and
-    evidence) and ``review_score`` is their weighted sum.
+    it (empty when the reason is acceptable). ``policy`` is the DECLARED plan-time policy
+    (``test`` | ``review`` | ``either``) and ``policy_reason`` is the planner's REQUIRED
+    justification for it; ``effective_policy`` is the policy in force at the end (a
+    recorded runtime PLAN UPDATE may have weakened ``test`` to ``review``) and
+    ``plan_updates`` carries every such update (old policy, new policy, reason, attempt
+    counts). ``review_angles``/``review_level``/``best_effort`` echo the plan's
+    declaration; ``downgraded``/``downgrade_reason`` record a best-effort claim at a
+    weaker tier than the plan required. ``reviews`` keeps every per-angle review verdict
+    (with its grade and evidence) and ``review_score`` is their weighted sum.
     """
 
     wrote_code: bool
@@ -1426,7 +1494,10 @@ class VerificationRecord:
     review_angles: tuple[str, ...] = ()
     review_level: str = DEFAULT_REVIEW_LEVEL
     review_score: int = 0
-    required: str = "any"
+    policy: str = "either"
+    policy_reason: str = ""
+    effective_policy: str = ""
+    plan_updates: tuple["PlanUpdate", ...] = ()
     best_effort: bool = False
     downgraded: bool = False
     downgrade_reason: str = ""
@@ -1443,6 +1514,26 @@ class VerificationRecord:
     def reason_ok(self) -> bool:
         """True only when the ``none`` tier's written reason passed the check."""
         return self.reason_problem == ""
+
+
+@dataclass(frozen=True)
+class PlanUpdate:
+    """Ticket 22 item 2: a PLAN DECISION recorded in place during a run.
+
+    Giving up on verification is never implicit. When a node's policy is ``test`` and the
+    judge has confirmed ``test_wrong`` with a named defect AND the bounded repairs are
+    exhausted, the node UPDATES ITS PLAN to review-based verification for the remainder of
+    the run. The update records the old and new policy, the reason, the judge's defect,
+    and the attempt/repair counts at the moment of the decision, so a reader can see
+    exactly what was given up and why. At most one update per node.
+    """
+
+    old_policy: str
+    new_policy: str
+    reason: str
+    test_rewrites: int = 0
+    attempts: int = 0
+    judge_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -2248,6 +2339,73 @@ def _evidence_names_an_artifact(evidence: str, request: ReviewRequest) -> bool:
     return False
 
 
+#: A criterion identifier in review evidence: ``AC-1``, ``ac 2``, ``criterion 3``,
+#: ``requirement 4``. Its number is checked against the criteria the review actually saw,
+#: so naming ``AC-9`` for a one-criterion review is not a reference.
+_AC_ID = re.compile(r"(?<![0-9a-z_])(?:ac|requirement|criterion)[-_ ]?0*(\d+)(?![0-9a-z_])")
+
+#: A behavioural verb that, together with a changed-file symbol, marks a SPECIFIC
+#: observation (what the code does) rather than a generic endorsement (``implements the
+#: goal``).
+_BEHAVIOUR_VERB = re.compile(
+    r"\b(?:returns?|raises?|yields?|asserts?|passes?|fails?|equals?|sets?|maps?|"
+    r"sorts?|produces?|writes?|reads?|computes?|prints?|emits?)\b")
+
+#: Path/line references are STRIPPED before looking for a concrete value, so
+#: ``pkg/calc.py:1`` (a bare line reference) is never mistaken for the value ``1``.
+_PATH_OR_LINE = re.compile(
+    r"[A-Za-z0-9_./-]+\.(?:py|pyi|txt|md|json|toml|cfg|ini|yaml|yml)(?::\d+)?|"
+    r"\bline\s*\d+\b", re.IGNORECASE)
+
+
+def _evidence_names_a_criterion(evidence: str, request: ReviewRequest) -> bool:
+    """True when the evidence names the acceptance criterion it serves.
+
+    Either an explicit criterion identifier (``AC-1``/``criterion 2``) whose number is
+    within the criteria the review saw, or a distinctive key token of one criterion's
+    statement (its content words and values, not the generic vocabulary)."""
+    normalized = (evidence or "").lower()
+    for match in _AC_ID.finditer(normalized):
+        if 1 <= int(match.group(1)) <= len(request.acs):
+            return True
+    for statement in request.acs:
+        for token in _reason_tokens(statement) - _REASON_GENERIC:
+            if re.search(rf"(?<![0-9a-z_]){re.escape(token)}(?![0-9a-z_])", normalized):
+                return True
+    return False
+
+
+def _evidence_names_a_specific_observation(evidence: str, request: ReviewRequest) -> bool:
+    """True when the evidence names a concrete behaviour/observable/value it verified.
+
+    A concrete value (a number) is accepted once path/line references and criterion ids
+    are set aside; otherwise a behavioural verb plus a symbol that occurs in a changed
+    file's final text is accepted. A bare path, a bare line reference, and a generic
+    endorsement (``implements the goal``/``looks correct``) all fail."""
+    original = evidence or ""
+    lowered = original.lower()
+    cleaned = _AC_ID.sub(" ", _PATH_OR_LINE.sub(" ", lowered))
+    if re.search(r"[0-9]", cleaned):
+        return True
+    if _BEHAVIOUR_VERB.search(original.lower()):
+        for symbol in _symbol_candidates(original):
+            if any(_word_present(symbol, text) for text in request.final.values()):
+                return True
+    return False
+
+
+def _evidence_is_grant_calibre(evidence: str, request: ReviewRequest) -> bool:
+    """The GRANT-CALIBRE review evidence rule (ticket 22 round 2).
+
+    A review that is about to GRANT a claim must name the acceptance criterion it serves
+    AND the specific behaviour/observable/value it verified. Naming a changed path (or a
+    bare line reference) is grounding, not substance, and a generic ``looks correct`` is
+    not evidence. Reviews that only INFORM (a negative or uncertain grade) are unaffected:
+    the caller applies this rule only to a review that would otherwise carry the claim."""
+    return (_evidence_names_a_criterion(evidence, request)
+            and _evidence_names_a_specific_observation(evidence, request))
+
+
 def apply_review_filter(verdict: ReviewVerdict, request: ReviewRequest) -> ReviewVerdict:
     """The DETERMINISTIC review filter (ticket 19 B, extended to grades): evidence or no
     claim.
@@ -2257,7 +2415,9 @@ def apply_review_filter(verdict: ReviewVerdict, request: ReviewRequest) -> Revie
     to ``uncertain`` (0) and the coercion recorded, so the reviewer (the same weak model)
     can never carry a claim on its word alone and a no-op tree can never claim. A
     non-positive grade is left as it is (a negative grade is an action item; uncertain
-    scores 0)."""
+    scores 0). The GRANT-CALIBRE evidence rule (:func:`_evidence_is_grant_calibre`) is a
+    second, stronger gate applied by :func:`run_reviews` to a review that is about to
+    grant; this filter stays the gentle grounding check so an informing review is kept."""
     if verdict.grade in POSITIVE_REVIEW_GRADES \
             and not _evidence_names_an_artifact(verdict.evidence, request):
         return replace(verdict, grade="uncertain", coerced=True,
@@ -2703,6 +2863,14 @@ def build_criterion_ledger(
     routes = dict(routes or {})
     coverage_by_index = {c.index: c for c in coverage}
     iv_by_index = {c.index: c for c in iv_criteria}
+    # Ticket 22 item 3: only the FINAL verdict per angle decides (a review re-run each
+    # attempt appends; the last graded verdict per angle is the decision, mirroring
+    # :func:`combine_review_verdicts`). A coerced verdict carries no grade.
+    by_angle: dict[str, ReviewVerdict] = {}
+    for verdict in review_verdicts:
+        if not verdict.coerced:
+            by_angle[verdict.angle] = verdict
+    final_reviews = tuple(by_angle.values())
     tc_by_index: dict[int, list[str]] = {}
     for problem in test_case_problems:
         match = _AC_ID_INDEX.search(problem)
@@ -2721,7 +2889,7 @@ def build_criterion_ledger(
             index, statement, coverage_by_index.get(index), tc_by_index.get(index),
             iv_by_index.get(index), own_passed, own_failed, own_observed, own_green,
             single, own_test_discriminating, iv_ran, index in unresolved,
-            review_verdicts, failure_excerpts, iv_reason, iv_detail, verifier_conflict)
+            final_reviews, failure_excerpts, iv_reason, iv_detail, verifier_conflict)
         entries.append(replace(row, ac_id=ac_id, route=routes.get(ac_id, "")))
     return entries
 
@@ -2772,6 +2940,7 @@ def _ledger_row_for(
     if tc_problems:
         return row("violated", "declared-test-case", "; ".join(tc_problems))
     failed_ids = [nid for nid in own_failed if index in _criterion_indices_in_node(nid)]
+    passed_ids = [nid for nid in own_passed if index in _criterion_indices_in_node(nid)]
     own_fails_this = bool(failed_ids) or (
         single and own_observed and not failed_ids and bool(own_failed))
     # (2b) ticket 21 round 3 (fix A): the own test and the independent test disagree at
@@ -2779,6 +2948,33 @@ def _ledger_row_for(
     # VIOLATED — the disagreement is evidence, never a claim.
     if verifier_conflict and own_fails_this:
         return row("violated", "verifier-conflict", verifier_conflict)
+    # (2c) ticket 22 item 3: THE GRADED REVIEW DECIDES a review-vs-test disagreement in
+    # either direction. A grounded NEGATIVE review makes the criterion VIOLATED (even if
+    # the own test passed); a grounded POSITIVE review makes it SATISFIED even when the
+    # run's own test or the independent test failed on the same revision — the conflicting
+    # evidence is named, never hidden.
+    negative_reviews = [v for v in review_verdicts
+                        if not v.coerced and review_grade_rank(v.grade) < 0]
+    positive_reviews = [v for v in review_verdicts if not v.coerced and v.approved]
+    iv_failed_this = bool(iv is not None and iv.reason)
+    if negative_reviews:
+        worst = min(negative_reviews, key=lambda v: review_grade_rank(v.grade))
+        detail = worst.evidence or worst.detail or worst.grade
+        if passed_ids or own_green:
+            detail = (f"{detail}; the graded review outranks the passing own test "
+                      "(disagreement recorded)")
+        return row("violated", f"review:{worst.angle}", detail)
+    if positive_reviews and (own_fails_this or iv_failed_this):
+        best = max(positive_reviews, key=lambda v: review_grade_rank(v.grade))
+        conflicts: list[str] = []
+        if own_fails_this:
+            conflicts.append("the run's own test fails this criterion")
+        if iv_failed_this and iv is not None:
+            conflicts.append(f"the independent test did not pass it ({iv.reason})")
+        detail = (best.evidence or best.detail or best.grade)
+        return row("satisfied", f"review:{best.angle}",
+                   f"{detail} (the graded review outranks the conflicting test: "
+                   + "; ".join(conflicts) + ")")
     # (3) the independent test's per-criterion discrimination.
     if iv is not None:
         if iv.reason == "red-on-final":
@@ -2791,7 +2987,6 @@ def _ledger_row_for(
                        "and passed on the final source")
         # not-discriminating / incomplete / shared / unobserved: fall through with a note.
     # (4) the run's own test gate.
-    passed_ids = [nid for nid in own_passed if index in _criterion_indices_in_node(nid)]
     # Ticket 21 round 2 (fix 1): a terminal independent-test red-on-final with no
     # per-index evidence and NO green own test is the criterion's observed check.
     if (iv_reason == "independent-test-red-on-final" and not own_green
@@ -3371,6 +3566,14 @@ async def run_leaf(
     review_verdicts: list[ReviewVerdict] = []
     review_reason = ""
     review_approved = False
+    # Ticket 22 PLAN-TIME POLICY: the DECLARED policy (spec.verification_policy) and the
+    # EFFECTIVE policy the run is currently held to. A runtime PLAN UPDATE (item 2) may
+    # weaken ``test`` -> ``review`` at most once; every update is recorded.
+    declared_policy = (spec.verification_policy
+                       if spec.verification_policy in VERIFICATION_REQUIREMENTS else "either")
+    policy = declared_policy
+    plan_updates: list[PlanUpdate] = []
+    plan_updated = False
     # Ticket 20: the claim tier the loop actually reached, the written ``none+reason``
     # justification and its deterministic check, and any best-effort downgrade.
     verification_tier = ""
@@ -3391,6 +3594,9 @@ async def run_leaf(
     # CONFLICT and does not claim — never an invalid own test (the judge escape is gone).
     own_test_conflict = False
     own_test_conflict_reason = ""
+    #: Ticket 22 item 3: a recorded review-vs-test disagreement (either direction). The
+    #: review still decides the claim; the disagreement is kept for audit.
+    verification_disagreement = ""
     # Ticket 20 step 2b-ii: the last own-test gate report, surfaced on the outcome so the
     # tree can score the candidate over the DECLARED test points.
     own_test_report: GateReport | None = None
@@ -3544,7 +3750,8 @@ async def run_leaf(
         angle-specific prompt template (ticket 20, item 1). Each call is a SEPARATE
         fresh-context review (no shared history) for exactly one angle. The graded verdict
         is put through :func:`apply_review_filter`, so only a POSITIVE grade WITH concrete
-        evidence naming a changed artifact can contribute to a claim. Returns
+        evidence naming a changed artifact can contribute to a claim; :func:`run_reviews`
+        then applies the stronger grant-calibre rule to the combined review. Returns
         ``(verdict, "")`` or ``(None, failure_reason)`` where ``failure_reason`` is
         ``"calls"`` or ``"malformed-output"``.
         """
@@ -3614,12 +3821,16 @@ async def run_leaf(
         grade, every critical angle run, and a positive weighted score. ``(None, "calls")``
         means the call budget ran out; ``(False, why)`` keeps the loop working. Ticket 21
         round 2 (fix 3): a non-empty requirement-coverage miss ALSO vetoes an otherwise
-        ``ok`` review verdict (a hard block, not advice).
+        ``ok`` review verdict (a hard block, not advice). Ticket 22 round 2: even an ``ok``
+        review does NOT grant unless at least one approving verdict carries GRANT-CALIBRE
+        evidence (the acceptance criterion it serves AND the observed behaviour/value); the
+        refusal is recorded as ``review_not_grant_calibre``.
         """
         nonlocal verification_review_score
         level = spec.review_level if spec.review_level in REVIEW_ANGLES_BY_LEVEL \
             else DEFAULT_REVIEW_LEVEL
         angles = _declared_review_angles()
+        first = len(review_verdicts)          # this call's verdicts, not a stale attempt's
         for angle in angles:
             verdict, failure = await run_review(angle, reason)
             if failure == "calls":
@@ -3634,6 +3845,29 @@ async def run_leaf(
         verification_review_score = score
         if not ok:
             return False, why or "the weighted review did not carry the claim"
+        # Ticket 22 round 2: a review that is about to GRANT must carry at least one
+        # approving verdict whose evidence names the acceptance criterion it serves AND
+        # the specific behaviour/observable/value it verified. Artifact grounding alone
+        # (a path, a line reference) and a generic "looks correct" cannot grant a claim.
+        # A rejecting/uncertain review never reaches here, so informing is unaffected.
+        grant_request = _review_request(spec, workdir, baseline,
+                                        reason or review_reason)
+        by_angle = {v.angle: v for v in review_verdicts[first:]
+                    if v.angle in set(angles) and not v.coerced}
+        # With NO acceptance criteria there is no criterion to name; the claim gate's
+        # ``no-acceptance-criteria`` block owns that case, so the grant-calibre rule is
+        # vacuous here (it must not turn that honest stop into a call-budget stop).
+        if grant_request.acs and not any(
+                v.approved and _evidence_is_grant_calibre(v.evidence, grant_request)
+                for v in by_angle.values()):
+            emit("review_not_grant_calibre",
+                 reason=("positive review grade without grant-calibre evidence: the "
+                         "review that would grant must name the acceptance criterion it "
+                         "serves AND the specific behaviour/observable/value it verified"),
+                 evidence=[v.evidence for v in by_angle.values() if v.approved])
+            return False, ("the approving review names no acceptance criterion and no "
+                           "observed behaviour/value (a path, a line reference, or a "
+                           "generic 'looks correct' cannot grant a claim)")
         missing = coverage_missing_now()
         if missing:
             emit("review_coverage_blocked", missing=missing)
@@ -3660,8 +3894,33 @@ async def run_leaf(
         return (reason if isinstance(reason, str) else ""), ""
 
     def _required_tier() -> str:
-        required = spec.verification_required
-        return required if required in VERIFICATION_REQUIREMENTS else "any"
+        """The EFFECTIVE plan policy the claim is held to (ticket 22): a recorded runtime
+        PLAN UPDATE may have weakened ``test`` -> ``review``."""
+        return policy if policy in VERIFICATION_REQUIREMENTS else "either"
+
+    def update_plan_to_review(reason: str, judge_reason: str) -> bool:
+        """Ticket 22 item 2: record a PLAN UPDATE to review-based verification, in place.
+
+        Giving up on verification is a PLAN decision, not an implicit fallback. This is
+        called ONLY when the policy is ``test`` and the judge has confirmed ``test_wrong``
+        with a named defect AND the bounded repairs are exhausted; the node then switches
+        to review-based verification for the remainder of the run and RECORDS the update
+        (old policy, new policy, reason, judge's reason, attempt/repair counts). At most
+        one update per node. Returns True when the update was made (and review entered).
+        """
+        nonlocal policy, plan_updated
+        if policy != "test" or plan_updated or review is None:
+            return False
+        plan_updated = True
+        update = PlanUpdate(old_policy=policy, new_policy="review", reason=reason,
+                            test_rewrites=test_rewrites, attempts=len(attempts),
+                            judge_reason=judge_reason)
+        plan_updates.append(update)
+        policy = "review"
+        emit("plan_update", old_policy=update.old_policy, new_policy=update.new_policy,
+             reason=reason, judge_reason=judge_reason, test_rewrites=test_rewrites,
+             attempts=len(attempts))
+        return enter_review(reason)
 
     async def enforce_verification(tier: str) -> tuple[bool, str]:
         """Enforce the plan's verification covenant for a claim at ``tier`` (ticket 20).
@@ -3828,6 +4087,8 @@ async def run_leaf(
             stop("honest-failure", "environment", "environment", user=True)
             return "stop"
         if verdict.test_wrong and self_test:
+            defect = (verdict.defect or verdict.reason or verdict.evidence or
+                      "the judge confirmed the own test wrong")
             repaired, failure = await request_bounded(
                 partial(_repair_test, model, spec, workdir, self_test,
                         last_excerpts, env),
@@ -3859,9 +4120,16 @@ async def run_leaf(
                     # A rewrite that passes on arrival does not pin the goal, and a
                     # repaired test that cannot be made to discriminate can never carry
                     # the claim (ticket 19 B): switch to mandatory REVIEW verification.
+                    # Ticket 22 item 2: when the policy is ``test``, this is a PLAN
+                    # DECISION and is recorded as a PLAN UPDATE (test -> review) with the
+                    # judge's reason; at most one update per node.
                     emit("test_rewrite_green_on_arrival", path=self_test)
                     (workdir / self_test).unlink(missing_ok=True)
                     self_test = None
+                    if update_plan_to_review(
+                            "the judge confirmed the own test wrong and the bounded repair "
+                            f"could not make it discriminate ({defect})", defect):
+                        return "repair"
                     if review is not None:
                         verification_basis = "review"
                         review_reason = "the repaired test could not be made to discriminate"
@@ -4068,37 +4336,61 @@ async def run_leaf(
             f"assertion(s): {iv_desc or 'none'}) — cannot characterise the difference")
 
     def review_conflict_reason() -> str:
-        """The review-branch disagreement record (ticket 21 round 5, fix 1).
+        """The review-vs-test disagreement record (ticket 22 item 3).
 
-        Names ONLY the run's own assertions that actually FAILED on the final revision
-        (read from the last gate report's failing node ids) against the review angle(s)
-        that APPROVED the same revision. Both verifiers were authored by the same weak
-        model, so their disagreement is evidence of uncertainty, never a claim.
+        When the review route's review APPROVES while a test (the run's own test and/or
+        the independent test) is RED on the SAME final revision, the review DECIDES and
+        the claim is allowed with ``claimed_basis=review``; this text is recorded as the
+        disagreement so the decision is never hidden.
         """
         own_failed = _failed_assertion_lines(_read(workdir, self_test), last_gate)
         own_desc = "; ".join(own_failed)
+        own_state = _final_own_test_state(self_test, last_gate)
         approved = [v for v in review_verdicts if v.approved and not v.coerced]
         approved_desc = "; ".join(
             f"{v.angle} ({v.grade}): {v.evidence or v.detail or v.grade}"
             for v in approved) or "no grounded approval"
+        if own_state == "red":
+            return (
+                f"the run's own test is RED on the final source (failed assertion(s): "
+                f"{own_desc or 'could not be extracted'}) while the graded review "
+                f"APPROVED the same revision (angle(s): {approved_desc}); the review "
+                "outranks the test and decides the claim, and the disagreement is "
+                "recorded")
+        last_iv = iv_verdicts[-1] if iv_verdicts else None
+        iv_disagrees = bool(last_iv is not None and not last_iv.approved)
+        if last_iv is not None and iv_red_on_final():
+            iv_desc = f"independent-test-red-on-final: {last_iv.detail}"
+        elif last_iv is not None and last_iv.reason:
+            iv_desc = f"{last_iv.reason}: {last_iv.detail}"
+        else:
+            iv_desc = "no independent verdict"
+        if not iv_disagrees:
+            # No test disagreed with the review on this revision: there is no disagreement
+            # to record (a record of "no independent verdict" is not a disagreement).
+            return ""
         return (
-            f"the run's own test is RED on the final source (failed assertion(s): "
-            f"{own_desc or 'none'}) while the independent review APPROVED the same "
-            f"revision (angle(s): {approved_desc}); two imperfect verifiers disagree, "
-            "so the node may not claim on either")
+            f"the independent test did not approve the final source ({iv_desc}) while "
+            f"the graded review APPROVED the same revision (angle(s): {approved_desc}); "
+            "the review outranks the test and decides the claim, and the disagreement "
+            "is recorded")
 
     def iv_red_on_final() -> bool:
         """True when the LAST independent verdict is a red-on-final FIX failure.
 
-        Such a verdict never CARRIES a claim (gate rule 7); a green, unrewritten own test
-        can still carry it, because there the independent red is only a recorded label.
+        On the review route such a verdict does NOT decide the claim (ticket 22 item 3:
+        the review decides). On the other routes it never CARRIES a claim (gate rule 8);
+        a green, unrewritten own test can still carry one, because there the independent
+        red is only a recorded label.
         """
         last = iv_verdicts[-1] if iv_verdicts else None
         return bool(last is not None and last.reason == "independent-test-red-on-final")
 
     def claim_conflict_detail() -> str:
-        """The recorded reason when the run's own RED test disagrees with a passing
-        external verifier (evidence for the gate's conflict decision)."""
+        """The recorded reason when the run's RED test disagrees with a passing external
+        verifier. Under ticket 22 item 3 the REVIEW decides, so on the review route this
+        text is recorded as the disagreement of a GRANTED claim; on the non-review routes
+        it is the evidence for a blocking test-vs-test CONFLICT."""
         if review_approved and review is not None:
             return review_conflict_reason()
         if iv_approved:
@@ -4109,23 +4401,34 @@ async def run_leaf(
         """Grant or refuse a claim from the gate's decision (ticket 21 round 6).
 
         The ONLY consumer of a :class:`ClaimDecision`. On a grant it sets ``claimed`` and
-        the basis and records the stop signal (``unverified`` at the ``none+reason``
-        tier, ``green`` otherwise). On a refusal it records the specific blocker — the
-        own-test/verifier CONFLICT, ``green-after-test-rewrite``, the zero-criteria or
+        the basis, records the stop signal (``unverified`` at the ``none+reason`` tier,
+        ``green`` otherwise), and RECORDS any review-vs-test disagreement the review
+        outranked (ticket 22 item 3). On a refusal it records the specific blocker — the
+        test-vs-test CONFLICT, ``green-after-test-rewrite``, the zero-criteria or
         empty-ledger block, the coverage block, or the covenant re-check — and stops.
         Returns True when the claim was granted.
         """
         nonlocal claimed, claimed_basis, own_test_conflict, own_test_conflict_reason
-        nonlocal node_exhausted
+        nonlocal node_exhausted, verification_disagreement
         if decision.claimed:
             claimed = decision.claimed
             claimed_basis = decision.basis
             node_exhausted = False
+            if decision.disagreement:
+                verification_disagreement = decision.disagreement
+                emit("verification_disagreement", basis=decision.basis,
+                     disagreement=decision.disagreement)
             if tier == "none":
                 stop("unverified", "", "unverified")
             else:
                 stop("green", "", "green")
             return True
+        if decision.disagreement:
+            # A refusing decision (e.g. the review rejected while a test was green) keeps
+            # the disagreement too, so the direction of the disagreement is auditable.
+            verification_disagreement = decision.disagreement
+            emit("verification_disagreement", basis=decision.basis,
+                 disagreement=decision.disagreement)
         if decision.conflict:
             own_test_conflict = True
             own_test_conflict_reason = decision.detail
@@ -4166,20 +4469,17 @@ async def run_leaf(
         per-criterion independent test authored FRESH from the goal + criteria (never the
         run's own test) plus, where the test cannot carry the criteria, the review path.
 
-        The claim rule (ticket 21 round 4, fix 1; extended to the review branch by
-        round 5, fix 1): a claim at exhaustion is allowed ONLY when the winning
-        verifier passes AND the run's OWN test is GREEN on the same final code — two
-        independent checks that AGREE. If the own test is RED while the independent
-        test is green, that is a VERIFIER CONFLICT: the node records it (the own
-        test's FAILING assertions against the independent test's assertions, same
-        revision) and does NOT claim, regardless of any judge. The SAME agreement rule
-        governs the review branch: a review approval may carry a claim only when the
-        own test is ABSENT (never written) or GREEN; an own test that exists and is RED
-        records the conflict (own failing assertions against the APPROVING review) and
-        stops unclaimed. A criterion the independent test fails to verify keeps the
-        node unclaimed and the ledger marks it VIOLATED. A run with no surviving own
-        test cannot agree, so its independent test routes to review instead. Zero
-        acceptance criteria can never claim on any path (fix B).
+        The claim rule (ticket 21 round 4, fix 1; ticket 22 item 3 rewrote the review
+        branch): when the REVIEW is the winning verifier (the review route), the review's
+        verdict DECIDES — an approving review carries the claim even when a test is red on
+        the same final code, a rejecting review blocks it even when a test is green, and
+        the disagreement is recorded. On the test routes a claim is allowed ONLY when the
+        winning test passes AND the run's OWN test AGREES (green on the same final code);
+        an own test RED while the independent test is green is a VERIFIER CONFLICT the node
+        records (own failing assertions against the independent test's, same revision) and
+        does NOT claim, regardless of any judge. A criterion the independent test fails to
+        verify keeps the node unclaimed and the ledger marks it VIOLATED. Zero acceptance
+        criteria can never claim on any path (fix B).
         """
         nonlocal claimed, claimed_basis, coverage, coverage_missing
         nonlocal coverage_unresolved, last_iv_reason, iv_repairs, review_approved
@@ -4228,10 +4528,13 @@ async def run_leaf(
                         record_iv(repaired)
                         label = repaired
                 iv_approved = label.approved
-                # Only a TEST defect (or no producer) leaves room for the review path; a
-                # red-on-final verdict is a FIX failure and stands as a VIOLATED criterion.
+                # A TEST defect (or no producer) leaves room for the review path; ticket
+                # 22 item 3 adds the red-on-final FIX failure too, because a GRADED REVIEW
+                # outranks a conflicting test: the review's verdict then decides the claim.
                 test_could_not_carry = (not label.approved
-                                        and label.reason in _IV_REPAIRABLE)
+                                        and (label.reason in _IV_REPAIRABLE
+                                             or label.reason ==
+                                             "independent-test-red-on-final"))
                 if not label.approved:
                     last_iv_reason = f"{label.reason}: {label.detail}"
         if iv_approved:
@@ -4281,7 +4584,8 @@ async def run_leaf(
                         coverage_missing=coverage_missing,
                         test_case_problems=test_case_problems,
                         verification_basis=verification_basis,
-                        conflict_detail=review_conflict_reason(), tier_allowed=allowed)
+                        conflict_detail=review_conflict_reason(), tier_allowed=allowed,
+                        plan_updated=plan_updated)
                     if apply_claim(decision, tier="review"):
                         emit("leaf_green_at_exhaustion", basis=decision.basis)
 
@@ -4303,7 +4607,9 @@ async def run_leaf(
                               if spec.review_level in REVIEW_ANGLES_BY_LEVEL
                               else DEFAULT_REVIEW_LEVEL),
                 review_score=verification_review_score,
-                required=_required_tier(), best_effort=bool(spec.best_effort),
+                policy=declared_policy, policy_reason=spec.verification_reason,
+                effective_policy=_required_tier(), plan_updates=tuple(plan_updates),
+                best_effort=bool(spec.best_effort),
                 downgraded=verification_downgraded,
                 downgrade_reason=verification_downgrade_reason)
         verified = tier in ("test", "review")
@@ -4415,6 +4721,10 @@ async def run_leaf(
             evidence_gap=evidence_gap,
             own_test_conflict=own_test_conflict,
             own_test_conflict_reason=own_test_conflict_reason,
+            verification_policy=declared_policy,
+            verification_policy_reason=spec.verification_reason,
+            plan_updates=list(plan_updates),
+            verification_disagreement=verification_disagreement,
         )
 
     def enter_review(why: str) -> bool:
@@ -4938,13 +5248,14 @@ async def run_leaf(
                     iv_approved = label.approved
                     if not label.approved:
                         last_iv_reason = f"{label.reason}: {label.detail}"
-            if test_rewrites and not iv_approved:
+            if test_rewrites and not iv_approved and not plan_updated:
                 # Ticket 21 round 4 (fix 4): a run that REPLACED its own test cannot claim
                 # on the replacement (or on a review that followed it) alone. The repaired
                 # test is red-on-pristine at best — not evidence the fix is right — so the
                 # claim requires the INDEPENDENT verification to AGREE on the same final
-                # revision (the test-basis case already stopped above). Without it the green
-                # is recorded as an UNVERIFIED basis and the node does not claim.
+                # revision (the test-basis case already stopped above). Ticket 22 item 2:
+                # after a recorded PLAN UPDATE (test -> review) the test was given up, so
+                # the review is the plan's verification and this block does not apply.
                 emit("leaf_green_after_test_rewrite", strategy=esc.strategy,
                      basis=verification_basis, independent=False)
                 stop("green-after-test-rewrite", "", "green-after-test-rewrite")
@@ -4993,7 +5304,8 @@ async def run_leaf(
                 coverage_missing=coverage_missing,
                 test_case_problems=test_case_problems,
                 verification_basis=verification_basis,
-                conflict_detail=claim_conflict_detail(), tier_allowed=allowed)
+                conflict_detail=claim_conflict_detail(), tier_allowed=allowed,
+                plan_updated=plan_updated)
             if apply_claim(decision, tier=tier):
                 if tier == "none":
                     emit("leaf_unverified_claim", tier=tier, required=_required_tier(),

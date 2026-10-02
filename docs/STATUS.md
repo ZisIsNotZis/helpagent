@@ -99,7 +99,15 @@ loop, deterministic diagnosis rules, the report gate, coverage and discriminatio
 
 1. **Two verifications that share the same misreading agree**, so a wrong fix can be
    certified. No deterministic in-process rule can catch this without a ground-truth oracle.
-   The external grader is the only correctness arbiter. (DESIGN §10.8a.)
+   The external grader is the only correctness arbiter. (DESIGN §10.8a.) Ticket 22 makes
+   this sharper: the graded REVIEW now outranks a conflicting test, so a review that
+   approves a wrong fix claims directly rather than being backstopped by an agreeing test.
+   Ticket 22 round 2 hardens the route: a review that is about to GRANT must name the
+   acceptance criterion it serves AND the specific behaviour/observable/value it verified
+   (a changed path or a generic "looks correct" no longer grants; the refusal is recorded
+   as `review_not_grant_calibre`). The remaining risk is now exactly the reviewing model's
+   error rate when it approves on substantive evidence: thin evidence can no longer
+   manufacture a review-backed claim, but a specific yet mistaken approval still can.
 2. **The harness is not an oracle.** Its own claim is evidence, not proof; every number in
    section 1 is the grader's verdict, never the harness's.
 3. **Adversarial code can forge the gate's own evidence** (it runs in the same process and
@@ -127,18 +135,31 @@ loop, deterministic diagnosis rules, the report gate, coverage and discriminatio
    same small model writes it): in five runs its expectation was wrong while the graded
    review — and the grader — agreed with the fix.
 
-2. **The next experiment (decided, not yet built): a labelled weaker claim tier.** When the
-   run's own test is red and the independent test is red-on-final, but the multi-angle review
-   (critical veto included) approves and coverage is clean, the run would claim with
-   `verification_basis=review` and an explicit **weak** strength label — so a consumer can
-   filter it. Expected yield on this sample: **about six more claims out of eighteen** (five
-   independent-test-red-on-final runs plus the verifier conflict), all of which the grader
-   accepted. Risk: the graded review can itself be wrong (one earlier round produced a
-   review-approved false success); with the label in place that risk becomes a *measured*
-   quantity per tier rather than an argument, which is why the tier is labelled rather than
-   silently accepted. DECISION while writing this document: the default stays conservative
-   (no claim) until that tier is implemented, verified and measured — the numbers above are
-   the honest conservative baseline and can be re-derived by re-running the sweep.
+2. **The next experiment (DECIDED and BUILT as ticket 22).** The labelled review-backed
+   claim tier now exists: the graded review OUTRANKS a conflicting test in both directions,
+   so when the run's own test (or a wrong independent test) is red on a correct fix while
+   the multi-angle review approves, the run claims with `claimed_basis="review"` and the
+   disagreement recorded (`verification_disagreement`), with the basis label kept so a
+   consumer can filter to test-backed claims. The plan-time verification policy
+   (`test`/`review`/`either`, with a REQUIRED reason) is decided at SPEC time, and a `test`
+   node whose judge-confirmed test cannot be repaired records a PLAN UPDATE to review (at
+   most once). The review is now load-bearing: its mistakes turn directly into claims, which
+   is the accepted residual risk stated in DESIGN §10.8a. Re-run the three tasks that were
+   blocked this way (`T-03`, `T-14`, `T-25`): all three now claim on review and the grader
+   accepts them.
+
+   The declared `verification_policy` is a FLOOR, not a mandate: `test` means a
+   discriminating test is required; `review` means a graded review is SUFFICIENT (a good
+   test is still accepted and is the stronger evidence); `either` means prefer a test and
+   fall back to review. **Reading the record: filter review-backed claims on `claimed_basis`
+   (e.g. `review` / `review+independent-test`), NEVER on `verification.tier`.** `tier`
+   reports the strongest evidence the node had, so an approving independent test alongside
+   a review-decided claim makes `tier` read `test`, and a tier-based count would
+   miscount. The record carries every field that filter needs: `claimed`, `claimed_basis`,
+   `verification_basis`, `verification.tier`, `verification.reviews` (each angle's
+   grade/evidence/coerced), `review_verdicts`, `review_score`,
+   `verification_disagreement`, `verification_policy`, `verification_policy_reason`, and
+   `plan_updates`.
 
 3. **A stronger verifier model** (even a modest remote one) for the test-authoring and review
    roles is the single change most likely to raise true successes; every run already records

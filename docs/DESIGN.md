@@ -346,13 +346,24 @@ The run's own tests gate the run, and a claim additionally needs an independent 
   verdict with concrete evidence passed. The independent test stays available as an EXTRA
   LABEL but is no longer the only thing standing between the run and a claim (it is
   authored by the same weak model and was wrong in both directions). Per-requirement
-  coverage (below) replaces the veto. Round 5 tightens the review path to the same
-  agreement rule: a review approval may carry a claim ONLY when the run's own test is
-  ABSENT (never written) or GREEN on the same final revision — an own test that exists
-  and is RED is a recorded verifier CONFLICT, never a claim — and a declared-case test
-  repair now counts as a test rewrite (`own_test_mutated`) that needs the independent
-  verification to agree. Two verifiers that share a misreading can still agree and
-  certify a wrong fix; that is the fundamental residual risk documented in §10.8a.
+  coverage (below) replaces the veto. **Ticket 22 changes the review path from an
+  agreement rule to a PRECEDENCE rule:** when the graded review and a test disagree on the
+  same revision — a red own test (or a red independent test) while the review approves, or
+  a green test while the review rejects — **the REVIEW'S VERDICT DECIDES**. An approving
+  review carries the claim with `claimed_basis="review"` (its strength derived from the
+  review grades) and the disagreement is RECORDED (`verification_disagreement`, both
+  evidences, either direction); a rejecting review blocks the claim even when a test is
+  green. The `basis`/strength label is what lets a consumer filter to test-backed claims
+  only. Two TESTS that share a misreading can still agree and certify a wrong fix; that is
+  the fundamental residual risk documented in §10.8a, and it is now carried mainly by the
+  review route — a review can be wrong, which is why the basis stays explicit. **Ticket 22
+  round 2 hardens the load-bearing route: a review that is about to GRANT must name the
+  acceptance criterion it serves AND the specific behaviour/observable/value it verified.**
+  Naming a changed path (or a bare line reference) is grounding, not substance, and a
+  generic "looks correct"/"implements the goal" is not evidence; the refusal is recorded
+  as `review_not_grant_calibre`. A review that only INFORMS (a negative or uncertain
+  grade) is untouched, so the rule blocks a thin approval without blocking reviewer
+  feedback.
 - **ONE claim gate, enforced STRUCTURALLY (ticket 21 round 6).** Rounds 2-5 closed one
   wrong-green branch at a time and every fix guarded only the branch it was written for;
   the next verifier round found the same hole in a sibling branch (the last: the MAIN-PATH
@@ -365,11 +376,14 @@ The run's own tests gate the run, and a claim additionally needs an independent 
   acceptance-criteria count, the ledger, the coverage result, and the declared-case
   result — and returns the decision plus the basis. It enforces all of: no claim with zero
   criteria; no claim with an empty ledger; no claim when coverage missed a named artifact;
-  no claim when the own test exists and is RED on the final revision (a passing review or
-  independent test turns that into a recorded verifier CONFLICT, never a claim); a review
-  may carry a claim only when the own test is ABSENT and never written (rewrite count 0)
-  or GREEN on the same revision; any test rewrite needs the independent verification to
-  agree; and a red-on-final independent verdict never carries a claim. The tree's internal
+  **on the review route the graded review DECIDES (ticket 22)** — an approving review
+  carries the claim even when the own test or the independent test is red on the same
+  revision and the disagreement is recorded, and a rejecting review blocks it even when a
+  test is green; on every other route a red own test on the final revision can never claim
+  (a passing independent TEST makes it a recorded two-imperfect-tests CONFLICT, never a
+  claim); any test rewrite needs the independent verification to agree UNLESS the node
+  recorded a PLAN UPDATE that switched it to review (ticket 22); and a red-on-final
+  independent verdict never carries a non-review claim. The tree's internal
   close routes through the same gate (`route="integration"`). Every claim site
   (normal green, review, exhaustion independent-test, exhaustion review, the tree close)
   only supplies evidence; a structural AST test fails the suite if any path other than the
@@ -383,11 +397,36 @@ The run's own tests gate the run, and a claim additionally needs an independent 
   ``needs-user`` without burning budget, ``test_wrong`` repair/replaces the own test
   (bounded), ``implementation_wrong`` alone keeps implementing. A ``test_wrong`` label must
   name a concrete defect in the test (deterministic filter).
+- **The declared `verification_policy` is a FLOOR, not a mandate (ticket 22 round 2).**
+  `test` means a discriminating test is required; `review` means a graded, multi-angle
+  review is SUFFICIENT (a working discriminating test is still accepted and is the
+  STRONGER evidence, so a `review` node that produces a good test claims on the test
+  tier); `either` means prefer a test and fall back to review. The floor is enforced in
+  `enforce_verification`; claiming at a weaker tier needs the plan's `best_effort` opt-in
+  and is recorded as a downgrade. **A consumer that filters review-backed claims MUST
+  read `claimed_basis` (the honest carrier of how the claim was carried) and MUST NOT
+  filter on `verification.tier`.** `tier` names the STRONGEST evidence the node had
+  available — an approving independent test present alongside a review-decided claim
+  makes `tier` read `test` — so a `tier`-based filter miscounts review-decided claims.
+  The run record already carries everything that filter needs: `claimed`,
+  `claimed_basis`, `verification_basis`, `verification.tier`, `verification.reviews`
+  (each angle's grade/evidence/coerced), `review_verdicts`, `review_score`,
+  `verification_disagreement`, `verification_policy`, `verification_policy_reason`, and
+  `plan_updates`.
 - **Mandatory review when no test can carry verification (ticket 19).** If the own test
   cannot be made red on arrival (after the bounded re-ask) OR the judge's ``test_wrong``
   label survives a bounded repair that still cannot discriminate, the node switches to a
   fresh-context REVIEWER of the final diff that returns pass/fail WITH concrete evidence
   (specific files/lines and the requirement it checks). Until then the node may NOT claim.
+  **Ticket 22: the plan decides this at SPEC time.** The spec declares a policy — ``test``
+  (a discriminating test is required), ``review`` (a graded review is the required evidence;
+  no test is required), or ``either`` (prefer a test, fall back to review) — with a REQUIRED
+  reason: the planner is asked to judge how hard a test is to write for the requirement and
+  say why. When a ``test`` node's judge confirms ``test_wrong`` with a named defect and the
+  bounded repairs are exhausted, the node UPDATES ITS PLAN in place (a recorded PLAN
+  UPDATE: old policy, new policy, reason, judge's defect, attempt/repair counts) and
+  switches to review-based verification for the remainder of the run — at most once, and
+  never silently.
 - **Declared test cases and per-requirement artifact coverage (ticket 19).** A plan declares,
   per acceptance criterion, the expected test FILE and FUNCTION NAMES; the harness verifies
   them mechanically from the machine-readable report (boundary-aware) and a missing
@@ -458,6 +497,17 @@ pristine source for an unrelated reason (a missing symbol, a wrong type, `!= 0`)
 pass on a wrong fix. The grader remains the only ground truth; the harness's own claim
 is evidence, not proof.
 
+**Ticket 22 makes the REVIEW route load-bearing.** The owner direction is explicit: judge
+the difficulty of writing a verification AT SPEC TIME, require a REVIEW when a test looks
+hard, and let the REVIEW take priority over a conflicting test. So a run whose own test is
+red (or whose independent test is red) on the correct fix can now claim on an approving
+graded review, with the disagreement recorded and the `review` basis label kept. The price
+is symmetric and must be stated plainly: **the graded review is now the verifier whose
+mistakes turn directly into a false success.** A review that approves a wrong fix — same
+weak model, same goal text, the shared-misreading route below — is no longer backstopped
+by an agreeing test, because it OUTRANKS the test. The measured basis (`claimed_basis`,
+`verification_disagreement`) is how that risk is tracked per tier rather than argued.
+
 Residual risk — shared misreading (FUNDAMENTAL, documented not fixed; ticket 21 round 5):
 two verifiers that share the same misreading AGREE, so agreement cannot catch a wrong fix.
 The harness's defense against a wrong green is two checks on the SAME final revision —
@@ -501,6 +551,10 @@ independent-test veto, and sibling file-disjointness:
   (red on the pristine source, now green, unmodified) OR the test path was unwritable and a
   review verdict with evidence passed. The independent test is an extra label, never the
   veto. New claim basis values: `own-test`, `own-test+independent-test`, `review`.
+  **Ticket 22:** the graded review OUTRANKS a conflicting test, so a review approval claims
+  (basis `review`/`review+independent-test`) even when a test is red on the same revision,
+  a review rejection blocks even when a test is green, the disagreement is recorded, and a
+  `test` node whose judge-confirmed test cannot be repaired records a PLAN UPDATE to review.
 - **Mandatory review.** No test can carry verification (no red target after the bounded
   re-ask; a judge-attributed broken test that a bounded repair cannot make discriminating;
   an unwritable test path) ⇒ a fresh-context reviewer of the final diff returns pass/fail
@@ -538,6 +592,10 @@ the authority):
   and an exact conservation record on every run and node;
 - the verification covenant: ordered tiers, a checked written reason, plan-time
   `best_effort` with a dilution cap, and an UNVERIFIED claim state;
+- ticket 22: the plan-time verification POLICY (`test`/`review`/`either`) with a REQUIRED
+  reason, the recorded runtime PLAN UPDATE (a judge-confirmed wrong test gives way to
+  review at most once), and the review-outranks-a-conflicting-test precedence with the
+  disagreement recorded and the claim's basis kept explicit;
 - reviews as predefined ANGLES per level with weights and a critical-angle veto;
 - the judge (proactive on red, multi-label, given the goal, the criteria and the failing
   assertion) and the independent per-criterion verification, consulted at exhaustion;

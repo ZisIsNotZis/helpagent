@@ -106,8 +106,11 @@ def _review_question(request: ReviewRequest) -> str:
         "Return ONE grade --- exactly one of definitely-ok, probably-ok, uncertain, "
         "probably-problematic, definitely-problematic --- for THIS angle only. If you "
         "found a problem you MUST give a CONCRETE counterexample in 'evidence'; if you "
-        "found none you MUST say so explicitly and name the concrete artifact you "
-        "checked (a changed file, symbol, or test name). A bare approval is rejected."
+        "found none you MUST say so explicitly and, to support a positive grade, name "
+        "the concrete artifact you checked (a changed file, symbol, or test name), the "
+        "acceptance criterion it serves (its number, e.g. AC-1, or a key phrase), and "
+        "the specific behaviour, observable, or value you verified. A bare approval, a "
+        "file name alone, or 'looks correct' is rejected by the deterministic filter."
     )
 
 
@@ -135,6 +138,13 @@ async def model_review(model: Any, request: ReviewRequest) -> ReviewVerdict:
 
 
 DEFAULT_SERVER = "http://127.0.0.1:8833"
+
+#: Ticket 22: the root/single-leaf spec has no planner to ask, so the driver declares the
+#: ``either`` policy with this REQUIRED reason. A discriminating own test is preferred;
+#: the graded, multi-angle review carries the claim when the test cannot.
+DEFAULT_VERIFICATION_REASON = (
+    "single-leaf root spec (no planner): prefer a discriminating own test; fall back to "
+    "the graded multi-angle review when the run's test cannot carry the requirement")
 
 #: debug_judge ``blame`` → the judge's MULTI-LABEL verdict (ticket 19 A). ``both`` maps to
 #: implementation+test (an ambiguous verdict is still never credited to the test alone).
@@ -249,6 +259,12 @@ def build_spec(task: dict) -> LeafSpec:
         acs=extract_acs(task["request"]),
         interfaces=[],
         grader_paths=grader_paths,
+        # Ticket 22 PLAN-TIME POLICY. The single-leaf driver has no planner to ask, so
+        # the root spec declares ``either`` — prefer a discriminating own test and fall
+        # back to the graded review when the test cannot carry the requirement — with the
+        # REQUIRED reason. Recorded on the run record for every run.
+        verification_policy="either",
+        verification_reason=(DEFAULT_VERIFICATION_REASON),
     )
 
 
@@ -292,6 +308,13 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         "claim_status": claim_status,
         "verification": (dataclasses.asdict(outcome.verification)
                          if outcome.verification is not None else None),
+        # Ticket 22: the DECLARED plan-time verification policy and its REQUIRED reason,
+        # every recorded runtime PLAN UPDATE, and any review-vs-test disagreement the
+        # review outranked. Recorded for every run so the policy is never implicit.
+        "verification_policy": outcome.verification_policy,
+        "verification_policy_reason": outcome.verification_policy_reason,
+        "plan_updates": [dataclasses.asdict(u) for u in outcome.plan_updates],
+        "verification_disagreement": outcome.verification_disagreement,
         # Ticket 20 items 4-5: the run-level best_effort/downgrade counters, the weighting
         # ratio, and the dilution flag, so an "everywhere best_effort" plan cannot stay a
         # silent escape.
@@ -694,6 +717,15 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     print(f"[verification] basis={outcome.verification_basis} "
           f"tier={getattr(outcome.verification, 'tier', None)} "
           f"verified={outcome.verified} status={outcome.claim_status} -> {vquad}")
+    print(f"[policy]  declared={outcome.verification_policy} "
+          f"effective={getattr(outcome.verification, 'effective_policy', None) or outcome.verification_policy} "
+          f"reason={outcome.verification_policy_reason!r}")
+    for update in outcome.plan_updates:
+        print(f"[plan-update] {update.old_policy} -> {update.new_policy} "
+              f"(attempts={update.attempts} repairs={update.test_rewrites}) "
+              f"reason={update.reason!r} judge={update.judge_reason!r}")
+    if outcome.verification_disagreement:
+        print(f"[disagreement] {outcome.verification_disagreement}")
     print(f"[self_test] {outcome.self_test or 'none'}  withheld={len(withheld)} grader path(s)")
     # Ticket 21: show the per-criterion ledger and, on a non-claim, the evidence-backed
     # failure report — the run is never allowed to end on "attempts" alone.

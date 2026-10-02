@@ -191,6 +191,14 @@ def build_root(task: dict) -> tuple[NodeSpec, tuple[str, ...]]:
         interfaces=(),
         kind="internal",
         est_calls=1,
+        # Ticket 22 PLAN-TIME POLICY. The root owns the integration boundary and has no
+        # planner call of its own, so it declares ``either`` (prefer a test, fall back to
+        # review) with the REQUIRED reason; every child gets its own policy + reason from
+        # the planner.
+        verification_policy="either",
+        verification_reason=("root spec (no planner): prefer a discriminating test and "
+                             "fall back to the graded review when a test cannot carry "
+                             "the integration requirement"),
     )
     return root, grader_paths
 
@@ -231,6 +239,15 @@ def node_record(outcome: NodeOutcome, *, diluted: bool = False) -> dict:
         "claim_status": claim_status,
         "verification": (dataclasses.asdict(leaf.verification)
                          if leaf is not None and leaf.verification is not None else None),
+        # Ticket 22: the declared policy + reason, every recorded plan update, and any
+        # review-vs-test disagreement the review outranked, per node.
+        "verification_policy": (leaf.verification_policy if leaf is not None else None),
+        "verification_policy_reason": (leaf.verification_policy_reason
+                                       if leaf is not None else None),
+        "plan_updates": ([dataclasses.asdict(u) for u in leaf.plan_updates]
+                         if leaf is not None else []),
+        "verification_disagreement": (leaf.verification_disagreement
+                                      if leaf is not None else None),
         "needs_user": (leaf.needs_user if leaf is not None else False),
         "review_verdicts": ([dataclasses.asdict(v) for v in leaf.review_verdicts]
                             if leaf is not None else []),

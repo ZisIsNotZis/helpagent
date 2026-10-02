@@ -767,7 +767,8 @@ def leaf_spec_from(spec: NodeSpec, workdir: Path, *,
         write_boundary=boundary,
         test_cases=tuple(spec.test_cases),
         candidate_files=tuple(candidate_files),
-        verification_required=spec.verification_required,
+        verification_policy=spec.verification_policy,
+        verification_reason=spec.verification_reason,
         review_angles=tuple(spec.review_angles),
         review_level=spec.review_level,
         best_effort=spec.best_effort,
@@ -1004,9 +1005,12 @@ async def _plan(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget: Bud
 
 
 def _strongest_requirement(values: Sequence[str]) -> str:
-    """The strongest declared verification requirement across ``values`` (ticket 20)."""
-    ranked = {"any": 0, "review": 1, "test": 2}
-    return max(values, key=lambda value: ranked.get(value, 0), default="any")
+    """The strongest declared verification POLICY across ``values`` (ticket 20).
+
+    Ticket 22 renamed the weakest value ``any`` -> ``either``; the ranking is unchanged.
+    """
+    ranked = {"either": 0, "review": 1, "test": 2}
+    return max(values, key=lambda value: ranked.get(value, 0), default="either")
 
 
 def _merge_children(children: Sequence[NodeSpec],
@@ -1026,10 +1030,14 @@ def _merge_children(children: Sequence[NodeSpec],
             interfaces=tuple(i for s in specs for i in s.interfaces),
             kind="leaf",
             est_calls=sum(s.est_calls for s in specs),
-            # Ticket 20: the merged child carries the STRONGEST requirement and the UNION
-            # of its parts' review angles, and is best-effort only when every part was.
-            verification_required=_strongest_requirement(s.verification_required
-                                                         for s in specs),
+            # Ticket 20/22: the merged child carries the STRONGEST policy and the UNION
+            # of its parts' review angles and reasons, and is best-effort only when every
+            # part was.
+            verification_policy=_strongest_requirement(s.verification_policy
+                                                       for s in specs),
+            verification_reason=("; ".join(dict.fromkeys(
+                s.verification_reason for s in specs if s.verification_reason))
+                or "merged leaf: carry the strongest child policy"),
             review_angles=tuple(dict.fromkeys(
                 angle for s in specs for angle in s.review_angles)),
             review_level=DEFAULT_REVIEW_LEVEL,

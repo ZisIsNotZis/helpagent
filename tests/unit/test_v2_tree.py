@@ -76,17 +76,21 @@ def ac(statement: str = "criterion", ac_id: str = "AC-1") -> dict:
 
 
 def child(what: str, files, *, acs=None, kind: str = "leaf", est: int = 3,
-          why: str = "because") -> dict:
+          why: str = "because", policy: str = "either",
+          reason: str = "a direct assertion pins the behaviour") -> dict:
     return {"what": what, "why": why, "kind": kind, "files": list(files),
             "acs": list(acs) if acs is not None else [ac()],
-            "interfaces": [], "est_calls": est}
+            "interfaces": [], "est_calls": est,
+            "verification_policy": policy, "verification_reason": reason}
 
 
 def plan_env(children, *, files, goal: str = "root goal", acs=(), behavior: str = "shared",
-             notes: str = "notes") -> dict:
+             notes: str = "notes", policy: str = "either",
+             reason: str = "a direct assertion pins the behaviour") -> dict:
     return {"status": "ok", "comment": "planned", "goal": goal, "behavior": behavior,
             "implementation_notes": notes, "files": list(files), "acs": list(acs),
-            "interfaces": [], "children": list(children)}
+            "interfaces": [], "verification_policy": policy,
+            "verification_reason": reason, "children": list(children)}
 
 
 def how(text: str = "try the direct fix", reason: str = "smallest diff") -> dict:
@@ -1000,7 +1004,8 @@ def test_plan_node_rejects_a_withheld_test_point_then_forces_a_leaf():
         [{"what": "page tests", "why": "because", "kind": "leaf",
           "files": ["pkg/a.py"], "acs": [ac()], "interfaces": [], "est_calls": 3,
           "test_cases": [{"ac_id": "AC-1", "file": "tests/test_pagination.py",
-                           "names": ["test_page_one"]}]}],
+                           "names": ["test_page_one"]}],
+          "verification_reason": "a unit test pins pagination"}],
         files=("pkg/a.py",))
     model = FakeModelRunner({"plan_node": [blocked, blocked]})
     result = asyncio.run(plan_node(
@@ -1020,7 +1025,8 @@ def test_plan_node_accepts_a_visible_frozen_file_when_handed_the_raw_union():
     ok = plan_env(
         [{"what": "keep the readme", "why": "because", "kind": "leaf",
           "files": ["README.md"], "acs": [ac()], "interfaces": [], "est_calls": 3,
-          "test_cases": []}],
+          "test_cases": [],
+          "verification_reason": "a unit test pins the README example"}],
         files=("README.md", "pkg/a.py"))
     model = FakeModelRunner({"plan_node": [ok]})
     result = asyncio.run(plan_node(
@@ -1584,6 +1590,7 @@ def test_plan_node_carries_declared_test_cases():
         "interfaces": [],
         "test_cases": [{"ac_id": "AC-1", "file": "tests/test_a.py",
                         "names": ["test_ac1_ok", "test_ac1_edge"]}],
+        "verification_reason": "a unit test pins the criterion directly",
         "children": [],
     }
     env = PlanNode.model_validate(payload)
@@ -1788,10 +1795,10 @@ def test_leaf_child_without_files_is_invalid_at_construction():
 
 
 def test_out_of_domain_verification_declaration_invalidates_the_node():
-    """Item 4/6: the declared tier, review ANGLES, and best-effort reason are validated at
-    construction."""
+    """Item 4/6: the declared policy, review ANGLES, and best-effort reason are validated
+    at construction."""
     findings = _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",), kind="leaf",
-                                  verification_required="sometimes"))
+                                  verification_policy="sometimes"))
     assert any(f.kind == "bad-verification-required" for f in findings)
     angles = _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",), kind="leaf",
                                 review_angles=("vibes",)))
@@ -1799,72 +1806,104 @@ def test_out_of_domain_verification_declaration_invalidates_the_node():
     unjustified = _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",),
                                      kind="leaf", best_effort=True))
     assert any(f.kind == "best-effort-without-reason" for f in unjustified)
+    # ticket 22: a NON-default policy must carry its REQUIRED reason
+    no_reason = _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",),
+                                   kind="leaf", verification_policy="test"))
+    assert any(f.kind == "verification-reason-missing" for f in no_reason)
 
 
 def test_covenant_valid_leaf_declaration_has_no_findings():
     assert _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",), kind="leaf",
-                              verification_required="test",
+                              verification_policy="test",
+                              verification_reason="a unit test pins the result directly",
                               review_angles=("ac-correctness", "contract-compat"),
                               best_effort=True,
                               best_effort_reason="the timing is only injected in prod")) == []
 
 
 def test_plan_node_carries_the_verification_covenant():
-    """Item 4: the fused plan envelope carries the per-node covenant and it survives the
-    translation into a :class:`Decomposition` (both the node and its children)."""
-    base = plan_env([{**child("one", ["pkg/a.py"]),
-                      "verification_required": "test",
+    """Item 4: the fused plan envelope carries the per-node policy + REQUIRED reason and
+    they survive the translation into a :class:`Decomposition` (node and children)."""
+    base = plan_env([{**child("one", ["pkg/a.py"], policy="test",
+                              reason="a unit test pins the result directly"),
                       "review_angles": ["ac-correctness"], "best_effort": True,
                       "best_effort_reason": "the value is only injected in prod"}],
                     files=("pkg/a.py",))
     payload = {"status": "ok", "comment": "c", **base,
-               "verification_required": "review",
+               "verification_policy": "review",
+               "verification_reason": "the behaviour is timing-dependent and hard to pin",
                "review_angles": ["ac-correctness", "contract-compat"],
                "best_effort": True,
                "best_effort_reason": "the value is only injected in prod"}
     decomp = decomposition_from_envelope(PlanNode.model_validate(payload))
-    assert (decomp.spec.verification_required, decomp.spec.review_angles,
-            decomp.spec.best_effort) == ("review", ("ac-correctness", "contract-compat"),
-                                         True)
-    assert (decomp.children[0].verification_required, decomp.children[0].review_angles,
-            decomp.children[0].best_effort) == ("test", ("ac-correctness",), True)
+    assert (decomp.spec.verification_policy, decomp.spec.verification_reason,
+            decomp.spec.review_angles, decomp.spec.best_effort) == (
+        "review", "the behaviour is timing-dependent and hard to pin",
+        ("ac-correctness", "contract-compat"), True)
+    assert (decomp.children[0].verification_policy,
+            decomp.children[0].verification_reason,
+            decomp.children[0].review_angles,
+            decomp.children[0].best_effort) == (
+        "test", "a unit test pins the result directly", ("ac-correctness",), True)
 
 
 def test_plan_node_envelope_enforces_the_covenant_domain():
     base = plan_env([child("one", ["pkg/a.py"])], files=("pkg/a.py",))
     with pytest.raises(ValidationError):
         PlanNode.model_validate({"status": "ok", "comment": "c", **base,
-                                 "verification_required": "maybe"})
+                                 "verification_policy": "maybe"})
+    # Ticket 22: the legacy ``any`` value is GONE; the three policy values are the domain
+    # and the default is ``either``.
+    with pytest.raises(ValidationError):
+        PlanNode.model_validate({"status": "ok", "comment": "c", **base,
+                                 "verification_policy": "any"})
+    for policy in ("test", "review", "either"):
+        env = PlanNode.model_validate({"status": "ok", "comment": "c", **base,
+                                       "verification_policy": policy})
+        assert env.verification_policy == policy
     # Ticket 20: a non-list/unknown-shape review_angles field is rejected by the schema,
     # and an out-of-domain angle is rejected by validate_decomposition (tested above).
     with pytest.raises(ValidationError):
         PlanNode.model_validate({"status": "ok", "comment": "c", **base,
                                  "review_angles": "ac-correctness"})
+    # Ticket 22: the policy's REQUIRED reason cannot be omitted.
+    with pytest.raises(ValidationError):
+        PlanNode.model_validate({k: v for k, v in
+                                 {"status": "ok", "comment": "c", **base}.items()
+                                 if k != "verification_reason"})
+    # ... and an EMPTY reason is not a reason.
+    with pytest.raises(ValidationError):
+        PlanNode.model_validate({"status": "ok", "comment": "c", **base,
+                                 "verification_reason": ""})
 
 
 def test_leaf_spec_from_carries_the_verification_covenant(tmp_path):
-    """Item 4 wiring: the node's declaration reaches the leaf's ``LeafSpec``."""
+    """Item 4/22 wiring: the node's policy + reason reach the leaf's ``LeafSpec``."""
     from harness.tree_run import leaf_spec_from
 
     spec = NodeSpec(goal="g", files=("pkg/a.py",), acs=("c",), kind="leaf",
-                    verification_required="test",
+                    verification_policy="test",
+                    verification_reason="a unit test pins the result directly",
                     review_angles=("ac-correctness", "contract-compat"),
                     best_effort=True,
                     best_effort_reason="the value is only injected in prod")
     leaf_spec = leaf_spec_from(spec, tmp_path, root_grader_paths=(_GRADER,))
-    assert leaf_spec.verification_required == "test"
+    assert leaf_spec.verification_policy == "test"
+    assert leaf_spec.verification_reason == "a unit test pins the result directly"
     assert leaf_spec.review_angles == ("ac-correctness", "contract-compat")
     assert leaf_spec.best_effort is True
     assert leaf_spec.best_effort_reason == "the value is only injected in prod"
 
 
 def test_planner_guidance_declares_the_verification_covenant():
-    """Item 4: the PlanNode prompt asks the planner for the per-node verification tier,
-    the review rounds, and the best-effort opt-in."""
+    """Item 4/22: the PlanNode prompt asks the planner for the per-node verification
+    POLICY, its REQUIRED reason (the difficulty of writing a test), the review angles, and
+    the best-effort opt-in."""
     from harness.node import _plan_node_question
 
     question = _plan_node_question("", 0)
-    assert "verification_required" in question
+    assert "verification_policy" in question
+    assert "verification_reason" in question
     assert "review_angles" in question and "ac-correctness" in question
     assert "best_effort" in question and "best_effort_reason" in question
 
@@ -1878,7 +1917,7 @@ def test_tree_run_record_counts_best_effort_declarations_and_downgrades():
     from harness.leaf import VerificationRecord
     from harness.tree_run import NodeOutcome, TreeOutcome
 
-    record = VerificationRecord(wrote_code=True, tier="review", required="test",
+    record = VerificationRecord(wrote_code=True, tier="review", policy="test",
                                 best_effort=True, downgraded=True,
                                 downgrade_reason="best_effort: met 'review', required 'test'")
     leaf = leaf_outcome(verification=record, verified=True,

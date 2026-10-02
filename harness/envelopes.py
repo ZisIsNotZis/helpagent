@@ -772,12 +772,16 @@ class ChildPlan(NestedModel):
     #: Ticket 19 D: per-criterion expected test cases (file + function names).
     test_cases: list[DeclaredTest] = Field(default_factory=list)
     est_calls: int = Field(ge=1, le=8)            # budget-allocation weight
-    # Ticket 20 planning-time covenant: the verification this child's leaf must carry
-    # (``test`` > ``review`` > ``any``), the REVIEW ANGLES the review tier runs (a closed
-    # per-level set; empty = the level's critical angles), and whether a weaker tier is an
-    # accepted best-effort fallback with a PLAN-LEVEL reason. The reason is mandatory when
-    # best_effort is set (validated by :func:`harness.node.validate_decomposition`).
-    verification_required: Literal["test", "review", "any"] = "any"
+    # Ticket 22 PLAN-TIME POLICY: how this child's leaf will be verified — ``test`` (a
+    # discriminating test is required), ``review`` (a graded review is the required
+    # evidence; no test is required), or ``either`` (prefer a test, fall back to review).
+    # ``verification_reason`` is REQUIRED: the planner must judge how hard a test is to
+    # write for the requirement and say why it chose the policy. ``review_angles`` lists
+    # the review ANGLES the review tier runs (a closed per-level set; empty = the level's
+    # critical angles). ``best_effort`` is an optional PLAN-LEVEL fallback with its own
+    # plan-level reason.
+    verification_policy: Literal["test", "review", "either"] = "either"
+    verification_reason: str = req(min_length=1)
     review_angles: list[str] = Field(default_factory=list)
     best_effort: bool = False
     best_effort_reason: str = ""
@@ -803,8 +807,11 @@ class PlanNode(Envelope):
     acs: list[DraftAC] = req(max_length=10)       # THIS node's AC map (leaf mandatory)
     interfaces: list[Interface] = req(max_length=8)
     test_cases: list[DeclaredTest] = Field(default_factory=list, max_length=10)  # 19 D
-    # Ticket 20 planning-time covenant for THIS node (when it runs as a leaf).
-    verification_required: Literal["test", "review", "any"] = "any"
+    # Ticket 22 PLAN-TIME POLICY for THIS node (when it runs as a leaf): ``test`` /
+    # ``review`` / ``either`` plus the REQUIRED reason the planner judged a test hard or
+    # easy to write for this requirement.
+    verification_policy: Literal["test", "review", "either"] = "either"
+    verification_reason: str = req(min_length=1)
     review_angles: list[str] = Field(default_factory=list)   # closed per-level set
     best_effort: bool = False
     best_effort_reason: str = ""

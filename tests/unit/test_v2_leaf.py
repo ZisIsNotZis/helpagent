@@ -50,6 +50,7 @@ from harness.leaf import (
     VerificationRecord,
     _criterion_unresolved,
     _declared_test_case_problems,
+    _evidence_is_grant_calibre,
     _requirement_coverage,
     apply_judge_filter,
     apply_review_filter,
@@ -263,6 +264,10 @@ def make_spec(files=None, grader=(), goal="make result() return 42") -> LeafSpec
         acs=["result() returns 42"],
         interfaces=["result() -> int"],
         grader_paths=tuple(grader),
+        # Ticket 22: every node declares a policy + REQUIRED reason; the unit fixtures
+        # default to the legacy ``either`` policy with a concrete reason.
+        verification_policy="either",
+        verification_reason="prefer a discriminating own test for the returned value",
     )
 
 
@@ -2906,8 +2911,11 @@ def test_environment_broken_parks_needs_user_without_burning_budget(tmp_path):
 
 
 def _approving_review(request: ReviewRequest) -> ReviewVerdict:
+    # Ticket 22 round 2 grant-calibre evidence: the changed artifact AND the acceptance
+    # criterion it serves AND the observed behaviour/value (a path alone cannot grant).
     changed = next(iter(request.final), "pkg/calc.py")
-    return ReviewVerdict(grade="definitely-ok", evidence=f"{changed}:1 implements the goal",
+    return ReviewVerdict(grade="definitely-ok",
+                         evidence=f"{changed}: `result()` now returns 42, satisfying AC-1",
                          detail="ok")
 
 
@@ -2955,6 +2963,70 @@ def test_apply_review_filter_requires_a_changed_artifact_not_a_bare_line():
         no_op).approved is False
     assert apply_review_filter(
         ReviewVerdict(grade="definitely-ok", evidence="line 1 is fine"), no_op).approved is False
+
+
+def test_grant_calibre_review_evidence_rule():
+    """Ticket 22 round 2 fix 1: a review that is about to GRANT must name the acceptance
+    criterion it serves AND the specific behaviour/observable/value it verified. Naming a
+    changed path (or a bare line reference) is grounding, not substance, and a generic
+    endorsement is not evidence."""
+    request = ReviewRequest(
+        goal="make result() return 42",
+        acs=["result() returns 42"],
+        original={"pkg/calc.py": "def result():\n    return 0\n"},
+        final={"pkg/calc.py": "def result():\n    return 42\n"})
+    # the demonstrated attack: a changed path alone is grounding, not substance
+    assert _evidence_is_grant_calibre("pkg/calc.py", request) is False
+    assert _evidence_is_grant_calibre("pkg/calc.py:1", request) is False
+    assert _evidence_is_grant_calibre("looks correct", request) is False
+    assert _evidence_is_grant_calibre("implements the goal", request) is False
+    # a criterion named with no observation, or a path+line+AC+generic word, still fails
+    assert _evidence_is_grant_calibre("AC-1 is satisfied", request) is False
+    assert _evidence_is_grant_calibre("pkg/calc.py:1 AC-1 looks correct", request) is False
+    # naming the criterion AND the observed behaviour/value grants
+    assert _evidence_is_grant_calibre("AC-1: result() now returns 42", request) is True
+    assert _evidence_is_grant_calibre(
+        "pkg/calc.py returns 42, satisfying AC-1", request) is True
+    # an out-of-range criterion id alone is not a reference to the criteria the review saw
+    assert _evidence_is_grant_calibre("AC-9: the change is in place", request) is False
+
+
+def test_grant_calibre_evidence_is_required_for_a_review_backed_claim(tmp_path):
+    """Ticket 22 round 2 fix 1, the demonstrated attack as a regression: with the run
+    forced to review, a WRONG fix (``return 7`` against a goal of 42), a RED own test, and
+    a ``definitely-ok`` review whose evidence names ONLY the changed path, the run must NOT
+    claim. The SAME run with grant-calibre evidence (criterion + observed behaviour) DOES
+    claim, so the rule blocks thin evidence without blocking a substantive review."""
+    def run(tmp_root, verdict: ReviewVerdict):
+        spec = dataclasses.replace(
+            make_spec(), acs=["thread the timeout through the result and helper call sites"])
+        stage(tmp_root, spec.files)
+        model = FakeModelRunner({"write_test": [
+            SELF_TEST,                                    # own test RED on arrival
+            impl("def result():\n    return 1\n"),        # attempt 1: own test green, review rejects
+            impl("def result():\n    return 7\n"),        # attempt 2: wrong fix, own test RED
+        ]})
+        rejecting = ReviewVerdict(grade="probably-problematic",
+                                  evidence="pkg/calc.py:1 does not thread the timeout")
+        reviews = ScriptedReview([rejecting, rejecting, verdict])
+        return run_leaf_sync(
+            model, spec, tmp_root, Budget(calls=12, deadline_ts=_FAR_FUTURE),
+            review=reviews, run_tests=ScriptedTests([1, 0, 1, 1]))
+
+    # the attack: path-only evidence names no criterion and no observed behaviour
+    attacked = run(tmp_path / "thin", ReviewVerdict(grade="definitely-ok",
+                                                    evidence="pkg/calc.py"))
+    assert attacked.claimed is False
+    assert attacked.verification_basis == "review"      # review ran, it just did not grant
+    assert attacked.review_verdict is not None and attacked.review_verdict.approved
+    assert "review_not_grant_calibre" in ledger_kinds()
+
+    # the positive control: criterion + observed behaviour/value grants
+    granted = run(tmp_path / "calibre",
+                  ReviewVerdict(grade="definitely-ok",
+                                evidence="AC-1: result() now returns 42"))
+    assert granted.claimed is True and granted.claimed_basis == "review"
+    assert granted.verification_basis == "review"
 
 
 def test_review_without_evidence_cannot_claim(tmp_path):
@@ -3634,8 +3706,11 @@ class ScriptedReview:
 
 
 def _passing_review(request: ReviewRequest) -> ReviewVerdict:
+    # Ticket 22 round 2 grant-calibre evidence (see ``_approving_review``).
     changed = next(iter(request.final), "pkg/calc.py")
-    return ReviewVerdict(grade="definitely-ok", evidence=f"{changed}:1 implements the goal")
+    return ReviewVerdict(
+        grade="definitely-ok",
+        evidence=f"{changed}: `result()` now returns 42, satisfying AC-1")
 
 
 def _rejecting_review(request: ReviewRequest) -> ReviewVerdict:
@@ -3920,7 +3995,8 @@ def test_best_effort_cannot_lower_the_floor_more_than_one_tier(tmp_path):
     """Ticket 20 item 5: best_effort may lower the floor at most one tier, so a ``test``
     requirement can never be satisfied by a ``none+reason`` claim."""
     spec = dataclasses.replace(
-        make_spec(), verification_required="test", best_effort=True,
+        make_spec(), verification_policy="test",
+        verification_reason="an exact-value unit test pins the result", best_effort=True,
         best_effort_reason="the timing is only injected in production")
     stage(tmp_path, spec.files)
     model = FakeModelRunner({
@@ -3936,7 +4012,8 @@ def test_best_effort_cannot_lower_the_floor_more_than_one_tier(tmp_path):
 def test_best_effort_without_a_plan_level_reason_cannot_downgrade(tmp_path):
     """Ticket 20 item 5: best_effort is a PLAN-TIME opt-in that must carry a plan-level
     reason; without one it is not a valid downgrade."""
-    spec = dataclasses.replace(make_spec(), verification_required="test",
+    spec = dataclasses.replace(make_spec(), verification_policy="test",
+                               verification_reason="an exact-value unit test pins the result",
                                best_effort=True)   # no best_effort_reason
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT, impl()]})
@@ -3964,7 +4041,9 @@ def test_no_reviewer_without_best_effort_keeps_the_conservative_stop(tmp_path):
 def test_required_test_met_only_by_review_without_best_effort_blocks(tmp_path):
     """Item 4: the declared tier is ENFORCED — a review-tier claim cannot satisfy a
     ``test`` requirement without the recorded best-effort downgrade."""
-    spec = dataclasses.replace(make_spec(), verification_required="test")
+    spec = dataclasses.replace(
+        make_spec(), verification_policy="test",
+        verification_reason="an exact-value unit test pins the result")
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT, impl()]})
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
@@ -3974,13 +4053,18 @@ def test_required_test_met_only_by_review_without_best_effort_blocks(tmp_path):
     assert out.verification.tier == "review"
     assert out.verified is True and out.claim_status == "verified-failure"
     assert out.verification.downgraded is False
+    # Ticket 22 item 2: no JUDGE-confirmed ``test_wrong`` with a repairable test means no
+    # PLAN UPDATE — the ``test`` policy stands and nothing claims on the review alone.
+    assert out.plan_updates == []
+    assert out.verification.effective_policy == "test"
 
 
 def test_required_test_with_best_effort_records_the_downgrade(tmp_path):
     """Item 4: with ``best_effort`` the weaker VERIFIED (review) tier is allowed, and the
     downgrade declaration + reason are recorded."""
     spec = dataclasses.replace(
-        make_spec(), verification_required="test", best_effort=True,
+        make_spec(), verification_policy="test",
+        verification_reason="an exact-value unit test pins the result", best_effort=True,
         best_effort_reason="the timing is only injected in production")
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT, impl()]})
@@ -3988,7 +4072,7 @@ def test_required_test_with_best_effort_records_the_downgrade(tmp_path):
                         review=_passing_review, run_tests=ScriptedTests([0, 0, 0]))
 
     assert out.claimed is True and out.verification_basis == "review"
-    assert out.verification.required == "test" and out.verification.tier == "review"
+    assert out.verification.policy == "test" and out.verification.tier == "review"
     assert out.verified is True and out.claim_status == "verified-success"
     assert out.verification.downgraded is True
     assert "test" in out.verification.downgrade_reason
@@ -4009,7 +4093,8 @@ def test_run_record_carries_the_verification_record_and_status():
         verification=VerificationRecord(
             wrote_code=True, tier="none", reason=GOOD_REASON,
             review_angles=("ac-correctness", "contract-compat"), review_score=0,
-            required="test", best_effort=True, downgraded=True,
+            policy="test", policy_reason="an exact-value unit test pins the result",
+            best_effort=True, downgraded=True,
             downgrade_reason="best_effort: the required tier 'test' could not be met"))
     score = ExternalScore(passed=True, exit=0, notes=[], work_root="", applied=[], skipped=[])
 
@@ -4020,7 +4105,7 @@ def test_run_record_carries_the_verification_record_and_status():
     assert record["claim_status"] == "unverified-success"
     assert record["verification"]["tier"] == "none"
     assert record["verification"]["reason"] == GOOD_REASON
-    assert record["verification"]["required"] == "test"
+    assert record["verification"]["policy"] == "test"
     assert record["verified_quadrant"] == "unverified-success"
     assert record["best_effort_declared"] is True
     assert record["verification_downgrades"] == 1
@@ -4029,6 +4114,12 @@ def test_run_record_carries_the_verification_record_and_status():
     assert record["covenant_weakened"] is True and record["covenant_diluted"] is True
     assert record["verification"]["review_angles"] == ("ac-correctness", "contract-compat")
     assert record["review_score"] == 0
+    # Ticket 22: the declared policy, its REQUIRED reason, and any plan updates are on the
+    # run record too, so the policy is never implicit.
+    assert record["verification_policy"] == "either"
+    assert record["verification_policy_reason"] == ""
+    assert record["plan_updates"] == []
+    assert record["verification_disagreement"] == ""
     json.dumps(record)
 
 
@@ -4374,13 +4465,13 @@ def test_conflict_text_says_cannot_characterise_when_the_assertions_are_identica
     assert "cannot characterise the difference" in out.own_test_conflict_reason
 
 
-def test_exhaustion_review_without_a_green_own_test_cannot_claim(tmp_path):
-    """Ticket 21 round 5 (fix 1), the ``--no-iv`` route: at exhaustion the REVIEW branch
-    used to claim with NO own-test check. With the run's own test genuinely RED on the
-    final (wrong) source and NO independent test, an approving review must NOT carry a
-    claim — the two weak verifiers disagree, so the node records the conflict (own
-    failing assertion vs the APPROVING review, same revision) and stops unclaimed with an
-    honest ledger row."""
+def test_exhaustion_review_outranks_a_red_own_test_and_claims(tmp_path):
+    """Ticket 22 item 3 (supersedes the round-5 blocking conflict): THE GRADED REVIEW
+    DECIDES. At exhaustion an approving review carries the claim even though the run's
+    own test is RED on the SAME final revision; the disagreement is recorded, never
+    hidden, and the basis stays ``review`` so a consumer can filter to test-backed claims.
+
+    ``--no-iv`` route: no independent producer."""
     files = {"pkg/calc.py": "def result():\n    return 0\n"}
     spec = LeafSpec(goal="make result() return 42", files=files,
                     acs=["result() returns 42"], interfaces=["result() -> int"])
@@ -4391,22 +4482,23 @@ def test_exhaustion_review_without_a_green_own_test_cannot_claim(tmp_path):
                         review=_passing_review,
                         run_tests=ScriptedTests([1, 1, 1, 1, 1, 0]))
 
-    assert out.claimed is False and out.stop_reason == "verifier-conflict"
-    assert out.own_test_conflict is True
-    assert "assert result() == 3" in out.own_test_conflict_reason
-    assert "review APPROVED" in out.own_test_conflict_reason
-    assert "same revision" in out.own_test_conflict_reason
-    assert "verifier_conflict" in ledger_kinds()
-    assert out.ledger[0].state == "violated"
-    assert out.ledger[0].check == "verifier-conflict"
-    assert out.failure_report is not None and out.failure_report.violated
+    assert out.claimed is True and out.stop_reason == "green"
+    assert out.claimed_basis == "review"
+    assert out.own_test_conflict is False
+    assert "assert result() == 3" in out.verification_disagreement
+    assert "RED on the final source" in out.verification_disagreement
+    assert "APPROVED the same revision" in out.verification_disagreement
+    assert "verification_disagreement" in ledger_kinds()
+    assert out.ledger[0].state == "satisfied"
+    assert out.ledger[0].check == "review:ac-correctness"
+    assert out.verified is True and out.claim_status == "verified-success"
 
 
-def test_exhaustion_review_with_a_vacuous_independent_test_cannot_claim(tmp_path):
-    """Ticket 21 round 5 (fix 1), the vacuous/uncollected route: an independent test that
-    is NOT red on the pristine source (``independent-test-not-red`` after its one repair)
-    leaves the review path, but the run's own test is still RED on the wrong fix, so the
-    APPROVING review must not claim either."""
+def test_exhaustion_review_outranks_a_vacuous_independent_test_and_claims(tmp_path):
+    """Ticket 22 item 3, the vacuous/uncollected route: an independent test that is NOT
+    red on the pristine source (``independent-test-not-red`` after its one repair) leaves
+    the review path, and the APPROVING review now DECIDES even while the run's own test is
+    RED on the wrong fix — the disagreement is recorded and the claim rests on review."""
     files = {"pkg/calc.py": "def result():\n    return 0\n"}
     spec = LeafSpec(goal="make result() return 42", files=files,
                     acs=["result() returns 42"], interfaces=["result() -> int"])
@@ -4419,11 +4511,13 @@ def test_exhaustion_review_with_a_vacuous_independent_test_cannot_claim(tmp_path
                         review=_passing_review, iv=lambda request: vacuous,
                         run_tests=ScriptedTests([1, 1, 1, 1, 0, 0]))
 
-    assert out.claimed is False and out.stop_reason == "verifier-conflict"
-    assert out.own_test_conflict is True
+    assert out.claimed is True and out.stop_reason == "green"
+    assert out.claimed_basis == "review"
+    assert out.own_test_conflict is False
     assert out.iv_verdicts[-1].approved is False
-    assert "review APPROVED" in out.own_test_conflict_reason
-    assert out.ledger[0].check == "verifier-conflict"
+    assert "RED on the final source" in out.verification_disagreement
+    assert "APPROVED the same revision" in out.verification_disagreement
+    assert out.ledger[0].check == "review:ac-correctness"
 
 
 def test_exhaustion_review_with_no_own_test_still_claims(tmp_path):
@@ -4587,17 +4681,15 @@ def test_coverage_miss_blocks_an_ok_review_verdict(tmp_path):
 # (the last: the MAIN-PATH review route claimed while the run's own test was RED).
 # ===========================================================================
 
-def test_main_path_review_with_a_red_own_test_cannot_claim(tmp_path):
-    """THE round-6 blocker repro: the MAIN-PATH review route (``review_blocker`` ->
-    ``enter_review``) used to claim while the run's own test was RED on the SAME final
-    revision, because the round-5 agreement rule had only been added to the EXHAUSTION
-    branch. With the ONE gate, the second attempt's approving review cannot carry the
-    claim: the run records the verifier CONFLICT and stops unclaimed.
+def test_main_path_review_with_a_red_own_test_claims_on_review(tmp_path):
+    """Ticket 22 item 3 supersedes the round-6 blocker: when the MAIN-PATH review route's
+    graded review APPROVES a revision the run's own test rejects, the REVIEW DECIDES and
+    the run claims with ``claimed_basis=review``; the disagreement is recorded, and the
+    basis label lets a consumer filter to test-backed claims only.
 
     Sequence: attempt 1 makes the own test green but a criterion resolves to no artifact,
     so review is forced and REJECTS; the loop keeps the RED own test as the target.
-    Attempt 2 writes a wrong fix (own test RED) that the reviewer approves — the exact
-    wrong-green shape — and the gate refuses it."""
+    Attempt 2 writes a wrong fix (own test RED) that the reviewer approves."""
     spec = dataclasses.replace(
         make_spec(), acs=["thread the timeout through the result and helper call sites"])
     stage(tmp_path, spec.files)
@@ -4615,15 +4707,88 @@ def test_main_path_review_with_a_red_own_test_cannot_claim(tmp_path):
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
                         review=reviews, run_tests=ScriptedTests([1, 0, 1, 1]))
 
-    assert out.claimed is False
-    assert out.stop_reason == "verifier-conflict"
+    assert out.claimed is True
+    assert out.stop_reason == "green"
+    assert out.claimed_basis == "review"
     assert out.verification_basis == "review"
-    assert out.own_test_conflict is True
-    assert "RED on the final source" in out.own_test_conflict_reason
-    assert "APPROVED the same revision" in out.own_test_conflict_reason
-    assert "verifier_conflict" in ledger_kinds()
-    assert out.ledger[0].state == "violated"
-    assert out.ledger[0].check == "verifier-conflict"
+    assert out.own_test_conflict is False
+    assert "RED on the final source" in out.verification_disagreement
+    assert "APPROVED the same revision" in out.verification_disagreement
+    assert "verification_disagreement" in ledger_kinds()
+    assert out.ledger[0].state == "satisfied"
+    assert out.ledger[0].check == "review:ac-correctness"
+
+
+def test_test_policy_plan_update_switches_to_review_and_claims(tmp_path):
+    """Ticket 22 item 2: with policy ``test``, when the judge confirms ``test_wrong``
+    (named defect) and the bounded repair cannot discriminate, the node UPDATES ITS PLAN
+    in place to review-based verification, records the update (old/new policy, reason, the
+    judge's defect, attempt/repair counts), and the review then carries the claim."""
+    spec = dataclasses.replace(
+        make_spec(), verification_policy="test",
+        verification_reason="an exact-value unit test pins the result")
+    stage(tmp_path, spec.files)
+    vacuous = write_env("tests/test_leaf_self.py", "def test_goal():\n    assert True\n")
+    model = FakeModelRunner({"write_test": [SELF_TEST, blocked(), vacuous, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=14, deadline_ts=_FAR_FUTURE),
+                        judge=judge_blames_test, review=_passing_review,
+                        run_tests=ScriptedTests([1, 0, 0, 0]))
+
+    assert out.claimed is True and out.stop_reason == "green"
+    assert out.claimed_basis == "review"
+    assert out.test_rewrites == 1
+    assert len(out.plan_updates) == 1
+    update = out.plan_updates[0]
+    assert update.old_policy == "test" and update.new_policy == "review"
+    assert update.test_rewrites == 1
+    assert "test_goal asserts result() == 42" in update.judge_reason
+    assert "plan_update" in ledger_kinds()
+    assert out.verification.policy == "test"
+    assert out.verification.effective_policy == "review"
+    assert out.verification_policy == "test"
+    assert len(out.verification.plan_updates) == 1
+
+
+def test_plan_update_is_recorded_only_for_a_test_policy(tmp_path):
+    """Ticket 22 item 2: giving up on verification is a PLAN decision recorded only when
+    the declared policy was ``test``; under ``either`` the switch to review is the normal
+    fallback and no plan update is recorded."""
+    spec = dataclasses.replace(make_spec(), verification_policy="either",
+                               verification_reason="prefer a test, fall back to review")
+    stage(tmp_path, spec.files)
+    vacuous = write_env("tests/test_leaf_self.py", "def test_goal():\n    assert True\n")
+    model = FakeModelRunner({"write_test": [SELF_TEST, blocked(), vacuous, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=14, deadline_ts=_FAR_FUTURE),
+                        judge=judge_blames_test, review=_passing_review,
+                        run_tests=ScriptedTests([1, 0, 0, 0]))
+
+    assert out.verification_basis == "review"
+    assert out.plan_updates == []
+    assert out.verification.effective_policy == "either"
+
+
+def test_plan_update_never_refires(tmp_path):
+    """Ticket 22 item 2: the PLAN UPDATE is recorded AT MOST ONCE per node, even when the
+    judge confirms ``test_wrong`` again after the switch (the effective policy is no
+    longer ``test``, so a second update is refused)."""
+    spec = dataclasses.replace(
+        make_spec(), verification_policy="test",
+        verification_reason="an exact-value unit test pins the result")
+    stage(tmp_path, spec.files)
+    vacuous = write_env("tests/test_leaf_self.py", "def test_goal():\n    assert True\n")
+    # attempt 1 repairs the test (vacuous, greens on arrival -> update #1); attempt 2 is a
+    # ``blocked`` envelope (another judge-confirmed test_wrong, but no test to repair);
+    # attempt 3 lands the fix and the review carries the claim.
+    model = FakeModelRunner({"write_test": [SELF_TEST, blocked(), vacuous, blocked(),
+                                             impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=18, deadline_ts=_FAR_FUTURE),
+                        judge=judge_blames_test, review=_passing_review,
+                        run_tests=ScriptedTests([1, 0, 0, 0, 0]))
+
+    assert len(out.plan_updates) == 1
+    assert out.plan_updates[0].old_policy == "test"
+    assert out.plan_updates[0].new_policy == "review"
+    assert sum(1 for kind in ledger_kinds() if kind == "plan_update") == 1
 
 
 def _gate_ledger() -> list[CriterionLedgerEntry]:
@@ -4635,6 +4800,23 @@ def _gate_ledger() -> list[CriterionLedgerEntry]:
 def _grounded_review() -> ReviewVerdict:
     return ReviewVerdict(angle="ac-correctness", grade="definitely-ok",
                          evidence="pkg/calc.py:1 returns 42 for AC-1")
+
+
+def test_claim_gate_plan_update_lets_the_review_carry_a_rewritten_test():
+    """Ticket 22 item 2: a recorded PLAN UPDATE (test -> review) means the rewritten test
+    was GIVEN UP, so the review may carry the claim without the independent verification
+    agreeing. Without the recorded update the rewrite still needs that agreement."""
+    base = {
+        "route": "review", "criteria_count": 1, "ledger": _gate_ledger(),
+        "own_test": None, "own_test_green": False, "test_rewrites": 1,
+        "iv_approved": False, "review_approved": True,
+        "review_verdicts": (_grounded_review(),), "verification_basis": "review",
+        "tier_allowed": True,
+    }
+    without = claim_decision(**base)
+    assert without.claimed is False and without.blocker == "green-after-test-rewrite"
+    updated = claim_decision(**base, plan_updated=True)
+    assert updated.claimed is True and updated.basis == "review"
 
 
 def test_claim_gate_enforces_every_rule_directly():
@@ -4659,17 +4841,36 @@ def test_claim_gate_enforces_every_rule_directly():
     granted = claim_decision(route="own-test", **base)
     assert isinstance(granted, ClaimDecision)
     assert granted.claimed is True and granted.basis == "own-test"
-    # rule 4: a RED own test on the FINAL revision can NEVER claim
+    # rule 4: a RED own test on the FINAL revision can NEVER claim on the own-test route
     assert claim_decision(route="own-test",
                           **{**base, "own_test_green": False}).claimed is False
-    # ... and when an external verifier PASSED it, the disagreement is a CONFLICT record
+    # ... and when a TEST passed it with NO review to outrank it, that is a CONFLICT
     conflict = claim_decision(
+        route="independent-test",
+        **{**base, "own_test_green": False, "iv_approved": True,
+           "conflict_detail": "own red vs iv green", "verification_basis": "reason"})
+    assert conflict.claimed is False and conflict.conflict is True
+    assert conflict.blocker == "verifier-conflict"
+    assert conflict.detail == "own red vs iv green"
+    # rule 4 (ticket 22 item 3): on the REVIEW route the review DECIDES — an approving
+    # review carries the claim even with a red own test, and records the disagreement
+    # while keeping the ``review`` basis label.
+    review_decides = claim_decision(
         route="review",
         **{**base, "own_test_green": False, "review_approved": True,
            "review_verdicts": (_grounded_review(),), "conflict_detail": "own red vs review",
            "verification_basis": "review"})
-    assert conflict.claimed is False and conflict.conflict is True
-    assert conflict.blocker == "verifier-conflict" and conflict.detail == "own red vs review"
+    assert review_decides.claimed is True and review_decides.basis == "review"
+    assert review_decides.disagreement == "own red vs review"
+    # ... and a rejecting review blocks even a GREEN own test (review outranks in both
+    # directions), recording the disagreement.
+    review_rejects = claim_decision(
+        route="review",
+        **{**base, "own_test_green": True, "review_approved": False,
+           "verification_basis": "review"})
+    assert review_rejects.claimed is False
+    assert review_rejects.blocker == "review-not-approved"
+    assert "GREEN" in review_rejects.disagreement
     # rule 5: a review carries a claim ONLY when the own test is ABSENT (never written)...
     absent = claim_decision(
         route="review",
@@ -4692,12 +4893,20 @@ def test_claim_gate_enforces_every_rule_directly():
         **{**base, "test_rewrites": 1, "iv_approved": True, "review_approved": True,
            "review_verdicts": (_grounded_review(),), "verification_basis": "review"})
     assert agreed.claimed is True and agreed.basis == "review+independent-test"
-    # rule 7: a red-on-final independent verdict never carries a claim
+    # rule 8: a red-on-final independent verdict never carries a NON-review claim
     red = claim_decision(
         route="independent-test",
         **{**base, "iv_approved": False, "iv_red_on_final": True,
            "verification_basis": "reason"})
     assert red.claimed is False and red.blocker == "independent-test-red-on-final"
+    # ... but the REVIEW route decides over the red independent test too
+    review_over_red_iv = claim_decision(
+        route="review",
+        **{**base, "own_test": None, "own_test_green": False, "iv_red_on_final": True,
+           "review_approved": True, "review_verdicts": (_grounded_review(),),
+           "verification_basis": "review"})
+    assert review_over_red_iv.claimed is True and review_over_red_iv.basis == "review"
+    assert "independent test" in review_over_red_iv.disagreement
     # ... but a green, unrewritten own test can still carry one (the IV red is a label)
     own_carries = claim_decision(route="own-test",
                                  **{**base, "iv_red_on_final": True})
@@ -4717,41 +4926,42 @@ def test_claim_gate_enforces_every_rule_directly():
                           integration_passed=False, all_children_closed=True).claimed is False
 
 
-def test_only_the_single_gate_can_produce_a_claimed_outcome():
-    """STRUCTURAL enforcement of the ONE gate (ticket 21 round 6).
+#: The EXACT `claim_decision(...)` call sites the package is allowed to have (ticket 22
+#: round 2). A new claim site must consciously update this whitelist, so the ONE-gate
+#: invariant cannot be widened by accident.
+CLAIM_SITE_WHITELIST = {"leaf.py": 3, "tree_run.py": 1}
 
-    Rounds 2-5 each fixed a single branch and the next verifier found the same wrong
-    green in a sibling branch, because a branch could simply SET a claim itself. This AST
-    check over the whole ``harness/`` package fails if ANY path other than the gate can
-    produce a claimed outcome:
 
-    * every ``claimed = <value>`` assignment must be ``False`` or read from a
-      ``ClaimDecision`` (an attribute ``.claimed``) — never a literal ``True``;
-    * every ``claimed=True`` keyword (a ``LeafOutcome``/``NodeOutcome``/``ClaimDecision``
-      construction) may appear only inside the gate's single grant constructor.
+def _scan_claim_gate(harness_dir: Path) -> dict:
+    """The AST scan behind :func:`test_only_the_single_gate_can_produce_a_claimed_outcome`
+    (ticket 21 round 6, hardened ticket 22 round 2).
 
-    A future branch that bypasses the gate by writing ``claimed = True`` fails the suite.
+    Walks ``harness_dir`` RECURSIVELY and returns ``offenders`` (any path that could
+    produce a claimed outcome outside the gate), ``grant_functions`` (every
+    ``_granted_claim`` definition), ``literal_true`` (every literal ``claimed=True`` with
+    whether it sits inside a grant function), and ``call_sites`` (``claim_decision(...)``
+    call counts per relative file). Exposed as module level so the round-2 regression probe
+    can run it against a synthetic duplicate/extra call site under /tmp.
     """
     import ast
-    from pathlib import Path
 
-    import harness
-    import harness.leaf
-    import harness.tree_run
-
-    harness_dir = Path(harness.__file__).parent
     offenders: list[str] = []
-    call_sites = 0
+    grant_functions: list[str] = []
+    #: ``(relative path, lineno, inside_a_grant_function)`` for every literal True.
+    literal_true: list[tuple[str, int, bool]] = []
+    call_sites: dict[str, int] = {}
 
-    for path in sorted(harness_dir.glob("*.py")):
+    for path in sorted(Path(harness_dir).rglob("*.py")):    # RECURSIVE over harness/**
+        rel = str(path.relative_to(harness_dir))
         tree = ast.parse(path.read_text(), filename=str(path))
         grant_ranges: list[tuple[int, int]] = []
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef) and node.name == "_granted_claim":
+                grant_functions.append(f"{rel}:{node.lineno}")
                 grant_ranges.append((node.lineno, getattr(node, "end_lineno", node.lineno)))
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) \
                     and node.func.id == "claim_decision":
-                call_sites += 1
+                call_sites[rel] = call_sites.get(rel, 0) + 1
 
         def in_grant(lineno: int, ranges: list[tuple[int, int]] = grant_ranges) -> bool:
             return any(a <= lineno <= b for a, b in ranges)
@@ -4765,21 +4975,61 @@ def test_only_the_single_gate_can_produce_a_claimed_outcome():
                                          and value.value is False)
                         from_decision = (isinstance(value, ast.Attribute)
                                          and value.attr == "claimed")
-                        literal_true = (isinstance(value, ast.Constant)
-                                        and value.value is True and in_grant(node.lineno))
-                        if not (literal_false or from_decision or literal_true):
+                        if isinstance(value, ast.Constant) and value.value is True:
+                            literal_true.append((rel, node.lineno, in_grant(node.lineno)))
+                            if not in_grant(node.lineno):
+                                offenders.append(
+                                    f"{rel}:{node.lineno}: claimed = True outside the gate")
+                        elif not (literal_false or from_decision):
                             offenders.append(
-                                f"{path.name}:{node.lineno}: claimed = "
-                                f"{ast.unparse(value)}")
+                                f"{rel}:{node.lineno}: claimed = {ast.unparse(value)}")
             if isinstance(node, ast.keyword) and node.arg == "claimed" \
-                    and isinstance(node.value, ast.Constant) and node.value.value is True \
-                    and not in_grant(node.lineno):
-                offenders.append(f"{path.name}:{node.lineno}: claimed=True keyword")
+                    and isinstance(node.value, ast.Constant) and node.value.value is True:
+                literal_true.append((rel, node.lineno, in_grant(node.lineno)))
+                if not in_grant(node.lineno):
+                    offenders.append(f"{rel}:{node.lineno}: claimed=True keyword")
+    return {"offenders": offenders, "grant_functions": grant_functions,
+            "literal_true": literal_true, "call_sites": call_sites}
 
-    assert offenders == [], offenders
-    # the gate is the one grant point AND every claim site actually calls it:
-    # 3 leaf sites (main path, exhaustion independent-test, exhaustion review) + the tree.
-    assert call_sites >= 4, f"expected the claim sites to call the gate, saw {call_sites}"
-    # the leaf's three routes and the tree close are wired to the SAME function.
+
+def test_only_the_single_gate_can_produce_a_claimed_outcome():
+    """STRUCTURAL enforcement of the ONE gate (ticket 21 round 6, hardened ticket 22
+    round 2).
+
+    Rounds 2-5 each fixed a single branch and the next verifier found the same wrong
+    green in a sibling branch, because a branch could simply SET a claim itself. This AST
+    check over the whole ``harness/**`` package fails if ANY path other than the gate can
+    produce a claimed outcome:
+
+    * every ``claimed = <value>`` assignment must be ``False`` or read from a
+      ``ClaimDecision`` (an attribute ``.claimed``) — never a literal ``True``;
+    * there is EXACTLY ONE ``_granted_claim`` function in the package and EVERY literal
+      ``claimed=True`` (an assignment or a keyword) sits inside it — so a future duplicate
+      grant constructor cannot smuggle a bypass;
+    * the walk is RECURSIVE over ``harness/**`` (a subpackage would otherwise escape);
+    * the ``claim_decision(...)`` call sites equal an explicit whitelist, so adding a claim
+      site requires a conscious test update.
+    """
+    import harness
+    import harness.leaf
+    import harness.tree_run
+
+    findings = _scan_claim_gate(Path(harness.__file__).parent)
+    assert findings["offenders"] == [], findings["offenders"]
+    # (1) EXACTLY ONE grant constructor across the whole package, and EVERY literal
+    # ``claimed=True`` sits inside it.
+    assert len(findings["grant_functions"]) == 1, (
+        f"expected exactly one _granted_claim in harness/, saw "
+        f"{findings['grant_functions']}")
+    assert findings["literal_true"], "the single gate no longer constructs a claimed decision"
+    assert all(inside for _, _, inside in findings["literal_true"]), (
+        f"a literal claimed=True sits outside the single grant constructor: "
+        f"{findings['literal_true']}")
+    # (2) the claim sites are EXACTLY this whitelist. A new claim site (or a sibling that
+    # stops calling the gate) fails here and forces a conscious update.
+    assert findings["call_sites"] == CLAIM_SITE_WHITELIST, (
+        f"claim_decision call sites changed: {findings['call_sites']} "
+        f"!= {CLAIM_SITE_WHITELIST}")
+    # (3) the leaf's three routes and the tree close are wired to the SAME function.
     assert "claim_decision(" in Path(harness.leaf.__file__).read_text()
     assert "claim_decision(" in Path(harness.tree_run.__file__).read_text()

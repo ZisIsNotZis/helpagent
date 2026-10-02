@@ -94,11 +94,15 @@ VALID_PAYLOADS = {
                          "contract": "expires the session"}],
         "test_cases": [{"ac_id": "AC-1", "file": "tests/test_auth.py",
                          "names": ["test_ac1_expiry"]}],
+        "verification_policy": "test",
+        "verification_reason": "an expiry unit test pins the ttl arithmetic directly",
         "children": [{"what": "fix the expiry computation", "why": "it uses seconds",
                       "kind": "leaf", "files": ["middleware/auth.py"],
                       "acs": [{"ac_id": "AC-1", "statement": "sessions expire per ttl",
                                "check_kind": "test", "check_hint": "tests/test_auth.py::test_expiry"}],
-                      "interfaces": [], "est_calls": 3}],
+                      "interfaces": [], "est_calls": 3,
+                      "verification_policy": "test",
+                      "verification_reason": "a unit test pins the ttl arithmetic directly"}],
     },
     "leaf_review": {"grade": "definitely-ok",
                     "evidence": "middleware/auth.py:42 implements AC-1"},
@@ -455,7 +459,8 @@ NESTED_VALID_PAYLOADS: dict[str, dict] = {
     "ProposedNode": {"kind": "ticket", "what": "w", "why": "y"},
     "DeclaredTest": {"ac_id": "AC-1", "file": "tests/test_auth.py",
                      "names": ["test_ac1_expiry"]},
-    "ChildPlan": {"what": "w", "why": "y", "kind": "leaf", "est_calls": 1},
+    "ChildPlan": {"what": "w", "why": "y", "kind": "leaf", "est_calls": 1,
+                  "verification_reason": "a unit assertion pins the behaviour"},
     "HowEntry": {"text": "t", "reason": "r"},
 }
 
@@ -508,9 +513,11 @@ def test_child_plan_missing_what_is_a_schema_violation_before_it_reaches_the_run
     payload = {
         "status": "ok", "comment": "planned", "goal": "g", "behavior": "b",
         "implementation_notes": "n", "files": ["pkg/a.py"], "acs": [], "interfaces": [],
+        "verification_reason": "a unit assertion pins the behaviour",
         "children": [{"why": "y", "kind": "leaf", "files": ["pkg/a.py"],
                       "acs": [{"ac_id": "AC-1", "statement": "s", "check_kind": "test"}],
-                      "est_calls": 1}],
+                      "est_calls": 1,
+                      "verification_reason": "a unit assertion pins the behaviour"}],
     }
     with pytest.raises(ValidationError, match="ChildPlan requires fields"):
         PlanNode.model_validate(payload)
