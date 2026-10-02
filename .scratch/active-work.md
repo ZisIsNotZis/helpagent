@@ -10,6 +10,12 @@ and §10.10 (implemented vs designed-but-not-built).
 
 ## State
 
+**Current measured position (2026-10-02, 9 tasks x 2 runs, blind):** actual 12/18, claimed
+8/18, true success 8, missed success 4, honest failure 6, **false success 0**, 186 calls. The
+claim rule (spec-time verification policy; a graded, grant-calibre review outranks a
+conflicting test; one recorded plan update when a test cannot be made to work) is settled by
+measurement - three rules were compared on the same tasks in `docs/STATUS.md` section 1.
+
 - The test gate is the authority: `uv run pytest` (includes the repository's own tamper guard
   and the 107-case corpus-integrity suite). It must be green before and after any change.
 - A change to the flow is not done until it has been exercised once against the REAL model
