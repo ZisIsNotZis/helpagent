@@ -199,3 +199,37 @@ llama-server \
 ```
 
 `curl -fsS http://127.0.0.1:8833/health` must answer `{"status":"ok"}` before a sweep.
+
+## 8. Mature agent CLI baseline (the same model, the same tasks)
+
+`bench/pi_baseline.py` runs the real **`pi` CLI headless** against a corpus task with the same
+blind staging (source-only; the grader never enters the run) and scores it with the same
+external grader. Same 4B reference model, same llama-server, temp pi agent dir (the owner's
+real config is never read or written).
+
+| agent | T-02 | T-05 | T-31 | actual | claimed |
+| --- | --- | --- | --- | --- | --- |
+| our harness (newest sweep, N=2) | 2/2 | 1/2 | 0/2 | 3/6 | 0/6 |
+| **pi CLI** (2 passes, 1 run each) | 1/2 | 1/2 | **2/2** | **4/6** | 4/6 |
+| our own minimal agent loop (`bench/v2_agent.py`) | - | - | - | 0/6 | n/a |
+
+**Behavioural evidence (the important part).** pi drives a real tool loop - `read`, `bash`,
+`edit`, `write` - and **ran shell commands in every run**, iterating on their results; that is
+exactly what our minimal loop could not do. It wrote **no tests**: the 4B could not emit a
+whole test file as a tool argument (it hit the output-token limit and the write failed), so
+its verification was ad-hoc `python3 -c` assertions. Its dominant failure mode is structural:
+pi **ends the run when the model returns an assistant message with no tool call**, and the 4B
+does that prematurely (turn 4, turn 8) - in one-shot headless mode there is no user turn to
+say "continue", so an unfinished task simply ends. That is where most of the run-to-run
+variance (3/3 vs 1/3) comes from.
+
+**What this shows, and what it does not.** On three tasks the mature CLI is at least as good
+as the harness on the grader's verdict, and it claimed far more (it has no claim gate at
+all - its "claims" are our reading of its prose). It does **not** establish a general rate
+(three tasks, one or two passes each), and the comparison is not apples-to-apples: pi has no
+call budget, no honesty gates, no evidence ledger, while the harness caps calls and refuses
+unverified claims. The honest reading: on a small model a mature CLI's loop is competitive,
+so the harness's contribution is not "it fixes more easy tasks" - it is the blind scoring
+protocol, the deterministic gates, the evidence trail, and the fact that its claims can be
+audited. The harness also covers nine tasks and the structural work (trees, budgets,
+escalation) that a one-shot CLI run does not do at all.
