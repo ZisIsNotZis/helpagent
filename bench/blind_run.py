@@ -36,6 +36,14 @@ CORPUS = ROOT / "bench" / "corpus"
 ANCHOR = ROOT / "bench" / "anchor"
 
 
+#: Directory names a run's own test tooling leaves behind: pytest's tmp_path retention
+#: (``pytest-of-<user>/pytest-<n>/...``) and similar. They are NOT deliverables, and
+#: handing them to the grader muddies the record (found 2026-10-03: a pi run left 12
+#: ``pytest-of-z/...`` artifacts that were applied to the pristine copy; the verdict was
+#: unchanged, but the contract "the run's produced files" must mean the run's work).
+_TEMP_JUNK_PREFIXES = ("pytest-of-", "pytest-", ".pytest-")
+
+
 def produced_files(workdir: Path) -> dict[str, str]:
     """Everything the run left behind, as the delivered repository."""
     out: dict[str, str] = {}
@@ -45,9 +53,14 @@ def produced_files(workdir: Path) -> dict[str, str]:
             continue
         if any(part.startswith(".") or part == "__pycache__" for part in rel_parts):
             continue   # harness infrastructure (.git, .pytest_cache), not a deliverable
+        if any(part.startswith(_TEMP_JUNK_PREFIXES) for part in rel_parts):
+            continue   # pytest tmp_path retention, not a deliverable
         try:
             out[str(path.relative_to(workdir))] = path.read_text()
-        except UnicodeDecodeError:
+        # A file the run itself produced may be unreadable (e.g. a chmod-000 file a
+        # test deliberately creates). Skipping it must not abort the whole
+        # measurement, and the file is not a deliverable we can score anyway.
+        except (UnicodeDecodeError, OSError):
             continue
     return out
 

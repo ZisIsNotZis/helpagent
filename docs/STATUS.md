@@ -245,6 +245,7 @@ real config is never touched), a bwrap sandbox, and the same external grader. Me
 | harness `--verify review` | 22/40 (55%) | 34 | **13** | 5.4 calls/task, ~18 s |
 | harness `--verify full` (default) | 20/33 (61%)\* | 12 | 2 | 10.2 calls/task, ~96 s |
 | **pi CLI, request only** | **21/40 (52%)** | 21 | **4** | ~8 turns/task, ~120 s |
+| **pi CLI + an explicit "write and run your own tests" instruction** | **16/40 (40%)** | 22 | **6** | ~8 turns/task, 90-160 s |
 | our minimal agent loop (`bench/v2_agent.py`) | 0/6 (hard subset) | n/a | n/a | - |
 | our plain one-shot driver (`bench/v2_free.py`) | 3/12 | n/a | n/a | 1 call |
 
@@ -267,6 +268,17 @@ turns. The hard tail (T-31's four-file threading, the anchors, T-27/T-28/T-32/T-
 equally: that is a model-capability boundary, not a harness defect. Where the harness differs is
 on top of development: its mechanisms add ~6-9 points (section 1a) and its gates keep false
 successes at 1-2 while pi, which has no claim gate, certified four wrong fixes.
+
+**Asking a small model to write its own tests makes a mature CLI WORSE.** On the same 40
+tasks, pi with the request alone fixes 21; with an explicit "write test files that fail on the
+buggy code and pass once fixed, then run them" instruction it fixes **16** (per band: 7/10,
+4/10, 4/10, 1/10 versus 9, 7, 5, 0). The behavioural trace explains why: the 4B cannot emit a
+whole test file as a tool argument (the write hits the output-token limit and is dropped, then
+re-issued), and it burns its response/context budget on the attempt - in the last band **9 of
+10 runs ended on a length-truncated thinking block**, i.e. it stopped because it ran out of
+tokens, not because it had finished. That is the measured reason the harness writes its own
+test in small, checked steps and keeps the self-test optional rather than mandatory: for this
+class of model, "go write tests" is a cost centre, not a quality lever.
 
 **Behavioural contrast.** pi really iterates: it runs shell commands in every run (ls/find/grep,
 ad-hoc `python3 -c` assertions) and self-corrects when its own scripts fail. Its two structural
