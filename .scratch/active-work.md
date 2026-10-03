@@ -10,8 +10,10 @@ and §10.10 (implemented vs designed-but-not-built).
 
 ## State
 
-**Current measured position (2026-10-02, 9 tasks x 2 runs, blind):** actual 12/18, claimed
-8/18, true success 8, missed success 4, honest failure 6, **false success 0**, 186 calls. The
+**Current measured position (2026-10-03, 9 tasks x 2 runs, blind):** actual **15/18 (83%)**,
+claimed 8/18, true success 8, missed success 7, honest failure 3, **false success 0**, 163
+calls. The five claim rules measured on the same tasks are tabulated in `docs/STATUS.md`
+section 1; the current default is the last line there. The
 claim rule (spec-time verification policy; a graded, grant-calibre review outranks a
 conflicting test; one recorded plan update when a test cannot be made to work) is settled by
 measurement - three rules were compared on the same tasks in `docs/STATUS.md` section 1.

@@ -13,88 +13,62 @@ are applied to a pristine copy afterwards and scored there. Nine corpus tasks, t
 each, driver `bench/v2_leaf.py` (the leaf flow: own test, independent verification, review,
 the claim gate).
 
-Measured 2026-10-02 at commit `4aec0ac`, 9 tasks x 2 runs, `bench/v2_sweep.py`; run records in
-`bench/runs/evidence/` and under `bench/runs/v2sweep-*`.
+Measured 2026-10-03 at commit `416f1bf`, 9 tasks x 2 runs, `bench/v2_sweep.py`; the run record
+is kept under `bench/runs/evidence/` (the newest sweep) with the rest under `bench/runs/`.
 
 | metric | value |
 | --- | --- |
-| **actual** (the grader's verdict) | **12/18 (67%)** |
+| **actual** (the grader's verdict) | **15/18 (83%)** |
 | **claimed** (what the harness said) | 8/18 |
-| true success (claimed + grader passed) | **8** |
-| missed success (did not claim, grader passed) | 4 |
-| honest failure (did not claim, grader failed) | 6 |
+| true success (claimed + grader passed) | 8 |
+| missed success (did not claim, grader passed) | 7 |
+| honest failure (did not claim, grader failed) | 3 |
 | **false success (claimed, grader failed)** | **0** |
-| model calls | 186 (10.3 per run) |
+| model calls | 163 (9.1 per run) |
 
-**Claims by evidence basis** — this is the table that decides whether a claim is trustworthy,
-and it is the reason the run record carries `claimed_basis`:
+**The five claim rules measured on the same nine tasks and model**, in the order they were
+built. Each line is a real sweep; the last is the current default:
+
+| claim rule | actual | claimed | true | missed | honest | **false** | calls |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| agreement required (a red test could never be overridden) | 14/18 | 4/18 | 4 | 10 | 4 | 0 | 156 |
+| the graded review outranks a conflicting test | 12/18 | 11/18 | 9 | 3 | 4 | **2** | 174 |
+| ... plus grant-calibre review evidence | 12/18 | 8/18 | 8 | 4 | 6 | 0 | 186 |
+| ... plus best-evidence delivery (never deliver the erased baseline) | 14/18 | 11/18 | 8 | 6 | 1 | **3** | 177 |
+| ... plus request-level coverage and a red independent verification blocking a review | **15/18** | 8/18 | 8 | 7 | 3 | **0** | 163 |
+
+Reading the curve: the owner's review-precedence rule bought claims but leaked two false
+successes (a 20% rate on the review tier); requiring grant-calibre review evidence removed
+them; delivering the best-evidenced revision recovered two graded successes (both T-05 runs,
+whose correct fix M1 had been erasing) but re-exposed three false successes, because a
+partial multi-site fix and a wrong fix could still satisfy a graded review; and the two
+deterministic gates closed those: **every artifact the request names must be touched by the
+final diff** (frozen/grader-owned artifacts are exempt, recorded with the reason) and **a
+RED independently authored per-criterion verification blocks a review-backed claim** (the
+review still outranks the run's own model-written test, which is what the rule was written
+about). The gates cost three claims and one graded success was recovered elsewhere; the
+net is the best measured configuration: **15/18 fixed, 0 lies**.
+
+**Claims by evidence basis** (the field a consumer should filter on - never on
+`verification.tier`, which can read `test` on a review-decided claim):
 
 | tier | claims | true | **false** | false rate |
 | --- | --- | --- | --- | --- |
-| `review` (graded, grant-calibre review) | 7 | 7 | 0 | 0% |
+| `review` (graded, grant-calibre, gates clear) | 7 | 7 | 0 | 0% |
 | `review+independent-test` | 1 | 1 | 0 | 0% |
-| `own-test` / `independent-test` alone | 0 | - | - | - |
 
-**Four rules measured on the same nine tasks, same model** (the evolution of the claim rule,
-in order):
+**Why seven graded successes were not claimed:** the dominant blocker is now the
+independently authored verification being WRONG on a correct fix (five runs ended
+`independent-test-red-on-final`; the ledger names the failing independent test), plus two
+`ladder` runs whose ledger names the unverifiable criterion. That is the same weak-model
+test-authoring problem the forensics found, now surfacing in the independent role.
 
-| claim rule | actual | claimed | true | missed | **false** | calls |
-| --- | --- | --- | --- | --- | --- | --- |
-| agreement required (a red test could not be overridden) | 14/18 | 4/18 | 4 | 10 | 0 | 156 |
-| the graded review outranks a conflicting test | 12/18 | 11/18 | 9 | 3 | **2** (both on T-31) | 174 |
-| ... plus grant-calibre review evidence | 12/18 | 8/18 | **8** | 4 | **0** | 186 |
-| ... plus the best-evidence restore (ticket 23 round 2) | **14/18** | 11/18 | 8 | 6 | **3** (T-31 #1/#2, T-14 #2) | 177 |
-
-The last row is the round-2 sweep at commit `b028a28` (`bench/v2sweep-20261003T022952Z`,
-`summary.json`: actual 14/18, claimed 11/18, true 8, missed 6, false 3, honest 1). The
-best-evidence restore is a real win on the ACTUAL axis (12 → 14: both T-05 runs now
-pass the grader), but it did not by itself restore the claim count: `claimed` stayed at
-11 because three claims are FALSE. The three, with the gate that closes each:
-
-- **T-31-parameter-threading #1 and #2 (request-level artifact coverage).** The request
-  names four call sites — the transport's `send()`, the client's `fetch()`, the service
-  sync and the bulk exporter. Run 1 touched only `api/client.py`; run 2 touched
-  `api/transport.py`, `api/client.py` and `exporter/bulk.py` but left `api/service.py`
-  untouched. `coverage_missing` was EMPTY because the coverage check resolves artifacts
-  PER ACCEPTANCE CRITERION and one criterion named only `fetch`; the graded review
-  approved and the claim went through. **Gate 1 (ticket 23 round 3): request-level
-  artifact coverage** extracts the artifacts the WHOLE REQUEST names and requires the
-  final diff to touch every one of them, as a HARD claim blocker on EVERY route (test,
-  review, independent), recording each unmet artifact with the diff evidence.
-- **T-14-add-export-sorting #2 (a red independent verification).** The run's own test AND
-  the independent per-criterion verification were BOTH red on the final source (they were
-  right — the delivered fix returned dicts, not the required tuples), but the graded
-  review said `definitely-ok` and, under the review-outranks-a-test rule, the claim went
-  through. `coverage_missing` was empty because this request's criteria name no artifact.
-  **Gate 2 (ticket 23 round 3): a RED independent verification blocks a review-backed
-  claim** — the independent verification is fresh, independently authored and
-  discriminating, so it is NOT the model-written test the precedence rule was written to
-  outrank; the disagreement (review approved / independent verification rejected, both
-  evidences) is recorded and no claim is made. A VACUOUS or non-discriminating
-  independent test is NOT a red verdict and does not block; the review still carries the
-  claim there.
-
-The middle row is what the owner's rule bought on its own: more claims, and a 20% false-success
-rate on the review tier. The third row is the same rule with the evidence requirement that a
-granting review must name the acceptance criterion AND a specific observation (a value, or a
-behavioural verb with a symbol present in a changed file): the two false successes disappeared
-(T-31 was refused rather than claimed), the review tier measured 0/8 false, and the harness
-still claimed twice as many true successes as the conservative rule. One sweep is one sample;
-the review tier's error rate is not proven zero, it is measured zero here - which is why every
-claim records its basis.
-
-**Why the remaining successes were not claimed.** In the round-1 sweep six graded
-successes were not claimed: the best-evidence restore recovered the actual fix on T-05
-(and T-02) but the runs did not claim, and T-33's criteria name a file the task freezes (a
-criterion/corpus mismatch, not a code defect). The evidence is in each `run.json`.
-
-**Ticket 23 round 3 (this round) adds the two gates above and nothing else.** They close
-exactly the two measured routes above (T-31's partial multi-site change via Gate 1, T-14
-#2's review-over-red-verification via Gate 2). They are a HARD claim block, so the
-measured effect is fewer claims with no false successes on those routes; the trade (a
-request that names a file the request never needed, or a review blocked by a red
-independent test) is stated plainly rather than argued. One sweep is one sample, and the
-round-3 gates have not yet been re-measured across the nine tasks.
+**What the harness contributes, measured.** The same model driving a plain agent loop
+(free-form chat plus list/read/write/run tools, sandboxed, grader tests withheld) solved
+**0 of 6** hard tasks: it wrote no test and ran no command, edited one file and declared
+itself done. The harness's forced red-then-green loop, its deterministic gates and its
+evidence ledger are what make the model fix 15 of 18 - and its claim gates are what keep
+the false-success count at zero while doing so.
 
 ## 2. What the harness does (one paragraph each)
 
