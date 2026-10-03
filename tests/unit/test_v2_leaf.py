@@ -5566,3 +5566,183 @@ def test_vacuous_independent_verification_does_not_block_a_review_claim(tmp_path
     assert out.claimed_basis == "review"
     assert out.iv_verdicts[-1].approved is False
     assert out.iv_verdicts[-1].reason == "independent-test-not-red"
+
+
+def test_request_coverage_exempts_a_frozen_artifact_named_by_the_request(tmp_path):
+    """PROBE (a)/(b), the T-33 false-block fix: the request NAMES ``serialize/base.py``
+    (and the word ``base``) while the task's frozen list contains it. The resolved file is
+    EXEMPTED and RECORDED (artifact + why), never required, so a run that touches the two
+    live implementations is not blocked for not touching the file the task forbids it to
+    touch — while the SAME artifact is still required when it is NOT in the frozen set, so
+    the gate stays strict for every non-frozen artifact."""
+    from harness.leaf import _request_coverage
+
+    files = {"serialize/base.py": "class Serializer:\n    pass\n",
+             "serialize/json_ser.py": "from serialize.base import Serializer\n",
+             "serialize/pickle_ser.py": "from serialize.base import Serializer\n"}
+    goal = ("our serializer layer has a binding contract in serialize/base.py; bring both "
+            "implementations into the contract (base.py itself is frozen)")
+    spec = dataclasses.replace(
+        make_spec(files, grader=("serialize/base.py",), goal=goal),
+        acs=["json_ser roundtrips non-ASCII text"])
+    stage(tmp_path, files)
+    # the two LIVE implementations are touched; the frozen base.py is not (and may not be).
+    (tmp_path / "serialize" / "json_ser.py").write_text(
+        "from serialize.base import Serializer\n\n\nclass JSONSerializer(Serializer):\n"
+        "    pass\n")
+    (tmp_path / "serialize" / "pickle_ser.py").write_text(
+        "from serialize.base import Serializer\n\n\nclass PickleSerializer(Serializer):\n"
+        "    pass\n")
+    coverage = _request_coverage(spec, tmp_path, dict(files))
+    assert "serialize/base.py" in coverage.files
+    assert "serialize/base.py" not in coverage.missing
+    assert coverage.missing == ()
+    assert ("serialize/base.py",
+            "frozen by the task (visible but must not change)") in coverage.exemptions
+    # ... and the SAME name is required when the task does NOT freeze it (no over-exempt).
+    strict = dataclasses.replace(spec, grader_paths=())
+    strict_coverage = _request_coverage(strict, tmp_path, dict(files))
+    assert "serialize/base.py" in strict_coverage.missing
+    assert strict_coverage.exemptions == ()
+
+
+def test_three_artifact_request_one_frozen_is_clean_two_touched(tmp_path):
+    """PROBE (b): a request that names three artifacts — one frozen, two touched — yields
+    no request-coverage miss and no claim block; the frozen one is recorded as exempt."""
+    from harness.leaf import _request_coverage
+
+    files = {"pkg/calc.py": "def result():\n    return 0\n",
+             "pkg/frozen.py": "CONTRACT = 1\n",
+             "pkg/other.py": "def helper():\n    return 0\n"}
+    spec = dataclasses.replace(
+        make_spec(files, grader=("pkg/frozen.py",),
+                  goal="thread the timeout through pkg/calc.py, pkg/frozen.py and "
+                       "pkg/other.py"),
+        acs=["thread the timeout through pkg/calc.py"])
+    stage(tmp_path, files)
+    (tmp_path / "pkg" / "calc.py").write_text("def result(timeout=None):\n    return 0\n")
+    (tmp_path / "pkg" / "other.py").write_text("def helper(timeout=None):\n    return 0\n")
+    coverage = _request_coverage(spec, tmp_path, dict(files))
+    assert set(coverage.files) == {"pkg/calc.py", "pkg/frozen.py", "pkg/other.py"}
+    assert coverage.missing == ()
+    assert coverage.exemptions == (("pkg/frozen.py",
+                                    "frozen by the task (visible but must not change)"),)
+
+
+def test_request_level_coverage_blocks_every_route_including_integration(tmp_path):
+    """PROBE (c), the no-bypass fix: the request names three paths, one frozen and one
+    genuinely untouched non-frozen. The untouched non-frozen artifact blocks EVERY claim
+    route — the leaf routes AND the tree's ``integration`` close, which used to grant
+    regardless of the request-coverage miss."""
+    from harness.leaf import _request_coverage
+
+    files = {"pkg/calc.py": "def result():\n    return 0\n",
+             "pkg/frozen.py": "CONTRACT = 1\n",
+             "pkg/other.py": "def helper():\n    return 0\n"}
+    spec = dataclasses.replace(
+        make_spec(files, grader=("pkg/frozen.py",),
+                  goal="thread the timeout through pkg/calc.py, pkg/frozen.py and "
+                       "pkg/other.py"),
+        acs=["thread the timeout through pkg/calc.py"])
+    stage(tmp_path, files)
+    # only pkg/calc.py is touched; pkg/other.py (non-frozen) is untouched.
+    (tmp_path / "pkg" / "calc.py").write_text("def result(timeout=None):\n    return 0\n")
+    coverage = _request_coverage(spec, tmp_path, dict(files))
+    miss = [f"the request names {m}; the final diff does not touch it (request artifact "
+            f"coverage)" for m in coverage.missing]
+    assert "pkg/other.py" in coverage.missing and "pkg/frozen.py" not in coverage.missing
+
+    base = {"criteria_count": 1,
+            "ledger": [CriterionLedgerEntry("AC-1", "s", "satisfied")],
+            "own_test": "tests/test_leaf_self.py", "own_test_green": True}
+    for route in ("own-test", "independent-test", "review", "reason", "integration"):
+        blocked = claim_decision(route=route, request_coverage_missing=miss, **base)
+        assert blocked.claimed is False, route
+        assert blocked.blocker == "request-artifacts-uncovered", route
+    # with the miss gone the integration close still grants (no collateral block).
+    granted = claim_decision(route="integration", criteria_count=0,
+                             request_coverage_missing=(),
+                             integration_passed=True, all_children_closed=True)
+    assert granted.claimed is True and granted.basis == "integration"
+
+
+def test_a_frozen_artifact_named_by_the_request_does_not_block_a_real_run(tmp_path):
+    """PROBE (a, end-to-end): a leaf whose request names a frozen file and which touches
+    only the live file claims green — the frozen name is exempted, not required."""
+    files = {"pkg/calc.py": "def result():\n    return 0\n",
+             "pkg/frozen_base.py": "CONTRACT = 1\n"}
+    spec = dataclasses.replace(
+        make_spec(files, grader=("pkg/frozen_base.py",),
+                  goal="respect the contract in pkg/frozen_base.py and make pkg/calc.py's "
+                       "result 42"),
+        acs=["result() returns 42"])
+    stage(tmp_path, files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST, impl(path="pkg/calc.py", content="def result():\n    return 42\n")]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 0]))
+
+    assert out.claimed is True and out.stop_reason == "green"
+    assert out.request_coverage is not None
+    assert out.request_coverage_missing == []
+    assert ("pkg/frozen_base.py",
+            "frozen by the task (visible but must not change)") in out.request_coverage.exemptions
+    assert (tmp_path / "pkg" / "frozen_base.py").read_text() == "CONTRACT = 1\n"
+
+
+def test_request_coverage_exempts_a_symbol_named_only_in_a_frozen_file(tmp_path):
+    """T-33 pattern (fix 1, symbol side): the request's ``contract (`` token resolves to
+    ``contract`` in the frozen README, and the request word ``FrozenPolicy`` resolves to a
+    class the frozen README defines. A symbol whose every occurrence is in a frozen file
+    the run may not change is EXEMPTED and recorded; a symbol that also occurs in a LIVE
+    file (``run``) stays strictly required."""
+    from harness.leaf import _request_coverage
+
+    files = {"README.md": "class FrozenPolicy:\n    pass\n\nthe contract is binding\n",
+             "serialize/api.py": "def run():\n    return 0\n"}
+    spec = dataclasses.replace(
+        make_spec(files, grader=("README.md",),
+                  goal="honour the contract (FrozenPolicy says so) and make run() return 1"),
+        acs=["run() returns 1"])
+    stage(tmp_path, files)
+    (tmp_path / "serialize" / "api.py").write_text("def run():\n    return 1\n")
+    coverage = _request_coverage(spec, tmp_path, dict(files))
+
+    assert "FrozenPolicy" in coverage.symbols
+    assert "contract" in coverage.symbols
+    assert "FrozenPolicy" not in coverage.missing and "contract" not in coverage.missing
+    frozen_only = ("named only in a frozen/grader-owned source file "
+                   "(the run may not change it)")
+    assert ("FrozenPolicy", frozen_only) in coverage.exemptions
+    assert "run" not in coverage.exemptions
+    # the LIVE symbol is genuinely required: drop the live edit and it blocks.
+    (tmp_path / "serialize" / "api.py").write_text("def run():\n    return 0\n")
+    strict = _request_coverage(spec, tmp_path, dict(files))
+    assert "run" in strict.missing
+
+
+def test_requirement_coverage_exempts_a_criterion_naming_a_frozen_artifact(tmp_path):
+    """T-33's real block: the extracted acceptance criteria NAME ``serialize/base.py``,
+    which the task freezes. The per-criterion coverage must EXEMPT and record it too (the
+    same fix as the request-level check), so a run that touches only the live file is not
+    blocked for not touching a file the task forbids; without the frozen set it still
+    blocks."""
+    from harness.leaf import _requirement_coverage
+
+    files = {"serialize/base.py": "class Serializer:\n    pass\n",
+             "pkg/calc.py": "def result():\n    return 0\n"}
+    spec = dataclasses.replace(
+        make_spec(files, grader=("serialize/base.py",), goal="fix it"),
+        acs=["serialize/base.py's contract holds and pkg/calc.py's result() returns 42"])
+    stage(tmp_path, files)
+    (tmp_path / "pkg" / "calc.py").write_text("def result():\n    return 42\n")
+    record = _requirement_coverage(spec, tmp_path, dict(files))[0]
+
+    assert "serialize/base.py" in record.files and "pkg/calc.py" in record.files
+    assert record.missing == ()
+    assert ("serialize/base.py",
+            "frozen by the task (visible but must not change)") in record.exemptions
+    # the SAME criterion blocks when the file is NOT frozen (no over-exempt).
+    strict = _requirement_coverage(dataclasses.replace(spec, grader_paths=()),
+                                   tmp_path, dict(files))[0]
+    assert "serialize/base.py" in strict.missing

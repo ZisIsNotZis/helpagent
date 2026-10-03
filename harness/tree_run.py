@@ -2037,6 +2037,23 @@ def _reopen_budgets(ctx: _TreeContext, budget: Budget, n: int) -> list[Budget] |
     return fresh if len(fresh) == n else None
 
 
+def _descendant_request_misses(outcomes: Sequence[NodeOutcome]) -> list[str]:
+    """The request-artifact misses recorded on a node's descendant LEAF outcomes.
+
+    Ticket 23 round 4 (fix 2): the integration close is a CLAIM, so it must not grant
+    while a request-named artifact is unmet. Each leaf gates its own request at
+    :func:`claim_decision`; this collects the misses those leaves recorded (recursively,
+    through internal children) so the tree hands the ONE gate the coverage it CAN supply
+    instead of closing blind. A non-empty result blocks the internal close.
+    """
+    misses: list[str] = []
+    for outcome in outcomes:
+        if outcome.leaf is not None:
+            misses.extend(outcome.leaf.request_coverage_missing)
+        misses.extend(_descendant_request_misses(outcome.children))
+    return misses
+
+
 def _finish_internal(ctx: _TreeContext, node: NodeHandle,
                      outcomes: Sequence[NodeOutcome | None], *, results: CheckResults | None,
                      rule: str, writers: int, started: float,
@@ -2045,7 +2062,9 @@ def _finish_internal(ctx: _TreeContext, node: NodeHandle,
     """Close the parent and shape its outcome, recording which close rule applied.
 
     The close is a CLAIM, so it routes through the ONE gate (ticket 21 round 6): a
-    passing integration verdict over CLOSED children. The kernel's :meth:`close` already
+    passing integration verdict over CLOSED children AND a clean request-level coverage
+    input (ticket 23 round 4, fix 2, supplied from the descendants' recorded request
+    misses). The kernel's :meth:`close` already
     re-checks every AC -> check -> verdict and fails closed, so the evidence the gate
     receives is that verdict plus every child's ``closed`` stop.
     """
@@ -2059,6 +2078,7 @@ def _finish_internal(ctx: _TreeContext, node: NodeHandle,
     all_children_closed = (len(done) == len(outcomes)
                            and all(o.stop_reason == "closed" for o in done))
     decision = claim_decision(route="integration", criteria_count=0,
+                              request_coverage_missing=_descendant_request_misses(done),
                               integration_passed=bool(closed),
                               all_children_closed=all_children_closed)
     claimed = decision.claimed

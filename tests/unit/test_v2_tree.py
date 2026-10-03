@@ -3141,3 +3141,29 @@ def test_tree_node_record_carries_the_per_criterion_ledger():
     assert node_rec["ledger"][0]["route"] == "rework"
     assert node_rec["failure_report"]["stop_reason"] == "attempts"
     assert node_rec["evidence_gap"] is False
+
+
+def test_descendant_request_misses_supply_the_integration_close_gate():
+    """Ticket 23 round 4, fix 2: the integration close hands the ONE gate the request
+    artifacts its descendant leaves recorded as unmet, so the close cannot grant while a
+    request-named artifact is unmet. The helper walks leaves recursively."""
+    from harness.leaf import claim_decision
+    from harness.tree_run import NodeOutcome, _descendant_request_misses
+
+    leaf = leaf_outcome(request_coverage_missing=["the request names pkg/other.py; ..."])
+    child = NodeOutcome(node_id="c1", claimed=True, stop_reason="closed", leaf=leaf)
+    clean = NodeOutcome(node_id="c2", claimed=True, stop_reason="closed",
+                        leaf=leaf_outcome())
+    internal = NodeOutcome(node_id="i1", claimed=True, stop_reason="closed",
+                           children=[clean])
+
+    misses = _descendant_request_misses([child, internal])
+    assert misses == ["the request names pkg/other.py; ..."]
+    # a clean subtree contributes nothing (no collateral block).
+    assert _descendant_request_misses([clean]) == []
+
+    blocked = claim_decision(route="integration", criteria_count=0,
+                             request_coverage_missing=misses,
+                             integration_passed=True, all_children_closed=True)
+    assert blocked.claimed is False
+    assert blocked.blocker == "request-artifacts-uncovered"

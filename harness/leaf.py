@@ -930,6 +930,12 @@ class RequirementCoverage:
     node may not claim. An empty ``files``/``symbols`` means the criterion named no
     resolvable artifact (F2): it is NOT skipped — it must be carried by a declared test
     that discriminates, or the claim is blocked (:func:`_criterion_unresolved`).
+
+    ``exemptions`` (ticket 23 round 4, fix 1) records the artifacts that were resolved but
+    DELIBERATELY dropped from the required set because the run is forbidden to touch them
+    (the grader-owned/withheld and visible-but-frozen paths, or symbols that occur only in
+    them — the same ``(artifact, why)`` record as :class:`RequestCoverage`), so T-33's
+    frozen ``serialize/base.py`` named by a criterion is exempt instead of a false block.
     """
 
     index: int
@@ -937,6 +943,7 @@ class RequirementCoverage:
     files: tuple[str, ...] = ()
     symbols: tuple[str, ...] = ()
     missing: tuple[str, ...] = ()
+    exemptions: tuple[tuple[str, str], ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -959,14 +966,24 @@ class RequestCoverage:
     ``files`` are the source files a request word names (the word equals the file's stem)
     plus any literal path token; ``symbols`` are the function/class names it names that
     resolve in the injected view. ``missing`` lists the artifacts the final diff never
-    touches; a non-empty ``missing`` is a HARD claim blocker (test, review, or
-    independent route) and is recorded with the artifact name and the diff evidence.
+    touches; a non-empty ``missing`` is a HARD claim blocker (test, review, independent,
+    OR integration route) and is recorded with the artifact name and the diff evidence.
+
+    ``exemptions`` (ticket 23 round 4, fix 1) records the resolved artifacts that are
+    DELIBERATELY dropped from the required set because the run is forbidden to touch
+    them — a resolved FILE in the grader-owned/withheld set or the task's
+    visible-but-frozen ``UNTOUCHED`` files, or a resolved SYMBOL that occurs only in such
+    a file (all paths :attr:`LeafSpec.grader_paths` carries; the SAME set the leaf write
+    guard refuses). Each entry is ``(artifact, why)``, so a reader can see that e.g.
+    ``serialize/base.py`` was named by the request and exempted (T-33) instead of silently
+    implying the request was incomplete. Every NON-frozen artifact stays strictly required.
     """
 
     request: str
     files: tuple[str, ...] = ()
     symbols: tuple[str, ...] = ()
     missing: tuple[str, ...] = ()
+    exemptions: tuple[tuple[str, str], ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -1482,7 +1499,8 @@ def claim_decision(
     3. no claim when the PER-CRITERION coverage check missed a named artifact;
     3b. no claim when the REQUEST-LEVEL coverage check missed a named artifact (ticket 23
        round 3, the T-31 fix) — a request that names N call sites is not done until the
-       diff touches all N, on EVERY route;
+       diff touches all N, on EVERY route (ticket 23 round 4, fix 2: including the tree's
+       ``integration`` close, which used to bypass it);
     4. on the REVIEW route the graded review DECIDES over a conflicting TEST (ticket 22
        item 3): an approving review carries the claim even when the run's own test is red
        on the SAME final revision, and a rejecting review blocks it even when a test is
@@ -1515,10 +1533,22 @@ def claim_decision(
     a review-carried claim through the rewrite-agreement rules 6/7.
 
     The ``integration`` route is the tree's internal close: it grants only when the
-    kernel's :meth:`NodeHandle.close` verdict passed AND every child closed.
+    kernel's :meth:`NodeHandle.close` verdict passed AND every child closed, AND the
+    request-level coverage supplied to it is clean (ticket 23 round 4, fix 2: the same
+    request-artifact hard block as every leaf route, so the close cannot bypass it).
     """
-    # ---- the tree's internal close: a passing integration verdict over closed children
+    # ---- the tree's internal close: a passing integration verdict over closed children.
+    # Ticket 23 round 4 (fix 2): the internal close is a CLAIM, so it must obey the SAME
+    # request-level artifact hard block as every leaf route. Before this fix a non-empty
+    # request-coverage miss still granted here, so the tree's close BYPASSED gate 1. The
+    # integration route supplies no criteria/ledger (its evidence is the kernel's close
+    # verdict), but it must NOT grant while a request-named artifact is unmet, and a caller
+    # that supplies such a miss gets the explicit block below.
     if route == "integration":
+        if request_coverage_missing:
+            return _blocked_claim("request-artifacts-uncovered",
+                                  detail="; ".join(request_coverage_missing),
+                                  disagreement="")
         if integration_passed and all_children_closed:
             return _granted_claim("integration")
         return _blocked_claim("integration-not-passing")
@@ -2023,6 +2053,73 @@ def _changed_files(workdir: Path,
     return changed
 
 
+def _grader_set(spec: LeafSpec) -> set[str]:
+    """The canonical grader-owned/withheld + visible-but-frozen path set (fix 1).
+
+    Exactly what the leaf write guard refuses (:attr:`LeafSpec.grader_paths`): the
+    staged-owned/withheld paths AND the task's visible-but-frozen ``UNTOUCHED`` files.
+    """
+    return {canon for rel in spec.grader_paths
+            if (canon := _canonical_write_path(rel)) is not None}
+
+
+def _request_exemption(rel: str, grader_paths: set[str]) -> str:
+    """Why a named artifact FILE is EXEMPT from the touch requirement ("" = not).
+
+    Ticket 23 round 4 (fix 1, the T-33 false block). A request or criterion may NAME an
+    artifact the run is FORBIDDEN to change: the grader-owned/withheld set, or the task's
+    visible-but-frozen ``UNTOUCHED`` files. Both are carried in
+    :attr:`LeafSpec.grader_paths` — the SAME set the leaf write guard refuses. T-33's
+    request names ``serialize/base.py`` while telling the run that base.py itself is
+    frozen; resolving that name as REQUIRED blocked a correct run for not touching a file
+    the task forbids touching. Such an artifact is recorded (artifact + why) and dropped
+    from the required set; every non-frozen artifact stays strictly required.
+    """
+    if rel not in grader_paths:
+        return ""
+    if owned_paths(rel):
+        return "grader-owned/withheld (the run cannot see or write it)"
+    return "frozen by the task (visible but must not change)"
+
+
+def _request_exemptions(
+    files: Sequence[str],
+    symbols: Sequence[str],
+    source_text: Mapping[str, str],
+    grader: set[str],
+) -> tuple[list[str], list[str], list[tuple[str, str]]]:
+    """Partition named artifacts into the required set and the exempt record (fix 1).
+
+    Returns ``(required_files, required_symbols, exemptions)``. A resolved FILE in the
+    grader/frozen set is exempt (:func:`_request_exemption`), and a resolved SYMBOL whose
+    every occurrence is in such a file is exempt on the same basis — the run cannot touch
+    an artifact that lives only in a file it may not change (T-33's request token
+    ``contract (`` resolves to the frozen README's ``contract``). A symbol that ALSO
+    occurs in a live source file stays required. Applied by BOTH coverage checks so the
+    frozen set is never a false block in either one.
+    """
+    required_files: list[str] = []
+    exemptions: list[tuple[str, str]] = []
+    for rel in files:
+        why = _request_exemption(rel, grader)
+        if why:
+            exemptions.append((rel, why))
+        else:
+            required_files.append(rel)
+    required_symbols: list[str] = []
+    for symbol in symbols:
+        live = any(_word_present(symbol, text or "")
+                   for rel, text in source_text.items()
+                   if (_canonical_write_path(rel) or rel) not in grader)
+        if live:
+            required_symbols.append(symbol)
+        else:
+            exemptions.append((symbol, (
+                "named only in a frozen/grader-owned source file (the run may not change "
+                "it)")))
+    return required_files, required_symbols, exemptions
+
+
 def _requirement_coverage(
     spec: LeafSpec,
     workdir: Path,
@@ -2036,12 +2133,19 @@ def _requirement_coverage(
     ``missing``: the requirement was not implemented and the node may not claim. A
     criterion that names no resolvable artifact is recorded with an empty missing set
     (nothing could be checked).
+
+    Ticket 23 round 4 (fix 1): an artifact the run is forbidden to touch (a grader/frozen
+    file, or a symbol that occurs only in one) is EXEMPT — recorded in ``exemptions`` and
+    never required — so a criterion that names the task's frozen file (T-33 names
+    ``serialize/base.py``) is not a false block; every non-frozen artifact is still
+    strictly required.
     """
     from harness.envelopes import file_tokens
 
     available = set(spec.files) | set(spec.candidate_files) | set(spec.write_boundary or ())
     source_text = {rel: text for rel, text in spec.files.items()}
     changed = _changed_files(workdir, baseline)
+    grader = _grader_set(spec)
     records: list[RequirementCoverage] = []
     for index, statement in enumerate(spec.acs, 1):
         files: list[str] = []
@@ -2055,22 +2159,21 @@ def _requirement_coverage(
             if any(_word_present(symbol, text) for text in source_text.values()):
                 if symbol not in symbols:
                     symbols.append(symbol)
-        missing: list[str] = []
-        for rel in files:
-            if rel not in changed:
-                missing.append(rel)
+        required_files, required_symbols, exemptions = _request_exemptions(
+            files, symbols, source_text, grader)
         # A symbol is covered when it appears in a CHANGED file's final content (F3: the
         # file must pass the comment/whitespace-stripped diff, so a symbol that already
         # existed in a file touched only by a comment is NOT covered). Checking only
         # ADDED lines would fail a criterion whose symbol was already declared but whose
         # behavior changed.
         changed_text = "\n".join(after for _, after in changed.values())
-        for symbol in symbols:
-            if not _word_present(symbol, changed_text):
-                missing.append(symbol)
+        missing = [rel for rel in required_files if rel not in changed]
+        missing += [symbol for symbol in required_symbols
+                    if not _word_present(symbol, changed_text)]
         records.append(RequirementCoverage(
             index=index, statement=statement, files=tuple(files),
-            symbols=tuple(symbols), missing=tuple(missing)))
+            symbols=tuple(symbols), missing=tuple(missing),
+            exemptions=tuple(exemptions)))
     return records
 
 
@@ -2157,16 +2260,27 @@ def _request_coverage(
     each against the node's final diff: a named file the diff leaves untouched, or a named
     symbol absent from every changed file's final content, is ``missing``. A non-empty
     ``missing`` is a HARD claim blocker on EVERY route (the T-31 fix).
+
+    Ticket 23 round 4 (fix 1): a resolved artifact the run is FORBIDDEN to touch is
+    EXEMPT — recorded in ``exemptions`` (artifact + why) and never required. That is a
+    resolved FILE in the grader/frozen set (T-33 names ``serialize/base.py`` and freezes
+    it) and a resolved SYMBOL whose every occurrence is in such a file (T-33's request
+    token ``contract (`` resolves to the frozen README's ``contract``). Everything else
+    stays strictly required.
     """
     available = set(spec.files) | set(spec.candidate_files) | set(spec.write_boundary or ())
     source_text = {rel: text for rel, text in spec.files.items()}
     changed = _changed_files(workdir, baseline)
     files, symbols = _request_artifacts(spec, available, source_text)
+    required_files, required_symbols, exemptions = _request_exemptions(
+        files, symbols, source_text, _grader_set(spec))
     changed_text = "\n".join(after for _, after in changed.values())
-    missing = [rel for rel in files if rel not in changed]
-    missing += [symbol for symbol in symbols if not _word_present(symbol, changed_text)]
+    missing = [rel for rel in required_files if rel not in changed]
+    missing += [symbol for symbol in required_symbols
+                if not _word_present(symbol, changed_text)]
     return RequestCoverage(request=spec.goal, files=tuple(files),
-                           symbols=tuple(symbols), missing=tuple(missing))
+                           symbols=tuple(symbols), missing=tuple(missing),
+                           exemptions=tuple(exemptions))
 
 
 def _request_artifact_messages(coverage: RequestCoverage) -> list[str]:

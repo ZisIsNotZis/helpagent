@@ -459,7 +459,16 @@ The run's own tests gate the run, and a claim additionally needs an independent 
      subset, the per-criterion check resolved only `fetch` (one criterion named just
      `fetch`), `coverage_missing` was empty, and the graded review approved — now the
      request-level check refuses every route and records each untouched artifact with the
-     diff evidence. The existing per-criterion check is kept.
+     diff evidence. The existing per-criterion check is kept. **Ticket 23 round 4** (a)
+     EXEMPTS an artifact the request or criterion NAMES but the task forbids the run to
+     touch (the grader-owned/withheld set and the visible-but-frozen `UNTOUCHED` files,
+     i.e. `LeafSpec.grader_paths`, plus symbols that occur only in them): it is recorded
+     in `RequirementCoverage.exemptions` / `RequestCoverage.exemptions` (artifact + why)
+     and dropped from the required set in BOTH coverage checks, so T-33's frozen
+     `serialize/base.py` (named by the request AND by its extracted criteria) is not a
+     false block; every non-frozen artifact stays strictly required, and (b) the gate now
+     applies on EVERY route including the tree's `integration` close, which previously
+     bypassed it.
   2. **A red independent verification blocks a review-backed claim.** The owner's rule is
      that the graded review outranks a conflicting TEST — written about the model-written
      own test, which is unreliable. The independent per-criterion verification is fresh,
@@ -636,7 +645,11 @@ independent-test veto, and sibling file-disjointness:
   the claim (the T-31 answer). **Ticket 23 round 3** adds the whole request's named
   artifacts (files whose stem a request word equals, and defined symbols) as a hard block
   on every route — the request that names N call sites is not done until the diff touches
-  all N.
+  all N. **Ticket 23 round 4** exempts (and records, artifact + why) any artifact in that
+  set the run is forbidden to touch — `LeafSpec.grader_paths` (grader-owned/withheld plus
+  the visible-but-frozen `UNTOUCHED` files) and symbols that occur only in them — in BOTH
+  checks, and applies the hard block on every route including the tree's `integration`
+  close.
 - **Decomposition by requirement.** Sibling file sets may overlap (two requirements may
   change one file); the tree serializes overlapping writers and keeps the per-node boundary
   audit, child ⊆ parent, and the depth/child caps. The planner splits by requirement and
