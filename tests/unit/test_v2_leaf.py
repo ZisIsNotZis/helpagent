@@ -51,7 +51,11 @@ from harness.leaf import (
     _criterion_unresolved,
     _declared_test_case_problems,
     _evidence_is_grant_calibre,
+    _own_test_collectible,
     _requirement_coverage,
+    _restore_deliverable_files,
+    _review_request,
+    _snapshot_deliverable_files,
     apply_judge_filter,
     apply_review_filter,
     claim_decision,
@@ -646,12 +650,12 @@ def test_judge_tests_rewrites_the_test_and_later_green_is_green_after_rewrite(tm
     assert out.claimed_basis == "own-test"
 
 
-def test_repaired_test_green_under_review_does_not_claim_without_agreement(tmp_path):
-    """Ticket 21 round 4 (fix 4): the SIBLING route. A judge-authorized replacement that
-    GREENS ON ARRIVAL switches the run to review; a later review approval, with NO
-    independent verification to agree with, must still never produce a claim — the repaired
-    test is not evidence the fix is right. It stops unverified as
-    ``green-after-test-rewrite`` (never a claim on the replacement or the review alone)."""
+def test_repaired_test_green_under_review_claims_on_the_review(tmp_path):
+    """Ticket 23 item 2 (supersedes the ticket-21 check for a REVIEWS-ONLY plan): when the
+    plan declares no tests, the run's own test is ADVISORY. A judge-authorized replacement
+    that greens on arrival switches the run to review; with NO independent verification to
+    agree with, the review itself carries the claim — the advisory test's rewrite can no
+    longer block it."""
     spec = make_spec()
     stage(tmp_path, spec.files)
     vacuous = write_env("tests/test_leaf_self.py", "def test_goal():\n    assert True\n")
@@ -663,8 +667,8 @@ def test_repaired_test_green_under_review_does_not_claim_without_agreement(tmp_p
 
     assert out.test_rewrites == 1 and out.own_test_mutated is True
     assert out.verification_basis == "review"
-    assert out.claimed is False
-    assert out.stop_reason == "green-after-test-rewrite"
+    assert spec.planned_tests == ()
+    assert out.claimed is True and out.claimed_basis in ("review", "review+independent-test")
 
 
 def test_rewrite_green_on_arrival_is_rejected_as_no_red_target(tmp_path):
@@ -3054,12 +3058,11 @@ def test_review_without_evidence_cannot_claim(tmp_path):
     assert out.review_verdict is not None and out.review_verdict.coerced is True
 
 
-def test_repaired_test_that_cannot_discriminate_switches_to_review(tmp_path):
-    """Ticket 19 B, tightened ticket 21 round 4 (fix 4): the judge says the test is wrong,
-    but the bounded repair still cannot produce a discriminating test (it greens on arrival)
-    — review becomes mandatory. A review pass alone can no longer claim: the run REPLACED
-    its own test, so a claim would require the independent verification to agree, and with
-    none injected the green is an UNVERIFIED basis (``green-after-test-rewrite``)."""
+def test_repaired_test_that_cannot_discriminate_still_switches_to_review(tmp_path):
+    """Ticket 23 item 2 (supersedes the ticket-21 check for a REVIEWS-ONLY plan): the judge
+    says the test is wrong and the bounded repair still cannot produce a discriminating test
+    (it greens on arrival); review becomes mandatory and, because the plan declared NO
+    tests, the advisory test's rewrite does not block the review-carried claim."""
     spec = make_spec()
     stage(tmp_path, spec.files)
     repaired = write_env("tests/test_leaf_self.py", "def test_goal():\n    assert True\n")
@@ -3070,8 +3073,8 @@ def test_repaired_test_that_cannot_discriminate_switches_to_review(tmp_path):
 
     assert out.verification_basis == "review"
     assert out.test_rewrites == 1
-    assert out.claimed is False
-    assert out.stop_reason == "green-after-test-rewrite"
+    assert spec.planned_tests == ()
+    assert out.claimed is True and out.claimed_basis in ("review", "review+independent-test")
 
 
 def test_unwritable_self_test_path_switches_to_review(tmp_path, monkeypatch):
@@ -5058,3 +5061,238 @@ def test_only_the_single_gate_can_produce_a_claimed_outcome():
     # (3) the leaf's three routes and the tree close are wired to the SAME function.
     assert "claim_decision(" in Path(harness.leaf.__file__).read_text()
     assert "claim_decision(" in Path(harness.tree_run.__file__).read_text()
+
+
+# ===========================================================================
+# Ticket 23 — best-evidence delivery and the four failure-forensics defects
+# ===========================================================================
+
+
+def _collection_error_result(iv_path: str = "tests/test_leaf_self.py") -> ShapedResult:
+    """A Red gate whose only entry for the run's own test is a collection error: the
+    module name with NO ``::`` selector (ticket 23 item 4)."""
+    gate = GateReport(report_path="(scripted)", process_exit=2, canary="scripted",
+                      expected_files=(iv_path,), n_tests=1, n_failed=0, n_errors=1,
+                      passed_ids=(), failed_ids=("t23probe.tests.test_leaf_self",),
+                      missing=(), observed=True, anomaly="tests-failed",
+                      detail="1 error(s): collection failure")
+    return ShapedResult(command=["python3", "-m", "pytest", "-q"], exit=2,
+                        verdict="failed", excerpts=["collection failure: SyntaxError"],
+                        gate=gate)
+
+
+def test_own_test_collectible_requires_a_real_node_id():
+    """Ticket 23 item 4: only a collected node id that references the run's own test file
+    counts; a collection-error module name (no ``::``) is not a valid target."""
+    good = dataclasses.replace(
+        scripted_red_gate(), failed_ids=("tests/test_leaf_self.py::test_goal",))
+    assert _own_test_collectible(good, "tests/test_leaf_self.py") is True
+    assert _own_test_collectible(good, "tests/other.py") is False
+    bad = GateReport(report_path="(scripted)", process_exit=2, canary="scripted",
+                     expected_files=("tests/test_leaf_self.py",), n_tests=1, n_failed=0,
+                     n_errors=1, passed_ids=(),
+                     failed_ids=("t23probe.tests.test_leaf_self",), missing=(),
+                     observed=True, anomaly="tests-failed", detail="collection failure")
+    assert _own_test_collectible(bad, "tests/test_leaf_self.py") is False
+    assert _own_test_collectible(None, "tests/test_leaf_self.py") is False
+
+
+def test_uncollectible_self_test_is_a_defect_not_a_target(tmp_path):
+    """Ticket 23 item 4: a self-test that cannot be collected is dropped (recorded), and
+    with a reviewer the node switches to review instead of iterating against it."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+        review=_approving_review,
+        run_tests=ScriptedTests([_collection_error_result(), 0]))
+
+    assert "self_test_invalid" in ledger_kinds()
+    assert out.self_test is None
+    assert any("cannot be collected" in r for r in out.refusals)
+    assert out.verification_basis == "review"
+
+
+def test_uncollectible_self_test_without_a_reviewer_stops_honestly(tmp_path):
+    """Ticket 23 item 4: with no reviewer there is no fallback — the node stops with the
+    distinct ``self-test-invalid`` reason and records the refusal + its evidence."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST]})
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=3, deadline_ts=_FAR_FUTURE),
+        run_tests=ScriptedTests([_collection_error_result()]))
+
+    assert out.claimed is False
+    assert out.stop_reason == "self-test-invalid"
+    assert out.self_test is None
+    assert "self_test_invalid" in ledger_kinds()
+    assert any("cannot be collected" in r for r in out.refusals)
+
+
+def test_snapshot_and_restore_round_trip(tmp_path):
+    """Ticket 23 item 1: the snapshot captures every deliverable file and the restore
+    reproduces it exactly, removing files created later and skipping harness dot-paths."""
+    stage(tmp_path, {"pkg/calc.py": "def result():\n    return 42\n",
+                     "tests/test_x.py": "def test_x():\n    assert True\n"})
+    snapshot = _snapshot_deliverable_files(tmp_path)
+    assert set(snapshot) == {"pkg/calc.py", "tests/test_x.py"}
+    # a later revision: change one file, add another, drop the test
+    (tmp_path / "pkg" / "calc.py").write_text("def result():\n    return 0\n")
+    (tmp_path / "pkg" / "new.py").write_text("added = True\n")
+    (tmp_path / "tests" / "test_x.py").unlink()
+    (tmp_path / ".git").mkdir()
+    (tmp_path / ".git" / "config").write_text("ignored")
+    _restore_deliverable_files(tmp_path, snapshot)
+    assert (tmp_path / "pkg" / "calc.py").read_text() == "def result():\n    return 42\n"
+    assert (tmp_path / "tests" / "test_x.py").read_text() == "def test_x():\n    assert True\n"
+    assert not (tmp_path / "pkg" / "new.py").exists()
+
+
+def test_best_evidence_revision_is_restored_over_a_worse_last_write(tmp_path):
+    """Ticket 23 item 1 (the top lever): an attempt that greens is snapshotted; a later,
+    worse revision must NOT be delivered — the best-evidenced revision is restored before
+    the produced files are collected, and the run record says so."""
+    spec = dataclasses.replace(make_spec(), acs=["pkg/calc.py must return 42"])
+    stage(tmp_path, spec.files)
+    best = write_env("pkg/other.py", "x = 1\n", comment="the revision that greens")
+    worse = write_env("pkg/other.py", "x = 2\n", comment="a later, redder revision")
+    model = FakeModelRunner({"write_test": [SELF_TEST, best, worse, worse]})
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=10, deadline_ts=_FAR_FUTURE),
+        run_tests=ScriptedTests([1, 0, 1, 1, 1]))
+
+    # the first (green) revision only missed coverage, so it was never claimed — but it
+    # is still the best evidence and must be what lands on disk.
+    assert out.claimed is False
+    assert out.delivered_revision["restored"] is True
+    assert out.delivered_revision["best_tier"] == "own-test"
+    assert out.delivered_revision["restored_over_last_written"] is True
+    assert (tmp_path / "pkg" / "other.py").read_text() == "x = 1\n"
+
+
+def test_best_evidence_not_restored_over_a_granted_claim(tmp_path):
+    """Ticket 23 item 1: a granted claim is the strongest evidence, so its revision is
+    never replaced; the record says the last-written revision already carried the best."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=4, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 0]))
+
+    assert out.claimed is True
+    assert out.delivered_revision["restored"] is False
+    assert out.delivered_revision["terminal_tier"] == "claim"
+
+
+def test_claim_gate_advisory_own_test_rewrite_does_not_block_review():
+    """Ticket 23 item 2: on the review route, an ADVISORY (plan declared no tests) own
+    test's rewrite no longer blocks the review-carried claim; an unadvisory one still does."""
+    ledger = [CriterionLedgerEntry("AC-1", "c", "satisfied", "review:ac-correctness", "ok")]
+    passing = (ReviewVerdict(angle="ac-correctness", grade="definitely-ok", evidence="x"),
+               ReviewVerdict(angle="contract-compat", grade="definitely-ok", evidence="y"))
+    advisory = claim_decision(
+        route="review", criteria_count=1, ledger=ledger, own_test=None,
+        own_test_green=False, test_rewrites=2, iv_approved=False, review_approved=True,
+        review_verdicts=passing, verification_basis="review", own_test_advisory=True)
+    assert advisory.claimed is True and advisory.basis == "review"
+    strict = claim_decision(
+        route="review", criteria_count=1, ledger=ledger, own_test=None,
+        own_test_green=False, test_rewrites=2, iv_approved=False, review_approved=True,
+        review_verdicts=passing, verification_basis="review", own_test_advisory=False)
+    assert strict.claimed is False and strict.blocker == "green-after-test-rewrite"
+
+
+def test_reviews_only_plan_advisory_rewrite_can_still_claim(tmp_path):
+    """Ticket 23 item 2 end to end: a reviews-only plan whose own test was rewritten still
+    claims on the review (the round-3 acceptance run's missed success)."""
+    spec = make_spec()                       # planned_tests=() -> advisory
+    stage(tmp_path, spec.files)
+    repaired = write_env("tests/test_leaf_self.py", "def test_goal():\n    assert True\n")
+    model = FakeModelRunner({"write_test": [SELF_TEST, blocked(), repaired, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
+                        judge=judge_blames_test, review=_approving_review,
+                        run_tests=ScriptedTests([1, 0, 0]))
+
+    assert out.verification_basis == "review"
+    assert out.test_rewrites == 1
+    assert out.claimed is True and out.claimed_basis in ("review", "review+independent-test")
+
+
+def test_model_review_preserves_an_explicit_negative_grade_on_a_non_ok_envelope():
+    """Ticket 23 item 3: an envelope whose status is not ``ok`` but which carries an
+    explicit grade keeps it — a ``definitely-problematic`` verdict must not silently
+    become ``uncertain``; only an absent grade is uncertain."""
+    from bench.v2_leaf import model_review
+
+    model = FakeModelRunner({"leaf_review": [
+        {"status": "failed", "comment": "reviewed but the envelope failed",
+         "grade": "definitely-problematic", "evidence": "pkg/calc.py returns 0, not 42"},
+        {"status": "unable", "comment": "no grade at all",
+         "unable_reason": "no source to review"},
+    ]})
+    request = ReviewRequest(goal="g", acs=["a"], original={"pkg/calc.py": "x"},
+                            final={"pkg/calc.py": "y"}, angle="ac-correctness")
+    negative = asyncio.run(model_review(model, request))
+    assert negative.grade == "definitely-problematic" and negative.approved is False
+    assert "returns 0" in negative.evidence
+    absent = asyncio.run(model_review(model, request))
+    assert absent.grade == "uncertain" and absent.approved is False
+
+
+def test_review_request_carries_the_coverage_facts(tmp_path):
+    """Ticket 23 item 5: the reviewer is handed the criteria whose named artifacts the
+    diff never touches, so a partial multi-file fix cannot draw ``definitely-ok``."""
+    from bench.v2_leaf import _review_question
+
+    spec = dataclasses.replace(make_spec(), acs=["pkg/calc.py must return 42"])
+    stage(tmp_path, spec.files)
+    (tmp_path / "pkg" / "other.py").write_text("x = 1\n")
+    request = _review_request(spec, tmp_path, {"pkg/calc.py": "def result():\n    return 0\n"},
+                              "no test can carry it", "ac-correctness")
+    assert request.coverage_missing
+    assert any("pkg/calc.py" in m for m in request.coverage_missing)
+    question = _review_question(request)
+    assert "COVERAGE FACTS" in question and "pkg/calc.py" in question
+
+
+def test_run_record_carries_the_delivered_revision():
+    """Ticket 23 item 1: the persisted record names the best-evidence revision and whether
+    it was restored (the field must survive ``json.dumps``)."""
+    from bench.external_score import ExternalScore
+    from bench.v2_leaf import build_record
+
+    outcome = LeafOutcome(
+        claimed=False, signal="honest-failure", attempts=[], calls=3, wall_s=1.0,
+        self_test=None, questions=[], exhausted=False, exhaustion_reason="attempts",
+        layers_used=["sampling"], stop_reason="attempts",
+        delivered_revision={"restored": True, "best_tier": "review", "best_rank": 3,
+                            "best_attempt": 1, "reason": "restored the best revision",
+                            "best_files": ["pkg/calc.py"]})
+    score = ExternalScore(passed=False, exit=1, notes=[], work_root="", applied=[], skipped=[])
+    record = build_record("T-x", "goal", outcome, withheld=[], produced={}, score=score,
+                          quad="missed-success", run_wall_s=1.0)
+    assert record["delivered_revision"]["restored"] is True
+    assert record["delivered_revision"]["best_tier"] == "review"
+    json.dumps(record)
+
+
+def test_advisory_rewritten_test_cannot_block_and_routes_to_review(tmp_path):
+    """Ticket 23 item 2, the T-05 path: a reviews-only plan whose judge-authorized test
+    rewrite stays RED, then a later source fix greens it. The advisory test's rewrite must
+    not stop the run at ``green-after-test-rewrite`` — the plan's review decides."""
+    spec = make_spec()                       # planned_tests=() -> advisory
+    stage(tmp_path, spec.files)
+    repaired_red = write_env("tests/test_leaf_self.py",
+                             "from pkg.calc import result\n\n\ndef test_goal():\n"
+                             "    assert result() == 7\n")
+    model = FakeModelRunner({"write_test": [SELF_TEST, blocked(), repaired_red, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=14, deadline_ts=_FAR_FUTURE),
+                        judge=judge_blames_test, review=_approving_review,
+                        run_tests=ScriptedTests([1, 1, 0]))
+
+    assert out.test_rewrites == 1
+    assert out.claimed is True
+    assert out.claimed_basis in ("review", "review+independent-test")
+    assert out.stop_reason == "green"

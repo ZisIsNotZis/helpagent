@@ -64,6 +64,7 @@ from harness.leaf import (  # noqa: E402
     LeafSpec,
     ReviewRequest,
     ReviewVerdict,
+    _coerce_review_grade,
     run_leaf,
 )
 from harness.model import LlamaServerRunner  # noqa: E402
@@ -93,6 +94,13 @@ def _review_question(request: ReviewRequest) -> str:
     angle = request.angle or "ac-correctness"
     instruction = REVIEW_ANGLE_PROMPTS.get(
         angle, "Check the final diff against the goal and the acceptance criteria.")
+    # Ticket 23 item 5: show the reviewer the coverage facts (criteria whose named
+    # artifacts the diff never touches), so a partial multi-file fix cannot draw a
+    # ``definitely-ok``. Empty in the common case, so the prompt is unchanged then.
+    coverage = ("\n\nCOVERAGE FACTS (the diff does NOT touch these artifacts named by an "
+                "acceptance criterion; a criterion whose artifact is untouched cannot be "
+                "satisfied):\n- " + "\n- ".join(request.coverage_missing)
+                if request.coverage_missing else "")
     return (
         "You are an INDEPENDENT reviewer. No test can carry verification for this node, so "
         "YOU grade ONE review ANGLE of the final diff. You did not write the code.\n"
@@ -101,7 +109,8 @@ def _review_question(request: ReviewRequest) -> str:
         f"GOAL:\n{request.goal}\n\n"
         f"ACCEPTANCE CRITERIA (numbered):\n{acs}\n\n"
         f"ORIGINAL SOURCE (before):\n{original}\n\n"
-        f"FINAL SOURCE (after):\n{final}\n\n"
+        f"FINAL SOURCE (after):\n{final}\n"
+        f"{coverage}\n"
         f"WHY REVIEW IS REQUIRED: {request.reason or 'no test could carry verification'}\n\n"
         "Return ONE grade --- exactly one of definitely-ok, probably-ok, uncertain, "
         "probably-problematic, definitely-problematic --- for THIS angle only. If you "
@@ -112,6 +121,18 @@ def _review_question(request: ReviewRequest) -> str:
         "the specific behaviour, observable, or value you verified. A bare approval, a "
         "file name alone, or 'looks correct' is rejected by the deterministic filter."
     )
+
+
+def _parsed_review_grade(value: Any) -> str:
+    """The explicit ordinal grade carried by a review envelope, or "" when absent.
+
+    Ticket 23 item 3: an envelope whose status is not ``ok`` may still carry one of the
+    five ordinal grades (or a legacy pass/fail). Those are PRESERVED; only a genuinely
+    absent/unparseable grade yields "" (and the caller records ``uncertain``). A negative
+    grade is never upgraded.
+    """
+    grade = _coerce_review_grade(value)
+    return "" if grade == "uncertain" else grade
 
 
 async def model_review(model: Any, request: ReviewRequest) -> ReviewVerdict:
@@ -129,11 +150,15 @@ async def model_review(model: Any, request: ReviewRequest) -> ReviewVerdict:
         "evidence": (getattr(env, "evidence", "") if isinstance(getattr(env, "evidence", ""), str) else ""),
         "unable_reason": env.unable_reason or "",
     }, ensure_ascii=False)
-    if env.status != "ok":
+    if env.status != "ok" and not _parsed_review_grade(grade):
         return ReviewVerdict(angle=request.angle, grade="uncertain", evidence="",
                              detail=env.unable_reason or "review unavailable", raw=raw)
     evidence = getattr(env, "evidence", "") or env.comment
-    return ReviewVerdict(angle=request.angle, grade=str(grade) or "uncertain",
+    # Ticket 23 item 3: an envelope whose status is not ``ok`` may still carry an explicit
+    # parseable grade. Preserve it (a ``definitely-problematic`` verdict must not silently
+    # become ``uncertain``); only a genuinely absent/unparseable grade becomes uncertain.
+    # A negative grade is never upgraded.
+    return ReviewVerdict(angle=request.angle, grade=_parsed_review_grade(grade) or "uncertain",
                          evidence=evidence, detail=evidence, raw=raw)
 
 
@@ -317,6 +342,10 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         "verification_reason": outcome.verification_reason,
         "plan_updates": [dataclasses.asdict(u) for u in outcome.plan_updates],
         "verification_disagreement": outcome.verification_disagreement,
+        # Ticket 23 item 1: the best-evidence delivery record — which revision was the
+        # strongest-evidenced, whether it was RESTORED over the last-written one before the
+        # produced files were collected, and why. Empty when no snapshot existed.
+        "delivered_revision": outcome.delivered_revision,
         # Ticket 20 items 4-5: the run-level best_effort/downgrade counters, the weighting
         # ratio, and the dilution flag, so an "everywhere best_effort" plan cannot stay a
         # silent escape.
@@ -721,6 +750,11 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
           f"verified={outcome.verified} status={outcome.claim_status} -> {vquad}")
     print(f"[policy]  tests={[c.ac_id for c in outcome.planned_tests]} "
           f"reviews={list(outcome.planned_reviews)} reason={outcome.verification_reason!r}")
+    if outcome.delivered_revision:
+        dr = outcome.delivered_revision
+        print(f"[delivered-revision] restored={dr.get('restored')} "
+              f"best={dr.get('best_tier')}#{dr.get('best_rank')} "
+              f"attempt={dr.get('best_attempt')} reason={dr.get('reason')!r}")
     for update in outcome.plan_updates:
         print(f"[plan-update] {update.old_policy} -> {update.new_policy} "
               f"(attempts={update.attempts} repairs={update.test_rewrites}) "

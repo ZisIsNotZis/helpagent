@@ -1116,6 +1116,11 @@ class LeafOutcome:
     verification_reason: str = ""
     plan_updates: list["PlanUpdate"] = field(default_factory=list)
     verification_disagreement: str = ""
+    #: Ticket 23 item 1: the BEST-EVIDENCE delivery record. ``delivered_revision`` names
+    #: the strongest-evidenced revision the run produced (the snapshot's tier/rank/attempt
+    #: and why it was the best) and whether it was RESTORED over the last-written one
+    #: before the produced files were collected. Empty when no evidence snapshot existed.
+    delivered_revision: dict[str, Any] = field(default_factory=dict)
 
     @property
     def verification_policy(self) -> str:
@@ -1257,6 +1262,10 @@ class ReviewRequest:
     #: Ticket 20 (item 1): the review ANGLE this call asks about (one fresh call per
     #: angle, its own fixed prompt); the driver builds the angle-specific question from it.
     angle: str = ""
+    #: Ticket 23 item 5: the acceptance criteria whose NAMED artifacts the diff never
+    #: touches. Shown to the reviewer as a fact so a partial multi-file fix cannot draw a
+    #: ``definitely-ok``; the coverage hard block still vetoes an ``ok`` review.
+    coverage_missing: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         reject_node_record_fields(self)
@@ -1372,6 +1381,7 @@ def claim_decision(
     tier_allowed: bool = True,
     conflict_detail: str = "",
     plan_updated: bool = False,
+    own_test_advisory: bool = False,
     integration_passed: bool = False,
     all_children_closed: bool = False,
 ) -> ClaimDecision:
@@ -1404,6 +1414,10 @@ def claim_decision(
     plus the declared-case result (a declared case the own/independent route cannot carry
     blocks those routes) and the verification covenant (``tier_allowed``, resolved by the
     caller's :func:`enforce_verification`), without which no route claims.
+
+    ``own_test_advisory`` (ticket 23 item 2) is True when the plan declared NO tests: the
+    run's own test (if it wrote one anyway) is then advisory and its rewrite cannot block
+    a review-carried claim through the rewrite-agreement rules 6/7.
 
     The ``integration`` route is the tree's internal close: it grants only when the
     kernel's :meth:`NodeHandle.close` verdict passed AND every child closed.
@@ -1451,11 +1465,14 @@ def claim_decision(
         # rule 6: absent means NEVER written; a rewritten-and-removed test is not absent.
         # Ticket 22 item 2: after a recorded PLAN UPDATE (test -> review) the test was
         # deliberately GIVEN UP, so the review is the plan's verification and the old
-        # rewrite no longer needs the independent verification to agree.
-        if own_test is None and test_rewrites and not plan_updated:
+        # rewrite no longer needs the independent verification to agree. Ticket 23 item 2:
+        # when the plan declared NO tests the run's own (incidental) test is ADVISORY — it
+        # may inform but it is not the plan's evidence, so its rewrite cannot block a
+        # review-carried claim. When the plan DID declare tests, the rule stands.
+        if own_test is None and test_rewrites and not plan_updated and not own_test_advisory:
             return _blocked_claim("green-after-test-rewrite", disagreement=disagreement)
         # rule 7: any rewrite needs the independent verification to agree.
-        if test_rewrites and not iv_approved and not plan_updated:
+        if test_rewrites and not iv_approved and not plan_updated and not own_test_advisory:
             return _blocked_claim("green-after-test-rewrite", disagreement=disagreement)
         if not tier_allowed:
             return _blocked_claim("verification-required", disagreement=disagreement)
@@ -2028,6 +2045,62 @@ def _erase_draft(workdir: Path, baseline: Mapping[str, str | None]) -> None:
             path.write_text(original)
 
 
+def _snapshot_deliverable_files(workdir: Path) -> dict[str, str]:
+    """Every deliverable file in the work tree, keyed by repo-relative posix path.
+
+    Ticket 23 item 1: the exact set :func:`bench.blind_run.produced_files` collects
+    (skipping dot-paths, ``__pycache__`` and ``.pyc``), so a snapshot restored from this
+    map delivers the same repository the driver would have collected.
+    """
+    out: dict[str, str] = {}
+    for path in sorted(workdir.rglob("*")):
+        parts = path.relative_to(workdir).parts
+        if not path.is_file() or path.suffix == ".pyc":
+            continue
+        if any(part.startswith(".") or part == "__pycache__" for part in parts):
+            continue
+        try:
+            out[path.relative_to(workdir).as_posix()] = path.read_text()
+        except (UnicodeDecodeError, OSError):
+            continue
+    return out
+
+
+def _restore_deliverable_files(workdir: Path, files: Mapping[str, str]) -> None:
+    """Put a recorded best-evidence revision back into the work tree (ticket 23 item 1).
+
+    Rewrite every file the snapshot holds and remove every deliverable file created
+    after it, so the restored tree is exactly the revision whose evidence was recorded.
+    """
+    current = _snapshot_deliverable_files(workdir)
+    for rel in sorted(set(current) - set(files)):
+        (workdir / rel).unlink(missing_ok=True)
+    for rel, content in files.items():
+        target = workdir / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content)
+
+
+@dataclass
+class BestEvidenceRevision:
+    """The strongest-evidenced revision the run produced (ticket 23 item 1).
+
+    ``rank`` orders the evidence an attempt reached: own test green (1) < independent
+    verification approved (2) < a combined-positive review (3). ``tier``/``reason`` name
+    it for the record; ``files`` is the captured work tree, RESTORED at node completion
+    when the last-written revision carries weaker evidence (an M1 erase can therefore
+    never destroy a better revision). ``test_path`` is the run's own test at capture
+    time (``None`` when none was kept), so the record can name the delivered target.
+    """
+
+    rank: int
+    tier: str
+    attempt: int
+    reason: str
+    files: dict[str, str] = field(default_factory=dict)
+    test_path: str | None = None
+
+
 def _exit_code(res: ShapedResult | Any) -> int | None:
     return getattr(res, "exit", None)
 
@@ -2067,6 +2140,32 @@ def _final_own_test_state(own_test: str | None, gate: GateReport | None) -> str:
     if own_test is None:
         return "absent"
     return "green" if gate is not None and gate.green else "red"
+
+
+def _own_test_collectible(gate: GateReport | None, self_test: str | None) -> bool:
+    """True when the gate report collected a REAL test id from the run's own test file.
+
+    Ticket 23 item 4: a self-test that cannot be collected (syntax error, import error,
+    empty file) produces no runnable node id. pytest records a collection error as the
+    module's DOTTED path with an empty classname (e.g.
+    ``tests/test_x.py::tests.test_x``), so a failed id that is exactly the module selector
+    is not a target. The check is deterministic from the report.
+    """
+    if gate is None or self_test is None:
+        return False
+    prefix = self_test.rstrip("/") + "::"
+    module_selector = self_test[:-3].replace("/", ".") if self_test.endswith(".py") else ""
+    for nid in (*gate.passed_ids, *gate.failed_ids):
+        if not nid.startswith(prefix):
+            continue
+        selector = nid[len(prefix):]
+        # A collection error is the module's dotted path (empty classname), never a
+        # runnable test function/class selector.
+        if module_selector and (selector == module_selector
+                                or selector.endswith("." + module_selector)):
+            continue
+        return True
+    return False
 
 
 def _history_text(attempts: Sequence[Attempt]) -> str:
@@ -2351,11 +2450,18 @@ def _review_request(
     final = _repo_view(spec, workdir, tuple(baseline))
     changed = sorted(rel for rel in set(original) | set(final)
                      if _stripped(original.get(rel)) != _stripped(final.get(rel)))
+    # Ticket 23 item 5: hand the reviewer the deterministic coverage facts (the criteria
+    # whose named artifacts the diff never touches), so a partial multi-file fix cannot
+    # draw a ``definitely-ok``. The coverage hard block in :func:`run_reviews` still
+    # vetoes a not-fully-covering review; this only informs the grade.
+    coverage_missing = tuple(
+        f"{c.statement!r} names {m}, untouched by the diff"
+        for c in _requirement_coverage(spec, workdir, baseline) for m in c.missing)
     return ReviewRequest(
         goal=spec.goal, acs=list(spec.acs),
         original={rel: original.get(rel, "") for rel in changed},
         final={rel: final.get(rel, "") for rel in changed},
-        reason=reason, angle=angle,
+        reason=reason, angle=angle, coverage_missing=coverage_missing,
     )
 
 
@@ -3651,6 +3757,43 @@ async def run_leaf(
     # updated at every routing decision so the failure report records what the loop did.
     ledger_routes: dict[str, str] = {}
     attempt_cap = min(9, 3 * max(1, len(spec.files)))
+    # Ticket 23 item 2: when the plan declared NO tests, the run's own test (if it writes
+    # one anyway) is ADVISORY — it may inform but it is not the plan's evidence, so its
+    # rewrite cannot block a review-carried claim.
+    own_test_advisory = not bool(spec.planned_tests)
+    # Ticket 23 item 1: the strongest-evidenced revision seen so far and the rank of the
+    # revision currently on disk, tracked so an M1 erase can never destroy a better
+    # revision and the best one is restored before the produced files are collected.
+    best_revision: BestEvidenceRevision | None = None
+    current_rank = 0
+    current_tier = ""
+
+    def capture_best_evidence(rank: int, tier: str, reason: str) -> None:
+        """Snapshot the work tree when an attempt reaches the STRONGEST evidence yet.
+
+        Ticket 23 item 1: the snapshot is taken at the milestone itself (own test green /
+        independent verification approved / combined-positive review), before anything
+        later can overwrite the revision. Only a STRICT improvement replaces the record,
+        so the earliest revision at a given strength is kept. Reads (never writes) the
+        tree; an unreadable file is skipped by the snapshot helper.
+        """
+        nonlocal best_revision
+        if rank <= 0 or rank <= (best_revision.rank if best_revision else 0):
+            return
+        files = _snapshot_deliverable_files(workdir)
+        best_revision = BestEvidenceRevision(
+            rank=rank, tier=tier, attempt=len(attempts), reason=reason,
+            files=files, test_path=self_test)
+        emit("best_evidence_revision", rank=rank, tier=tier, attempt=len(attempts),
+             reason=reason, files=sorted(files), self_test=self_test)
+
+    def note_current_evidence(rank: int, tier: str, reason: str) -> None:
+        """Record the evidence of the revision CURRENTLY on disk and, when it is the
+        strongest yet, snapshot it (ticket 23 item 1)."""
+        nonlocal current_rank, current_tier
+        if rank > current_rank:
+            current_rank, current_tier = rank, tier
+        capture_best_evidence(rank, tier, reason)
 
     def emit(kind: str, **data: Any) -> None:
         note(kind, **data)
@@ -4172,6 +4315,25 @@ async def run_leaf(
                 test_rewrites += 1
                 rres = await _maybe_await(tests, workdir)
                 record_gate(rres)
+                if not _own_test_collectible(getattr(rres, "gate", None), self_test):
+                    # Ticket 23 item 4: a REPAIRED test that still cannot be collected is
+                    # the same defect — record it, drop the target, and take the review
+                    # route instead of iterating against an invalid test.
+                    rgate = getattr(rres, "gate", None)
+                    anomaly = rgate.anomaly if rgate is not None else "no-report"
+                    detail = rgate.detail if rgate is not None else "no gate report"
+                    evidence = f"{anomaly}: {detail}"
+                    refusals.append(f"{self_test}: the repaired test cannot be collected "
+                                    f"({evidence})")
+                    emit("self_test_invalid", path=self_test, anomaly=anomaly,
+                         detail=detail)
+                    (workdir / self_test).unlink(missing_ok=True)
+                    self_test = None
+                    if not enter_review("the repaired test cannot be collected (an "
+                                        "import/collection error)"):
+                        stop("honest-failure", "self-test-invalid", "self-test-invalid")
+                        return "stop"
+                    return "repair"
                 repair_excerpts = excerpts_of(rres)
                 if _is_green(rres):
                     # A rewrite that passes on arrival does not pin the goal, and a
@@ -4589,6 +4751,10 @@ async def run_leaf(
                         record_iv(repaired)
                         label = repaired
                 iv_approved = label.approved
+                if iv_approved:
+                    note_current_evidence(
+                        2, "independent-test",
+                        "the independent per-criterion verification approved the final code")
                 # A TEST defect (or no producer) leaves room for the review path; ticket
                 # 22 item 3 adds the red-on-final FIX failure too, because a GRADED REVIEW
                 # outranks a conflicting test: the review's verdict then decides the claim.
@@ -4617,7 +4783,8 @@ async def run_leaf(
                         coverage_missing=coverage_missing,
                         test_case_problems=test_case_problems,
                         verification_basis=verification_basis,
-                        conflict_detail=verifier_conflict_reason(), tier_allowed=allowed)
+                        conflict_detail=verifier_conflict_reason(), tier_allowed=allowed,
+                        own_test_advisory=own_test_advisory)
                     if apply_claim(decision, tier="test"):
                         emit("leaf_green_at_exhaustion", basis=decision.basis)
                     return
@@ -4633,6 +4800,9 @@ async def run_leaf(
                 "the ladder exhausted and no independent test could carry the criteria")
             if status:
                 review_approved = True
+                note_current_evidence(
+                    3, "review",
+                    "a combined-positive graded review approved the final code")
                 allowed, tier_failure = await enforce_verification("review")
                 if allowed:
                     state = _final_own_test_state(self_test, last_gate)
@@ -4646,16 +4816,65 @@ async def run_leaf(
                         test_case_problems=test_case_problems,
                         verification_basis=verification_basis,
                         conflict_detail=review_conflict_reason(), tier_allowed=allowed,
-                        plan_updated=plan_updated)
+                        plan_updated=plan_updated, own_test_advisory=own_test_advisory)
                     if apply_claim(decision, tier="review"):
                         emit("leaf_green_at_exhaustion", basis=decision.basis)
 
     def finish() -> LeafOutcome:
+        nonlocal self_test
+        # ---- ticket 23 item 1: BEST-EVIDENCE DELIVERY. Before the produced files are
+        # collected, restore the strongest-evidenced revision when the last-written tree is
+        # weaker. A GRANTED CLAIM is itself the strongest evidence, so it is never replaced
+        # (the claim's revision is what the record certifies); an unclaimed run whose last
+        # revision was erased back to pristine is exactly the case this exists for.
+        delivered: dict[str, Any] = {}
+        delivered_tier = ""
+        if best_revision is not None and best_revision.files:
+            terminal_rank = 4 if claimed else current_rank
+            if not claimed and best_revision.rank > terminal_rank:
+                _restore_deliverable_files(workdir, best_revision.files)
+                self_test = best_revision.test_path
+                delivered_tier = {"own-test": "test", "independent-test": "test",
+                                  "review": "review"}.get(best_revision.tier, "none")
+                delivered = {
+                    "restored": True,
+                    "restored_over_last_written": True,
+                    "best_rank": best_revision.rank, "best_tier": best_revision.tier,
+                    "best_attempt": best_revision.attempt,
+                    "best_reason": best_revision.reason,
+                    "best_files": sorted(best_revision.files),
+                    "terminal_rank": terminal_rank,
+                    "terminal_tier": current_tier or "none",
+                    "reason": (
+                        f"the last-written revision had weaker evidence (rank "
+                        f"{terminal_rank}) than the recorded best ({best_revision.tier}, "
+                        f"rank {best_revision.rank}, attempt {best_revision.attempt}: "
+                        f"{best_revision.reason}); the best-evidence revision was "
+                        f"restored before delivery"),
+                }
+                emit("delivered_best_evidence", rank=best_revision.rank,
+                     tier=best_revision.tier, attempt=best_revision.attempt,
+                     files=sorted(best_revision.files), reason=delivered["reason"])
+            else:
+                delivered = {
+                    "restored": False,
+                    "restored_over_last_written": False,
+                    "best_rank": best_revision.rank, "best_tier": best_revision.tier,
+                    "best_attempt": best_revision.attempt,
+                    "best_reason": best_revision.reason,
+                    "best_files": sorted(best_revision.files),
+                    "terminal_rank": terminal_rank,
+                    "terminal_tier": "claim" if claimed else (current_tier or "none"),
+                    "reason": (
+                        f"the last-written revision already carried the strongest "
+                        f"evidence ({best_revision.tier}, rank {best_revision.rank}); "
+                        f"nothing was restored"),
+                }
         reason = exhaustion_reason
         if last_iv_reason and not claimed:
             reason = f"{reason}; independent-test {last_iv_reason}" if reason else f"independent-test {last_iv_reason}"
         last = iv_verdicts[-1] if iv_verdicts else None
-        tier = verification_tier or (_terminal_tier() if not claimed else "none")
+        tier = delivered_tier or verification_tier or (_terminal_tier() if not claimed else "none")
         wrote = _wrote_code()
         record = None
         if wrote:
@@ -4789,6 +5008,7 @@ async def run_leaf(
             verification_reason=spec.verification_reason,
             plan_updates=list(plan_updates),
             verification_disagreement=verification_disagreement,
+            delivered_revision=delivered,
         )
 
     def enter_review(why: str) -> bool:
@@ -4936,7 +5156,27 @@ async def run_leaf(
             if not enter_review("the run's own test could not be made to fail on arrival"):
                 stop("honest-failure", "no-red-target", "no-red-target")
                 return finish()
-        if verification_basis == "test":
+        if (verification_basis == "test" and self_test is not None
+                and not _own_test_collectible(last_gate, self_test)):
+            # Ticket 23 item 4: the run's own test cannot even be COLLECTED (a syntax or
+            # import error, an empty file, or a report holding no test id from it). It is a
+            # test DEFECT, not a valid red target, so the run must not iterate against it.
+            # Record the refusal and its evidence, drop the target, and take the owner's
+            # review route; with no reviewer this is an honest stop.
+            anomaly = last_gate.anomaly if last_gate is not None else "no-report"
+            detail = last_gate.detail if last_gate is not None else "no gate report"
+            evidence = f"{anomaly}: {detail}"
+            refusals.append(f"{self_test}: the run's own test cannot be collected "
+                            f"({evidence})")
+            emit("self_test_invalid", path=self_test, anomaly=anomaly, detail=detail)
+            (workdir / self_test).unlink(missing_ok=True)
+            self_test = None
+            if not enter_review("the run's own test cannot be collected (an import/"
+                                "collection error, not a valid target)"):
+                stop("honest-failure", "self-test-invalid", "self-test-invalid")
+                return finish()
+            last_excerpts = [f"the run's own test cannot be collected: {evidence}"]
+        elif verification_basis == "test":
             last_excerpts = excerpts_of(res)
             emit("self_test_written", path=self_test, red=True)
 
@@ -4977,7 +5217,15 @@ async def run_leaf(
         emit("leaf_attempt", n=len(attempts) + 1, strategy=esc.strategy, layer=esc.layer,
              mode=mode)
         if mode == "M1":
+            # Ticket 23 item 1: checkpoint the revision the M1 erase is about to discard,
+            # so an erase can never destroy the best-evidence revision. If the draft has
+            # no evidence, nothing is snapshotted and today's behaviour stands.
+            capture_best_evidence(current_rank, current_tier or "pre-erase",
+                                  "the revision on disk before the M1 erase")
             _erase_draft(workdir, baseline)
+        # The model's new candidate overwrites whatever is on disk; the rank below is
+        # recomputed from THIS attempt's evidence, never carried over from an earlier one.
+        current_rank, current_tier = 0, ""
         env, failure = await request_bounded(
             partial(_request_write, model,
                     _implement_artifacts(spec, workdir, esc, attempts, last_excerpts,
@@ -5088,7 +5336,12 @@ async def run_leaf(
                 stop("honest-failure", "call-budget", "calls")
                 break
             review_approved = bool(status)
-            if not review_approved:
+            if review_approved:
+                # Ticket 23 item 1: a combined-positive review is the strongest evidence
+                # milestone (the graded review outranks a conflicting test).
+                note_current_evidence(3, "review",
+                                      "a combined-positive graded review approved the diff")
+            else:
                 last_excerpts = [f"review did not approve: {why}"]
 
         signature = failure_signature(last_excerpts, last_excerpts)
@@ -5116,6 +5369,10 @@ async def run_leaf(
             candidate.verdict = prefilter(attempts, candidate)
 
         if candidate.outcome == "pass":
+            if verification_basis == "test" and _is_green(res):
+                # Ticket 23 item 1: the run's own test green is an evidence milestone.
+                note_current_evidence(1, "own-test",
+                                      "the run's own discriminating test is green")
             if not spec.acs:
                 # Ticket 19 round 2 (F2), tightened ticket 21 round 3 (fix B): with no
                 # acceptance criteria NO basis can carry the claim — neither the run's own
@@ -5131,11 +5388,36 @@ async def run_leaf(
             if test_rewrites and verification_basis == "test":
                 # A green after the run REPLACED its own test is not a claim: the
                 # implementation satisfied a substituted test, so the result is
-                # unverified (ticket 17 round 4).
-                attempts.append(candidate)
-                emit("leaf_green_after_test_rewrite", strategy=esc.strategy)
-                stop("green-after-test-rewrite", "", "green-after-test-rewrite")
-                break
+                # unverified (ticket 17 round 4). Ticket 23 item 2: when the plan declared
+                # NO tests the run's own test is ADVISORY — a reviews-only plan must not be
+                # blocked by an incidental rewrite, so route to the PLAN's review evidence
+                # instead of stopping.
+                if own_test_advisory and enter_review(
+                        "the plan declared no tests; the run's own rewritten test is "
+                        "advisory"):
+                    status, why = await run_reviews(review_reason)
+                    if status is None:
+                        stop("honest-failure", "call-budget", "calls")
+                        break
+                    review_approved = bool(status)
+                    if review_approved:
+                        note_current_evidence(
+                            3, "review",
+                            "a combined-positive graded review approved the diff")
+                    else:
+                        candidate.outcome = "fail"
+                        candidate.verdict = prefilter(attempts, candidate)
+                        attempts.append(candidate)
+                        route_failed_candidate()
+                        last_excerpts = [f"review did not approve: {why}"]
+                        emit("attempt_recorded", strategy=esc.strategy, layer=esc.layer,
+                             verdict=candidate.verdict, signature=signature)
+                        continue
+                else:
+                    attempts.append(candidate)
+                    emit("leaf_green_after_test_rewrite", strategy=esc.strategy)
+                    stop("green-after-test-rewrite", "", "green-after-test-rewrite")
+                    break
             # Ticket 19 E: per-requirement ARTIFACT coverage of the final diff. A
             # criterion whose named file/symbol is untouched was not implemented; the
             # node may NOT claim (the design answer to T-31's one-of-two call sites).
@@ -5318,9 +5600,14 @@ async def run_leaf(
                             record_iv(repaired)
                             label = repaired
                     iv_approved = label.approved
+                    if iv_approved:
+                        note_current_evidence(
+                            2, "independent-test",
+                            "the independent verification approved the revision")
                     if not label.approved:
                         last_iv_reason = f"{label.reason}: {label.detail}"
-            if test_rewrites and not iv_approved and not plan_updated:
+            if (test_rewrites and not iv_approved and not plan_updated
+                    and not own_test_advisory):
                 # Ticket 21 round 4 (fix 4): a run that REPLACED its own test cannot claim
                 # on the replacement (or on a review that followed it) alone. The repaired
                 # test is red-on-pristine at best — not evidence the fix is right — so the
@@ -5328,6 +5615,8 @@ async def run_leaf(
                 # revision (the test-basis case already stopped above). Ticket 22 item 2:
                 # after a recorded PLAN UPDATE (test -> review) the test was given up, so
                 # the review is the plan's verification and this block does not apply.
+                # Ticket 23 item 2: when the plan declared NO tests the run's own test is
+                # ADVISORY, so its incidental rewrite must not block a review-carried claim.
                 emit("leaf_green_after_test_rewrite", strategy=esc.strategy,
                      basis=verification_basis, independent=False)
                 stop("green-after-test-rewrite", "", "green-after-test-rewrite")
@@ -5377,7 +5666,7 @@ async def run_leaf(
                 test_case_problems=test_case_problems,
                 verification_basis=verification_basis,
                 conflict_detail=claim_conflict_detail(), tier_allowed=allowed,
-                plan_updated=plan_updated)
+                plan_updated=plan_updated, own_test_advisory=own_test_advisory)
             if apply_claim(decision, tier=tier):
                 if tier == "none":
                     emit("leaf_unverified_claim", tier=tier, required=_required_tier(),
