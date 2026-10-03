@@ -231,6 +231,105 @@ llama-server \
 
 `curl -fsS http://127.0.0.1:8833/health` must answer `{"status":"ok"}` before a sweep.
 
+## 8. Mature agent CLI baseline (the same model, all 40 tasks, clean)
+
+`bench/pi_baseline.py` runs the real **`pi` CLI headless** against a corpus task with the same
+blind staging (source-only; the grader never enters the run), a temp pi agent dir (the owner's
+real config is never touched), a bwrap sandbox, and the same external grader. Measured on all
+40 tasks (35 corpus + 5 anchors), N=1, after the cache-leak fix (`124c41d`).
+
+| agent | actual | claimed | FALSE | cost |
+| --- | --- | --- | --- | --- |
+| harness `--verify raw` (development only) | **21/40 (52%)** | 0 | 0 | **1.1 model calls/task**, ~6 s |
+| harness `--verify test` | 23/40 (58%) | 0 | 0 | 4.9 calls/task, ~28 s |
+| harness `--verify review` | 22/40 (55%) | 34 | **13** | 5.4 calls/task, ~18 s |
+| harness `--verify full` (default) | 20/33 (61%)\* | 12 | 2 | 10.2 calls/task, ~96 s |
+| **pi CLI, request only** | **21/40 (52%)** | 21 | **4** | ~8 turns/task, ~120 s |
+| our minimal agent loop (`bench/v2_agent.py`) | 0/6 (hard subset) | n/a | n/a | - |
+| our plain one-shot driver (`bench/v2_free.py`) | 3/12 | n/a | n/a | 1 call |
+
+\* the `full` arm hit the 25-minute per-lane cap at 33 of 40 tasks; the number is on the 33 that
+ran, which is why the comparison table in section 1a uses the tasks every arm completed.
+
+Per band, pi (request only) vs the harness arms on the same tasks:
+
+| band | pi | harness `raw` | harness `test` |
+| --- | --- | --- | --- |
+| T-01..T-10 (easy) | 9/10 | **10/10** | - |
+| T-11..T-20 (middle) | 7/10 | 6/10 | **9/10** |
+| T-21..T-30 (hard) | 5/10 | 6/10 | **7/10** |
+| T-31..T-35 + anchors (tail) | **0/10** | 0/10 | 0/10 |
+
+**What this shows.** Development capability is a TIE: a mature agent CLI and our development-only
+protocol both fix 21 of 40, on the same model - the harness's forced structure does not cost
+development power, and it reaches the same result with ~1 model call per task instead of ~8
+turns. The hard tail (T-31's four-file threading, the anchors, T-27/T-28/T-32/T-34) defeats BOTH
+equally: that is a model-capability boundary, not a harness defect. Where the harness differs is
+on top of development: its mechanisms add ~6-9 points (section 1a) and its gates keep false
+successes at 1-2 while pi, which has no claim gate, certified four wrong fixes.
+
+**Behavioural contrast.** pi really iterates: it runs shell commands in every run (ls/find/grep,
+ad-hoc `python3 -c` assertions) and self-corrects when its own scripts fail. Its two structural
+weaknesses are that the 4B cannot emit a whole test file as a tool argument (the write hits the
+output-token limit and is re-issued or lost), and that pi ends the run the moment the model
+answers without a tool call - a one-shot headless run has no user turn to say "continue", so an
+unfinished task simply ends (this is where its run-to-run variance comes from).
+
+## 5. Where the evidence lives
+
+- Run records: `bench/runs/**/run.json` (per node: stop reason, ledger rows, verification
+  basis, coverage, manager decisions, budget accounting) and `results.jsonl` for sweeps.
+- Curated evidence kept in the repository: `bench/runs/evidence/`.
+- Work records: `.scratch/NN-*/issues/*.md` (ticket 21 covers the claim model; ticket 20 the
+  How axis and its measured verdict; tickets 17–19 the leaf, the tree and the covenant).
+- Design: `docs/DESIGN.md` §10 (flow) and §10.10 (implemented vs not built).
+
+## 6. Recommended next steps (ordered)
+
+1. **The claim rule is settled by measurement; do not re-open it without new numbers.**
+   Three rules were measured on the same tasks and model (section 1): the owner's
+   review-outranks-tests rule, once requiring grant-calibre evidence, claims twice as many
+   true successes as the conservative rule at the same measured false-success count (0), and
+   the two false successes the unhardened rule produced are refused by the evidence rule.
+
+2. **Attack the remaining missed-success bucket (4 of 18).** Every case's ledger says which
+   criterion was unverifiable and which check was attempted; two of the four are T-33, whose
+   criteria name a file the task freezes (a criterion/corpus mismatch worth fixing in the
+   task, not the harness).
+
+3. **The independent test is still the weakest link** (14 attempts, 3 repairs, and it was the
+   blocker in the earlier conservative sweep). A stronger verifier model - even a modest
+   remote one - for the test-authoring and review roles is the single change most likely to
+   raise true successes; every run records whether its verification was independent or
+   reviewed, so the effect would show in the very next sweep.
+
+4. Build the designed-but-unbuilt layers only if a task needs them: requirement triage,
+   model-side context curation, worktrees/parallel trees, a human-facing piloting surface
+   (DESIGN §10.10).
+
+## 7. Reproducing the numbers
+
+```sh
+# unit gate (no model required) — includes the repo tamper guard and corpus integrity
+uv run pytest
+
+# one task, leaf flow, with the ledger and claim record
+uv run python bench/v2_leaf.py --task bench/corpus/T-02-off-by-one --calls 24 --deadline-hours 0.25
+
+# the headline sweep (claimed vs grader), nine tasks, two runs each
+uv run python bench/v2_sweep.py --tasks T-02-off-by-one,T-03-wrong-comparison,T-05-mutable-default,T-08-add-cache-invalidation,T-14-add-export-sorting,T-20-average-truncation,T-25-chunked-helper,T-31-parameter-threading,T-33-serializer-contract --n 2 --calls 24
+```
+
+The reference model server used for every number above:
+
+```sh
+llama-server \
+  -m /home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf \
+  --port 8833 --host 127.0.0.1 -ngl 99 -c 8192
+```
+
+`curl -fsS http://127.0.0.1:8833/health` must answer `{"status":"ok"}` before a sweep.
+
 ## 8. Mature agent CLI baseline (the same model, the same tasks)
 
 `bench/pi_baseline.py` runs the real **`pi` CLI headless** against a corpus task with the same
