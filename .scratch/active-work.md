@@ -28,6 +28,17 @@ measurement - three rules were compared on the same tasks in `docs/STATUS.md` se
   path that sets `claimed=True` outside `harness/leaf.py::claim_decision` (a structural test
   enforces this).
 
+## A finding to keep in mind before changing anything
+
+A mature agent CLI (`pi` itself) driving the SAME 4B model scored 4/6 actual on three tasks
+(our harness: 3/6 on the same three), and it claims far more because it has no claim gate.
+Its loop is real (read/bash/edit/write, shell commands every run). So do not assume the
+harness's value is raw pass rate on easy tasks: its value is the blind scoring protocol, the
+deterministic gates, the auditable evidence trail, and the structural layers. A controlled
+follow-up (much larger budget, or the red-independent-test gate relaxed to a label) would
+separate "the gate costs fixes" from "the gate costs only claims". Details:
+`.scratch/24-mature-agent-baseline/issues/24-mature-agent-baseline.md`.
+
 ## Open items (nothing blocking; ordered)
 
 1. **Re-measure after the claim-gate rounds** and refresh `docs/STATUS.md` numbers.
