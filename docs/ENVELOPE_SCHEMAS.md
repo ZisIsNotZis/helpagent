@@ -517,18 +517,18 @@ class ChildPlan(Base):
     files: list[str]               # leaf write boundary; [] for pure internal
     acs: list[DraftAC]             # leaf: mandatory; internal: integration view
     interfaces: list[Interface]
-    test_cases: list[DeclaredTest] # per-criterion expected test cases (ticket 19 D)
+    planned_tests: list[DeclaredTest]  # ticket 22 r3 — the test points this node intends to write
     est_calls: int                 # 1–8 — weight for the budget split
-    verification_policy: Literal["test","review","either"]  # ticket 22 PLAN-TIME policy
-    verification_reason: str       # REQUIRED: why that policy (how hard a test is to write)
-    review_angles: list[str]       # closed per-level angle set (empty ⇒ critical angles)
+    planned_reviews: list[str]     # ticket 22 r3 — the review ANGLES this node intends to run
+    verification_reason: str       # REQUIRED iff BOTH lists are empty
     best_effort: bool              # PLAN-TIME opt-in to one weaker tier
     best_effort_reason: str        # mandatory plan-level reason when best_effort
 
-class DeclaredTest(Base):          # ticket 19 D
+class DeclaredTest(Base):          # ticket 19 D, extended ticket 22 r3
     ac_id: str                     # ^AC-[0-9]{1,3}$ — one of the node's ACs
     file: str                      # the test file that must exist and collect
     names: list[str]               # 1–8 test function names that must exist and pass
+    verifies: str                  # what the test verifies (the observable it pins)
 
 class PlanNode(Envelope):
     goal: str                      # THIS node's goal
@@ -537,24 +537,25 @@ class PlanNode(Envelope):
     files: list[str]               # 0–10 — THIS node's write boundary
     acs: list[DraftAC]             # 0–10 — THIS node's AC map (leaf mandatory)
     interfaces: list[Interface]    # 0–8
-    test_cases: list[DeclaredTest] # 0–10 — this node's declared test cases
-    verification_policy: Literal["test","review","either"]  # ticket 22 PLAN-TIME policy
-    verification_reason: str       # REQUIRED: judge how hard a test is to write, and why
-    review_angles: list[str]       # implementation review angles (closed set)
+    planned_tests: list[DeclaredTest]  # 0–10 — this node's planned test points
+    planned_reviews: list[str]     # this node's planned review angles (closed set)
+    verification_reason: str       # REQUIRED iff BOTH lists are empty
     best_effort: bool              # PLAN-TIME opt-in
     best_effort_reason: str
     how_id: str                    # the How this decomposition is bound to (ticket 20); "" = unbound
     children: list[ChildPlan]      # 0–15 — [] ⇒ this node is a LEAF
 ```
 
-**Ticket 22 PLAN-TIME POLICY.** `verification_policy` is the plan's decision about how
-this node will be verified: `test` (a discriminating test is REQUIRED), `review` (a
-graded, multi-angle review is the required evidence and NO test is required), or `either`
-(prefer a test, fall back to review). `verification_reason` is **REQUIRED**: the planner
-must judge how hard a discriminating test is to write for this requirement and say why it
-chose the policy. The policy + reason are recorded on every node's run record; a runtime
-PLAN UPDATE (old policy, new policy, reason, attempt counts) is recorded when a `test`
-node gives up on its test (see §10.4 / DESIGN §10.4). The legacy `any` value is gone.
+**Ticket 22 round 3 — the spec-time policy is TWO LISTS, not an enum.** A node declares a
+`planned_tests` list (the test points it intends to write: ac_id + file + function names +
+what each verifies) and/or a `planned_reviews` list (the review ANGLES it intends to run,
+drawn from the closed per-level registry). BOTH lists default to EMPTY. When NEITHER is
+given the node MUST carry a `verification_reason` (why no test and no review can carry its
+claim). The old single `verification_policy` enum is gone; a record that already carries it
+maps to the lists (``test`` = tests only, ``review`` = reviews only, ``either`` = both,
+``none`` = neither). The lists + reason are recorded on every node's run record; a runtime
+PLAN UPDATE that DROPS the test plan and relies on the planned reviews (or reports that no
+evidence route remains) is recorded when a node gives up on its test (see DESIGN §10.4).
 
 ```text
 plan_node:
@@ -562,14 +563,19 @@ plan_node:
   behavior:   > expiry is derived from the configured ttl
   files:      - middleware/auth.py
   acs:        - AC-1  sessions expire per ttl            [test]
-  verification_policy: test
+  planned_tests:
+    - ac_id: AC-1  file: tests/test_auth.py  names: [test_expiry]
+      verifies: > the returned timestamp equals now - ttl
+  planned_reviews:
+    - ac-correctness
+    - contract-compat
   verification_reason: > expiry is a pure function of ttl, so a unit assertion on the
-    returned timestamp pins it directly
+    returned timestamp pins it directly; the review backstops a conflicting test.
   children:
     - what:   > fix the expiry computation
       why:    > it multiplies by 60 twice
       kind:   [leaf]   files: - middleware/auth.py   est_calls: 3
-      verification_policy: test
+      planned_reviews: [ac-correctness]
       verification_reason: > the converted value is observable, so a unit assertion pins it
 ```
 
@@ -579,11 +585,11 @@ the parent's boundary; siblings MAY declare the same file (ticket 19 F — the t
 serializes overlapping writers and audits each node's boundary); a leaf needs an empty
 `children` and a non-empty `acs`; an internal node needs ≥1 child; `est_calls >= 1`; two
 children may not share a normalized `what`; depth ≤ 4 and ≤ 15 children; any file token
-in `what`/`why` must be in the injected candidate scope; the `verification_policy` is in
-`test`/`review`/`either` and a code-writing node that declares a non-default policy MUST
-carry a non-empty `verification_reason` (ticket 22). A bad plan is re-asked ONCE with
-the findings as evidence, then the node is FORCED to a leaf — invalid output never crashes
-and never silently produces a child. Budget: ~500 tok.
+in `what`/`why` must be in the injected candidate scope; every declared review ANGLE must
+be in the node's closed per-level set, and a code-writing node that declares NEITHER list
+MUST carry a non-empty `verification_reason` (ticket 22 r3). A bad plan is re-asked ONCE
+with the findings as evidence, then the node is FORCED to a leaf — invalid output never
+crashes and never silently produces a child. Budget: ~500 tok.
 
 ---
 

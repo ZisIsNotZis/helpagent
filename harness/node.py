@@ -38,7 +38,6 @@ from harness.envelopes import ChildPlan, PlanNode, file_tokens
 from harness.leaf import (
     COVENANT_DILUTION_SHARE,
     DEFAULT_REVIEW_LEVEL,
-    VERIFICATION_REQUIREMENTS,
     DeclaredTestCase,
     review_angles_for_level,
 )
@@ -147,17 +146,15 @@ class NodeSpec:
     view_files: tuple[str, ...] = ()
     #: Ticket 19 D: the DECLARED per-criterion test cases (file + function names) the
     #: node's leaf must expose and pass. Empty when the plan declared none.
-    test_cases: tuple[DeclaredTestCase, ...] = ()
-    #: Ticket 22 PLAN-TIME POLICY: how this node's leaf will be verified — ``test`` (a
-    #: discriminating test is required), ``review`` (a graded review is the required
-    #: evidence; no test is required), or ``either`` (prefer a test, fall back to review).
-    #: ``verification_reason`` is the planner's REQUIRED justification: how hard a test is
-    #: to write for this requirement and why the policy was chosen. ``review_angles`` lists
-    #: the review tier's angles (a closed per-level set; empty = the level's critical
-    #: angles); ``best_effort`` is an optional plan-level fallback with its own reason.
-    verification_policy: str = "either"
+    planned_tests: tuple[DeclaredTestCase, ...] = ()
+    #: Ticket 22 round 3: the PLAN's two verification LISTS. ``planned_tests`` are the
+    #: test points this node intends to write (ac_id + file + names + what it verifies);
+    #: ``planned_reviews`` are the review ANGLES it intends to run (a closed per-level
+    #: set). Both may be given, or neither; when neither is given ``verification_reason``
+    #: MUST state why. ``best_effort`` is an optional plan-level fallback with its own
+    #: reason.
+    planned_reviews: tuple[str, ...] = ()
     verification_reason: str = ""
-    review_angles: tuple[str, ...] = ()
     review_level: str = DEFAULT_REVIEW_LEVEL
     best_effort: bool = False
     best_effort_reason: str = ""
@@ -197,11 +194,10 @@ def _child_spec_from(child: ChildPlan) -> NodeSpec:
         interfaces=tuple(i.name for i in child.interfaces),
         kind=child.kind,
         est_calls=child.est_calls,
-        test_cases=tuple(DeclaredTestCase(t.ac_id, t.file, tuple(t.names))
-                         for t in child.test_cases),
-        verification_policy=child.verification_policy,
+        planned_tests=tuple(DeclaredTestCase(t.ac_id, t.file, tuple(t.names), t.verifies)
+                            for t in child.planned_tests),
+        planned_reviews=tuple(child.planned_reviews),
         verification_reason=child.verification_reason,
-        review_angles=tuple(child.review_angles),
         best_effort=child.best_effort,
         best_effort_reason=child.best_effort_reason,
     )
@@ -218,11 +214,10 @@ def decomposition_from_envelope(env: PlanNode) -> Decomposition:
         kind="internal" if children else "leaf",
         behavior=env.behavior,
         implementation_notes=env.implementation_notes,
-        test_cases=tuple(DeclaredTestCase(t.ac_id, t.file, tuple(t.names))
-                         for t in env.test_cases),
-        verification_policy=env.verification_policy,
+        planned_tests=tuple(DeclaredTestCase(t.ac_id, t.file, tuple(t.names), t.verifies)
+                            for t in env.planned_tests),
+        planned_reviews=tuple(env.planned_reviews),
         verification_reason=env.verification_reason,
-        review_angles=tuple(env.review_angles),
         best_effort=env.best_effort,
         best_effort_reason=env.best_effort_reason,
         how_id=env.how_id,
@@ -248,8 +243,8 @@ def _canon_set(paths: Sequence[str], add, label: str) -> set[str]:
     return out
 
 
-def _verification_findings(label: str, files: Sequence[str], policy: str,
-                            verification_reason: str, review_angles: Sequence[str],
+def _verification_findings(label: str, files: Sequence[str], planned_tests: Sequence,
+                            planned_reviews: Sequence[str], verification_reason: str,
                             level: str, best_effort: bool, best_effort_reason: str,
                             kind: NodeKind, has_code: bool, add,
                             *, leaf_kind: str = "leaf-empty-files") -> None:
@@ -260,12 +255,13 @@ def _verification_findings(label: str, files: Sequence[str], policy: str,
     acceptance criteria / declared test cases), the file list is mandatory --- a writer
     that does not declare what it writes is invalid (ticket 19 round 1 gap 4).
 
-    Ticket 22: the declared PLAN-TIME verification policy (``test`` | ``review`` |
-    ``either``) and its REQUIRED reason, the review ANGLES (against the node's closed
-    per-level set), and the best-effort declaration (a plan-level reason is mandatory) are
-    validated here, so an out-of-domain or unjustified declaration invalidates the node at
-    construction. A node with its own work (code) must justify its policy; the default
-    ``either`` policy is the legacy fallback and may omit the reason.
+    Ticket 22 round 3: the spec-time policy is TWO LISTS --- the planned TESTS and the
+    planned REVIEWS. Both, either, or neither may be declared. When NEITHER is declared
+    the node MUST carry a ``verification_reason`` (the planner says why no test and no
+    review can carry the claim). A declared review ANGLE must be in the node's closed
+    per-level set, and ``best_effort`` (an optional weaker-tier fallback) must carry its
+    own plan-level reason. Validated here so an out-of-domain or unjustified declaration
+    invalidates the node at construction.
     """
     if kind == "leaf" and not files:
         add(leaf_kind,
@@ -274,15 +270,14 @@ def _verification_findings(label: str, files: Sequence[str], policy: str,
         add("non-leaf-code-without-files",
             f"{label} declares its own work but no file list (a writer must declare its "
             "files)")
-    if policy not in VERIFICATION_REQUIREMENTS:
-        add("bad-verification-required",
-            f"{label} verification_policy={policy!r} not in {VERIFICATION_REQUIREMENTS}")
-    elif has_code and policy != "either" and not (verification_reason or "").strip():
+    if has_code and not planned_tests and not planned_reviews \
+            and not (verification_reason or "").strip():
         add("verification-reason-missing",
-            f"{label} declares verification_policy={policy!r} without a "
-            "verification_reason: the planner must say why a test is or is not required")
+            f"{label} declares neither planned_tests nor planned_reviews without a "
+            "verification_reason: the planner must say why no test and no review can "
+            "carry this node's claim")
     domain = review_angles_for_level(level)
-    for angle in review_angles:
+    for angle in planned_reviews:
         if angle not in domain:
             add("bad-review-angle",
                 f"{label} review_angle={angle!r} not in the {level} set {domain}")
@@ -360,7 +355,7 @@ def validate_decomposition(
             if inside(canon):
                 add("withheld-file-path",
                     f"{label} declares the withheld grader path {rel!r} as a source file")
-        for case in spec.test_cases:
+        for case in spec.planned_tests:
             canon = canonical_path(case.file) or case.file
             if inside(canon):
                 add("withheld-test-path",
@@ -377,10 +372,11 @@ def validate_decomposition(
 
     _canon_set(node.files, add, "node")
     withheld_hits("node", node)
-    _verification_findings("node", node.files, node.verification_policy,
-                           node.verification_reason, node.review_angles, node.review_level,
+    _verification_findings("node", node.files, node.planned_tests,
+                           node.planned_reviews, node.verification_reason,
+                           node.review_level,
                            node.best_effort, node.best_effort_reason, node.kind,
-                           bool(node.acs or node.test_cases), add)
+                           bool(node.acs or node.planned_tests), add)
 
     if node.kind == "leaf":
         if d.children:
@@ -396,11 +392,11 @@ def validate_decomposition(
     for i, child in enumerate(d.children):
         cset = _canon_set(child.files, add, f"child {i}")
         withheld_hits(f"child {i}", child)
-        _verification_findings(f"child {i}", child.files, child.verification_policy,
-                               child.verification_reason, child.review_angles,
+        _verification_findings(f"child {i}", child.files, child.planned_tests,
+                               child.planned_reviews, child.verification_reason,
                                child.review_level, child.best_effort,
                                child.best_effort_reason, child.kind,
-                               bool(child.acs or child.test_cases), add,
+                               bool(child.acs or child.planned_tests), add,
                                leaf_kind="leaf-child-empty-files")
         outside = sorted(cset - parent_canon)
         if outside:
@@ -538,18 +534,18 @@ def _plan_node_artifacts(goal: str, boundary: set[str], candidate_files: set[str
 def _plan_node_question(evidence: str, depth: int) -> str:
     lines = [
         ("Decompose and specify THIS node in one call. Return the node's own goal, "
-         "behavior, implementation_notes, files, acs, interfaces and test_cases, plus "
+         "behavior, implementation_notes, files, acs, interfaces and planned_tests, plus "
          "its children. Return children=[] to declare this node a LEAF (then its acs "
          "MUST be non-empty and its files MUST be non-empty)."),
         ("Return EVERY field, always present (a missing field is rejected): status, "
          "comment, goal, behavior, implementation_notes, files, acs, interfaces, "
-         "test_cases, verification_policy, verification_reason, review_angles, "
+         "planned_tests, planned_reviews, verification_reason, "
          "best_effort, best_effort_reason, children. Sub-fields: each acs entry = "
          "{ac_id: 'AC-1', statement: '<the criterion>', check_kind: 'test'}; each "
-         "interfaces entry = {name, signature, contract}; each test_cases entry = "
-         "{ac_id, file, names}; each children entry = {what, why, kind: 'leaf' or "
-         "'internal', files, acs, interfaces, test_cases, est_calls, "
-         "verification_policy, verification_reason, review_angles, best_effort, "
+         "interfaces entry = {name, signature, contract}; each planned_tests entry = "
+         "{ac_id, file, names, verifies}; each children entry = {what, why, kind: "
+         "'leaf' or 'internal', files, acs, interfaces, planned_tests, "
+         "planned_reviews, est_calls, verification_reason, best_effort, "
          "best_effort_reason}. A leaf child MUST have a NON-EMPTY files list and a "
          "NON-EMPTY acs list."),
         f"DEPTH: {depth} (a child must be at depth {depth + 1}).",
@@ -558,26 +554,29 @@ def _plan_node_question(evidence: str, depth: int) -> str:
          "the same file — the harness serializes overlapping writers — but a child must "
          "not declare a path outside this node's write boundary, and every node must "
          "stay within its own declared boundary."),
-        ("For each acceptance criterion DECLARE its expected test cases in test_cases: "
-         "the ac_id, the test FILE, and the test FUNCTION NAMES that must exist and "
-         "pass. The harness verifies these mechanically from the report, so name them "
-         "concretely (e.g. ac_id AC-1, file tests/test_x.py, names [test_ac1_goal])."),
-        ("DECLARE the verification POLICY each node must satisfy, and JUSTIFY it: "
-         "verification_policy is 'test' when a discriminating test MUST carry the "
-         "claim, 'review' when a graded, multi-angle review is the required evidence "
-         "and NO test is required, or 'either' to prefer a test and fall back to "
-         "review. verification_reason is REQUIRED for every node: judge how HARD it "
-         "will be to write a test that discriminates for this requirement (name the "
-         "observable, the input, or why no test can pin it) and say why you chose the "
-         "policy — say plainly when a test looks hard and review should carry it "
-         "instead. review_angles lists the review ANGLES to run, from the closed "
-         "implementation set "
+        ("For each acceptance criterion PLAN its test points in planned_tests: the "
+         "ac_id, the test FILE, the test FUNCTION NAMES that must exist and pass, and "
+         "what the test VERIFIES (the observable it pins). The harness verifies the "
+         "file/names mechanically from the report, so name them concretely (e.g. ac_id "
+         "AC-1, file tests/test_x.py, names [test_ac1_goal], verifies 'returns 0 at "
+         "expiry')."),
+        ("DECLARE the node's verification as TWO LISTS, not an enum: planned_tests are "
+         "the test points the node intends to WRITE, and planned_reviews are the "
+         "review ANGLES the node intends to RUN, from the closed implementation set "
          "['ac-correctness', 'contract-compat', 'edge-and-error', 'regression-risk', "
          "'input-safety', 'maintainability'] --- each angle is one independent review "
-         "call, and a repeated angle is a recorded deviation, not extra evidence; leave "
-         "it empty to run the critical angles. best_effort=true is an EXPLICIT PLAN-LEVEL "
-         "opt-in to a weaker tier, needs a best_effort_reason explaining why, lowers the "
-         "floor at most ONE tier, and MUST NOT be declared on every child."),
+         "call, and a repeated angle is a recorded deviation, not extra evidence. "
+         "Give BOTH lists when the requirement is testable AND worth reviewing (the "
+         "strongest: the test carries the claim and the review is the fallback that "
+         "outranks a conflicting test); only planned_tests when a discriminating test "
+         "is the evidence; only planned_reviews when no test can carry it and a graded "
+         "review must. Leave BOTH empty ONLY when neither a test nor a review can carry "
+         "the claim, and then verification_reason MUST say why. In every case judge "
+         "how HARD it will be to write a discriminating test for this requirement "
+         "(name the observable, the input, or why no test can pin it) and put that in "
+         "verification_reason. best_effort=true is an EXPLICIT PLAN-LEVEL opt-in to a "
+         "weaker tier, needs a best_effort_reason explaining why, lowers the floor at "
+         "most ONE tier, and MUST NOT be declared on every child."),
     ]
     if evidence:
         lines.append("PRIOR ATTEMPT WAS REJECTED — use this as evidence and differ:\n"

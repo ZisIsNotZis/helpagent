@@ -96,13 +96,15 @@ async def llm(step_type: str,
 - **Schema library.** `harness/envelopes.SCHEMAS` holds one grammar envelope per
   `step_type` (ENVELOPE_SCHEMAS §0–§23, §26–§29), **28 registered** as of ticket 20. Ticket 22
   adds no schema: it extends the existing `plan_node` (ENVELOPE_SCHEMAS §23) envelope (and
-  its `ChildPlan`) with the PLAN-TIME policy fields `verification_policy`
-  (`test`/`review`/`either`) and the REQUIRED `verification_reason`, so the count stays 28.
+  its `ChildPlan`) with the PLAN-TIME fields — round 3 replaced the single
+  `verification_policy` enum with TWO LISTS, `planned_tests` and `planned_reviews` (both
+  default empty; `verification_reason` is REQUIRED iff both are empty) — so the count stays
+  28.
   Ticket 18's
   newest was `plan_node` (ENVELOPE_SCHEMAS §23): the node tree's ONE fused
   decompose+specify call — a node's `children` plus its own goal/behavior/files/ACs plus the
-  declared per-criterion test cases (`test_cases`, ticket 19 D) and the per-node verification
-  policy (`verification_policy`/`verification_reason`/`review_angles`/`best_effort`+
+  planned test points (`planned_tests`, ticket 19 D / 22 r3) and the planned review angles
+  (`planned_reviews`/`verification_reason`/`best_effort`+
   `best_effort_reason`, ticket 22) in a single invocation.
   Ticket 19 adds `leaf_review` (ENVELOPE_SCHEMAS §26): the review-based verification verdict
   used when no test can carry verification (goal + ACs + final diff → a five-grade ordinal

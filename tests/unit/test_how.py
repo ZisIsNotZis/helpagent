@@ -217,7 +217,7 @@ def _leaf_with_gate(*, passed=(), failed=()):
 def test_planned_test_point_declares_name_file_verifies_and_ac():
     spec = NodeSpec(goal="g", acs=("sessions expire per ttl",), kind="leaf",
                     files=("a.py",),
-                    test_cases=(DeclaredTestCase("AC-1", "tests/test_a.py",
+                    planned_tests=(DeclaredTestCase("AC-1", "tests/test_a.py",
                                                  ("test_ac1_expiry",)),))
     points = planned_test_points(spec)
     assert len(points) == 1

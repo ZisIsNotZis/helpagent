@@ -75,21 +75,38 @@ def ac(statement: str = "criterion", ac_id: str = "AC-1") -> dict:
     return {"ac_id": ac_id, "statement": statement, "check_kind": "test"}
 
 
+def _test_point(ac_id: str = "AC-1", file: str = "tests/test_x.py",
+                name: str = "test_ac1_goal") -> dict:
+    return {"ac_id": ac_id, "file": file, "names": [name]}
+
+
+def _verification_lists(policy: str) -> tuple[list, list]:
+    """Ticket 22 round 3: map the old enum shorthand to the two LISTS. ``either`` means
+    BOTH lists (prefer the test, fall back to the review). The tree fixtures default to
+    NO declared lists (a plan that declares neither and carries a reason)."""
+    tests = [_test_point()] if policy == "test" else []
+    reviews = ["ac-correctness"] if policy == "review" else []
+    return tests, reviews
+
+
 def child(what: str, files, *, acs=None, kind: str = "leaf", est: int = 3,
-          why: str = "because", policy: str = "either",
+          why: str = "because", policy: str = "none",
           reason: str = "a direct assertion pins the behaviour") -> dict:
+    tests, reviews = _verification_lists(policy)
     return {"what": what, "why": why, "kind": kind, "files": list(files),
             "acs": list(acs) if acs is not None else [ac()],
             "interfaces": [], "est_calls": est,
-            "verification_policy": policy, "verification_reason": reason}
+            "planned_tests": tests, "planned_reviews": reviews,
+            "verification_reason": reason}
 
 
 def plan_env(children, *, files, goal: str = "root goal", acs=(), behavior: str = "shared",
-             notes: str = "notes", policy: str = "either",
+             notes: str = "notes", policy: str = "none",
              reason: str = "a direct assertion pins the behaviour") -> dict:
+    tests, reviews = _verification_lists(policy)
     return {"status": "ok", "comment": "planned", "goal": goal, "behavior": behavior,
             "implementation_notes": notes, "files": list(files), "acs": list(acs),
-            "interfaces": [], "verification_policy": policy,
+            "interfaces": [], "planned_tests": tests, "planned_reviews": reviews,
             "verification_reason": reason, "children": list(children)}
 
 
@@ -196,8 +213,11 @@ def test_sibling_files_may_overlap_and_boundaries_still_narrow():
     node's declared boundary; child ⊆ parent is still enforced."""
     d = Decomposition(
         spec=NodeSpec(goal="root", files=("pkg/a.py", "pkg/b.py"), kind="internal"),
-        children=(NodeSpec(goal="one", files=("pkg/a.py",), acs=("c",), kind="leaf"),
-                  NodeSpec(goal="two", files=("pkg/a.py", "pkg/b.py"), acs=("c",), kind="leaf")),
+        children=(NodeSpec(goal="one", files=("pkg/a.py",), acs=("c",), kind="leaf",
+                           verification_reason="a direct assertion pins the behaviour"),
+                  NodeSpec(goal="two", files=("pkg/a.py", "pkg/b.py"), acs=("c",),
+                           kind="leaf",
+                           verification_reason="a direct assertion pins the behaviour")),
         signature="sig")
     findings = validate_decomposition(
         d, parent_files={"pkg/a.py", "pkg/b.py"},
@@ -206,7 +226,8 @@ def test_sibling_files_may_overlap_and_boundaries_still_narrow():
     # a child outside the parent boundary is still refused (narrowing-only)
     out_of_boundary = Decomposition(
         spec=NodeSpec(goal="root", files=("pkg/a.py",), kind="internal"),
-        children=(NodeSpec(goal="one", files=("pkg/c.py",), acs=("c",), kind="leaf"),),
+        children=(NodeSpec(goal="one", files=("pkg/c.py",), acs=("c",), kind="leaf",
+                           verification_reason="a direct assertion pins the behaviour"),),
         signature="sig")
     assert any(f.kind == "child-outside-boundary" for f in validate_decomposition(
         out_of_boundary, parent_files={"pkg/a.py"}, candidate_files={"pkg/a.py"},
@@ -224,8 +245,10 @@ def test_path_canonicalization_keeps_boundary_narrowing_honest():
 
     d = Decomposition(
         spec=NodeSpec(goal="root", files=("pkg/a.py",), kind="internal"),
-        children=(NodeSpec(goal="one", files=("./pkg/a.py",), acs=("c",), kind="leaf"),
-                  NodeSpec(goal="two", files=("pkg/./a.py",), acs=("c",), kind="leaf")),
+        children=(NodeSpec(goal="one", files=("./pkg/a.py",), acs=("c",), kind="leaf",
+                           verification_reason="a direct assertion pins the behaviour"),
+                  NodeSpec(goal="two", files=("pkg/./a.py",), acs=("c",), kind="leaf",
+                           verification_reason="a direct assertion pins the behaviour")),
         signature="sig")
     # canonicalized aliases are inside the boundary AND no longer an overlap finding
     findings = validate_decomposition(
@@ -235,7 +258,8 @@ def test_path_canonicalization_keeps_boundary_narrowing_honest():
     # an unusable path is its own structured finding, never an exception
     bad = Decomposition(
         spec=NodeSpec(goal="root", files=("pkg/a.py",), kind="internal"),
-        children=(NodeSpec(goal="one", files=("../escape.py",), acs=("c",), kind="leaf"),),
+        children=(NodeSpec(goal="one", files=("../escape.py",), acs=("c",), kind="leaf",
+                           verification_reason="a direct assertion pins the behaviour"),),
         signature="sig")
     assert any(f.kind == "bad-path" for f in
                validate_decomposition(bad, parent_files={"pkg/a.py"},
@@ -843,11 +867,20 @@ def test_plan_node_envelope_shape():
 def test_validate_decomposition_shape_rules():
     parent = {"pkg/a.py", "pkg/b.py"}
 
+    def _with_reason(spec):
+        """Ticket 22 round 3: a node with its own work and NEITHER list must state a
+        verification_reason. The shape tests only care about the OTHER findings, so give
+        every spec the explicit reason it now needs unless it already declares a plan."""
+        if spec.planned_tests or spec.planned_reviews or spec.verification_reason:
+            return spec
+        return replace(spec, verification_reason="a direct assertion pins the behaviour")
+
     def findings(children, *, spec_files=("pkg/a.py", "pkg/b.py"), kind="internal",
                  spec_acs=("root ac",)):
         d = Decomposition(
-            spec=NodeSpec(goal="root", files=spec_files, acs=spec_acs, kind=kind),
-            children=tuple(children), signature="sig")
+            spec=_with_reason(NodeSpec(goal="root", files=spec_files, acs=spec_acs,
+                                       kind=kind)),
+            children=tuple(_with_reason(c) for c in children), signature="sig")
         return validate_decomposition(
             d, parent_files=parent, candidate_files=parent, depth=0, depth_cap=4,
             max_children=15).items
@@ -866,8 +899,10 @@ def test_validate_decomposition_shape_rules():
                          NodeSpec(goal="fix it", files=("pkg/b.py",), acs=("c",))]))
     # depth cap
     d = Decomposition(
-        spec=NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",), kind="internal"),
-        children=(NodeSpec(goal="one", files=("pkg/a.py",), acs=("c",)),),
+        spec=NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",), kind="internal",
+                      verification_reason="a direct assertion pins the behaviour"),
+        children=(NodeSpec(goal="one", files=("pkg/a.py",), acs=("c",),
+                           verification_reason="a direct assertion pins the behaviour"),),
         signature="sig")
     capped = validate_decomposition(d, parent_files={"pkg/a.py"},
                                     candidate_files={"pkg/a.py"}, depth=5, depth_cap=4,
@@ -894,7 +929,8 @@ def test_plan_guard_accepts_a_visible_frozen_file_and_rejects_only_the_hidden_se
     assert hidden == ("tests/test_contract.py",)          # only the staged-owned path
 
     frozen_plan = Decomposition(
-        spec=NodeSpec(goal="root", files=visible_frozen, acs=("c",), kind="leaf"),
+        spec=NodeSpec(goal="root", files=visible_frozen, acs=("c",), kind="leaf",
+                      verification_reason="a direct assertion pins the behaviour"),
         children=(), signature="frozen")
     accepted = validate_decomposition(
         frozen_plan, parent_files=set(visible_frozen),
@@ -905,7 +941,7 @@ def test_plan_guard_accepts_a_visible_frozen_file_and_rejects_only_the_hidden_se
     hidden_plan = Decomposition(
         spec=NodeSpec(
             goal="root", files=("pkg/a.py",), acs=("c",), kind="leaf",
-            test_cases=(DeclaredTestCase("AC-1", "tests/test_contract.py",
+            planned_tests=(DeclaredTestCase("AC-1", "tests/test_contract.py",
                                          ("test_x",)),)),
         children=(), signature="hidden")
     rejected = validate_decomposition(
@@ -925,7 +961,8 @@ def test_plan_guard_derives_the_hidden_set_even_from_the_raw_grader_union():
     union = {"README.md", "serialize/base.py", "tests/test_contract.py"}
     frozen_plan = Decomposition(
         spec=NodeSpec(goal="root", files=("README.md", "serialize/base.py"),
-                      acs=("c",), kind="leaf"),
+                      acs=("c",), kind="leaf",
+                      verification_reason="a direct assertion pins the behaviour"),
         children=(), signature="frozen-union")
     accepted = validate_decomposition(
         frozen_plan, parent_files=set(frozen_plan.spec.files),
@@ -936,7 +973,7 @@ def test_plan_guard_derives_the_hidden_set_even_from_the_raw_grader_union():
     hidden_plan = Decomposition(
         spec=NodeSpec(
             goal="root", files=("pkg/a.py",), acs=("c",), kind="leaf",
-            test_cases=(DeclaredTestCase("AC-1", "tests/test_contract.py",
+            planned_tests=(DeclaredTestCase("AC-1", "tests/test_contract.py",
                                          ("test_x",)),)),
         children=(), signature="hidden-union")
     rejected = validate_decomposition(
@@ -971,10 +1008,11 @@ def test_planned_test_point_inside_a_withheld_grader_path_is_rejected_at_plan_ti
     is clean, so the guard is causal."""
     child_spec = NodeSpec(
         goal="one", files=("pkg/a.py",), acs=("c",), kind="leaf",
-        test_cases=(DeclaredTestCase("AC-1", "tests/test_pagination.py",
+        planned_tests=(DeclaredTestCase("AC-1", "tests/test_pagination.py",
                                      ("test_page_one",)),))
     d = Decomposition(
-        spec=NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",), kind="internal"),
+        spec=NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",), kind="internal",
+                      verification_reason="a direct assertion pins the behaviour"),
         children=(child_spec,), signature="sig")
     guarded = validate_decomposition(
         d, parent_files={"pkg/a.py"}, candidate_files={"pkg/a.py"}, depth=0,
@@ -988,7 +1026,8 @@ def test_planned_test_point_inside_a_withheld_grader_path_is_rejected_at_plan_ti
     # a declared FILE at a withheld path is rejected too
     file_plan = Decomposition(
         spec=NodeSpec(goal="root", files=("tests/test_pagination.py",), acs=("c",),
-                      kind="leaf"),
+                      kind="leaf",
+                      verification_reason="a direct assertion pins the behaviour"),
         children=(), signature="sig2")
     assert any(f.kind == "withheld-file-path" for f in validate_decomposition(
         file_plan, parent_files={"tests/test_pagination.py"},
@@ -1003,7 +1042,7 @@ def test_plan_node_rejects_a_withheld_test_point_then_forces_a_leaf():
     blocked = plan_env(
         [{"what": "page tests", "why": "because", "kind": "leaf",
           "files": ["pkg/a.py"], "acs": [ac()], "interfaces": [], "est_calls": 3,
-          "test_cases": [{"ac_id": "AC-1", "file": "tests/test_pagination.py",
+          "planned_tests": [{"ac_id": "AC-1", "file": "tests/test_pagination.py",
                            "names": ["test_page_one"]}],
           "verification_reason": "a unit test pins pagination"}],
         files=("pkg/a.py",))
@@ -1025,7 +1064,7 @@ def test_plan_node_accepts_a_visible_frozen_file_when_handed_the_raw_union():
     ok = plan_env(
         [{"what": "keep the readme", "why": "because", "kind": "leaf",
           "files": ["README.md"], "acs": [ac()], "interfaces": [], "est_calls": 3,
-          "test_cases": [],
+          "planned_tests": [],
           "verification_reason": "a unit test pins the README example"}],
         files=("README.md", "pkg/a.py"))
     model = FakeModelRunner({"plan_node": [ok]})
@@ -1577,7 +1616,7 @@ def test_planner_guidance_splits_by_requirement_and_declares_test_cases():
 
     question = _plan_node_question("", 0)
     assert "REQUIREMENT" in question
-    assert "test_cases" in question
+    assert "planned_tests" in question
     assert "outside this node's write boundary" in question
 
 
@@ -1588,25 +1627,25 @@ def test_plan_node_carries_declared_test_cases():
         "status": "ok", "comment": "planned", "goal": "root", "behavior": "b",
         "implementation_notes": "n", "files": ["pkg/a.py"], "acs": [ac("criterion")],
         "interfaces": [],
-        "test_cases": [{"ac_id": "AC-1", "file": "tests/test_a.py",
+        "planned_tests": [{"ac_id": "AC-1", "file": "tests/test_a.py",
                         "names": ["test_ac1_ok", "test_ac1_edge"]}],
         "verification_reason": "a unit test pins the criterion directly",
         "children": [],
     }
     env = PlanNode.model_validate(payload)
     decomp = decomposition_from_envelope(env)
-    assert decomp.spec.test_cases == (
+    assert decomp.spec.planned_tests == (
         DeclaredTestCase("AC-1", "tests/test_a.py", ("test_ac1_ok", "test_ac1_edge")),)
 
 
 def test_a_child_carries_declared_test_cases():
     base = plan_env([{**child("one", ["pkg/a.py"]),
-                      "test_cases": [{"ac_id": "AC-1", "file": "tests/test_a.py",
+                      "planned_tests": [{"ac_id": "AC-1", "file": "tests/test_a.py",
                                       "names": ["test_ac1"]}]}],
                     files=("pkg/a.py",))
     decomp = decomposition_from_envelope(PlanNode.model_validate(
         {"status": "ok", "comment": "c", **base}))
-    assert decomp.children[0].test_cases == (
+    assert decomp.children[0].planned_tests == (
         DeclaredTestCase("AC-1", "tests/test_a.py", ("test_ac1",)),)
 
 
@@ -1615,10 +1654,10 @@ def test_leaf_spec_from_carries_declared_test_cases(tmp_path):
     from harness.tree_run import leaf_spec_from
 
     spec = NodeSpec(goal="g", files=("pkg/a.py",), acs=("c",), kind="leaf",
-                    test_cases=(DeclaredTestCase("AC-1", "tests/test_a.py", ("test_ac1",)),))
+                    planned_tests=(DeclaredTestCase("AC-1", "tests/test_a.py", ("test_ac1",)),))
     leaf_spec = leaf_spec_from(spec, tmp_path, root_grader_paths=("tests/test_grader_secret.py",),
                                candidate_files=("pkg/a.py", "pkg/b.py"))
-    assert leaf_spec.test_cases == spec.test_cases
+    assert leaf_spec.planned_tests == spec.planned_tests
     assert leaf_spec.write_boundary == ("pkg/a.py",)
     assert leaf_spec.candidate_files == ("pkg/a.py", "pkg/b.py")
 
@@ -1795,117 +1834,125 @@ def test_leaf_child_without_files_is_invalid_at_construction():
 
 
 def test_out_of_domain_verification_declaration_invalidates_the_node():
-    """Item 4/6: the declared policy, review ANGLES, and best-effort reason are validated
-    at construction."""
-    findings = _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",), kind="leaf",
-                                  verification_policy="sometimes"))
-    assert any(f.kind == "bad-verification-required" for f in findings)
+    """Ticket 22 round 3: the spec-time policy is TWO LISTS, so the old single-enum
+    out-of-domain check no longer applies. What is still validated at construction: a
+    declared review ANGLE must be in the node's closed per-level set, ``best_effort``
+    must carry its own reason, and a node with its own work and NEITHER list must state a
+    verification_reason."""
     angles = _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",), kind="leaf",
-                                review_angles=("vibes",)))
+                                planned_reviews=("vibes",)))
     assert any(f.kind == "bad-review-angle" for f in angles)
     unjustified = _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",),
                                      kind="leaf", best_effort=True))
     assert any(f.kind == "best-effort-without-reason" for f in unjustified)
-    # ticket 22: a NON-default policy must carry its REQUIRED reason
+    # ticket 22 round 3: NEITHER list is legal only WITH a written reason.
     no_reason = _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",),
-                                   kind="leaf", verification_policy="test"))
+                                   kind="leaf"))
     assert any(f.kind == "verification-reason-missing" for f in no_reason)
 
 
 def test_covenant_valid_leaf_declaration_has_no_findings():
     assert _findings(NodeSpec(goal="root", files=("pkg/a.py",), acs=("c",), kind="leaf",
-                              verification_policy="test",
+                              planned_tests=(DeclaredTestCase(
+                                  "AC-1", "tests/test_a.py", ("test_ac1",)),),
+                              planned_reviews=("ac-correctness", "contract-compat"),
                               verification_reason="a unit test pins the result directly",
-                              review_angles=("ac-correctness", "contract-compat"),
                               best_effort=True,
                               best_effort_reason="the timing is only injected in prod")) == []
 
 
 def test_plan_node_carries_the_verification_covenant():
-    """Item 4: the fused plan envelope carries the per-node policy + REQUIRED reason and
-    they survive the translation into a :class:`Decomposition` (node and children)."""
-    base = plan_env([{**child("one", ["pkg/a.py"], policy="test",
-                              reason="a unit test pins the result directly"),
-                      "review_angles": ["ac-correctness"], "best_effort": True,
+    """Ticket 22 round 3: the fused plan envelope carries the per-node TWO LISTS and the
+    REQUIRED reason, and they survive the translation into a :class:`Decomposition`
+    (node and children)."""
+    base = plan_env([{**child("one", ["pkg/a.py"]),
+                      "planned_tests": [{"ac_id": "AC-1", "file": "tests/test_a.py",
+                                        "names": ["test_ac1"]}],
+                      "planned_reviews": ["ac-correctness"],
+                      "verification_reason": "a unit test pins the result directly",
+                      "best_effort": True,
                       "best_effort_reason": "the value is only injected in prod"}],
                     files=("pkg/a.py",))
-    payload = {"status": "ok", "comment": "c", **base,
-               "verification_policy": "review",
+    payload = {**base,
+               "planned_tests": [{"ac_id": "AC-1", "file": "tests/test_a.py",
+                                  "names": ["test_ac1"]}],
+               "planned_reviews": ["ac-correctness", "contract-compat"],
                "verification_reason": "the behaviour is timing-dependent and hard to pin",
-               "review_angles": ["ac-correctness", "contract-compat"],
                "best_effort": True,
                "best_effort_reason": "the value is only injected in prod"}
     decomp = decomposition_from_envelope(PlanNode.model_validate(payload))
-    assert (decomp.spec.verification_policy, decomp.spec.verification_reason,
-            decomp.spec.review_angles, decomp.spec.best_effort) == (
-        "review", "the behaviour is timing-dependent and hard to pin",
+    assert (decomp.spec.verification_reason, decomp.spec.planned_reviews,
+            decomp.spec.best_effort) == (
+        "the behaviour is timing-dependent and hard to pin",
         ("ac-correctness", "contract-compat"), True)
-    assert (decomp.children[0].verification_policy,
-            decomp.children[0].verification_reason,
-            decomp.children[0].review_angles,
+    assert [c.ac_id for c in decomp.spec.planned_tests] == ["AC-1"]
+    assert (decomp.children[0].verification_reason,
+            decomp.children[0].planned_reviews,
             decomp.children[0].best_effort) == (
-        "test", "a unit test pins the result directly", ("ac-correctness",), True)
+        "a unit test pins the result directly", ("ac-correctness",), True)
+    assert [c.ac_id for c in decomp.children[0].planned_tests] == ["AC-1"]
 
 
 def test_plan_node_envelope_enforces_the_covenant_domain():
     base = plan_env([child("one", ["pkg/a.py"])], files=("pkg/a.py",))
+    # Ticket 22 round 3: the old single-enum ``verification_policy`` field is GONE; the
+    # schema forbids it as an extra field.
     with pytest.raises(ValidationError):
-        PlanNode.model_validate({"status": "ok", "comment": "c", **base,
-                                 "verification_policy": "maybe"})
-    # Ticket 22: the legacy ``any`` value is GONE; the three policy values are the domain
-    # and the default is ``either``.
+        PlanNode.model_validate({**base, "verification_policy": "test"})
+    # a non-list/unknown-shape planned_reviews field is rejected by the schema (an
+    # out-of-domain angle is rejected by validate_decomposition, tested above).
     with pytest.raises(ValidationError):
-        PlanNode.model_validate({"status": "ok", "comment": "c", **base,
-                                 "verification_policy": "any"})
-    for policy in ("test", "review", "either"):
-        env = PlanNode.model_validate({"status": "ok", "comment": "c", **base,
-                                       "verification_policy": policy})
-        assert env.verification_policy == policy
-    # Ticket 20: a non-list/unknown-shape review_angles field is rejected by the schema,
-    # and an out-of-domain angle is rejected by validate_decomposition (tested above).
+        PlanNode.model_validate({**base, "planned_reviews": "ac-correctness"})
+    # the two LIST fields default to empty and parse when given.
+    env = PlanNode.model_validate(base)
+    assert env.planned_tests == [] and env.planned_reviews == []
+    both = PlanNode.model_validate({**base,
+                                    "planned_tests": [{"ac_id": "AC-1",
+                                                       "file": "tests/test_a.py",
+                                                       "names": ["test_ac1"]}],
+                                    "planned_reviews": ["ac-correctness"]})
+    assert both.planned_reviews == ["ac-correctness"]
+    assert [t.ac_id for t in both.planned_tests] == ["AC-1"]
+    # NEITHER list is legal only WITH a written reason.
     with pytest.raises(ValidationError):
-        PlanNode.model_validate({"status": "ok", "comment": "c", **base,
-                                 "review_angles": "ac-correctness"})
-    # Ticket 22: the policy's REQUIRED reason cannot be omitted.
-    with pytest.raises(ValidationError):
-        PlanNode.model_validate({k: v for k, v in
-                                 {"status": "ok", "comment": "c", **base}.items()
+        PlanNode.model_validate({k: v for k, v in base.items()
                                  if k != "verification_reason"})
     # ... and an EMPTY reason is not a reason.
     with pytest.raises(ValidationError):
-        PlanNode.model_validate({"status": "ok", "comment": "c", **base,
-                                 "verification_reason": ""})
+        PlanNode.model_validate({**base, "verification_reason": ""})
 
 
 def test_leaf_spec_from_carries_the_verification_covenant(tmp_path):
-    """Item 4/22 wiring: the node's policy + reason reach the leaf's ``LeafSpec``."""
+    """Ticket 22 round 3: the node's TWO LISTS + reason reach the leaf's ``LeafSpec``."""
     from harness.tree_run import leaf_spec_from
 
     spec = NodeSpec(goal="g", files=("pkg/a.py",), acs=("c",), kind="leaf",
-                    verification_policy="test",
+                    planned_tests=(DeclaredTestCase("AC-1", "tests/test_a.py",
+                                                    ("test_ac1",)),),
+                    planned_reviews=("ac-correctness", "contract-compat"),
                     verification_reason="a unit test pins the result directly",
-                    review_angles=("ac-correctness", "contract-compat"),
                     best_effort=True,
                     best_effort_reason="the value is only injected in prod")
     leaf_spec = leaf_spec_from(spec, tmp_path, root_grader_paths=(_GRADER,))
-    assert leaf_spec.verification_policy == "test"
+    assert [c.ac_id for c in leaf_spec.planned_tests] == ["AC-1"]
     assert leaf_spec.verification_reason == "a unit test pins the result directly"
-    assert leaf_spec.review_angles == ("ac-correctness", "contract-compat")
+    assert leaf_spec.planned_reviews == ("ac-correctness", "contract-compat")
     assert leaf_spec.best_effort is True
     assert leaf_spec.best_effort_reason == "the value is only injected in prod"
 
 
 def test_planner_guidance_declares_the_verification_covenant():
-    """Item 4/22: the PlanNode prompt asks the planner for the per-node verification
-    POLICY, its REQUIRED reason (the difficulty of writing a test), the review angles, and
-    the best-effort opt-in."""
+    """Ticket 22 round 3: the PlanNode prompt asks the planner for the per-node TWO LISTS
+    (planned tests, planned reviews), the reason (required when neither is given), and the
+    best-effort opt-in."""
     from harness.node import _plan_node_question
 
     question = _plan_node_question("", 0)
-    assert "verification_policy" in question
+    assert "planned_tests" in question
     assert "verification_reason" in question
-    assert "review_angles" in question and "ac-correctness" in question
+    assert "planned_reviews" in question and "ac-correctness" in question
     assert "best_effort" in question and "best_effort_reason" in question
+    assert "verification_policy" not in question
 
 
 def test_tree_run_record_counts_best_effort_declarations_and_downgrades():
@@ -1917,7 +1964,10 @@ def test_tree_run_record_counts_best_effort_declarations_and_downgrades():
     from harness.leaf import VerificationRecord
     from harness.tree_run import NodeOutcome, TreeOutcome
 
-    record = VerificationRecord(wrote_code=True, tier="review", policy="test",
+    record = VerificationRecord(wrote_code=True, tier="review",
+                                planned_tests=(DeclaredTestCase(
+                                    "AC-1", "tests/test_a.py", ("test_ac1",)),),
+                                verification_reason="a unit test pins the result directly",
                                 best_effort=True, downgraded=True,
                                 downgrade_reason="best_effort: met 'review', required 'test'")
     leaf = leaf_outcome(verification=record, verified=True,
@@ -2291,7 +2341,7 @@ def _plan_with_declared_tests(names, *, goal="root goal", child_goal="fix one") 
     plan = plan_env([child(child_goal, ["pkg/a.py"])],
                     files=("pkg/a.py", "pkg/b.py"), goal=goal)
     plan["children"][0]["acs"] = [ac("criterion one", "AC-1")]
-    plan["children"][0]["test_cases"] = [
+    plan["children"][0]["planned_tests"] = [
         {"ac_id": "AC-1", "file": "tests/test_a.py", "names": list(names)}]
     return plan
 

@@ -397,34 +397,39 @@ The run's own tests gate the run, and a claim additionally needs an independent 
   ``needs-user`` without burning budget, ``test_wrong`` repair/replaces the own test
   (bounded), ``implementation_wrong`` alone keeps implementing. A ``test_wrong`` label must
   name a concrete defect in the test (deterministic filter).
-- **The declared `verification_policy` is a FLOOR, not a mandate (ticket 22 round 2).**
-  `test` means a discriminating test is required; `review` means a graded, multi-angle
-  review is SUFFICIENT (a working discriminating test is still accepted and is the
-  STRONGER evidence, so a `review` node that produces a good test claims on the test
-  tier); `either` means prefer a test and fall back to review. The floor is enforced in
-  `enforce_verification`; claiming at a weaker tier needs the plan's `best_effort` opt-in
-  and is recorded as a downgrade. **A consumer that filters review-backed claims MUST
-  read `claimed_basis` (the honest carrier of how the claim was carried) and MUST NOT
-  filter on `verification.tier`.** `tier` names the STRONGEST evidence the node had
-  available — an approving independent test present alongside a review-decided claim
-  makes `tier` read `test` — so a `tier`-based filter miscounts review-decided claims.
-  The run record already carries everything that filter needs: `claimed`,
-  `claimed_basis`, `verification_basis`, `verification.tier`, `verification.reviews`
-  (each angle's grade/evidence/coerced), `review_verdicts`, `review_score`,
-  `verification_disagreement`, `verification_policy`, `verification_policy_reason`, and
-  `plan_updates`.
+- **The spec-time policy is TWO LISTS, and they are a FLOOR, not a mandate (ticket 22
+  round 3).** A node declares `planned_tests` (the test points it intends to write) and/or
+  `planned_reviews` (the review angles it intends to run); both default empty. `tests
+  only` makes a discriminating test the primary evidence; `reviews only` makes a graded,
+  multi-angle review the required evidence (a working test is still accepted and is the
+  STRONGER evidence); `BOTH` is the strongest (the test is primary and the review is the
+  required fallback that outranks a conflicting test); `NEITHER` is legal only with a
+  written `verification_reason`, and then the only evidence route is the written-reason
+  route. The floor is derived from the lists in `enforce_verification`; claiming at a
+  weaker tier needs the plan's `best_effort` opt-in and is recorded as a downgrade. **A
+  consumer that filters review-backed claims MUST read `claimed_basis` (the honest carrier
+  of how the claim was carried) and MUST NOT filter on `verification.tier`.** `tier` names
+  the STRONGEST evidence the node had available — an approving independent test present
+  alongside a review-decided claim makes `tier` read `test` — so a `tier`-based filter
+  miscounts review-decided claims. The run record carries everything that filter needs:
+  `claimed`, `claimed_basis`, `verification_basis`, `verification.tier`,
+  `verification.reviews` (each angle's grade/evidence/coerced), `review_verdicts`,
+  `review_score`, `verification_disagreement`, `planned_tests`, `planned_reviews`,
+  `verification_reason`, and `plan_updates`. The old single enum
+  `verification_policy`/`verification_policy_reason` is gone; a legacy record that still
+  carries it maps to the lists (`test`/`review`/`either`/`none` = tests only / reviews only
+  / both / neither).
 - **Mandatory review when no test can carry verification (ticket 19).** If the own test
   cannot be made red on arrival (after the bounded re-ask) OR the judge's ``test_wrong``
   label survives a bounded repair that still cannot discriminate, the node switches to a
   fresh-context REVIEWER of the final diff that returns pass/fail WITH concrete evidence
   (specific files/lines and the requirement it checks). Until then the node may NOT claim.
-  **Ticket 22: the plan decides this at SPEC time.** The spec declares a policy — ``test``
-  (a discriminating test is required), ``review`` (a graded review is the required evidence;
-  no test is required), or ``either`` (prefer a test, fall back to review) — with a REQUIRED
-  reason: the planner is asked to judge how hard a test is to write for the requirement and
-  say why. When a ``test`` node's judge confirms ``test_wrong`` with a named defect and the
-  bounded repairs are exhausted, the node UPDATES ITS PLAN in place (a recorded PLAN
-  UPDATE: old policy, new policy, reason, judge's defect, attempt/repair counts) and
+  **Ticket 22: the plan decides this at SPEC time.** The spec declares the two LISTS
+  (planned tests / planned reviews) with the planner's reason: it is asked to judge how
+  hard a test is to write for the requirement and say why. When a node that PLANNED TESTS
+  has its judge confirm ``test_wrong`` with a named defect and the bounded repairs are
+  exhausted, the node UPDATES ITS PLAN in place (a recorded PLAN UPDATE: the test plan
+  dropped, the new route, reason, judge's defect, attempt/repair counts) and
   switches to review-based verification for the remainder of the run — at most once, and
   never silently.
 - **Declared test cases and per-requirement artifact coverage (ticket 19).** A plan declares,

@@ -257,18 +257,29 @@ class ScriptedTests:
             iv, passed=passed, failed=failed, green=gate.green))
 
 
-def make_spec(files=None, grader=(), goal="make result() return 42") -> LeafSpec:
+def make_spec(files=None, grader=(), goal="make result() return 42", *,
+              planned_tests=(), planned_reviews=("ac-correctness", "contract-compat"),
+              best_effort=False, best_effort_reason="") -> LeafSpec:
     return LeafSpec(
         goal=goal,
         files=files if files is not None else {"pkg/calc.py": "def result():\n    return 0\n"},
         acs=["result() returns 42"],
         interfaces=["result() -> int"],
         grader_paths=tuple(grader),
-        # Ticket 22: every node declares a policy + REQUIRED reason; the unit fixtures
-        # default to the legacy ``either`` policy with a concrete reason.
-        verification_policy="either",
+        # Ticket 22 round 3: every node declares its verification as TWO LISTS. The unit
+        # fixtures default to BOTH (reviews planned) exactly as the legacy ``either``
+        # policy did, with a concrete reason.
+        planned_tests=tuple(planned_tests),
+        planned_reviews=tuple(planned_reviews),
         verification_reason="prefer a discriminating own test for the returned value",
+        best_effort=best_effort,
+        best_effort_reason=best_effort_reason,
     )
+
+
+def dtc(file="tests/test_leaf_self.py", names=("test_ac1",), ac_id="AC-1"):
+    """A DECLARED test point fixture matching the scripted gate's collected node id."""
+    return DeclaredTestCase(ac_id, file, tuple(names))
 
 
 def stage(tmp_path, files) -> None:
@@ -3092,7 +3103,7 @@ def test_unwritable_self_test_path_switches_to_review(tmp_path, monkeypatch):
 def test_declared_test_case_present_and_passing_allows_the_claim(tmp_path):
     spec = dataclasses.replace(
         make_spec(),
-        test_cases=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_ac1",)),))
+        planned_tests=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_ac1",)),))
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
@@ -3105,7 +3116,7 @@ def test_declared_test_case_present_and_passing_allows_the_claim(tmp_path):
 def test_declared_test_case_missing_is_a_repairable_failure_and_blocks_the_claim(tmp_path):
     spec = dataclasses.replace(
         make_spec(),
-        test_cases=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_goal",)),))
+        planned_tests=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_goal",)),))
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, impl(), SELF_TEST]})
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
@@ -3386,7 +3397,7 @@ def test_unresolved_criterion_is_carried_by_a_discriminating_declared_test(tmp_p
     spec = dataclasses.replace(
         make_spec(),
         acs=["thread the timeout through the result and helper call sites"],
-        test_cases=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_goal",)),))
+        planned_tests=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_goal",)),))
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
     out = run_leaf_sync(
@@ -3446,7 +3457,7 @@ def test_blocked_declared_test_case_repair_does_not_claim_on_the_review_alone(tm
     stays recorded."""
     spec = dataclasses.replace(
         make_spec(),
-        test_cases=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_goal",)),))
+        planned_tests=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_goal",)),))
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, impl(), SELF_TEST]})
     out = run_leaf_sync(
@@ -3494,7 +3505,7 @@ def test_declared_case_repair_is_accounted_exactly_like_a_test_rewrite(tmp_path)
     The ledger stays honest (the criterion is not satisfied by the replacement)."""
     spec = dataclasses.replace(
         make_spec(),
-        test_cases=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_ac1",)),))
+        planned_tests=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_ac1",)),))
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [
         SELF_TEST,                                        # test_goal, not the declared test_ac1
@@ -3522,7 +3533,7 @@ def test_declared_case_repair_green_on_pristine_is_still_rejected(tmp_path):
     non-discriminating repaired test and cannot claim."""
     spec = dataclasses.replace(
         make_spec(),
-        test_cases=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_ac1",)),))
+        planned_tests=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_ac1",)),))
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [
         SELF_TEST, impl(),
@@ -3591,7 +3602,7 @@ def test_unresolved_criterion_with_a_placeholder_declared_test_cannot_claim(tmp_
     spec = dataclasses.replace(
         make_spec(),
         acs=["thread the timeout through the result and helper call sites"],
-        test_cases=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_goal",)),))
+        planned_tests=(DeclaredTestCase("AC-1", "tests/test_leaf_self.py", ("test_goal",)),))
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, *[impl()] * 6]})
     out = run_leaf_sync(
@@ -3782,21 +3793,21 @@ def test_review_tier_claim_records_the_independent_review(tmp_path):
     assert out.verified is True and out.claim_status == "verified-success"
     assert out.verification.tier == "review" and out.verification.verified is True
     # Ticket 20 item 1: the default implementation review runs the two CRITICAL angles.
-    assert out.verification.review_angles == ("ac-correctness", "contract-compat")
+    assert out.verification.planned_reviews == ("ac-correctness", "contract-compat")
     assert len(out.verification.reviews) == 2
     assert out.verification.review_score == 12     # 3*(+2) + 3*(+2)
     assert out.verification.reviews[0].evidence
 
 
 def test_review_angles_run_one_call_per_declared_angle_and_combine_by_weight(tmp_path):
-    """Ticket 20 items 1-3: ``review_angles`` runs ONE fresh call per angle (a different
+    """Ticket 20 items 1-3: ``planned_reviews`` runs ONE fresh call per angle (a different
     angle each), and the weighted score decides. A negative grade is an ACTION ITEM: the
     node keeps working instead of claiming."""
     from harness.leaf import combine_review_verdicts, weighted_review_score
 
     spec = dataclasses.replace(
         make_spec(),
-        review_angles=("ac-correctness", "contract-compat", "maintainability"))
+        planned_reviews=("ac-correctness", "contract-compat", "maintainability"))
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [
         SELF_TEST, SELF_TEST_ALT,
@@ -3815,7 +3826,7 @@ def test_review_angles_run_one_call_per_declared_angle_and_combine_by_weight(tmp
     assert out.claimed is True and out.verification_basis == "review"
     assert review.calls == 6                      # 3 angles x 2 attempts
     assert [v.approved for v in out.review_verdicts] == [False, True, False, True, True, True]
-    assert out.verification.review_angles == (
+    assert out.verification.planned_reviews == (
         "ac-correctness", "contract-compat", "maintainability")
     assert out.verification.review_score == 14    # 3*2 + 3*2 + 1*2
     assert out.verification.tier == "review"
@@ -3901,7 +3912,7 @@ def test_repeated_review_angle_is_a_recorded_deviation_not_extra_evidence(tmp_pa
     not buy an extra independent review."""
     spec = dataclasses.replace(
         make_spec(),
-        review_angles=("ac-correctness", "ac-correctness", "contract-compat"))
+        planned_reviews=("ac-correctness", "ac-correctness", "contract-compat"))
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT, impl()]})
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
@@ -3995,7 +4006,7 @@ def test_best_effort_cannot_lower_the_floor_more_than_one_tier(tmp_path):
     """Ticket 20 item 5: best_effort may lower the floor at most one tier, so a ``test``
     requirement can never be satisfied by a ``none+reason`` claim."""
     spec = dataclasses.replace(
-        make_spec(), verification_policy="test",
+        make_spec(), planned_tests=(dtc(),), planned_reviews=(),
         verification_reason="an exact-value unit test pins the result", best_effort=True,
         best_effort_reason="the timing is only injected in production")
     stage(tmp_path, spec.files)
@@ -4012,7 +4023,7 @@ def test_best_effort_cannot_lower_the_floor_more_than_one_tier(tmp_path):
 def test_best_effort_without_a_plan_level_reason_cannot_downgrade(tmp_path):
     """Ticket 20 item 5: best_effort is a PLAN-TIME opt-in that must carry a plan-level
     reason; without one it is not a valid downgrade."""
-    spec = dataclasses.replace(make_spec(), verification_policy="test",
+    spec = dataclasses.replace(make_spec(), planned_tests=(dtc(),),
                                verification_reason="an exact-value unit test pins the result",
                                best_effort=True)   # no best_effort_reason
     stage(tmp_path, spec.files)
@@ -4042,7 +4053,7 @@ def test_required_test_met_only_by_review_without_best_effort_blocks(tmp_path):
     """Item 4: the declared tier is ENFORCED — a review-tier claim cannot satisfy a
     ``test`` requirement without the recorded best-effort downgrade."""
     spec = dataclasses.replace(
-        make_spec(), verification_policy="test",
+        make_spec(), planned_tests=(dtc(),),
         verification_reason="an exact-value unit test pins the result")
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT, impl()]})
@@ -4053,17 +4064,17 @@ def test_required_test_met_only_by_review_without_best_effort_blocks(tmp_path):
     assert out.verification.tier == "review"
     assert out.verified is True and out.claim_status == "verified-failure"
     assert out.verification.downgraded is False
-    # Ticket 22 item 2: no JUDGE-confirmed ``test_wrong`` with a repairable test means no
-    # PLAN UPDATE — the ``test`` policy stands and nothing claims on the review alone.
+    # Ticket 22 round 3: no JUDGE-confirmed ``test_wrong`` with a repairable test means
+    # no PLAN UPDATE — the test plan stands and nothing claims on the review alone.
     assert out.plan_updates == []
-    assert out.verification.effective_policy == "test"
+    assert out.verification.planned_tests and out.verification.planned_reviews
 
 
 def test_required_test_with_best_effort_records_the_downgrade(tmp_path):
     """Item 4: with ``best_effort`` the weaker VERIFIED (review) tier is allowed, and the
     downgrade declaration + reason are recorded."""
     spec = dataclasses.replace(
-        make_spec(), verification_policy="test",
+        make_spec(), planned_tests=(dtc(),),
         verification_reason="an exact-value unit test pins the result", best_effort=True,
         best_effort_reason="the timing is only injected in production")
     stage(tmp_path, spec.files)
@@ -4072,7 +4083,7 @@ def test_required_test_with_best_effort_records_the_downgrade(tmp_path):
                         review=_passing_review, run_tests=ScriptedTests([0, 0, 0]))
 
     assert out.claimed is True and out.verification_basis == "review"
-    assert out.verification.policy == "test" and out.verification.tier == "review"
+    assert out.verification.planned_tests and out.verification.tier == "review"
     assert out.verified is True and out.claim_status == "verified-success"
     assert out.verification.downgraded is True
     assert "test" in out.verification.downgrade_reason
@@ -4090,12 +4101,16 @@ def test_run_record_carries_the_verification_record_and_status():
         self_test=None, questions=[], exhausted=False, exhaustion_reason="",
         layers_used=[], stop_reason="unverified", verified=False,
         claim_status="unverified-success",
+        planned_tests=[dtc()],
+        planned_reviews=["ac-correctness", "contract-compat"],
+        verification_reason="an exact-value unit test pins the result",
         verification=VerificationRecord(
             wrote_code=True, tier="none", reason=GOOD_REASON,
+            planned_tests=(dtc(),), planned_reviews=("ac-correctness", "contract-compat"),
             review_angles=("ac-correctness", "contract-compat"), review_score=0,
-            policy="test", policy_reason="an exact-value unit test pins the result",
+            verification_reason="an exact-value unit test pins the result",
             best_effort=True, downgraded=True,
-            downgrade_reason="best_effort: the required tier 'test' could not be met"))
+            downgrade_reason="best_effort: the planned route 'test' could not be met"))
     score = ExternalScore(passed=True, exit=0, notes=[], work_root="", applied=[], skipped=[])
 
     record = build_record("T-x", "goal", outcome, withheld=[], produced={}, score=score,
@@ -4105,7 +4120,7 @@ def test_run_record_carries_the_verification_record_and_status():
     assert record["claim_status"] == "unverified-success"
     assert record["verification"]["tier"] == "none"
     assert record["verification"]["reason"] == GOOD_REASON
-    assert record["verification"]["policy"] == "test"
+    assert record["verification"]["planned_tests"][0]["ac_id"] == "AC-1"
     assert record["verified_quadrant"] == "unverified-success"
     assert record["best_effort_declared"] is True
     assert record["verification_downgrades"] == 1
@@ -4114,10 +4129,10 @@ def test_run_record_carries_the_verification_record_and_status():
     assert record["covenant_weakened"] is True and record["covenant_diluted"] is True
     assert record["verification"]["review_angles"] == ("ac-correctness", "contract-compat")
     assert record["review_score"] == 0
-    # Ticket 22: the declared policy, its REQUIRED reason, and any plan updates are on the
-    # run record too, so the policy is never implicit.
-    assert record["verification_policy"] == "either"
-    assert record["verification_policy_reason"] == ""
+    # Ticket 22 round 3: the plan's two LISTS and the reason are on the run record too,
+    # so the spec-time decision is never implicit.
+    assert record["planned_reviews"] == ["ac-correctness", "contract-compat"]
+    assert record["planned_tests"] and record["planned_tests"][0]["ac_id"] == "AC-1"
     assert record["plan_updates"] == []
     assert record["verification_disagreement"] == ""
     json.dumps(record)
@@ -4386,6 +4401,7 @@ def test_exhaustion_rubber_stamp_judge_cannot_confirm_a_claim(tmp_path):
     files = {"pkg/calc.py": "def result():\n    return 0\n"}
     spec = LeafSpec(goal="make result() return 42", files=files,
                     acs=["result() returns 42"], interfaces=["result() -> int"])
+    spec = dataclasses.replace(spec, planned_reviews=("ac-correctness", "contract-compat"))
     stage(tmp_path, files)
     wrong = impl("def result():\n    return 100\n")   # the wrong green the weak IV accepts
     model = FakeModelRunner({"write_test": [SELF_TEST] + [wrong] * 8})
@@ -4424,6 +4440,7 @@ def test_exhaustion_conflict_between_two_imperfect_verifiers_does_not_claim(tmp_
     files = {"pkg/calc.py": "def result():\n    return 0\n"}
     spec = LeafSpec(goal="make result() return 42", files=files,
                     acs=["result() returns 42"], interfaces=["result() -> int"])
+    spec = dataclasses.replace(spec, planned_reviews=("ac-correctness", "contract-compat"))
     stage(tmp_path, files)
     wrong = impl("def result():\n    return 100\n")  # the WRONG fix the weak IV accepts
     model = FakeModelRunner({"write_test": [SYMPTOM_TEST] + [wrong] * 8})
@@ -4454,6 +4471,7 @@ def test_conflict_text_says_cannot_characterise_when_the_assertions_are_identica
     files = {"pkg/calc.py": "def result():\n    return 0\n"}
     spec = LeafSpec(goal="make result() return 42", files=files,
                     acs=["result() returns 42"], interfaces=["result() -> int"])
+    spec = dataclasses.replace(spec, planned_reviews=("ac-correctness", "contract-compat"))
     stage(tmp_path, files)
     wrong = impl("def result():\n    return 100\n")
     model = FakeModelRunner({"write_test": [SYMPTOM_TEST] + [wrong] * 8})
@@ -4475,6 +4493,7 @@ def test_exhaustion_review_outranks_a_red_own_test_and_claims(tmp_path):
     files = {"pkg/calc.py": "def result():\n    return 0\n"}
     spec = LeafSpec(goal="make result() return 42", files=files,
                     acs=["result() returns 42"], interfaces=["result() -> int"])
+    spec = dataclasses.replace(spec, planned_reviews=("ac-correctness", "contract-compat"))
     stage(tmp_path, files)
     wrong = impl("def result():\n    return 100\n")     # the wrong fix the review accepts
     model = FakeModelRunner({"write_test": [SYMPTOM_TEST] + [wrong] * 8})
@@ -4502,6 +4521,7 @@ def test_exhaustion_review_outranks_a_vacuous_independent_test_and_claims(tmp_pa
     files = {"pkg/calc.py": "def result():\n    return 0\n"}
     spec = LeafSpec(goal="make result() return 42", files=files,
                     acs=["result() returns 42"], interfaces=["result() -> int"])
+    spec = dataclasses.replace(spec, planned_reviews=("ac-correctness", "contract-compat"))
     stage(tmp_path, files)
     wrong = impl("def result():\n    return 100\n")
     model = FakeModelRunner({"write_test": [SYMPTOM_TEST] + [wrong] * 8})
@@ -4528,6 +4548,7 @@ def test_exhaustion_review_with_no_own_test_still_claims(tmp_path):
     files = {"pkg/calc.py": "def result():\n    return 0\n"}
     spec = LeafSpec(goal="make result() return 42", files=files,
                     acs=["result() returns 42"], interfaces=["result() -> int"])
+    spec = dataclasses.replace(spec, planned_reviews=("ac-correctness", "contract-compat"))
     stage(tmp_path, files)
     # both self-tests are green on arrival -> no red target -> review mode, NO own test.
     model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT] + [impl()] * 12})
@@ -4660,7 +4681,8 @@ def test_coverage_miss_blocks_an_ok_review_verdict(tmp_path):
              "pkg/other.py": "def helper():\n    return 1\n"}
     spec = LeafSpec(goal="make result() return 42", files=files,
                     acs=["result() returns 42", "pkg/other.py exposes helper"],
-                    interfaces=[])
+                    interfaces=[],
+                    planned_reviews=("ac-correctness", "contract-compat"))
     stage(tmp_path, files)
     # SELF_TEST is green on arrival -> the bounded re-ask also green -> REVIEW is the
     # mandatory basis; the run only ever writes pkg/calc.py, never pkg/other.py.
@@ -4719,13 +4741,14 @@ def test_main_path_review_with_a_red_own_test_claims_on_review(tmp_path):
     assert out.ledger[0].check == "review:ac-correctness"
 
 
-def test_test_policy_plan_update_switches_to_review_and_claims(tmp_path):
-    """Ticket 22 item 2: with policy ``test``, when the judge confirms ``test_wrong``
-    (named defect) and the bounded repair cannot discriminate, the node UPDATES ITS PLAN
-    in place to review-based verification, records the update (old/new policy, reason, the
-    judge's defect, attempt/repair counts), and the review then carries the claim."""
+def test_test_plan_update_switches_to_review_and_claims(tmp_path):
+    """Ticket 22 round 3: with BOTH lists planned, when the judge confirms ``test_wrong``
+    (named defect) and the bounded repair cannot discriminate, the node records ONE PLAN
+    UPDATE that DROPS the test plan and relies on the PLANNED reviews; the review then
+    carries the claim."""
     spec = dataclasses.replace(
-        make_spec(), verification_policy="test",
+        make_spec(), planned_tests=(dtc(),),
+        planned_reviews=("ac-correctness", "contract-compat"),
         verification_reason="an exact-value unit test pins the result")
     stage(tmp_path, spec.files)
     vacuous = write_env("tests/test_leaf_self.py", "def test_goal():\n    assert True\n")
@@ -4741,20 +4764,21 @@ def test_test_policy_plan_update_switches_to_review_and_claims(tmp_path):
     update = out.plan_updates[0]
     assert update.old_policy == "test" and update.new_policy == "review"
     assert update.test_rewrites == 1
+    assert update.dropped_tests is True and update.relies_on_reviews is True
     assert "test_goal asserts result() == 42" in update.judge_reason
     assert "plan_update" in ledger_kinds()
-    assert out.verification.policy == "test"
-    assert out.verification.effective_policy == "review"
-    assert out.verification_policy == "test"
+    assert out.verification.planned_tests and out.verification.planned_reviews
+    assert out.verification_policy == "either"
     assert len(out.verification.plan_updates) == 1
 
 
-def test_plan_update_is_recorded_only_for_a_test_policy(tmp_path):
-    """Ticket 22 item 2: giving up on verification is a PLAN decision recorded only when
-    the declared policy was ``test``; under ``either`` the switch to review is the normal
-    fallback and no plan update is recorded."""
-    spec = dataclasses.replace(make_spec(), verification_policy="either",
-                               verification_reason="prefer a test, fall back to review")
+def test_plan_update_is_recorded_only_when_a_test_plan_is_dropped(tmp_path):
+    """Ticket 22 round 3: the PLAN UPDATE is recorded when the node DROPS a test plan (a
+    node that planned no tests has nothing to drop), and its new route is ``review`` only
+    when reviews were planned."""
+    spec = dataclasses.replace(make_spec(), planned_tests=(),
+                               planned_reviews=("ac-correctness", "contract-compat"),
+                               verification_reason="no test can pin the timing, a review must")
     stage(tmp_path, spec.files)
     vacuous = write_env("tests/test_leaf_self.py", "def test_goal():\n    assert True\n")
     model = FakeModelRunner({"write_test": [SELF_TEST, blocked(), vacuous, impl()]})
@@ -4763,8 +4787,8 @@ def test_plan_update_is_recorded_only_for_a_test_policy(tmp_path):
                         run_tests=ScriptedTests([1, 0, 0, 0]))
 
     assert out.verification_basis == "review"
-    assert out.plan_updates == []
-    assert out.verification.effective_policy == "either"
+    assert out.plan_updates == []           # no test plan -> nothing to drop
+    assert out.verification_policy == "review"
 
 
 def test_plan_update_never_refires(tmp_path):
@@ -4772,7 +4796,8 @@ def test_plan_update_never_refires(tmp_path):
     judge confirms ``test_wrong`` again after the switch (the effective policy is no
     longer ``test``, so a second update is refused)."""
     spec = dataclasses.replace(
-        make_spec(), verification_policy="test",
+        make_spec(), planned_tests=(dtc(),),
+        planned_reviews=("ac-correctness", "contract-compat"),
         verification_reason="an exact-value unit test pins the result")
     stage(tmp_path, spec.files)
     vacuous = write_env("tests/test_leaf_self.py", "def test_goal():\n    assert True\n")

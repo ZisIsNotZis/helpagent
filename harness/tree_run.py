@@ -765,11 +765,10 @@ def leaf_spec_from(spec: NodeSpec, workdir: Path, *,
         interfaces=list(spec.interfaces),
         grader_paths=tuple(root_grader_paths),
         write_boundary=boundary,
-        test_cases=tuple(spec.test_cases),
+        planned_tests=tuple(spec.planned_tests),
         candidate_files=tuple(candidate_files),
-        verification_policy=spec.verification_policy,
+        planned_reviews=tuple(spec.planned_reviews),
         verification_reason=spec.verification_reason,
-        review_angles=tuple(spec.review_angles),
         review_level=spec.review_level,
         best_effort=spec.best_effort,
         best_effort_reason=spec.best_effort_reason,
@@ -1004,15 +1003,6 @@ async def _plan(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget: Bud
     return decomp
 
 
-def _strongest_requirement(values: Sequence[str]) -> str:
-    """The strongest declared verification POLICY across ``values`` (ticket 20).
-
-    Ticket 22 renamed the weakest value ``any`` -> ``either``; the ranking is unchanged.
-    """
-    ranked = {"either": 0, "review": 1, "test": 2}
-    return max(values, key=lambda value: ranked.get(value, 0), default="either")
-
-
 def _merge_children(children: Sequence[NodeSpec],
                     groups: Sequence[Sequence[int]]) -> list[NodeSpec]:
     """Union the children a merge group covers into one child (design §2)."""
@@ -1030,16 +1020,16 @@ def _merge_children(children: Sequence[NodeSpec],
             interfaces=tuple(i for s in specs for i in s.interfaces),
             kind="leaf",
             est_calls=sum(s.est_calls for s in specs),
-            # Ticket 20/22: the merged child carries the STRONGEST policy and the UNION
-            # of its parts' review angles and reasons, and is best-effort only when every
-            # part was.
-            verification_policy=_strongest_requirement(s.verification_policy
-                                                       for s in specs),
+            # Ticket 20/22 round 3: the merged child carries the UNION of its parts'
+            # planned TESTS and planned REVIEWS and the union of their reasons, and is
+            # best-effort only when every part was.
+            planned_tests=tuple(dict.fromkeys(
+                case for s in specs for case in s.planned_tests)),
+            planned_reviews=tuple(dict.fromkeys(
+                angle for s in specs for angle in s.planned_reviews)),
             verification_reason=("; ".join(dict.fromkeys(
                 s.verification_reason for s in specs if s.verification_reason))
-                or "merged leaf: carry the strongest child policy"),
-            review_angles=tuple(dict.fromkeys(
-                angle for s in specs for angle in s.review_angles)),
+                or "merged leaf: carry the union of the child test/review plans"),
             review_level=DEFAULT_REVIEW_LEVEL,
             best_effort=all(s.best_effort for s in specs),
             best_effort_reason=(next((s.best_effort_reason for s in specs
@@ -1488,7 +1478,7 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
                 # A decomposition with ZERO children is a legitimate LEAF How ("do it
                 # here"): run the leaf for THIS How inside its own candidate directory and
                 # score its outcome (ticket 20 step 2b-iii; the How's own spec carries
-                # goal/behavior/files/acs/test_cases, and the How text rides as context).
+                # goal/behavior/files/acs/planned_tests, and the How text rides as context).
                 how_case = "leaf-How"
                 result = await _run_leaf_node(ctx, node, decomp.spec, slice_budget,
                                               ws.path, how=how)

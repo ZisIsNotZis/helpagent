@@ -341,7 +341,7 @@ def planned_test_points(spec: NodeSpec) -> tuple[TestPoint, ...]:
     statements = {i: statement for i, statement in enumerate(spec.acs, 1)}
     points: list[TestPoint] = []
     seen: set[str] = set()
-    for case in spec.test_cases:
+    for case in spec.planned_tests:
         index = _declared_case_index(case)
         verifies = statements.get(index, case.ac_id) if index is not None else case.ac_id
         for name in case.names:
@@ -493,7 +493,7 @@ class Selection:
 def select_key(*, planned_test_points: Sequence[str],
                test_results: Mapping[str, bool] | None,
                review_verdicts: Sequence[ReviewVerdict] = (),
-               review_angles: Sequence[str] = (),
+               planned_reviews: Sequence[str] = (),
                review_level: str = DEFAULT_REVIEW_LEVEL,
                rank: int,
                cost: int) -> Selection:
@@ -509,7 +509,7 @@ def select_key(*, planned_test_points: Sequence[str],
     if not review_verdicts:
         return Selection(test_covered=covered, test_pass_rate=rate, review_score=0,
                          rank=rank, cost=cost, review_ok=True, repair_reason="")
-    angles = effective_review_angles(review_angles, review_level)
+    angles = effective_review_angles(planned_reviews, review_level)
     ok, score, reason = combine_review_verdicts(review_verdicts, angles, review_level)
     # A non-ok review (a negative grade or a critical-angle veto) is an ACTION ITEM:
     # its review component drops to 0 so it can never outrank a clean candidate before

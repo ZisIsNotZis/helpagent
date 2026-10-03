@@ -360,18 +360,43 @@ LEDGER_ROUTES: tuple[str, ...] = ("claim", "confirmed", "rework", "review",
 EVIDENCE_GAP_STOPS: tuple[str, ...] = ("attempts", "ladder", "calls", "attempt-cap",
                                        "deadline")
 
-#: The declared PLAN-TIME verification policy a plan may set per node (ticket 20,
-#: renamed and re-specified ticket 22): ``test`` — a discriminating test is required;
-#: ``review`` — a graded, multi-angle review is the required evidence and no test is
-#: required; ``either`` — prefer a test, fall back to review. The old ``any`` value is
-#: gone (its behaviour is ``either``).
-VERIFICATION_REQUIREMENTS: tuple[str, ...] = ("test", "review", "either")
-
+#: The ORDERED verification TTIERS a claim can rest on: a discriminating test is the
+#: strongest, a graded review next, ``none`` (a written reason) weakest (ticket 20/22).
 _TIER_RANK: dict[str, int] = {"test": 2, "review": 1, "none": 0}
-#: The floor each declared policy imposes on a claim. ``either`` imposes no verified
-#: floor, but the ``none+reason`` tier is NEVER a normal claim: it always needs the
-#: ``best_effort`` opt-in plus a valid written reason (see :func:`verification_reason_problem`).
-_REQUIRED_FLOOR: dict[str, int] = {"test": 2, "review": 1, "either": 0}
+
+
+def verification_floor(planned_tests: Sequence[Any],
+                       planned_reviews: Sequence[Any]) -> int:
+    """Ticket 22 round 3: the FLOOR the plan's two LISTS impose on a claim.
+
+    ``planned_tests`` non-empty sets a ``test`` floor (a discriminating test is the
+    primary evidence); else ``planned_reviews`` non-empty sets a ``review`` floor; else
+    NEITHER was declared and the floor is ``none`` (the claim may rest only on a written,
+    checked reason). This replaces the old single ``verification_policy`` enum.
+    """
+    if planned_tests:
+        return _TIER_RANK["test"]
+    if planned_reviews:
+        return _TIER_RANK["review"]
+    return _TIER_RANK["none"]
+
+
+def verification_policy_label(planned_tests: Sequence[Any],
+                              planned_reviews: Sequence[Any]) -> str:
+    """COMPATIBILITY MAP (ticket 22 round 3): derive the old enum label from the lists.
+
+    Old RUN RECORDS may still carry ``verification_policy``; new records carry the lists.
+    This maps a record's lists back to the labels a legacy reader understands:
+    ``test`` (tests only), ``review`` (reviews only), ``either`` (both), ``none``
+    (neither). Kept for readers, NEVER written into a new record.
+    """
+    if planned_tests and planned_reviews:
+        return "either"
+    if planned_tests:
+        return "test"
+    if planned_reviews:
+        return "review"
+    return "none"
 
 # ---------------------------------------------------------------------------
 # Review ANGLES, weights, and the five ORDINAL grades (ticket 20, item 1-3)
@@ -740,6 +765,7 @@ class DeclaredTestCase:
     ac_id: str                       # e.g. "AC-1" — must be one of the node's ACs
     file: str                        # the test file that must exist and collect
     names: tuple[str, ...] = ()      # test function names that must exist and pass
+    verifies: str = ""              # ticket 22 round 3: the observable it pins
 
 
 #: Marker attribute set on :class:`harness.how.NodeRecord`. The node record is the
@@ -796,7 +822,7 @@ class LeafSpec:
     source view — so its behaviour is unchanged; a tree child sets it to its declared
     files, and any write outside it is refused at the parameter layer (never a crash).
 
-    ``test_cases`` is the DECLARED test-case contract (ticket 19 D): the test file +
+    ``planned_tests`` is the DECLARED test-case contract (ticket 19 D): the test file +
     function names the node expects per acceptance criterion. Empty means the node
     declared none and the check is skipped.
     """
@@ -807,23 +833,19 @@ class LeafSpec:
     interfaces: list[str]
     grader_paths: tuple[str, ...] = ()  # owned by the grader: never shown, never writable
     write_boundary: tuple[str, ...] | None = None  # None ⇒ unguarded (single-leaf driver)
-    test_cases: tuple[DeclaredTestCase, ...] = ()
+    planned_tests: tuple[DeclaredTestCase, ...] = ()
     #: The files this node's acceptance criteria may name as artifacts (ticket 19 E). The
     #: projection of the whole repo the requirement text can reference; defaults to the
     #: blind view's keys when empty.
     candidate_files: tuple[str, ...] = ()
-    #: Ticket 22 PLAN-TIME POLICY: how this node will be verified — ``test`` (a
-    #: discriminating test is required), ``review`` (a graded review is the required
-    #: evidence; no test is required), or ``either`` (prefer a test, fall back to review).
-    #: ``verification_reason`` is the planner's REQUIRED justification (how hard a test is
-    #: to write for the requirement and why the policy was chosen). ``review_angles`` runs
-    #: the review tier's angles (a closed per-level set; empty means the level's critical
-    #: angles); ``review_level`` is ``implementation`` | ``integration``; ``best_effort``
-    #: is an optional weaker-tier fallback with a plan-level reason. The default preserves
-    #: the legacy policy (``either``, critical angles, no fallback).
-    verification_policy: str = "either"
+    #: Ticket 22 round 3: the PLAN's two verification LISTS. ``planned_tests`` are the test
+    #: points the node intends to write; ``planned_reviews`` are the review ANGLES it
+    #: intends to run (a closed per-level set; empty means the level's critical angles).
+    #: Both, either or neither may be given; when NEITHER is given ``verification_reason``
+    #: MUST state why. ``review_level`` is ``implementation`` | ``integration``;
+    #: ``best_effort`` is an optional weaker-tier fallback with a plan-level reason.
+    planned_reviews: tuple[str, ...] = ()
     verification_reason: str = ""
-    review_angles: tuple[str, ...] = ()
     review_level: str = DEFAULT_REVIEW_LEVEL
     best_effort: bool = False
     best_effort_reason: str = ""
@@ -1083,14 +1105,24 @@ class LeafOutcome:
     #: criterion ``verifier-conflict``.
     own_test_conflict: bool = False
     own_test_conflict_reason: str = ""
-    #: Ticket 22: the DECLARED plan-time verification policy and its REQUIRED reason, and
-    #: every recorded runtime PLAN UPDATE (old policy, new policy, reason, attempt
-    #: counts). ``verification_disagreement`` records a review-vs-test disagreement in
-    #: either direction; the review still DECIDES the claim, but the disagreement is kept.
-    verification_policy: str = "either"
-    verification_policy_reason: str = ""
+    #: Ticket 22 round 3: the PLAN's two verification LISTS (the test points and the
+    #: review angles the node declared) and the planner's reason (present when neither
+    #: list was declared), plus every recorded runtime PLAN UPDATE (the test plan dropped,
+    #: the new route, reason, attempt counts). ``verification_disagreement`` records a
+    #: review-vs-test disagreement in either direction; the review still DECIDES the
+    #: claim, but the disagreement is kept.
+    planned_tests: list[DeclaredTestCase] = field(default_factory=list)
+    planned_reviews: list[str] = field(default_factory=list)
+    verification_reason: str = ""
     plan_updates: list["PlanUpdate"] = field(default_factory=list)
     verification_disagreement: str = ""
+
+    @property
+    def verification_policy(self) -> str:
+        """COMPATIBILITY MAP (ticket 22 round 3): the old enum label derived from the two
+        lists. A legacy reader that filtered on ``verification_policy`` can keep reading a
+        NEW record; it is never written as a field (``asdict`` does not include it)."""
+        return verification_policy_label(self.planned_tests, self.planned_reviews)
 
 
 @dataclass(frozen=True)
@@ -1475,13 +1507,12 @@ class VerificationRecord:
     ``none``): a real discriminating test, one or more independent fresh-context reviews,
     or neither with a REQUIRED written reason. ``reason`` is the written justification
     for the ``none`` tier and ``reason_problem`` is the deterministic check's verdict on
-    it (empty when the reason is acceptable). ``policy`` is the DECLARED plan-time policy
-    (``test`` | ``review`` | ``either``) and ``policy_reason`` is the planner's REQUIRED
-    justification for it; ``effective_policy`` is the policy in force at the end (a
-    recorded runtime PLAN UPDATE may have weakened ``test`` to ``review``) and
-    ``plan_updates`` carries every such update (old policy, new policy, reason, attempt
-    counts). ``review_angles``/``review_level``/``best_effort`` echo the plan's
-    declaration; ``downgraded``/``downgrade_reason`` record a best-effort claim at a
+    it (empty when the reason is acceptable). ``planned_tests``/``planned_reviews`` echo
+    the PLAN's two verification lists; ``verification_reason`` is the planner's reason
+    (required when both lists are empty). ``review_angles`` is the EFFECTIVE per-angle set
+    the review tier actually ran and ``review_level`` its level; ``plan_updates`` carries
+    any recorded runtime update (the test plan dropped, the new route).
+    ``best_effort``/``downgraded``/``downgrade_reason`` record a best-effort claim at a
     weaker tier than the plan required. ``reviews`` keeps every per-angle review verdict
     (with its grade and evidence) and ``review_score`` is their weighted sum.
     """
@@ -1491,12 +1522,12 @@ class VerificationRecord:
     reason: str = ""
     reason_problem: str = ""
     reviews: tuple[ReviewVerdict, ...] = ()
+    planned_tests: tuple[DeclaredTestCase, ...] = ()
+    planned_reviews: tuple[str, ...] = ()
+    verification_reason: str = ""
     review_angles: tuple[str, ...] = ()
     review_level: str = DEFAULT_REVIEW_LEVEL
     review_score: int = 0
-    policy: str = "either"
-    policy_reason: str = ""
-    effective_policy: str = ""
     plan_updates: tuple["PlanUpdate", ...] = ()
     best_effort: bool = False
     downgraded: bool = False
@@ -1518,14 +1549,16 @@ class VerificationRecord:
 
 @dataclass(frozen=True)
 class PlanUpdate:
-    """Ticket 22 item 2: a PLAN DECISION recorded in place during a run.
+    """Ticket 22 item 2/round 3: a PLAN DECISION recorded in place during a run.
 
-    Giving up on verification is never implicit. When a node's policy is ``test`` and the
-    judge has confirmed ``test_wrong`` with a named defect AND the bounded repairs are
-    exhausted, the node UPDATES ITS PLAN to review-based verification for the remainder of
-    the run. The update records the old and new policy, the reason, the judge's defect,
-    and the attempt/repair counts at the moment of the decision, so a reader can see
-    exactly what was given up and why. At most one update per node.
+    Giving up on verification is never implicit. When a node PLANNED TESTS and the judge
+    has confirmed ``test_wrong`` with a named defect AND the bounded repairs are
+    exhausted, the node UPDATES ITS PLAN: it DROPS the test plan and moves to the
+    PLANNED REVIEWS (``new_policy="review"``); if it planned no reviews, no evidence
+    route remains (``new_policy="none"``) and it does not claim. The update records the
+    old and new route, the reason, the judge's defect, and the attempt/repair counts at
+    the moment of the decision, so a reader can see exactly what was given up and why.
+    At most one update per node.
     """
 
     old_policy: str
@@ -1534,6 +1567,16 @@ class PlanUpdate:
     test_rewrites: int = 0
     attempts: int = 0
     judge_reason: str = ""
+
+    @property
+    def dropped_tests(self) -> bool:
+        """The update always DROPS the test plan (the list-terms statement of the move)."""
+        return True
+
+    @property
+    def relies_on_reviews(self) -> bool:
+        """True when the node falls back to its PLANNED REVIEWS after dropping the tests."""
+        return self.new_policy == "review"
 
 
 @dataclass(frozen=True)
@@ -2074,7 +2117,7 @@ def _declared_case_artifacts(
 ) -> dict[str, str]:
     """The repair artifacts for a missing DECLARED test case (ticket 19 D)."""
     declared = "\n".join(
-        f"{c.ac_id}: {c.file} :: {', '.join(c.names)}" for c in spec.test_cases)
+        f"{c.ac_id}: {c.file} :: {', '.join(c.names)}" for c in spec.planned_tests)
     return {
         "goal": spec.goal,
         "acceptance_criteria": "\n".join(f"- {a}" for a in spec.acs),
@@ -3383,10 +3426,10 @@ def _self_test_artifacts(spec: LeafSpec) -> dict[str, str]:
         "interfaces": "\n".join(f"- {i}" for i in spec.interfaces),
         "repo_files": json.dumps(_source_view(spec), ensure_ascii=False),
     }
-    if spec.test_cases:
+    if spec.planned_tests:
         # Ticket 19 D: the plan DECLARES the test cases; the self-test must expose them.
         artifacts["declared_test_cases"] = "\n".join(
-            f"{c.ac_id}: {c.file} :: {', '.join(c.names)}" for c in spec.test_cases)
+            f"{c.ac_id}: {c.file} :: {', '.join(c.names)}" for c in spec.planned_tests)
     return artifacts
 
 
@@ -3566,12 +3609,12 @@ async def run_leaf(
     review_verdicts: list[ReviewVerdict] = []
     review_reason = ""
     review_approved = False
-    # Ticket 22 PLAN-TIME POLICY: the DECLARED policy (spec.verification_policy) and the
-    # EFFECTIVE policy the run is currently held to. A runtime PLAN UPDATE (item 2) may
-    # weaken ``test`` -> ``review`` at most once; every update is recorded.
-    declared_policy = (spec.verification_policy
-                       if spec.verification_policy in VERIFICATION_REQUIREMENTS else "either")
-    policy = declared_policy
+    # Ticket 22 round 3: the DECLARED plan is the TWO LISTS (planned tests / planned
+    # reviews). ``tests_dropped`` flips when a runtime PLAN UPDATE gives up on the test
+    # plan; the effective FLOOR after that is derived by :func:`effective_floor`.
+    has_tests = bool(spec.planned_tests)
+    has_reviews = bool(spec.planned_reviews)
+    tests_dropped = False
     plan_updates: list[PlanUpdate] = []
     plan_updated = False
     # Ticket 20: the claim tier the loop actually reached, the written ``none+reason``
@@ -3785,7 +3828,7 @@ async def run_leaf(
         angles: list[str] = []
         repeats: list[str] = []
         rejected: list[str] = []
-        for angle in spec.review_angles:
+        for angle in spec.planned_reviews:
             if angle not in domain:
                 rejected.append(angle)
             elif angle in angles:
@@ -3893,60 +3936,75 @@ async def run_leaf(
         reason = getattr(raw, "reason", "") if getattr(raw, "status", "") == "ok" else ""
         return (reason if isinstance(reason, str) else ""), ""
 
-    def _required_tier() -> str:
-        """The EFFECTIVE plan policy the claim is held to (ticket 22): a recorded runtime
-        PLAN UPDATE may have weakened ``test`` -> ``review``."""
-        return policy if policy in VERIFICATION_REQUIREMENTS else "either"
+    def effective_floor() -> int:
+        """Ticket 22 round 3: the FLOOR the PLAN's lists currently impose on a claim.
 
-    def update_plan_to_review(reason: str, judge_reason: str) -> bool:
-        """Ticket 22 item 2: record a PLAN UPDATE to review-based verification, in place.
-
-        Giving up on verification is a PLAN decision, not an implicit fallback. This is
-        called ONLY when the policy is ``test`` and the judge has confirmed ``test_wrong``
-        with a named defect AND the bounded repairs are exhausted; the node then switches
-        to review-based verification for the remainder of the run and RECORDS the update
-        (old policy, new policy, reason, judge's reason, attempt/repair counts). At most
-        one update per node. Returns True when the update was made (and review entered).
+        Computed from ``planned_tests``/``planned_reviews``, with a runtime PLAN UPDATE
+        that DROPPED the test plan (giving up on the test) lowering it: after the drop the
+        floor is ``review`` when the node planned reviews, else ``none``.
         """
-        nonlocal policy, plan_updated
-        if policy != "test" or plan_updated or review is None:
-            return False
+        return verification_floor(() if tests_dropped else spec.planned_tests,
+                                  spec.planned_reviews)
+
+    def _required_tier() -> str:
+        """The EFFECTIVE plan route the claim is held to, named for the record."""
+        floor = effective_floor()
+        return "test" if floor == 2 else "review" if floor == 1 else "none"
+
+    def drop_test_plan(reason: str, judge_reason: str) -> str:
+        """Ticket 22 round 3: record ONE PLAN UPDATE that DROPS the test plan, in place.
+
+        Called ONLY when the node PLANNED TESTS and the judge has confirmed ``test_wrong``
+        with a named defect AND the bounded repairs are exhausted. The update DROPS the
+        test plan and moves to the PLANNED REVIEWS (return ``"review"``); when no reviews
+        were planned, no evidence route remains (return ``"none"``) and the node does not
+        claim. At most one update per node; returns "" when there is no test plan to drop.
+        """
+        nonlocal tests_dropped, plan_updated
+        if not has_tests or tests_dropped or plan_updated:
+            return ""
         plan_updated = True
-        update = PlanUpdate(old_policy=policy, new_policy="review", reason=reason,
+        tests_dropped = True
+        new_policy = "review" if has_reviews else "none"
+        update = PlanUpdate(old_policy="test", new_policy=new_policy, reason=reason,
                             test_rewrites=test_rewrites, attempts=len(attempts),
                             judge_reason=judge_reason)
         plan_updates.append(update)
-        policy = "review"
         emit("plan_update", old_policy=update.old_policy, new_policy=update.new_policy,
              reason=reason, judge_reason=judge_reason, test_rewrites=test_rewrites,
-             attempts=len(attempts))
-        return enter_review(reason)
+             attempts=len(attempts), dropped_tests=True, relies_on_reviews=has_reviews)
+        if new_policy == "review":
+            return "review" if enter_review(reason) else "none"
+        return "none"
 
     async def enforce_verification(tier: str) -> tuple[bool, str]:
-        """Enforce the plan's verification covenant for a claim at ``tier`` (ticket 20).
+        """Enforce the plan's verification covenant for a claim at ``tier`` (tickets 20/22).
 
-        The declaration is enforced, not advisory: a VERIFIED tier at or above the
-        declared floor is a normal claim. A weaker VERIFIED tier (e.g. ``review`` when
-        ``test`` was required) is allowed ONLY with ``best_effort``, and the downgrade is
-        recorded. The ``none`` tier needs a valid written reason AND ``best_effort``; a
-        reason that fails :func:`verification_reason_problem` blocks the claim. Returns
-        ``(True, "")`` when the claim may proceed, ``(False, "calls")`` when the call
-        budget ran out, and ``(False, "blocked")`` otherwise.
+        The declaration is the PLAN's two LISTS, enforced, not advisory: a discriminating
+        test (``test``) is the strongest evidence and is always accepted; a graded review
+        (``review``) is accepted when the plan PLANNED reviews (``planned_reviews``
+        non-empty, or the node still has them after a plan update that dropped the test
+        plan); otherwise a weaker VERIFIED tier needs ``best_effort``. The ``none`` tier
+        needs a valid written reason (always) plus ``best_effort`` when it is below a
+        non-empty floor; a reason that fails :func:`verification_reason_problem` blocks
+        the claim. Returns ``(True, "")`` when the claim may proceed, ``(False, "calls")``
+        when the call budget ran out, and ``(False, "blocked")`` otherwise.
         """
         nonlocal verification_tier, verification_reason
         nonlocal verification_reason_problem_text, verification_downgraded
         nonlocal verification_downgrade_reason
         verification_tier = tier
         required = _required_tier()
-        floor = _REQUIRED_FLOOR[required]
+        floor = effective_floor()
         if tier == "none":
-            if not spec.best_effort or not (spec.best_effort_reason or "").strip():
-                return False, "blocked"
             if floor - _TIER_RANK["none"] > 1:
-                # Ticket 20 item 5: best_effort lowers the floor AT MOST one tier, so a
-                # ``test`` requirement can never be satisfied by a ``none`` claim.
+                # best_effort lowers the floor AT MOST one tier, so a ``test`` floor can
+                # never be satisfied by a ``none`` claim.
                 emit("verification_claim_blocked", tier=tier, required=required,
                      reason="best_effort may lower the floor at most one tier")
+                return False, "blocked"
+            if floor > 0 and (not spec.best_effort
+                              or not (spec.best_effort_reason or "").strip()):
                 return False, "blocked"
             reason, failure = await obtain_verification_reason()
             if failure:
@@ -3956,28 +4014,27 @@ async def run_leaf(
                 reason, goal=spec.goal, acs=spec.acs)
             if verification_reason_problem_text:
                 return False, "blocked"
-            verification_downgraded = True
+            verification_downgraded = floor > 0
             verification_downgrade_reason = (
                 f"best_effort: no test and no review could carry verification; claimed "
-                f"at the none+reason tier instead of the required {required!r} tier")
+                f"at the none+reason tier instead of the planned {required!r} route")
             emit("verification_unverified", required=required, reason=reason)
             return True, ""
         if _TIER_RANK[tier] >= floor:
             return True, ""
         if not spec.best_effort or not (spec.best_effort_reason or "").strip():
-            # Ticket 20 item 5: best_effort is a PLAN-TIME opt-in that must carry a
-            # plan-level reason; without one it is not a valid downgrade.
+            # best_effort is a PLAN-TIME opt-in that must carry a plan-level reason;
+            # without one it is not a valid downgrade.
             return False, "blocked"
         if floor - _TIER_RANK[tier] > 1:
-            # Ticket 20 item 5: best_effort may lower the floor AT MOST ONE tier
-            # (test -> review, review -> none). A two-tier drop is never allowed, however
-            # it was reached.
+            # best_effort may lower the floor AT MOST ONE tier (test -> review,
+            # review -> none). A two-tier drop is never allowed, however it was reached.
             emit("verification_claim_blocked", tier=tier, required=required,
                  reason="best_effort may lower the floor at most one tier")
             return False, "blocked"
         verification_downgraded = True
         verification_downgrade_reason = (
-            f"best_effort: the required verification tier {required!r} could not be met; "
+            f"best_effort: the planned verification route {required!r} could not be met; "
             f"claimed at the weaker {tier!r} tier")
         emit("verification_downgraded", required=required, attained=tier)
         return True, ""
@@ -4119,18 +4176,22 @@ async def run_leaf(
                 if _is_green(rres):
                     # A rewrite that passes on arrival does not pin the goal, and a
                     # repaired test that cannot be made to discriminate can never carry
-                    # the claim (ticket 19 B): switch to mandatory REVIEW verification.
-                    # Ticket 22 item 2: when the policy is ``test``, this is a PLAN
-                    # DECISION and is recorded as a PLAN UPDATE (test -> review) with the
-                    # judge's reason; at most one update per node.
+                    # the claim (ticket 19 B). Ticket 22 round 3: when the node PLANNED
+                    # TESTS, this is a PLAN DECISION recorded as a PLAN UPDATE that DROPS
+                    # the test plan and relies on the PLANNED REVIEWS; with no reviews
+                    # planned, no evidence route remains and the node does not claim.
                     emit("test_rewrite_green_on_arrival", path=self_test)
                     (workdir / self_test).unlink(missing_ok=True)
                     self_test = None
-                    if update_plan_to_review(
-                            "the judge confirmed the own test wrong and the bounded repair "
-                            f"could not make it discriminate ({defect})", defect):
+                    dropped = drop_test_plan(
+                        "the judge confirmed the own test wrong and the bounded repair "
+                        f"could not make it discriminate ({defect})", defect)
+                    if dropped == "review":
                         return "repair"
-                    if review is not None:
+                    if dropped == "none":
+                        stop("honest-failure", "no-red-target", "no-red-target")
+                        return "stop"
+                    if has_reviews and review is not None:
                         verification_basis = "review"
                         review_reason = "the repaired test could not be made to discriminate"
                         emit("review_verification", reason=review_reason)
@@ -4602,13 +4663,15 @@ async def run_leaf(
                 wrote_code=True, tier=tier, reason=verification_reason,
                 reason_problem=verification_reason_problem_text,
                 reviews=tuple(review_verdicts),
+                planned_tests=tuple(spec.planned_tests),
+                planned_reviews=tuple(spec.planned_reviews),
+                verification_reason=spec.verification_reason,
                 review_angles=_declared_review_angles(),
                 review_level=(spec.review_level
                               if spec.review_level in REVIEW_ANGLES_BY_LEVEL
                               else DEFAULT_REVIEW_LEVEL),
                 review_score=verification_review_score,
-                policy=declared_policy, policy_reason=spec.verification_reason,
-                effective_policy=_required_tier(), plan_updates=tuple(plan_updates),
+                plan_updates=tuple(plan_updates),
                 best_effort=bool(spec.best_effort),
                 downgraded=verification_downgraded,
                 downgrade_reason=verification_downgrade_reason)
@@ -4721,8 +4784,9 @@ async def run_leaf(
             evidence_gap=evidence_gap,
             own_test_conflict=own_test_conflict,
             own_test_conflict_reason=own_test_conflict_reason,
-            verification_policy=declared_policy,
-            verification_policy_reason=spec.verification_reason,
+            planned_tests=list(spec.planned_tests),
+            planned_reviews=list(spec.planned_reviews),
+            verification_reason=spec.verification_reason,
             plan_updates=list(plan_updates),
             verification_disagreement=verification_disagreement,
         )
@@ -4731,13 +4795,21 @@ async def run_leaf(
         """Switch to mandatory REVIEW-BASED verification (ticket 19 B), or — ticket 20 —
         to best-effort ``reason`` mode when no reviewer was injected.
 
-        Returns False when no ``review`` producer was injected AND the plan did not opt
-        into ``best_effort`` (the leaf then keeps its conservative honest stop, since
-        nothing can verify the diff). With ``best_effort`` set, ``reason`` mode lets the
-        loop proceed and the written-reason claim gate decide; the claim is recorded as
-        UNVERIFIED.
+        Ticket 22 round 3: the review route is available only when the plan PLANNED
+        reviews (``planned_reviews`` non-empty). A node that planned no reviews keeps its
+        conservative honest stop — unless the plan opted into ``best_effort``, in which
+        case the written-reason route lets the loop proceed and the written-reason claim
+        gate (``enforce_verification``) decide, recording the claim as UNVERIFIED. Returns
+        False when neither route is available.
         """
         nonlocal verification_basis, review_reason
+        if not has_reviews:
+            if not spec.best_effort:
+                return False
+            verification_basis = "reason"
+            review_reason = why
+            emit("verification_reason_mode", reason=why)
+            return True
         if review is None:
             if not spec.best_effort:
                 return False
@@ -5094,7 +5166,7 @@ async def run_leaf(
             unresolved: list[str] = []
             if verification_basis == "test":
                 declared_by_index: dict[int, list[DeclaredTestCase]] = {}
-                for case in spec.test_cases:
+                for case in spec.planned_tests:
                     case_index = _declared_case_index(case)
                     if case_index is not None:
                         declared_by_index.setdefault(case_index, []).append(case)
@@ -5137,7 +5209,7 @@ async def run_leaf(
             # Ticket 19 D: the DECLARED test-case contract, verified mechanically from
             # the report. A missing file/name is a distinct, repairable failure.
             tc_problems = ([] if verification_basis != "test"
-                           else _declared_test_case_problems(report, spec.test_cases))
+                           else _declared_test_case_problems(report, spec.planned_tests))
             if tc_problems and test_case_repairs < 1 and self_test and can_afford(1):
                 emit("test_case_repair", problems=tc_problems)
                 repaired_env, failure = await request_bounded(
@@ -5176,7 +5248,7 @@ async def run_leaf(
                     res = rres
                     report = getattr(rres, "gate", None)
                     own_test_report = report
-                    tc_problems = _declared_test_case_problems(report, spec.test_cases)
+                    tc_problems = _declared_test_case_problems(report, spec.planned_tests)
                     if _is_green(rres) and not tc_problems:
                         # The repair replaced the run's own test AFTER the red observation,
                         # so it must re-prove it is a real discriminator: RED on the

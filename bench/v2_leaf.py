@@ -259,11 +259,11 @@ def build_spec(task: dict) -> LeafSpec:
         acs=extract_acs(task["request"]),
         interfaces=[],
         grader_paths=grader_paths,
-        # Ticket 22 PLAN-TIME POLICY. The single-leaf driver has no planner to ask, so
-        # the root spec declares ``either`` — prefer a discriminating own test and fall
-        # back to the graded review when the test cannot carry the requirement — with the
-        # REQUIRED reason. Recorded on the run record for every run.
-        verification_policy="either",
+        # Ticket 22 round 3 PLAN-TIME LISTS. The single-leaf driver has no planner to
+        # ask, so the root spec declares BOTH lists — prefer a discriminating own test
+        # and fall back to the graded review when the test cannot carry the requirement —
+        # with the reason. Recorded on the run record for every run.
+        planned_reviews=("ac-correctness", "contract-compat"),
         verification_reason=(DEFAULT_VERIFICATION_REASON),
     )
 
@@ -308,11 +308,13 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         "claim_status": claim_status,
         "verification": (dataclasses.asdict(outcome.verification)
                          if outcome.verification is not None else None),
-        # Ticket 22: the DECLARED plan-time verification policy and its REQUIRED reason,
-        # every recorded runtime PLAN UPDATE, and any review-vs-test disagreement the
-        # review outranked. Recorded for every run so the policy is never implicit.
-        "verification_policy": outcome.verification_policy,
-        "verification_policy_reason": outcome.verification_policy_reason,
+        # Ticket 22 round 3: the PLAN's two verification LISTS and the reason (present
+        # when neither list was declared), every recorded runtime PLAN UPDATE, and any
+        # review-vs-test disagreement the review outranked. Recorded for every run so the
+        # spec-time decision is never implicit.
+        "planned_tests": [dataclasses.asdict(c) for c in outcome.planned_tests],
+        "planned_reviews": list(outcome.planned_reviews),
+        "verification_reason": outcome.verification_reason,
         "plan_updates": [dataclasses.asdict(u) for u in outcome.plan_updates],
         "verification_disagreement": outcome.verification_disagreement,
         # Ticket 20 items 4-5: the run-level best_effort/downgrade counters, the weighting
@@ -717,9 +719,8 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     print(f"[verification] basis={outcome.verification_basis} "
           f"tier={getattr(outcome.verification, 'tier', None)} "
           f"verified={outcome.verified} status={outcome.claim_status} -> {vquad}")
-    print(f"[policy]  declared={outcome.verification_policy} "
-          f"effective={getattr(outcome.verification, 'effective_policy', None) or outcome.verification_policy} "
-          f"reason={outcome.verification_policy_reason!r}")
+    print(f"[policy]  tests={[c.ac_id for c in outcome.planned_tests]} "
+          f"reviews={list(outcome.planned_reviews)} reason={outcome.verification_reason!r}")
     for update in outcome.plan_updates:
         print(f"[plan-update] {update.old_policy} -> {update.new_policy} "
               f"(attempts={update.attempts} repairs={update.test_rewrites}) "

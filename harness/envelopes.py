@@ -747,21 +747,31 @@ class ProposeGrowth(Envelope):
 
 
 class DeclaredTest(NestedModel):
-    """One DECLARED test case (ENVELOPE_SCHEMAS §23; ticket 19 D): the test FILE and the
-    test FUNCTION NAMES a planner expects for one acceptance criterion. The harness
-    verifies mechanically from the report that the file exists and every name is a
-    collected, passing node id; a missing file/name is a distinct repairable failure."""
+    """One PLANNED test point (ENVELOPE_SCHEMAS §23; tickets 19 D, 22 round 3): the test
+    FILE, the test FUNCTION NAMES, and (optionally) WHAT the test verifies, for one
+    acceptance criterion. The harness verifies mechanically from the report that the file
+    exists and every name is a collected, passing node id; a missing file/name is a
+    distinct repairable failure."""
 
     ac_id: str = req(pattern=r"^AC-[0-9]{1,3}$")
     file: str = req(min_length=1)
     names: list[str] = req(min_length=1, max_length=8)
+    #: Ticket 22 round 3: what the test verifies (the observable/behaviour it pins).
+    verifies: str = ""
 
 
 class ChildPlan(NestedModel):
     """One child of a decomposition (ENVELOPE_SCHEMAS §23): goal + boundary + ACs +
-    the DECLARED test cases + a budget weight. ``what``/``why``/``kind``/``est_calls`` are
-    REQUIRED; ``files``/``acs``/``interfaces``/``test_cases`` default to empty (a leaf
-    child's AC map is enforced by :func:`harness.node.validate_decomposition`, not here)."""
+    the PLAN's two verification LISTS + a budget weight. ``what``/``why``/``kind``/
+    ``est_calls`` are REQUIRED; ``files``/``acs``/``interfaces``/``planned_tests``/
+    ``planned_reviews`` default to empty (a leaf child's AC map is enforced by
+    :func:`harness.node.validate_decomposition`, not here).
+
+    Ticket 22 round 3: the spec-time policy is NOT an enum. A node declares a LIST of
+    planned TESTS (``planned_tests``) and/or a LIST of planned REVIEWS
+    (``planned_reviews``); both, either, or neither may be given. When NEITHER is given
+    the node must state a ``verification_reason``. ``best_effort`` is an optional
+    PLAN-LEVEL fallback with its own plan-level reason."""
 
     what: str = req(min_length=1)                 # child goal (one line)
     why: str = req(min_length=1)
@@ -769,22 +779,28 @@ class ChildPlan(NestedModel):
     files: list[str] = Field(default_factory=list)   # leaf write boundary; [] for pure internal
     acs: list[DraftAC] = Field(default_factory=list)  # leaf: mandatory; internal: integration view
     interfaces: list[Interface] = Field(default_factory=list)
-    #: Ticket 19 D: per-criterion expected test cases (file + function names).
-    test_cases: list[DeclaredTest] = Field(default_factory=list)
+    #: Ticket 22 round 3: the test points this node INTENDS to write (file + names +
+    #: which criterion + what it verifies). Empty = no test is planned for this node.
+    planned_tests: list[DeclaredTest] = Field(default_factory=list)
     est_calls: int = Field(ge=1, le=8)            # budget-allocation weight
-    # Ticket 22 PLAN-TIME POLICY: how this child's leaf will be verified — ``test`` (a
-    # discriminating test is required), ``review`` (a graded review is the required
-    # evidence; no test is required), or ``either`` (prefer a test, fall back to review).
-    # ``verification_reason`` is REQUIRED: the planner must judge how hard a test is to
-    # write for the requirement and say why it chose the policy. ``review_angles`` lists
-    # the review ANGLES the review tier runs (a closed per-level set; empty = the level's
-    # critical angles). ``best_effort`` is an optional PLAN-LEVEL fallback with its own
-    # plan-level reason.
-    verification_policy: Literal["test", "review", "either"] = "either"
-    verification_reason: str = req(min_length=1)
-    review_angles: list[str] = Field(default_factory=list)
+    #: Ticket 22 round 3: the review ANGLES this node INTENDS to run (drawn from the
+    #: closed per-level registry). Empty = no review is planned for this node.
+    planned_reviews: list[str] = Field(default_factory=list)
+    #: Ticket 22 round 3: REQUIRED iff both lists are empty — the planner must say why
+    #: no test and no review can carry this node's claim.
+    verification_reason: str = ""
     best_effort: bool = False
     best_effort_reason: str = ""
+
+    @model_validator(mode="after")
+    def _reason_when_no_plan(self) -> Self:
+        """Ticket 22 round 3: NEITHER list is legal only WITH a written reason."""
+        if not self.planned_tests and not self.planned_reviews \
+                and not (self.verification_reason or "").strip():
+            raise ValueError(
+                "a child with neither planned_tests nor planned_reviews requires a "
+                "verification_reason (ENVELOPE_SCHEMAS §23, ticket 22 round 3)")
+        return self
 
 
 class PlanNode(Envelope):
@@ -794,7 +810,7 @@ class PlanNode(Envelope):
     must be non-empty); a non-empty list declares it INTERNAL, with ``acs`` as the
     integration view over descendant checks.
 
-    Ticket 19 D/F: a node declares its expected test cases (``test_cases``) and the
+    Ticket 19 D/F: a node declares its expected test cases (``planned_tests``) and the
     guidance tells the planner to split by REQUIREMENT/acceptance criterion, not by file
     (two requirements may legitimately change the same file; the tree serializes
     overlapping writers).
@@ -806,13 +822,13 @@ class PlanNode(Envelope):
     files: list[str] = req(max_length=10)         # THIS node's write boundary
     acs: list[DraftAC] = req(max_length=10)       # THIS node's AC map (leaf mandatory)
     interfaces: list[Interface] = req(max_length=8)
-    test_cases: list[DeclaredTest] = Field(default_factory=list, max_length=10)  # 19 D
-    # Ticket 22 PLAN-TIME POLICY for THIS node (when it runs as a leaf): ``test`` /
-    # ``review`` / ``either`` plus the REQUIRED reason the planner judged a test hard or
-    # easy to write for this requirement.
-    verification_policy: Literal["test", "review", "either"] = "either"
-    verification_reason: str = req(min_length=1)
-    review_angles: list[str] = Field(default_factory=list)   # closed per-level set
+    planned_tests: list[DeclaredTest] = Field(default_factory=list, max_length=10)  # 22 r3
+    # Ticket 22 round 3: the review ANGLES this node INTENDS to run (closed per-level
+    # registry); empty = no review is planned. ``verification_reason`` is REQUIRED iff
+    # both lists are empty; ``best_effort`` is an optional weaker-tier fallback with a
+    # plan-level reason.
+    planned_reviews: list[str] = Field(default_factory=list)   # closed per-level set
+    verification_reason: str = ""
     best_effort: bool = False
     best_effort_reason: str = ""
     #: Ticket 20 step 2a: the How this decomposition belongs to. A per-How
@@ -820,6 +836,19 @@ class PlanNode(Envelope):
     #: call (single-leaf / pre-How tree) valid.
     how_id: str = Field(default="", pattern=r"^(HOW-[0-9]{1,3})?$")
     children: list[ChildPlan] = req(max_length=15)  # [] ⇒ this node is a LEAF
+
+    @model_validator(mode="after")
+    def _reason_when_no_plan(self) -> Self:
+        """Ticket 22 round 3: NEITHER list is legal only WITH a written reason (the
+        ``unable`` branch carries no payload, so it is exempt)."""
+        if self.status == "unable":
+            return self
+        if not self.planned_tests and not self.planned_reviews \
+                and not (self.verification_reason or "").strip():
+            raise ValueError(
+                "a node with neither planned_tests nor planned_reviews requires a "
+                "verification_reason (ENVELOPE_SCHEMAS §23, ticket 22 round 3)")
+        return self
 
 
 # ---------------------------------------------------------------------------
