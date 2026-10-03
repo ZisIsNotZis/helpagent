@@ -375,15 +375,22 @@ The run's own tests gate the run, and a claim additionally needs an independent 
   per-criterion verdict, the review verdict(s) with their angles, the rewrite count, the
   acceptance-criteria count, the ledger, the coverage result, and the declared-case
   result — and returns the decision plus the basis. It enforces all of: no claim with zero
-  criteria; no claim with an empty ledger; no claim when coverage missed a named artifact;
-  **on the review route the graded review DECIDES (ticket 22)** — an approving review
-  carries the claim even when the own test or the independent test is red on the same
-  revision and the disagreement is recorded, and a rejecting review blocks it even when a
-  test is green; on every other route a red own test on the final revision can never claim
-  (a passing independent TEST makes it a recorded two-imperfect-tests CONFLICT, never a
-  claim); any test rewrite needs the independent verification to agree UNLESS the node
-  recorded a PLAN UPDATE that switched it to review (ticket 22); and a red-on-final
-  independent verdict never carries a non-review claim. The tree's internal
+  criteria; no claim with an empty ledger; no claim when PER-CRITERION coverage missed a
+  named artifact; no claim when REQUEST-LEVEL coverage missed a named artifact (ticket 23
+  round 3, the T-31 fix — the whole request's files/symbols, on EVERY route); **on the
+  review route the graded review DECIDES over a conflicting TEST (ticket 22)** — an
+  approving review carries the claim even when the OWN test is red on the same revision
+  and the disagreement is recorded, and a rejecting review blocks it even when a test is
+  green, **but a RED independent per-criterion verification BLOCKS the review-backed claim
+  (ticket 23 round 3, the T-14 #2 fix)** — the independent verification is fresh,
+  independently authored and discriminating, not the model-written test the precedence
+  rule was written to outrank, so its failure on the delivered code cannot be overridden
+  (the disagreement, both evidences, is recorded); a VACUOUS/non-discriminating independent
+  test is NOT a red verdict and does not block; on every other route a red own test on the
+  final revision can never claim (a passing independent TEST makes it a recorded
+  two-imperfect-tests CONFLICT, never a claim); any test rewrite needs the independent
+  verification to agree UNLESS the node recorded a PLAN UPDATE that switched it to review
+  (ticket 22); and a red-on-final independent verdict never carries a non-review claim. The tree's internal
   close routes through the same gate (`route="integration"`). Every claim site
   (normal green, review, exhaustion independent-test, exhaustion review, the tree close)
   only supplies evidence; a structural AST test fails the suite if any path other than the
@@ -439,6 +446,60 @@ The run's own tests gate the run, and a claim additionally needs an independent 
   artifacts (file paths and symbols extracted from its text) must appear in the node's
   final diff; an untouched named artifact means the requirement was not implemented and the
   node may NOT claim (§10.9).
+- **REQUEST-LEVEL artifact coverage and the red-independent-verification rule (ticket 23
+  round 3 — the two gates that close the three measured false successes).** The round-2
+  sweep measured actual 14/18, claimed 11, but three false successes (0 → 3). Two
+  deterministic gates close them:
+  1. **Request-level artifact coverage, a HARD claim blocker on every route.** The
+     whole request's named artifacts — source files whose stem a request word equals
+     (`transport`, `service`, `bulk`, `client`) and defined symbols it names (`send`,
+     `fetch`) — are extracted deterministically (`harness.leaf._request_coverage`) and
+     every one must appear in the final diff, on the test, review AND independent routes.
+     This closes **T-31 #1/#2**: the request named four call sites, the runs touched a
+     subset, the per-criterion check resolved only `fetch` (one criterion named just
+     `fetch`), `coverage_missing` was empty, and the graded review approved — now the
+     request-level check refuses every route and records each untouched artifact with the
+     diff evidence. The existing per-criterion check is kept.
+  2. **A red independent verification blocks a review-backed claim.** The owner's rule is
+     that the graded review outranks a conflicting TEST — written about the model-written
+     own test, which is unreliable. The independent per-criterion verification is fresh,
+     independently authored and discriminating (our strongest evidence), so when it is RED
+     on the delivered revision (`independent-test-red-on-final`) a review may NOT carry the
+     claim; the disagreement (review approved / independent verification rejected, both
+     evidences) is recorded. This closes **T-14 #2**: the run's own test AND the independent
+     verification were both red on the delivered fix (it returned dicts, not the required
+     tuples), yet the review approved and the claim went through. A VACUOUS or
+     non-discriminating independent test (`independent-test-not-red` /
+     `-not-discriminating` / `-incomplete-coverage` / `-unobserved`) is NOT a red verdict
+     and does not block; the review still carries the claim there. Everything else is
+     unchanged: the two-list plan contract, the single claim gate and its structural test,
+     grant-calibre review evidence, the ledger + EVIDENCE GAP, corpus integrity, the
+     best-evidence restore (and its own-test coverage refusal), greedy Hows, budget
+     accounting, no destructive reset, and the honesty boundary.
+- **The best-evidenced revision is delivered, never the erased baseline (ticket 23, ranked
+  and refused round 2).** M1 erases the draft back to the baseline on every non-novel
+  verdict, which delivered byte-identical broken sources after attempts that had held the
+  real fix (T-05). The run now SNAPSHOTS the work tree whenever an attempt reaches the
+  strongest evidence seen so far and RESTORES that revision before the produced files are
+  collected; a granted claim's revision is never replaced, and a later, better-evidenced
+  revision is never replaced by an earlier one. THE STRENGTH ORDER IS ONE LIST, strongest
+  first (`harness.leaf.BEST_EVIDENCE_ORDER`, the ranks the code uses and a unit test
+  asserts): **(4) AGREEMENT** — the run's own discriminating test is green AND the
+  independent per-criterion verification approved the SAME revision; **(3) the independent
+  per-criterion verification approved** (a fresh, independently authored, discriminating
+  test); **(2) the run's own discriminating test is green**; **(1) a combined-positive,
+  grant-calibre review**. Ranks 3 and 4 are reached AT the claim gate, and a granted claim
+  is never restored over, so **in practice rank 2 — the run's OWN test — is the tier that
+  restores**. The own test is model-written and can be WRONG, so a revision that merely
+  greened it can be the wrong revision and restoring it over later work would silently
+  deliver that wrong revision. Therefore an own-test-only snapshot may be restored ONLY
+  when, AT THAT SNAPSHOT'S REVISION, the requirement-coverage check found NO acceptance
+  criterion whose named artifact the revision leaves untouched — the revision really moves
+  what the criteria name. When the coverage check never ran at that revision, or found an
+  untouched artifact, the restore is REFUSED and the terminal revision is delivered;
+  `delivered_revision` carries `restore_refused`, `restore_refused_reason` (naming the
+  untouched artifact) and `coverage_missing`, alongside the best tier/rank/attempt/reason,
+  the delivered file list, and whether a restoration happened over the last-written tree.
 - **A machine-readable pytest report is the only green — the exit status is not
   evidence (owner decision 2026-09-29, round 6, adversarial finding F1).** Run-authored
   code executes inside the gate process (the run's own test imports the run's source), so
@@ -557,9 +618,12 @@ independent-test veto, and sibling file-disjointness:
   review verdict with evidence passed. The independent test is an extra label, never the
   veto. New claim basis values: `own-test`, `own-test+independent-test`, `review`.
   **Ticket 22:** the graded review OUTRANKS a conflicting test, so a review approval claims
-  (basis `review`/`review+independent-test`) even when a test is red on the same revision,
-  a review rejection blocks even when a test is green, the disagreement is recorded, and a
-  `test` node whose judge-confirmed test cannot be repaired records a PLAN UPDATE to review.
+  (basis `review`/`review+independent-test`) even when the OWN test is red on the same
+  revision, a review rejection blocks even when a test is green, the disagreement is
+  recorded, and a `test` node whose judge-confirmed test cannot be repaired records a PLAN
+  UPDATE to review. **Ticket 23 round 3 narrows this for the INDEPENDENT verification:** a
+  red-on-final independent verification BLOCKS a review-backed claim (it is not the
+  model-written test the rule outranks), while a vacuous/non-discriminating one does not.
 - **Mandatory review.** No test can carry verification (no red target after the bounded
   re-ask; a judge-attributed broken test that a bounded repair cannot make discriminating;
   an unwritable test path) ⇒ a fresh-context reviewer of the final diff returns pass/fail
@@ -567,9 +631,12 @@ independent-test veto, and sibling file-disjointness:
 - **Declared test cases.** A node declares, per criterion, the expected test file + function
   names; the harness verifies them mechanically from the report (boundary-aware). Missing
   names/files are a repairable failure.
-- **Per-requirement artifact coverage.** Every criterion's named file paths/symbols must
-  appear in the node's final diff; an untouched named artifact blocks the claim (the T-31
-  answer).
+- **Per-requirement AND request-level artifact coverage.** Every criterion's named file
+  paths/symbols must appear in the node's final diff; an untouched named artifact blocks
+  the claim (the T-31 answer). **Ticket 23 round 3** adds the whole request's named
+  artifacts (files whose stem a request word equals, and defined symbols) as a hard block
+  on every route — the request that names N call sites is not done until the diff touches
+  all N.
 - **Decomposition by requirement.** Sibling file sets may overlap (two requirements may
   change one file); the tree serializes overlapping writers and keeps the per-node boundary
   audit, child ⊆ parent, and the depth/child caps. The planner splits by requirement and

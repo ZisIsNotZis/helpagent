@@ -362,6 +362,12 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         # contract failures that blocked a claim.
         "coverage": [dataclasses.asdict(c) for c in outcome.coverage],
         "coverage_missing": outcome.coverage_missing,
+        # Ticket 23 round 3: the REQUEST-LEVEL artifact coverage (the whole request's
+        # files/symbols vs the final diff; the T-31 fix) and the artifacts it leaves
+        # untouched (a hard claim blocker on every route).
+        "request_coverage": (dataclasses.asdict(outcome.request_coverage)
+                             if outcome.request_coverage is not None else None),
+        "request_coverage_missing": outcome.request_coverage_missing,
         # Ticket 19 round 2 (F2): the criteria that named no artifact and had no declared
         # discriminating test to carry them (a distinct claim blocker).
         "coverage_unresolved": outcome.coverage_unresolved,

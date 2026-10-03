@@ -35,7 +35,7 @@ and it is the reason the run record carries `claimed_basis`:
 | `review+independent-test` | 1 | 1 | 0 | 0% |
 | `own-test` / `independent-test` alone | 0 | - | - | - |
 
-**Three rules measured on the same nine tasks, same model** (the evolution of the claim rule,
+**Four rules measured on the same nine tasks, same model** (the evolution of the claim rule,
 in order):
 
 | claim rule | actual | claimed | true | missed | **false** | calls |
@@ -43,6 +43,36 @@ in order):
 | agreement required (a red test could not be overridden) | 14/18 | 4/18 | 4 | 10 | 0 | 156 |
 | the graded review outranks a conflicting test | 12/18 | 11/18 | 9 | 3 | **2** (both on T-31) | 174 |
 | ... plus grant-calibre review evidence | 12/18 | 8/18 | **8** | 4 | **0** | 186 |
+| ... plus the best-evidence restore (ticket 23 round 2) | **14/18** | 11/18 | 8 | 6 | **3** (T-31 #1/#2, T-14 #2) | 177 |
+
+The last row is the round-2 sweep at commit `b028a28` (`bench/v2sweep-20261003T022952Z`,
+`summary.json`: actual 14/18, claimed 11/18, true 8, missed 6, false 3, honest 1). The
+best-evidence restore is a real win on the ACTUAL axis (12 → 14: both T-05 runs now
+pass the grader), but it did not by itself restore the claim count: `claimed` stayed at
+11 because three claims are FALSE. The three, with the gate that closes each:
+
+- **T-31-parameter-threading #1 and #2 (request-level artifact coverage).** The request
+  names four call sites — the transport's `send()`, the client's `fetch()`, the service
+  sync and the bulk exporter. Run 1 touched only `api/client.py`; run 2 touched
+  `api/transport.py`, `api/client.py` and `exporter/bulk.py` but left `api/service.py`
+  untouched. `coverage_missing` was EMPTY because the coverage check resolves artifacts
+  PER ACCEPTANCE CRITERION and one criterion named only `fetch`; the graded review
+  approved and the claim went through. **Gate 1 (ticket 23 round 3): request-level
+  artifact coverage** extracts the artifacts the WHOLE REQUEST names and requires the
+  final diff to touch every one of them, as a HARD claim blocker on EVERY route (test,
+  review, independent), recording each unmet artifact with the diff evidence.
+- **T-14-add-export-sorting #2 (a red independent verification).** The run's own test AND
+  the independent per-criterion verification were BOTH red on the final source (they were
+  right — the delivered fix returned dicts, not the required tuples), but the graded
+  review said `definitely-ok` and, under the review-outranks-a-test rule, the claim went
+  through. `coverage_missing` was empty because this request's criteria name no artifact.
+  **Gate 2 (ticket 23 round 3): a RED independent verification blocks a review-backed
+  claim** — the independent verification is fresh, independently authored and
+  discriminating, so it is NOT the model-written test the precedence rule was written to
+  outrank; the disagreement (review approved / independent verification rejected, both
+  evidences) is recorded and no claim is made. A VACUOUS or non-discriminating
+  independent test is NOT a red verdict and does not block; the review still carries the
+  claim there.
 
 The middle row is what the owner's rule bought on its own: more claims, and a 20% false-success
 rate on the review tier. The third row is the same rule with the evidence requirement that a
@@ -53,10 +83,18 @@ still claimed twice as many true successes as the conservative rule. One sweep i
 the review tier's error rate is not proven zero, it is measured zero here - which is why every
 claim records its basis.
 
-**Why the remaining successes were not claimed.** Four graded successes were refused: two were
-`ladder` runs whose ledger names the unverifiable criterion, and two were T-33 whose criteria
-name a file the task freezes (a criterion/corpus mismatch, not a code defect). The evidence is
-in each `run.json`.
+**Why the remaining successes were not claimed.** In the round-1 sweep six graded
+successes were not claimed: the best-evidence restore recovered the actual fix on T-05
+(and T-02) but the runs did not claim, and T-33's criteria name a file the task freezes (a
+criterion/corpus mismatch, not a code defect). The evidence is in each `run.json`.
+
+**Ticket 23 round 3 (this round) adds the two gates above and nothing else.** They close
+exactly the two measured routes above (T-31's partial multi-site change via Gate 1, T-14
+#2's review-over-red-verification via Gate 2). They are a HARD claim block, so the
+measured effect is fewer claims with no false successes on those routes; the trade (a
+request that names a file the request never needed, or a review blocked by a red
+independent test) is stated plainly rather than argued. One sweep is one sample, and the
+round-3 gates have not yet been re-measured across the nine tasks.
 
 ## 2. What the harness does (one paragraph each)
 
@@ -71,11 +109,13 @@ ids. An exit status is never evidence; a missing report, a missing canary or a m
 is red.
 
 **One claim gate.** A claim is granted in exactly one place. It requires: at least one
-acceptance criterion, a non-empty evidence ledger, no missed coverage of a criterion's named
-artifact, and — for anything more than the run's own green test — agreement between two
-independently produced verifications. A red own test plus a passing review or independent
-test is recorded as a verifier CONFLICT and cannot claim. A structural test fails the suite
-if any other code path could grant a claim.
+acceptance criterion, a non-empty evidence ledger, no missed PER-CRITERION artifact
+coverage, no missed REQUEST-LEVEL artifact coverage (ticket 23 round 3, Gate 1), and — for
+anything more than the run's own green test — a supporting verification. A red own test plus
+a passing test is recorded as a verifier CONFLICT and cannot claim; the graded review
+outranks a conflicting test, EXCEPT that a RED independent verification blocks a
+review-backed claim (ticket 23 round 3, Gate 2). A structural test fails the suite if any
+other code path could grant a claim.
 
 **Evidence in both directions.** Every acceptance criterion gets a ledger row (satisfied /
 violated / unverifiable) pointing at what was observed. A run that stops without any

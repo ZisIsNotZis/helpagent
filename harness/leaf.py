@@ -78,8 +78,18 @@ Fixed contract points, each deliberate:
   file's final text; a bare line reference is no longer enough, so an UNCHANGED tree can
   never claim by any route. Ticket 22 replaces the round-5 agreement rule with a
   PRECEDENCE rule: when the graded review and a test disagree on the SAME revision — a red
-  own/independent test while the review approves, or a green test while the review rejects
-  — the REVIEW'S VERDICT DECIDES. An approving review carries the claim
+  own test while the review approves, or a green test while the review rejects — the
+  REVIEW'S VERDICT DECIDES. **Ticket 23 round 3 narrows the precedence for the
+  INDEPENDENT verification only (the T-14 #2 fix):** the rule was written about the
+  MODEL-WRITTEN own test (unreliable, the reason the review outranks it), whereas the
+  independent per-criterion verification is a fresh, independently authored, discriminating
+  check — our strongest evidence. So a RED independent verification on the delivered code
+  (``independent-test-red-on-final``) BLOCKS a review-backed claim; the disagreement (review
+  approved / independent verification rejected, with both evidences) is recorded and no
+  claim is made. A VACUOUS or non-discriminating independent test
+  (``independent-test-not-red`` / ``-not-discriminating`` / ``-incomplete-coverage`` /
+  ``-unobserved``) is NOT a red verdict and does not block, so the review still carries the
+  claim there. An approving review carries the claim
   (``verification_basis="review"``, ``claimed_basis="review"``) with the disagreement
   RECORDED (``verification_disagreement``); a rejecting review blocks it. The
   ``claimed_basis``/strength label is kept so a consumer can filter to test-backed claims
@@ -183,9 +193,40 @@ Fixed contract points, each deliberate:
   CONFLICT the node records (``own_test_conflict``) and does NOT claim. On the REVIEW
   route the graded review decides instead: an approving review carries the claim even when
   a test is red (the disagreement is recorded), a rejecting review blocks it.
-- **Coverage is a HARD block, not advice (fix 3).** A non-empty requirement-coverage miss
-  (a criterion naming a file/symbol the final diff never touches) blocks BOTH a claim and
-  an ``ok`` review verdict — the T-31 false-success route.
+- **Coverage is a HARD block, not advice (fix 3), and it is checked at BOTH levels
+  (ticket 23 round 3).** A non-empty PER-CRITERION coverage miss (a criterion naming a
+  file/symbol the final diff never touches) blocks BOTH a claim and an ``ok`` review
+  verdict. Round 3 adds REQUEST-LEVEL artifact coverage (:class:`RequestCoverage`, the
+  T-31 fix): the artifacts the WHOLE request names — source files whose stem a request
+  word equals (``transport``/``service``/``bulk``) and defined symbols it names
+  (``send``/``fetch``) — must ALL be touched by the final diff, on EVERY route (test,
+  review, independent). T-31's request names four files, two runs touched a subset, the
+  per-criterion check resolved only ``fetch``, ``coverage_missing`` was empty, and a
+  graded review carried the claim; the request-level check refuses it and records each
+  untouched artifact with the diff evidence.
+- **THE BEST-EVIDENCED REVISION IS DELIVERED, NEVER THE ERASED BASELINE (ticket 23 item 1,
+  ranked and refused round 2).** M1 erases the draft back to the baseline on every
+  non-novel verdict, so the run SNAPSHOTS the work tree whenever an attempt reaches the
+  strongest evidence seen so far and RESTORES that revision before the produced files are
+  collected. A granted claim's revision is never replaced, and a later, better-evidenced
+  revision is never replaced by an earlier one. The strength order is ONE documented list
+  (:data:`BEST_EVIDENCE_ORDER`), strongest first: (4) AGREEMENT — the run's own
+  discriminating test green AND the independent per-criterion verification approved the
+  SAME revision; (3) the independent per-criterion verification approved (a fresh,
+  independently authored, discriminating test); (2) the run's own discriminating test
+  green; (1) a combined-positive grant-calibre review. Ranks 3 and 4 are reached at the
+  claim gate and a granted claim is not restored over, so IN PRACTICE RANK 2 (the run's
+  own test) is the tier that restores — which is exactly why rule 2 exists: **an
+  own-test-only snapshot may be restored only when, at that snapshot's revision, the
+  requirement-coverage check found NO acceptance criterion whose named artifact the
+  revision leaves untouched** (the revision really moves the artifacts the criteria
+  name). The own test is MODEL-WRITTEN and can be WRONG, so a revision that merely greened
+  it can be the wrong revision; restoring it over later work would silently deliver that
+  wrong revision. When the coverage check never ran at that revision, or found an
+  untouched artifact, the restore is REFUSED, the terminal revision is delivered, and
+  ``delivered_revision`` carries ``restore_refused``/``restore_refused_reason`` naming the
+  untouched artifact. The record also names the best tier/rank/attempt/reason, the
+  delivered file list, and whether a restoration happened over the last-written tree.
 """
 
 from __future__ import annotations
@@ -903,6 +944,36 @@ class RequirementCoverage:
 
 
 @dataclass(frozen=True)
+class RequestCoverage:
+    """REQUEST-LEVEL artifact coverage of the node's final diff (ticket 23 round 3).
+
+    The per-criterion check (:class:`RequirementCoverage`) only resolves the artifacts a
+    single acceptance criterion names, so a multi-site request whose criteria each name
+    one site slips through: T-31's request names the transport's ``send``, the client's
+    ``fetch``, the service sync and the bulk exporter, the run touched only two of the
+    four files, ``coverage_missing`` was empty because one criterion named only
+    ``fetch``, and the graded review carried the claim. This record is the fix: the
+    artifacts the WHOLE REQUEST names, extracted deterministically from ``spec.goal``,
+    must ALL be touched by the final diff on EVERY claim route.
+
+    ``files`` are the source files a request word names (the word equals the file's stem)
+    plus any literal path token; ``symbols`` are the function/class names it names that
+    resolve in the injected view. ``missing`` lists the artifacts the final diff never
+    touches; a non-empty ``missing`` is a HARD claim blocker (test, review, or
+    independent route) and is recorded with the artifact name and the diff evidence.
+    """
+
+    request: str
+    files: tuple[str, ...] = ()
+    symbols: tuple[str, ...] = ()
+    missing: tuple[str, ...] = ()
+
+    @property
+    def ok(self) -> bool:
+        return not self.missing
+
+
+@dataclass(frozen=True)
 class CriterionLedgerEntry:
     """One acceptance criterion's row in a code-writing node's LEDGER (ticket 21 item 1).
 
@@ -1062,6 +1133,12 @@ class LeafOutcome:
     coverage: list[RequirementCoverage] = field(default_factory=list)
     coverage_missing: list[str] = field(default_factory=list)
     coverage_unresolved: list[str] = field(default_factory=list)
+    # Ticket 23 round 3: REQUEST-LEVEL artifact coverage — the artifacts the WHOLE request
+    # names, checked against the final diff. ``request_coverage`` is the single record and
+    # ``request_coverage_missing`` flattens the artifacts the diff never touches; a
+    # non-empty list is a HARD claim blocker on every route (the T-31 fix).
+    request_coverage: RequestCoverage | None = None
+    request_coverage_missing: list[str] = field(default_factory=list)
     # Ticket 19 D: the declared test-case contract failures (missing/unpassed file or
     # node names) after the bounded repair; a claim blocker.
     test_case_problems: list[str] = field(default_factory=list)
@@ -1119,7 +1196,11 @@ class LeafOutcome:
     #: Ticket 23 item 1: the BEST-EVIDENCE delivery record. ``delivered_revision`` names
     #: the strongest-evidenced revision the run produced (the snapshot's tier/rank/attempt
     #: and why it was the best) and whether it was RESTORED over the last-written one
-    #: before the produced files were collected. Empty when no evidence snapshot existed.
+    #: before the produced files were collected. Ticket 23 round 2: the strength order is
+    #: :data:`BEST_EVIDENCE_ORDER`, and ``restore_refused``/``restore_refused_reason``
+    #: record an own-test snapshot whose revision did NOT move a criterion's named artifact
+    #: (the terminal revision is delivered instead). Empty when no evidence snapshot
+    #: existed.
     delivered_revision: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -1373,9 +1454,11 @@ def claim_decision(
     test_rewrites: int = 0,
     iv_approved: bool = False,
     iv_red_on_final: bool = False,
+    iv_red_detail: str = "",
     review_approved: bool = False,
     review_verdicts: Sequence[ReviewVerdict] = (),
     coverage_missing: Sequence[str] = (),
+    request_coverage_missing: Sequence[str] = (),
     test_case_problems: Sequence[str] = (),
     verification_basis: str = "test",
     tier_allowed: bool = True,
@@ -1396,11 +1479,23 @@ def claim_decision(
 
     1. no claim with zero acceptance criteria;
     2. no claim with an EMPTY ledger (nothing was checked);
-    3. no claim when the coverage check missed a named artifact;
-    4. on the REVIEW route the graded review DECIDES (ticket 22 item 3): an approving
-       review carries the claim even when the run's own test or the independent test is
-       red on the SAME final revision, and a rejecting review blocks it even when a test
-       is green; the disagreement is recorded on the decision, never hidden;
+    3. no claim when the PER-CRITERION coverage check missed a named artifact;
+    3b. no claim when the REQUEST-LEVEL coverage check missed a named artifact (ticket 23
+       round 3, the T-31 fix) — a request that names N call sites is not done until the
+       diff touches all N, on EVERY route;
+    4. on the REVIEW route the graded review DECIDES over a conflicting TEST (ticket 22
+       item 3): an approving review carries the claim even when the run's own test is red
+       on the SAME final revision, and a rejecting review blocks it even when a test is
+       green; the disagreement is recorded on the decision, never hidden. **But a RED
+       INDEPENDENT VERIFICATION blocks the review-backed claim (ticket 23 round 3, the
+       T-14 #2 fix):** the independent per-criterion verification is fresh, independently
+       authored, and discriminating — not the model-written test the precedence rule was
+       written to outrank — so when it FAILED on the delivered code (``independent-test-
+       red-on-final``) the review may not carry a claim; the disagreement (review
+       approved / independent verification rejected, with both evidences) is recorded.
+       A VACUOUS or non-discriminating independent test (``independent-test-not-red`` /
+       ``-not-discriminating`` / ``-incomplete-coverage`` / ``-unobserved``) is NOT a red
+       verdict and does not block;
     5. on every other route, no claim when the run's own test exists and is RED on the
        final revision; when an independent TEST passed it, that is the two-imperfect-
        tests CONFLICT (there is no review to outrank it);
@@ -1409,7 +1504,7 @@ def claim_decision(
     7. any test REWRITE requires the independent verification to AGREE;
     8. a red-on-final independent verdict never carries a NON-review claim (an own-test
        claim with a green unrewritten own test is unaffected — the independent red is a
-       label there; on the review route the review decides per rule 4);
+       label there; on the review route rule 4 now also blocks it).
 
     plus the declared-case result (a declared case the own/independent route cannot carry
     blocks those routes) and the verification covenant (``tier_allowed``, resolved by the
@@ -1437,14 +1532,23 @@ def claim_decision(
         return _blocked_claim("empty-ledger")
     if coverage_missing:
         return _blocked_claim("requirement-uncovered")
+    if request_coverage_missing:
+        return _blocked_claim("request-artifacts-uncovered",
+                              detail="; ".join(request_coverage_missing),
+                              disagreement="")
 
     own_test_red = own_test is not None and not own_test_green
 
-    # ---- rule 4 (ticket 22 item 3): THE REVIEW DECIDES. When the graded, multi-angle
-    # review is the offered route, its verdict decides the claim in EITHER direction. An
-    # approving review carries the claim even when a test is red on the SAME final
-    # revision; a rejecting review blocks it even when a test is green. The disagreement
-    # is recorded on the decision, never hidden.
+    # ---- rule 4 (ticket 22 item 3): THE REVIEW DECIDES over a conflicting TEST. When the
+    # graded, multi-angle review is the offered route, its verdict decides the claim in
+    # EITHER direction. An approving review carries the claim even when a test is red on
+    # the SAME final revision; a rejecting review blocks it even when a test is green. The
+    # disagreement is recorded on the decision, never hidden. Ticket 23 round 3 (the
+    # T-14 #2 fix): a RED independent per-criterion verifier is NOT the model-written test
+    # the precedence rule was written to outrank — it is fresh, independently authored and
+    # discriminating — so when it FAILED on the delivered code the review may not carry the
+    # claim. A vacuous/non-discriminating independent test is NOT a red verdict and does
+    # not block.
     if route == "review":
         disagreement = conflict_detail.strip()
         if not disagreement:
@@ -1455,13 +1559,19 @@ def claim_decision(
                 disagreement = ("the run's own test is GREEN on the final revision while "
                                 "the graded review rejected it")
         if iv_red_on_final and review_approved:
-            extra = ("the graded review approved a revision the independent test "
-                     "rejected")
+            extra = ("the graded review APPROVED the final revision while the independent "
+                     "per-criterion verification REJECTED the same revision "
+                     f"({iv_red_detail or 'independent-test-red-on-final'})")
             disagreement = f"{disagreement}; {extra}" if disagreement else extra
         if not review_approved:
             return _blocked_claim("review-not-approved", disagreement=disagreement)
         if not any(v.approved and not v.coerced for v in review_verdicts):
             return _blocked_claim("review-not-grounded", disagreement=disagreement)
+        # Ticket 23 round 3 (the T-14 #2 fix): a red-on-final independent verification
+        # blocks the review-backed claim; the disagreement names both evidences.
+        if iv_red_on_final:
+            return _blocked_claim("independent-test-red-on-final",
+                                  detail=iv_red_detail, disagreement=disagreement)
         # rule 6: absent means NEVER written; a rewritten-and-removed test is not absent.
         # Ticket 22 item 2: after a recorded PLAN UPDATE (test -> review) the test was
         # deliberately GIVEN UP, so the review is the plan's verification and the old
@@ -1973,6 +2083,102 @@ def _criterion_unresolved(c: RequirementCoverage) -> bool:
     return not c.files and not c.symbols
 
 
+#: Ticket 23 round 3: request-level artifact tokens. ``_REQUEST_WORD`` is an identifier-
+#: like word (>= 3 chars used below); ``_DEFINED_SYMBOL`` is a top-level ``def``/``class``
+#: name in the injected view, so a request word can resolve to a symbol as well as a file.
+_REQUEST_WORD = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_DEFINED_SYMBOL = re.compile(
+    r"^\s*(?:async\s+)?(?:def|class)\s+([A-Za-z_][A-Za-z0-9_]*)", re.MULTILINE)
+
+
+def _request_artifacts(
+    spec: LeafSpec,
+    available: set[str],
+    source_text: Mapping[str, str],
+) -> tuple[list[str], list[str]]:
+    """The artifacts the WHOLE REQUEST names, resolved against the injected view.
+
+    Ticket 23 round 3, deterministic and documented (the T-31 fix):
+
+    * FILES — a literal path token (``api/client.py``) that names an available source
+      file, and any identifier word in the request that equals (case-insensitively) an
+      available source file's STEM (``transport`` -> ``api/transport.py``, ``service`` ->
+      ``api/service.py``, ``bulk`` -> ``exporter/bulk.py``, ``client`` ->
+      ``api/client.py``);
+    * SYMBOLS — backticked spans, dotted attributes, and call tokens (:func:`_symbol_candidates`)
+      that occur in the injected source, and any identifier word that equals a top-level
+      ``def``/``class`` name defined in the injected source (``send``, ``fetch``).
+
+    Only artifacts that RESOLVE in the injected view are kept: an unknown word (``make``,
+    ``caller``, ``timeouts``) resolves to nothing and is dropped. Test paths are excluded.
+    """
+    from harness.envelopes import file_tokens
+
+    files: list[str] = []
+    for token in file_tokens(spec.goal):
+        canon = _canonical_write_path(token)
+        if canon and canon in available and not is_test_path(canon) and canon not in files:
+            files.append(canon)
+    # First file wins on a stem collision, in sorted path order (deterministic). A test
+    # path is never a request artifact.
+    stems: dict[str, str] = {}
+    for rel in sorted(available):
+        if not is_test_path(rel):
+            stems.setdefault(PurePosixPath(rel).stem.lower(), rel)
+    defined = {name for text in source_text.values()
+               for name in _DEFINED_SYMBOL.findall(text or "")}
+    symbols: list[str] = []
+    for token in sorted(_symbol_candidates(spec.goal)):
+        if any(_word_present(token, text) for text in source_text.values()) \
+                and token not in symbols:
+            symbols.append(token)
+    for word in _REQUEST_WORD.findall(spec.goal):
+        if len(word) < 3:
+            continue
+        lowered = word.lower()
+        rel = stems.get(lowered)
+        if rel is not None and rel not in files:
+            files.append(rel)
+        for name in defined:
+            if name.lower() == lowered and name not in symbols:
+                symbols.append(name)
+    # Sorted so the run record is deterministic (``file_tokens``/``defined`` are sets).
+    return sorted(files), sorted(symbols)
+
+
+def _request_coverage(
+    spec: LeafSpec,
+    workdir: Path,
+    baseline: Mapping[str, str | None],
+) -> RequestCoverage:
+    """REQUEST-LEVEL artifact coverage of the final diff (ticket 23 round 3).
+
+    Extracts the artifacts the whole request names (:func:`_request_artifacts`) and checks
+    each against the node's final diff: a named file the diff leaves untouched, or a named
+    symbol absent from every changed file's final content, is ``missing``. A non-empty
+    ``missing`` is a HARD claim blocker on EVERY route (the T-31 fix).
+    """
+    available = set(spec.files) | set(spec.candidate_files) | set(spec.write_boundary or ())
+    source_text = {rel: text for rel, text in spec.files.items()}
+    changed = _changed_files(workdir, baseline)
+    files, symbols = _request_artifacts(spec, available, source_text)
+    changed_text = "\n".join(after for _, after in changed.values())
+    missing = [rel for rel in files if rel not in changed]
+    missing += [symbol for symbol in symbols if not _word_present(symbol, changed_text)]
+    return RequestCoverage(request=spec.goal, files=tuple(files),
+                           symbols=tuple(symbols), missing=tuple(missing))
+
+
+def _request_artifact_messages(coverage: RequestCoverage) -> list[str]:
+    """The record strings for the request-level artifacts the final diff never touches.
+
+    Each names the artifact (the file path or symbol) and the diff evidence, so the
+    blocker is auditable without unwrapping the :class:`RequestCoverage` record.
+    """
+    return [f"the request names {m}; the final diff does not touch it (request artifact "
+            f"coverage)" for m in coverage.missing]
+
+
 def _declared_test_case_problems(
     report: GateReport | None,
     declared: Sequence[DeclaredTestCase],
@@ -2081,16 +2287,44 @@ def _restore_deliverable_files(workdir: Path, files: Mapping[str, str]) -> None:
         target.write_text(content)
 
 
+#: THE single order of best-evidence STRENGTH for delivery (ticket 23 round 2),
+#: strongest first. The code reads its ranks from :data:`BEST_EVIDENCE_RANKS` and a test
+#: asserts this order, so there is exactly one place the order is stated:
+#:   (4) ``agreement`` — the run's own discriminating test is green AND the independent
+#:       per-criterion verification approved the SAME revision,
+#:   (3) ``independent-test`` — the independent per-criterion verification approved (a
+#:       fresh, independently authored, discriminating test),
+#:   (2) ``own-test`` — the run's own discriminating test is green,
+#:   (1) ``review`` — a combined-positive grant-calibre review.
+BEST_EVIDENCE_ORDER: tuple[str, ...] = ("agreement", "independent-test", "own-test",
+                                        "review")
+
+#: The rank of each tier above (strongest = the highest number): the value a
+#: :class:`BestEvidenceRevision` carries and the restore compares.
+BEST_EVIDENCE_RANKS: dict[str, int] = {
+    tier: len(BEST_EVIDENCE_ORDER) - index
+    for index, tier in enumerate(BEST_EVIDENCE_ORDER)
+}
+
+
 @dataclass
 class BestEvidenceRevision:
     """The strongest-evidenced revision the run produced (ticket 23 item 1).
 
-    ``rank`` orders the evidence an attempt reached: own test green (1) < independent
-    verification approved (2) < a combined-positive review (3). ``tier``/``reason`` name
-    it for the record; ``files`` is the captured work tree, RESTORED at node completion
-    when the last-written revision carries weaker evidence (an M1 erase can therefore
-    never destroy a better revision). ``test_path`` is the run's own test at capture
-    time (``None`` when none was kept), so the record can name the delivered target.
+    ``rank`` orders the evidence an attempt reached, weakest to strongest, as
+    :data:`BEST_EVIDENCE_ORDER` states it: a grant-calibre review (1) < the run's own
+    discriminating test green (2) < the independent per-criterion verification approved
+    (3) < the two AGREEING on one revision (4). ``tier``/``reason`` name it for the
+    record; ``files`` is the captured work tree, RESTORED at node completion when the
+    last-written revision carries weaker evidence (an M1 erase can therefore never
+    destroy a better revision). ``test_path`` is the run's own test at capture time
+    (``None`` when none was kept), so the record can name the delivered target.
+
+    ``coverage_missing`` is the requirement-coverage verdict computed AT THIS revision
+    (the criteria whose named artifact the revision leaves untouched); ``None`` when the
+    check never ran there. It exists because the own test is model-written and can be
+    wrong: an own-test-only snapshot is restored only when that verdict is an empty set,
+    and the refusal is what keeps a wrong revision from being delivered.
     """
 
     rank: int
@@ -2099,6 +2333,7 @@ class BestEvidenceRevision:
     reason: str
     files: dict[str, str] = field(default_factory=dict)
     test_path: str | None = None
+    coverage_missing: tuple[str, ...] | None = None
 
 
 def _exit_code(res: ShapedResult | Any) -> int | None:
@@ -2455,8 +2690,11 @@ def _review_request(
     # draw a ``definitely-ok``. The coverage hard block in :func:`run_reviews` still
     # vetoes a not-fully-covering review; this only informs the grade.
     coverage_missing = tuple(
-        f"{c.statement!r} names {m}, untouched by the diff"
-        for c in _requirement_coverage(spec, workdir, baseline) for m in c.missing)
+        [f"{c.statement!r} names {m}, untouched by the diff"
+         for c in _requirement_coverage(spec, workdir, baseline) for m in c.missing]
+        # Ticket 23 round 3: the request-level artifacts too, so a partial multi-site
+        # fix cannot draw a ``definitely-ok``.
+        + _request_artifact_messages(_request_coverage(spec, workdir, baseline)))
     return ReviewRequest(
         goal=spec.goal, acs=list(spec.acs),
         original={rel: original.get(rel, "") for rel in changed},
@@ -3735,6 +3973,9 @@ async def run_leaf(
     coverage: list[RequirementCoverage] = []
     coverage_missing: list[str] = []
     coverage_unresolved: list[str] = []
+    # Ticket 23 round 3: the request-level artifact coverage from the same evaluation.
+    request_coverage: RequestCoverage | None = None
+    request_coverage_missing: list[str] = []
     test_case_problems: list[str] = []
     test_case_repairs = 0
     # Ticket 21 round 3 (fix A), tightened round 4 (fix 1): the run's own test was red on
@@ -3767,15 +4008,23 @@ async def run_leaf(
     best_revision: BestEvidenceRevision | None = None
     current_rank = 0
     current_tier = ""
+    # Ticket 23 round 2: the requirement-coverage verdict computed for the revision ON
+    # DISK, keyed by that revision's file map. The verdict belongs to the exact revision
+    # it was computed on, so a snapshot carries it only when the snapshot IS that
+    # revision — the restore-refusal rule for an own-test snapshot needs it.
+    coverage_files: dict[str, str] | None = None
+    coverage_missing_at: tuple[str, ...] = ()
 
     def capture_best_evidence(rank: int, tier: str, reason: str) -> None:
         """Snapshot the work tree when an attempt reaches the STRONGEST evidence yet.
 
         Ticket 23 item 1: the snapshot is taken at the milestone itself (own test green /
-        independent verification approved / combined-positive review), before anything
-        later can overwrite the revision. Only a STRICT improvement replaces the record,
-        so the earliest revision at a given strength is kept. Reads (never writes) the
-        tree; an unreadable file is skipped by the snapshot helper.
+        independent verification approved / the two agreeing / combined-positive review),
+        before anything later can overwrite the revision. Only a STRICT improvement
+        replaces the record, so the earliest revision at a given strength is kept. Reads
+        (never writes) the tree; an unreadable file is skipped by the snapshot helper.
+        Ticket 23 round 2: the snapshot carries the coverage verdict of ITS OWN revision
+        (``None`` when none was computed there).
         """
         nonlocal best_revision
         if rank <= 0 or rank <= (best_revision.rank if best_revision else 0):
@@ -3783,7 +4032,8 @@ async def run_leaf(
         files = _snapshot_deliverable_files(workdir)
         best_revision = BestEvidenceRevision(
             rank=rank, tier=tier, attempt=len(attempts), reason=reason,
-            files=files, test_path=self_test)
+            files=files, test_path=self_test,
+            coverage_missing=(coverage_missing_at if coverage_files == files else None))
         emit("best_evidence_revision", rank=rank, tier=tier, attempt=len(attempts),
              reason=reason, files=sorted(files), self_test=self_test)
 
@@ -3794,6 +4044,40 @@ async def run_leaf(
         if rank > current_rank:
             current_rank, current_tier = rank, tier
         capture_best_evidence(rank, tier, reason)
+
+    def note_revision_coverage(missing: Sequence[str]) -> None:
+        """Record the requirement-coverage verdict of the revision on disk (ticket 23 r2).
+
+        Attaches it to the best-evidence snapshot when the snapshot IS that revision, so
+        the restore can ask what the coverage check found AT THE SNAPSHOT'S REVISION.
+        """
+        nonlocal coverage_files, coverage_missing_at
+        files = _snapshot_deliverable_files(workdir)
+        coverage_files, coverage_missing_at = files, tuple(missing)
+        if best_revision is not None and best_revision.files == files:
+            best_revision.coverage_missing = coverage_missing_at
+
+    def restore_refusal_reason() -> str:
+        """Why the best-evidence snapshot may NOT be restored; "" when it may.
+
+        Ticket 23 round 2, rule 2: the run's own test is MODEL-WRITTEN and can be wrong,
+        so a revision that merely greened it can be the WRONG revision — restoring it
+        over later work would deliver that wrong revision. Such a snapshot is restored
+        only when the requirement-coverage check, at the snapshot's revision, found NO
+        acceptance criterion whose named artifact the revision leaves untouched (the
+        revision really moves what the criteria name). Missing coverage at that revision
+        refuses too: nothing was verified about it.
+        """
+        if best_revision is None or best_revision.tier != "own-test":
+            return ""
+        missing = best_revision.coverage_missing
+        if missing is None:
+            return ("the requirement-coverage check never ran at that revision, so the "
+                    "snapshot was not shown to move the artifacts the criteria name")
+        if missing:
+            return ("the revision leaves a named artifact untouched: "
+                    + "; ".join(missing))
+        return ""
 
     def emit(kind: str, **data: Any) -> None:
         note(kind, **data)
@@ -3997,6 +4281,17 @@ async def run_leaf(
                 for c in _requirement_coverage(spec, workdir, baseline)
                 for m in c.missing]
 
+    def request_missing_now() -> list[str]:
+        """The current REQUEST-LEVEL artifact miss (ticket 23 round 3, the T-31 fix).
+
+        A non-empty result is a HARD block on EVERY claim route: the whole request names
+        artifacts (files and symbols) and the final diff must touch every one of them.
+        Deterministic; reads the final diff, never model prose. The reviewer is handed the
+        same facts (see :func:`_review_request`).
+        """
+        return _request_artifact_messages(
+            _request_coverage(spec, workdir, baseline))
+
     async def run_reviews(reason: str) -> tuple[bool | None, str]:
         """Ticket 20 (items 1-3): run ONE fresh-context review per declared ANGLE and
         combine the graded verdicts by the PREDEFINED weights + the critical-angle veto.
@@ -4059,6 +4354,14 @@ async def run_leaf(
             emit("review_coverage_blocked", missing=missing)
             return False, ("requirement artifact untouched (coverage is a hard block): "
                            + "; ".join(missing))
+        # Ticket 23 round 3: the REQUEST-LEVEL artifacts are a hard block on the review
+        # route too (the T-31 fix) — a request that names N call sites is not done until
+        # the diff touches all N.
+        request_missing = request_missing_now()
+        if request_missing:
+            emit("review_request_artifacts_blocked", missing=request_missing)
+            return False, ("request-named artifact untouched (request coverage is a hard "
+                           "block): " + "; ".join(request_missing))
         return True, ""
 
     async def obtain_verification_reason() -> tuple[str, str]:
@@ -4574,12 +4877,17 @@ async def run_leaf(
             f"{v.angle} ({v.grade}): {v.evidence or v.detail or v.grade}"
             for v in approved) or "no grounded approval"
         if own_state == "red":
-            return (
+            base = (
                 f"the run's own test is RED on the final source (failed assertion(s): "
                 f"{own_desc or 'could not be extracted'}) while the graded review "
-                f"APPROVED the same revision (angle(s): {approved_desc}); the review "
-                "outranks the test and decides the claim, and the disagreement is "
-                "recorded")
+                f"APPROVED the same revision (angle(s): {approved_desc})")
+            # Ticket 23 round 3: a RED independent verification BLOCKS the review-backed
+            # claim, so the record must not also claim the review decided it; the gate
+            # appends the independent-rejected clause.
+            if iv_red_on_final():
+                return base
+            return (base + "; the review outranks the test and decides the claim, and "
+                    "the disagreement is recorded")
         last_iv = iv_verdicts[-1] if iv_verdicts else None
         iv_disagrees = bool(last_iv is not None and not last_iv.approved)
         if last_iv is not None and iv_red_on_final():
@@ -4592,11 +4900,13 @@ async def run_leaf(
             # No test disagreed with the review on this revision: there is no disagreement
             # to record (a record of "no independent verdict" is not a disagreement).
             return ""
-        return (
-            f"the independent test did not approve the final source ({iv_desc}) while "
-            f"the graded review APPROVED the same revision (angle(s): {approved_desc}); "
-            "the review outranks the test and decides the claim, and the disagreement "
-            "is recorded")
+        base = (f"the independent test did not approve the final source ({iv_desc}) "
+                f"while the graded review APPROVED the same revision (angle(s): "
+                f"{approved_desc})")
+        if iv_red_on_final():
+            return base
+        return (base + "; the review outranks the test and decides the claim, and the "
+                "disagreement is recorded")
 
     def iv_red_on_final() -> bool:
         """True when the LAST independent verdict is a red-on-final FIX failure.
@@ -4608,6 +4918,17 @@ async def run_leaf(
         """
         last = iv_verdicts[-1] if iv_verdicts else None
         return bool(last is not None and last.reason == "independent-test-red-on-final")
+
+    def iv_red_detail() -> str:
+        """The evidence text of the LAST red-on-final independent verdict (or "").
+
+        Ticket 23 round 3: the review-over-independent disagreement record names BOTH
+        evidences, so the blocked claim carries the independent verifier's own detail.
+        """
+        last = iv_verdicts[-1] if iv_verdicts else None
+        if last is not None and last.reason == "independent-test-red-on-final":
+            return f"{last.reason}: {last.detail}"
+        return ""
 
     def claim_conflict_detail() -> str:
         """The recorded reason when the run's RED test disagrees with a passing external
@@ -4671,6 +4992,17 @@ async def run_leaf(
             emit("requirement_uncovered", missing=list(coverage_missing))
             stop("honest-failure", "requirement-uncovered", "requirement-uncovered")
             return False
+        if decision.blocker == "request-artifacts-uncovered":
+            emit("request_artifacts_uncovered", missing=list(request_coverage_missing))
+            stop("honest-failure", "request-artifacts-uncovered",
+                 "request-artifacts-uncovered")
+            return False
+        if decision.blocker == "independent-test-red-on-final":
+            emit("review_blocked_by_red_independent_test",
+                 disagreement=decision.disagreement, detail=decision.detail)
+            stop("honest-failure", "independent-test-red-on-final",
+                 "independent-test-red-on-final")
+            return False
         if decision.blocker == "verification-required":
             emit("verification_claim_blocked", tier=verification_tier,
                  required=_required_tier(), reason=verification_reason_problem_text)
@@ -4707,27 +5039,37 @@ async def run_leaf(
         nonlocal claimed, claimed_basis, coverage, coverage_missing
         nonlocal coverage_unresolved, last_iv_reason, iv_repairs, review_approved
         nonlocal own_test_conflict, own_test_conflict_reason
-        nonlocal node_exhausted
+        nonlocal node_exhausted, request_coverage, request_coverage_missing
         if claimed or (iv is None and review is None):
             return
         # Fix B: no claim with zero criteria on ANY path (mirror the normal claim gate).
         if not spec.acs:
             emit("no_acceptance_criteria_claim_blocked")
             return
-        # Fix 3: coverage is a HARD block before any exhaustion claim.
+        # Fix 3: coverage is a HARD block before any exhaustion claim. Ticket 23 round 3
+        # adds the REQUEST-LEVEL artifacts on the SAME hard block (the T-31 fix).
         new_coverage = _requirement_coverage(spec, workdir, baseline)
         missing = [f"{c.statement!r} names {m}, untouched by the final diff"
                    for c in new_coverage for m in c.missing]
         coverage = new_coverage
-        if missing:
+        new_request = _request_coverage(spec, workdir, baseline)
+        request_coverage = new_request
+        request_missing = _request_artifact_messages(new_request)
+        request_coverage_missing = request_missing
+        if request_missing:
+            emit("request_artifacts_uncovered", missing=request_missing)
+        if missing or request_missing:
             coverage_missing = missing
             # The run is ending, so no rework route ran: the ledger route stays the
             # finish() default (``unresolved``) rather than a label-only ``rework``.
             coverage_unresolved = []
-            emit("requirement_uncovered", missing=missing)
+            if missing:
+                emit("requirement_uncovered", missing=missing)
             return
         coverage_missing = []
+        note_revision_coverage(coverage_missing)
         iv_approved = False
+        own_green = _final_own_test_state(self_test, last_gate) == "green"
         test_could_not_carry = iv is None
         if iv is not None and can_afford(1):
             iv_request = _iv_request(spec, workdir, baseline)
@@ -4752,9 +5094,19 @@ async def run_leaf(
                         label = repaired
                 iv_approved = label.approved
                 if iv_approved:
-                    note_current_evidence(
-                        2, "independent-test",
-                        "the independent per-criterion verification approved the final code")
+                    # Ticket 23 round 2: the independent verification OUTRANKS the run's
+                    # own green test; when the own test is green at this same revision the
+                    # two AGREE and that is the strongest evidence of all.
+                    if own_green:
+                        note_current_evidence(
+                            BEST_EVIDENCE_RANKS["agreement"], "agreement",
+                            "the independent per-criterion verification approved the same "
+                            "revision the run's own discriminating test greened")
+                    else:
+                        note_current_evidence(
+                            BEST_EVIDENCE_RANKS["independent-test"], "independent-test",
+                            "the independent per-criterion verification approved the "
+                            "final code")
                 # A TEST defect (or no producer) leaves room for the review path; ticket
                 # 22 item 3 adds the red-on-final FIX failure too, because a GRADED REVIEW
                 # outranks a conflicting test: the review's verdict then decides the claim.
@@ -4779,8 +5131,10 @@ async def run_leaf(
                         ledger=ledger_now(), own_test=self_test,
                         own_test_green=(state == "green"), test_rewrites=test_rewrites,
                         iv_approved=iv_approved, iv_red_on_final=iv_red_on_final(),
+                        iv_red_detail=iv_red_detail(),
                         review_approved=False, review_verdicts=tuple(review_verdicts),
                         coverage_missing=coverage_missing,
+                        request_coverage_missing=request_coverage_missing,
                         test_case_problems=test_case_problems,
                         verification_basis=verification_basis,
                         conflict_detail=verifier_conflict_reason(), tier_allowed=allowed,
@@ -4801,7 +5155,7 @@ async def run_leaf(
             if status:
                 review_approved = True
                 note_current_evidence(
-                    3, "review",
+                    BEST_EVIDENCE_RANKS["review"], "review",
                     "a combined-positive graded review approved the final code")
                 allowed, tier_failure = await enforce_verification("review")
                 if allowed:
@@ -4811,8 +5165,10 @@ async def run_leaf(
                         ledger=ledger_now(), own_test=self_test,
                         own_test_green=(state == "green"), test_rewrites=test_rewrites,
                         iv_approved=iv_approved, iv_red_on_final=iv_red_on_final(),
+                        iv_red_detail=iv_red_detail(),
                         review_approved=True, review_verdicts=tuple(review_verdicts),
                         coverage_missing=coverage_missing,
+                        request_coverage_missing=request_coverage_missing,
                         test_case_problems=test_case_problems,
                         verification_basis=verification_basis,
                         conflict_detail=review_conflict_reason(), tier_allowed=allowed,
@@ -4827,17 +5183,46 @@ async def run_leaf(
         # weaker. A GRANTED CLAIM is itself the strongest evidence, so it is never replaced
         # (the claim's revision is what the record certifies); an unclaimed run whose last
         # revision was erased back to pristine is exactly the case this exists for.
+        # Ticket 23 round 2 adds the REFUSAL: an own-test-only snapshot is restored only
+        # when its own revision moved the artifacts the acceptance criteria name.
         delivered: dict[str, Any] = {}
         delivered_tier = ""
         if best_revision is not None and best_revision.files:
-            terminal_rank = 4 if claimed else current_rank
-            if not claimed and best_revision.rank > terminal_rank:
+            # A granted claim outranks any snapshot, so nothing may replace its revision.
+            terminal_rank = BEST_EVIDENCE_RANKS["agreement"] if claimed else current_rank
+            refusal = (restore_refusal_reason()
+                       if not claimed and best_revision.rank > terminal_rank else "")
+            if refusal:
+                delivered = {
+                    "restored": False,
+                    "restored_over_last_written": False,
+                    "restore_refused": True,
+                    "restore_refused_reason": refusal,
+                    "coverage_missing": list(best_revision.coverage_missing or ()),
+                    "best_rank": best_revision.rank, "best_tier": best_revision.tier,
+                    "best_attempt": best_revision.attempt,
+                    "best_reason": best_revision.reason,
+                    "best_files": sorted(best_revision.files),
+                    "terminal_rank": terminal_rank,
+                    "terminal_tier": current_tier or "none",
+                    "reason": (
+                        f"the recorded best revision ({best_revision.tier}, rank "
+                        f"{best_revision.rank}, attempt {best_revision.attempt}) was NOT "
+                        f"restored: {refusal}; the terminal revision was delivered "
+                        f"instead"),
+                }
+                emit("restore_refused", rank=best_revision.rank, tier=best_revision.tier,
+                     attempt=best_revision.attempt, reason=refusal,
+                     coverage_missing=list(best_revision.coverage_missing or ()))
+            elif not claimed and best_revision.rank > terminal_rank:
                 _restore_deliverable_files(workdir, best_revision.files)
                 self_test = best_revision.test_path
                 delivered_tier = {"own-test": "test", "independent-test": "test",
-                                  "review": "review"}.get(best_revision.tier, "none")
+                                  "agreement": "test", "review": "review"}.get(
+                                      best_revision.tier, "none")
                 delivered = {
                     "restored": True,
+                    "restore_refused": False,
                     "restored_over_last_written": True,
                     "best_rank": best_revision.rank, "best_tier": best_revision.tier,
                     "best_attempt": best_revision.attempt,
@@ -4858,6 +5243,7 @@ async def run_leaf(
             else:
                 delivered = {
                     "restored": False,
+                    "restore_refused": False,
                     "restored_over_last_written": False,
                     "best_rank": best_revision.rank, "best_tier": best_revision.tier,
                     "best_attempt": best_revision.attempt,
@@ -4990,6 +5376,8 @@ async def run_leaf(
             coverage=list(coverage),
             coverage_missing=list(coverage_missing),
             coverage_unresolved=list(coverage_unresolved),
+            request_coverage=request_coverage,
+            request_coverage_missing=list(request_coverage_missing),
             test_case_problems=list(test_case_problems),
             own_test_gate=own_test_report,
             malformed_steps=list(malformed_steps),
@@ -5337,9 +5725,11 @@ async def run_leaf(
                 break
             review_approved = bool(status)
             if review_approved:
-                # Ticket 23 item 1: a combined-positive review is the strongest evidence
-                # milestone (the graded review outranks a conflicting test).
-                note_current_evidence(3, "review",
+                # Ticket 23 item 1, ranked by ticket 23 round 2: a combined-positive
+                # grant-calibre review is the WEAKEST evidence milestone, not the
+                # strongest (the run's own test and the independent verification both
+                # outrank it).
+                note_current_evidence(BEST_EVIDENCE_RANKS["review"], "review",
                                       "a combined-positive graded review approved the diff")
             else:
                 last_excerpts = [f"review did not approve: {why}"]
@@ -5370,8 +5760,8 @@ async def run_leaf(
 
         if candidate.outcome == "pass":
             if verification_basis == "test" and _is_green(res):
-                # Ticket 23 item 1: the run's own test green is an evidence milestone.
-                note_current_evidence(1, "own-test",
+                # Ticket 23 item 1 / round 2: the run's own discriminating test green.
+                note_current_evidence(BEST_EVIDENCE_RANKS["own-test"], "own-test",
                                       "the run's own discriminating test is green")
             if not spec.acs:
                 # Ticket 19 round 2 (F2), tightened ticket 21 round 3 (fix B): with no
@@ -5402,7 +5792,7 @@ async def run_leaf(
                     review_approved = bool(status)
                     if review_approved:
                         note_current_evidence(
-                            3, "review",
+                            BEST_EVIDENCE_RANKS["review"], "review",
                             "a combined-positive graded review approved the diff")
                     else:
                         candidate.outcome = "fail"
@@ -5424,7 +5814,16 @@ async def run_leaf(
             new_coverage = _requirement_coverage(spec, workdir, baseline)
             new_missing = [f"{c.statement!r} names {m}, untouched by the diff"
                            for c in new_coverage for m in c.missing]
-            if new_missing:
+            # Ticket 23 round 3: the REQUEST-LEVEL artifacts on the same hard block — a
+            # request that names N call sites is not done until the diff touches all N
+            # (the T-31 fix).
+            request_coverage = _request_coverage(spec, workdir, baseline)
+            request_coverage_missing = _request_artifact_messages(request_coverage)
+            # Ticket 23 round 2: the verdict for THIS revision rides with the best-evidence
+            # snapshot of this revision, so an own-test restore can be refused when the
+            # revision leaves a criterion's named artifact untouched.
+            note_revision_coverage(new_missing)
+            if new_missing or request_coverage_missing:
                 coverage, coverage_missing = new_coverage, new_missing
                 candidate.outcome = "fail"
                 candidate.verdict = prefilter(attempts, candidate)
@@ -5435,11 +5834,17 @@ async def run_leaf(
                 for criterion in new_coverage:
                     if criterion.missing:
                         ledger_routes.setdefault(f"AC-{criterion.index}", "rework")
-                emit("requirement_uncovered", missing=new_missing)
+                if new_missing:
+                    emit("requirement_uncovered", missing=new_missing)
+                if request_coverage_missing:
+                    emit("request_artifacts_uncovered", missing=request_coverage_missing)
                 last_excerpts = [f"requirement artifact untouched: {m}" for m in new_missing]
+                last_excerpts += [f"request artifact untouched: {m}"
+                                  for m in request_coverage_missing]
                 rung += 1
                 continue
             coverage, coverage_missing = new_coverage, []
+            request_coverage_missing = []
             # Ticket 19 round 2 (F2/F4): a criterion that names NO resolvable artifact is
             # NOT skipped. On the test basis it must be carried by a DECLARED test that
             # DISCRIMINATES (red on the pristine source, green on final); a placeholder
@@ -5601,9 +6006,19 @@ async def run_leaf(
                             label = repaired
                     iv_approved = label.approved
                     if iv_approved:
-                        note_current_evidence(
-                            2, "independent-test",
-                            "the independent verification approved the revision")
+                        # Ticket 23 round 2: the independent verification OUTRANKS the
+                        # run's own green test; when the own test is green at this same
+                        # revision the two AGREE and that is the strongest evidence.
+                        if verification_basis == "test" and _is_green(res):
+                            note_current_evidence(
+                                BEST_EVIDENCE_RANKS["agreement"], "agreement",
+                                "the independent verification approved the same revision "
+                                "the run's own discriminating test greened")
+                        else:
+                            note_current_evidence(
+                                BEST_EVIDENCE_RANKS["independent-test"],
+                                "independent-test",
+                                "the independent verification approved the revision")
                     if not label.approved:
                         last_iv_reason = f"{label.reason}: {label.detail}"
             if (test_rewrites and not iv_approved and not plan_updated
@@ -5660,9 +6075,11 @@ async def run_leaf(
                 own_test=self_test,
                 own_test_green=(_final_own_test_state(self_test, last_gate) == "green"),
                 test_rewrites=test_rewrites, iv_approved=iv_approved,
-                iv_red_on_final=iv_red_on_final(), review_approved=review_approved,
+                iv_red_on_final=iv_red_on_final(), iv_red_detail=iv_red_detail(),
+                review_approved=review_approved,
                 review_verdicts=tuple(review_verdicts),
                 coverage_missing=coverage_missing,
+                request_coverage_missing=request_coverage_missing,
                 test_case_problems=test_case_problems,
                 verification_basis=verification_basis,
                 conflict_detail=claim_conflict_detail(), tier_allowed=allowed,

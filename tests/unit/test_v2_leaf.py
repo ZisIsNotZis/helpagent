@@ -32,6 +32,8 @@ from harness.exec import ShapedResult
 from harness.fake_model import FakeModelRunner, schema_violation
 from harness.gate_report import GateReport
 from harness.leaf import (
+    BEST_EVIDENCE_ORDER,
+    BEST_EVIDENCE_RANKS,
     LADDER,
     VERIFICATION_TIERS,
     ClaimDecision,
@@ -4927,14 +4929,39 @@ def test_claim_gate_enforces_every_rule_directly():
         **{**base, "iv_approved": False, "iv_red_on_final": True,
            "verification_basis": "reason"})
     assert red.claimed is False and red.blocker == "independent-test-red-on-final"
-    # ... but the REVIEW route decides over the red independent test too
+    # rule 4 (ticket 23 round 3, the T-14 #2 fix): a RED independent per-criterion
+    # verification BLOCKS the review-backed claim. Unlike the model-written own test, the
+    # independent verification is fresh, independently authored and discriminating — not
+    # the thing the review-precedence rule was written to outrank — so its failure on the
+    # delivered code cannot be overridden. The disagreement names both evidences.
     review_over_red_iv = claim_decision(
         route="review",
         **{**base, "own_test": None, "own_test_green": False, "iv_red_on_final": True,
+           "iv_red_detail": "independent-test-red-on-final: the fix returns dicts",
            "review_approved": True, "review_verdicts": (_grounded_review(),),
            "verification_basis": "review"})
-    assert review_over_red_iv.claimed is True and review_over_red_iv.basis == "review"
-    assert "independent test" in review_over_red_iv.disagreement
+    assert review_over_red_iv.claimed is False
+    assert review_over_red_iv.blocker == "independent-test-red-on-final"
+    assert "REJECTED the same revision" in review_over_red_iv.disagreement
+    assert "the fix returns dicts" in review_over_red_iv.disagreement
+    # rule 4 (ticket 23 round 3): a VACUOUS/non-discriminating independent test is NOT a
+    # red verdict; the review still carries the claim.
+    review_over_vacuous_iv = claim_decision(
+        route="review",
+        **{**base, "own_test": None, "own_test_green": False, "iv_red_on_final": False,
+           "review_approved": True, "review_verdicts": (_grounded_review(),),
+           "verification_basis": "review"})
+    assert review_over_vacuous_iv.claimed is True
+    assert review_over_vacuous_iv.basis == "review"
+    # rule 3b (ticket 23 round 3, the T-31 fix): the REQUEST-LEVEL artifacts are a hard
+    # block on EVERY route, including the review route.
+    request_blocked = claim_decision(
+        route="review",
+        **{**base, "own_test": None, "own_test_green": False, "review_approved": True,
+           "review_verdicts": (_grounded_review(),), "verification_basis": "review",
+           "request_coverage_missing": ["the request names api/service.py; ..."]})
+    assert request_blocked.claimed is False
+    assert request_blocked.blocker == "request-artifacts-uncovered"
     # ... but a green, unrewritten own test can still carry one (the IV red is a label)
     own_carries = claim_decision(route="own-test",
                                  **{**base, "iv_red_on_final": True})
@@ -5150,26 +5177,133 @@ def test_snapshot_and_restore_round_trip(tmp_path):
     assert not (tmp_path / "pkg" / "new.py").exists()
 
 
-def test_best_evidence_revision_is_restored_over_a_worse_last_write(tmp_path):
-    """Ticket 23 item 1 (the top lever): an attempt that greens is snapshotted; a later,
-    worse revision must NOT be delivered — the best-evidenced revision is restored before
-    the produced files are collected, and the run record says so."""
+def test_best_evidence_refuses_an_own_test_restore_that_left_the_named_artifact_untouched(
+        tmp_path):
+    """Ticket 23 round 2, probe (a) — THE DEMONSTRATED HAZARD: the run's own test is
+    model-written and can be WRONG, so a revision that merely greened it can be the wrong
+    revision. Here that revision never touches the artifact the criterion names
+    (``pkg/calc.py``), a later, redder revision follows, and the restore is REFUSED: the
+    TERMINAL revision is delivered and the record names the untouched artifact."""
     spec = dataclasses.replace(make_spec(), acs=["pkg/calc.py must return 42"])
     stage(tmp_path, spec.files)
-    best = write_env("pkg/other.py", "x = 1\n", comment="the revision that greens")
+    green_but_wrong = write_env("pkg/other.py", "x = 1\n", comment="greens the wrong test")
     worse = write_env("pkg/other.py", "x = 2\n", comment="a later, redder revision")
-    model = FakeModelRunner({"write_test": [SELF_TEST, best, worse, worse]})
+    model = FakeModelRunner({"write_test": [SELF_TEST, green_but_wrong, worse, worse]})
     out = run_leaf_sync(
         model, spec, tmp_path, Budget(calls=10, deadline_ts=_FAR_FUTURE),
         run_tests=ScriptedTests([1, 0, 1, 1, 1]))
 
-    # the first (green) revision only missed coverage, so it was never claimed — but it
-    # is still the best evidence and must be what lands on disk.
+    # the first (green) revision only missed coverage, so it was never claimed — and now
+    # it is not delivered either: its own test greening is not evidence the revision is
+    # the one the criteria asked for.
     assert out.claimed is False
-    assert out.delivered_revision["restored"] is True
-    assert out.delivered_revision["best_tier"] == "own-test"
-    assert out.delivered_revision["restored_over_last_written"] is True
-    assert (tmp_path / "pkg" / "other.py").read_text() == "x = 1\n"
+    delivered = out.delivered_revision
+    assert delivered["restore_refused"] is True
+    assert delivered["restored"] is False
+    assert delivered["best_tier"] == "own-test"
+    assert delivered["best_rank"] == BEST_EVIDENCE_RANKS["own-test"]
+    assert any("pkg/calc.py" in m and "untouched" in m
+               for m in delivered["coverage_missing"])
+    assert "pkg/calc.py" in delivered["restore_refused_reason"]
+    # the TERMINAL revision lands on disk, never the wrong revision that greened the test
+    assert (tmp_path / "pkg" / "other.py").read_text() == "x = 2\n"
+
+
+def test_best_evidence_restores_an_own_test_revision_that_moved_the_named_artifact(
+        tmp_path):
+    """Ticket 23 round 2, probe (b) — THE SAFE CASE (the T-05 win): the own-test-green
+    revision really MOVES the artifact the criterion names, so the coverage check is clean
+    at its own revision and the restore still happens over the later, erased/worse terminal
+    revision. The second criterion names no artifact, so the attempt routes to review; the
+    review rejects, the loop continues, M1 erases the good revision — the snapshot saves
+    it."""
+    spec = dataclasses.replace(
+        make_spec(), acs=["pkg/calc.py must return 42", "the widget must wobble"])
+    stage(tmp_path, spec.files)
+    fix = write_env("pkg/calc.py", "def result():\n    return 42\n", comment="the fix")
+    worse = write_env("pkg/other.py", "x = 2\n", comment="a later, redder revision")
+    model = FakeModelRunner({"write_test": [SELF_TEST, fix, worse, worse]})
+
+    def rejecting(request: ReviewRequest) -> ReviewVerdict:
+        return ReviewVerdict(grade="definitely-problematic", detail="no criterion cleared")
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=20, deadline_ts=_FAR_FUTURE),
+                        review=rejecting, run_tests=ScriptedTests([1, 0, 1, 1, 1]))
+
+    assert out.claimed is False
+    delivered = out.delivered_revision
+    assert delivered["restored"] is True
+    assert delivered["restore_refused"] is False
+    assert delivered["best_tier"] == "own-test"
+    assert delivered["restored_over_last_written"] is True
+    # the delivered revision is the one that MOVED the named artifact ...
+    assert (tmp_path / "pkg" / "calc.py").read_text() == "def result():\n    return 42\n"
+    # ... and the later, weaker revision was removed by the restore.
+    assert not (tmp_path / "pkg" / "other.py").exists()
+
+
+def test_best_evidence_ranking_is_one_documented_order():
+    """Ticket 23 round 2: the delivery strength order is ONE list, asserted here and used
+    by the code: (4) AGREEMENT — the run's own discriminating test green AND the
+    independent per-criterion verification approving the SAME revision; (3) the
+    independent per-criterion verification approved; (2) the run's own discriminating test
+    green; (1) a combined-positive, grant-calibre review. The pair the round-1 commit body
+    got BACKWARDS (own test vs independent verification / review) is pinned explicitly."""
+    assert BEST_EVIDENCE_ORDER == ("agreement", "independent-test", "own-test", "review")
+    ranks = [BEST_EVIDENCE_RANKS[tier] for tier in BEST_EVIDENCE_ORDER]
+    assert ranks == [4, 3, 2, 1]
+    assert BEST_EVIDENCE_RANKS["agreement"] > BEST_EVIDENCE_RANKS["independent-test"]
+    assert BEST_EVIDENCE_RANKS["independent-test"] > BEST_EVIDENCE_RANKS["own-test"]
+    assert BEST_EVIDENCE_RANKS["own-test"] > BEST_EVIDENCE_RANKS["review"]
+    assert set(BEST_EVIDENCE_RANKS) == set(BEST_EVIDENCE_ORDER)
+
+
+def test_every_best_evidence_capture_reads_the_one_rank_table():
+    """STRUCTURAL (ticket 23 round 2): the strength of every evidence milestone comes
+    from :data:`BEST_EVIDENCE_RANKS` and names a tier of the ONE documented order, so the
+    code cannot drift from that order. Each capture site must pair the rank and the tier
+    through the SAME key."""
+    import ast
+
+    leaf = Path(__file__).resolve().parents[2] / "harness" / "leaf.py"
+    tree = ast.parse(leaf.read_text(), filename=str(leaf))
+    sites = [node for node in ast.walk(tree)
+             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+             and node.func.id == "note_current_evidence"]
+    assert len(sites) == 8
+    for node in sites:
+        rank, tier = node.args[0], node.args[1]
+        assert isinstance(rank, ast.Subscript) \
+            and ast.unparse(rank.value) == "BEST_EVIDENCE_RANKS", \
+            f"leaf.py:{node.lineno}: hard-coded rank {ast.unparse(rank)}"
+        key = rank.slice.value if isinstance(rank.slice, ast.Constant) else None
+        assert key in BEST_EVIDENCE_ORDER, \
+            f"leaf.py:{node.lineno}: unknown rank key {ast.unparse(rank.slice)}"
+        assert isinstance(tier, ast.Constant) and tier.value == key, \
+            f"leaf.py:{node.lineno}: tier {ast.unparse(tier)} does not match rank key {key}"
+
+
+def test_best_evidence_captures_agreement_above_the_independent_test_alone(tmp_path):
+    """Ticket 23 round 2: the strongest evidence is AGREEMENT (rank 4) — the run's own
+    discriminating test green AND the independent per-criterion verification approving the
+    SAME revision — captured after the own-test milestone (rank 2) it subsumes. A granted
+    claim is never replaced, so the record says nothing was restored."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    events: list[tuple[str, dict]] = []
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        iv=lambda request: iv_candidate(),
+                        run_tests=ScriptedTests([1, 0, 1, 0]),
+                        on_event=lambda kind, data: events.append((kind, data)))
+
+    assert out.claimed is True and out.claimed_basis == "own-test+independent-test"
+    captures = [(d["rank"], d["tier"]) for kind, d in events
+                if kind == "best_evidence_revision"]
+    assert captures == [(BEST_EVIDENCE_RANKS["own-test"], "own-test"),
+                        (BEST_EVIDENCE_RANKS["agreement"], "agreement")]
+    assert out.delivered_revision["restored"] is False
+    assert out.delivered_revision["terminal_tier"] == "claim"
 
 
 def test_best_evidence_not_restored_over_a_granted_claim(tmp_path):
@@ -5183,6 +5317,7 @@ def test_best_evidence_not_restored_over_a_granted_claim(tmp_path):
 
     assert out.claimed is True
     assert out.delivered_revision["restored"] is False
+    assert out.delivered_revision["restore_refused"] is False
     assert out.delivered_revision["terminal_tier"] == "claim"
 
 
@@ -5296,3 +5431,138 @@ def test_advisory_rewritten_test_cannot_block_and_routes_to_review(tmp_path):
     assert out.claimed is True
     assert out.claimed_basis in ("review", "review+independent-test")
     assert out.stop_reason == "green"
+
+
+# ===========================================================================
+# ticket 23 round 3: the two gates that close the three measured false successes
+# (T-31 request-level artifact coverage; T-14 #2 the red independent verification).
+# ===========================================================================
+
+
+def test_request_coverage_resolves_the_whole_request_not_just_one_criterion(tmp_path):
+    """The deterministic request-level extraction: a request word that equals a source
+    file's stem resolves to that file, a word that equals a defined symbol resolves to
+    that symbol, and a test path is never a request artifact."""
+    from harness.leaf import _request_coverage
+
+    files = {"api/transport.py": "def send(url, payload):\n    return url\n",
+             "api/client.py": "def fetch(url):\n    return url\n",
+             "api/service.py": "def sync_record(rid):\n    return rid\n",
+             "exporter/bulk.py": "def export_all(ids):\n    return ids\n",
+             "tests/test_chain.py": "def test_x():\n    assert True\n"}
+    spec = dataclasses.replace(
+        make_spec(files, goal="thread the timeout through the transport's send(), the "
+                              "client's fetch(), the service sync and the bulk exporter"),
+        acs=["thread it through the client's fetch()"])
+    baseline = dict(files)
+    # only api/client.py touched
+    stage(tmp_path, files)
+    (tmp_path / "api" / "client.py").write_text(
+        "from api.transport import send\n\n\ndef fetch(url, timeout=None):\n"
+        "    return send(url, url)\n")
+    coverage = _request_coverage(spec, tmp_path, baseline)
+    assert set(coverage.files) == {"api/transport.py", "api/client.py", "api/service.py",
+                                   "exporter/bulk.py"}
+    assert "fetch" in coverage.symbols and "send" in coverage.symbols
+    assert set(coverage.missing) == {"api/transport.py", "api/service.py",
+                                     "exporter/bulk.py"}
+
+
+def test_request_level_coverage_blocks_every_route_when_a_named_call_site_is_untouched(tmp_path):
+    """PROBE (a), the T-31 fix: the request names three call sites, the run touches one.
+    The per-criterion check is satisfied (its criterion names only pkg/calc.py) but the
+    REQUEST-level check is not, so every claim route is blocked and the unmet artifacts
+    are recorded (file names + the diff evidence)."""
+    files = {"pkg/calc.py": "def result():\n    return 0\n",
+             "pkg/other.py": "def helper():\n    return 0\n",
+             "pkg/third.py": "def thing():\n    return 0\n"}
+    spec = dataclasses.replace(
+        make_spec(files, goal="thread the timeout through pkg/calc.py, pkg/other.py "
+                              "and pkg/third.py"),
+        acs=["thread the timeout through pkg/calc.py"])
+    stage(tmp_path, files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST, impl(path="pkg/calc.py", content="def result():\n    return 1\n")]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 0]))
+
+    assert out.claimed is False
+    assert out.coverage_missing == []                       # per-criterion check satisfied
+    assert any("pkg/other.py" in m for m in out.request_coverage_missing)
+    assert any("pkg/third.py" in m for m in out.request_coverage_missing)
+    assert all("final diff does not touch it" in m
+               for m in out.request_coverage_missing)
+    assert out.request_coverage is not None
+    assert set(out.request_coverage.missing) == {"pkg/other.py", "pkg/third.py"}
+    assert "request_artifacts_uncovered" in ledger_kinds()
+
+
+def test_request_level_coverage_blocks_the_review_route(tmp_path):
+    """PROBE (a, review route): the request names three call sites; the run's own test is
+    green on arrival, so REVIEW is mandatory and APPROVES — but the request-level coverage
+    hard block vetoes the review (the T-31 route a graded review used to carry)."""
+    files = {"pkg/calc.py": "def result():\n    return 0\n",
+             "pkg/other.py": "def helper():\n    return 0\n",
+             "pkg/third.py": "def thing():\n    return 0\n"}
+    spec = dataclasses.replace(
+        make_spec(files, goal="thread the timeout through pkg/calc.py, pkg/other.py "
+                              "and pkg/third.py"),
+        acs=["thread the timeout through pkg/calc.py"])
+    stage(tmp_path, files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT]
+                                          + [impl(path="pkg/calc.py",
+                                                  content="def result():\n    return 1\n")] * 12})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=30, deadline_ts=_FAR_FUTURE),
+                        review=_passing_review, run_tests=ScriptedTests([0, 0, 0]))
+
+    assert out.claimed is False
+    assert out.request_coverage_missing
+    assert "review_request_artifacts_blocked" in ledger_kinds()
+
+
+def test_red_independent_verification_blocks_a_review_backed_claim(tmp_path):
+    """PROBE (b), the T-14 #2 fix: the independent per-criterion verification FAILED on
+    the delivered code (its tests are red on the final source) while the graded review
+    APPROVED. Fresh and independently authored, the independent verification is NOT the
+    model-written test the review-precedence rule outranks, so no claim is made and the
+    disagreement (review approved / independent verification rejected) is recorded."""
+    files = {"pkg/calc.py": "def result():\n    return 0\n"}
+    spec = LeafSpec(goal="make result() return 42", files=files,
+                    acs=["result() returns 42"], interfaces=["result() -> int"])
+    spec = dataclasses.replace(spec, planned_reviews=("ac-correctness", "contract-compat"))
+    stage(tmp_path, files)
+    wrong = impl("def result():\n    return 100\n")
+    model = FakeModelRunner({"write_test": [SYMPTOM_TEST] + [wrong] * 8})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=20, deadline_ts=_FAR_FUTURE),
+                        review=_passing_review, iv=lambda request: iv_candidate(),
+                        run_tests=ScriptedTests([1, 1, 1, 1, 1, 1]))
+
+    assert out.claimed is False
+    assert out.iv_verdicts[-1].reason == "independent-test-red-on-final"
+    assert out.stop_reason == "independent-test-red-on-final"
+    assert "REJECTED the same revision" in out.verification_disagreement
+    assert "APPROVED the final revision" in out.verification_disagreement
+    assert "review_blocked_by_red_independent_test" in ledger_kinds()
+
+
+def test_vacuous_independent_verification_does_not_block_a_review_claim(tmp_path):
+    """PROBE (c): a VACUOUS / non-discriminating independent test (it passes on the
+    pristine source) is NOT a red verdict, so the approving review still carries the
+    claim — stated plainly."""
+    files = {"pkg/calc.py": "def result():\n    return 0\n"}
+    spec = LeafSpec(goal="make result() return 42", files=files,
+                    acs=["result() returns 42"], interfaces=["result() -> int"])
+    spec = dataclasses.replace(spec, planned_reviews=("ac-correctness", "contract-compat"))
+    stage(tmp_path, files)
+    wrong = impl("def result():\n    return 100\n")
+    model = FakeModelRunner({"write_test": [SYMPTOM_TEST] + [wrong] * 8})
+    vacuous = iv_candidate(path="tests/test_vacuous.py",
+                           content="def test_goal():\n    assert True\n")
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=20, deadline_ts=_FAR_FUTURE),
+                        review=_passing_review, iv=lambda request: vacuous,
+                        run_tests=ScriptedTests([1, 1, 1, 1, 0, 0]))
+
+    assert out.claimed is True and out.stop_reason == "green"
+    assert out.claimed_basis == "review"
+    assert out.iv_verdicts[-1].approved is False
+    assert out.iv_verdicts[-1].reason == "independent-test-not-red"
