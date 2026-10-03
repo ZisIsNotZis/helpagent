@@ -70,6 +70,37 @@ itself done. The harness's forced red-then-green loop, its deterministic gates a
 evidence ledger are what make the model fix 15 of 18 - and its claim gates are what keep
 the false-success count at zero while doing so.
 
+### 1a. The development-vs-verification matrix (clean, 2026-10-03, commit `124c41d`)
+
+The claim rule was retracted as a leaked-exam measurement on 2026-10-03 (task repos shipped a
+stale `.pytest_cache` holding the grader's own test node ids, and the mature-agent baseline
+visibly read it; `harness/staging.py` now withholds cache artifacts and the corpus caches are
+gone). This matrix is the clean re-measurement on all 40 tasks, N=1, using a `--verify` mode
+selector that isolates the mechanisms. It compares only the 33 tasks that every arm completed.
+
+| arm | what drives the loop | actual | claimed | FALSE | model calls | calls/run |
+| --- | --- | --- | --- | --- | --- | --- |
+| `raw` | **development only** - no self-test, no independent test, no review, never claims | **17/33 (52%)** | 0 | 0 | 37 | **1.12** |
+| `test` | the run's own test, red on arrival, iterate to green | 18/33 (55%) | 0 | 0 | 165 | 5.00 |
+| `review` | the graded review is the only feedback; iterate until it approves | 18/33 (55%) | 28 | **11** | 191 | 5.79 |
+| `full` | today's default: self-test + independent verification + review + the deterministic gates | **20/33 (61%)** | 12 | 2 | 338 | 10.24 |
+
+Reading it:
+
+- **Our protocol's development-only baseline is 52%** at ~1.1 calls per task; that is the
+  number a "normal agent loop" has to beat on the same tasks and model.
+- **Verification helps, but only as a combination.** The self-test loop adds ~3 points for
+  4.5x the calls; review-driven iteration adds the same ~3 points, and its own verdicts are
+  wrong 11 times out of 28 claims (39%) - so review does not make the model a better
+  programmer, it makes it more willing to say "done". The full stack adds ~9 points (52 -> 61)
+  at ~9x the calls, and it is the only arm that fixed T-33 (the contract-completeness task the
+  deterministic gates force).
+- **The machinery also loses tasks:** `full` failed T-01, which `raw` fixed (and in the
+  earlier sweep it lost T-05 and T-18 the same way). The iteration can talk the model out of a
+  correct one-shot fix.
+- **Ten tasks no arm fixed** (anchors A-01..A-03 plus T-24, T-26, T-27, T-28, T-31, T-32,
+  T-34): the capability tail. T-31's four-file parameter threading is in that set.
+
 ## 2. What the harness does (one paragraph each)
 
 **Blind protocol.** The run never sees the grader's tests. It stages only source, works in a
