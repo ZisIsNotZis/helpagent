@@ -70,6 +70,13 @@ itself done. The harness's forced red-then-green loop, its deterministic gates a
 evidence ledger are what make the model fix 15 of 18 - and its claim gates are what keep
 the false-success count at zero while doing so.
 
+**Caveat on section 1 (added 2026-10-03):** those nine-task runs were measured while the
+corpus still shipped `.pytest_cache` (the leak retracted below). The harness arms proved
+insensitive to it - development-only and self-test re-measured identically without the cache
+(21/40 and 23/40) - but the REVIEW tier was not: its false-claim count rose from 10 to 13 when
+the cache was removed, i.e. the reviewer had been reading the cache too. Treat section 1's
+review-tier numbers as optimistic; sections 1a and 8 are the clean measurements.
+
 ### 1a. The development-vs-verification matrix (clean, 2026-10-03, commit `124c41d`)
 
 The claim rule was retracted as a leaked-exam measurement on 2026-10-03 (task repos shipped a

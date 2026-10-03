@@ -10,10 +10,13 @@ and §10.10 (implemented vs designed-but-not-built).
 
 ## State
 
-**Current measured position (2026-10-03, 9 tasks x 2 runs, blind):** actual **15/18 (83%)**,
-claimed 8/18, true success 8, missed success 7, honest failure 3, **false success 0**, 163
-calls. The five claim rules measured on the same tasks are tabulated in `docs/STATUS.md`
-section 1; the current default is the last line there. The
+**Current measured position (2026-10-03, clean, all 40 tasks, N=1):** development-only
+(harness `--verify raw`) fixes **21/40 (52%)**; the full default reaches 20/33 (61%) on the
+tasks it completed; **pi itself, same model, also fixes 21/40 - a tie, at ~20x our wall time**.
+The hard tail (T-31's four-file threading, the anchors, T-27/28/32/34) defeats every agent
+equally: a capability boundary. Asking the small model to write its own tests makes pi WORSE
+(21 -> 16). Full tables and caveats: `docs/STATUS.md` sections 1, 1a and 8 (section 1's
+review-tier numbers were measured under the retracted cache leak; treat them as optimistic). The
 claim rule (spec-time verification policy; a graded, grant-calibre review outranks a
 conflicting test; one recorded plan update when a test cannot be made to work) is settled by
 measurement - three rules were compared on the same tasks in `docs/STATUS.md` section 1.
