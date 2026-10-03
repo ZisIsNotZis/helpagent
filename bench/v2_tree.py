@@ -196,9 +196,10 @@ def build_root(task: dict) -> tuple[NodeSpec, tuple[str, ...]]:
         # back to review) with the reason; every child gets its own lists + reason from
         # the planner.
         planned_reviews=("end-to-end-behaviour", "interface-alignment"),
-        verification_reason=("root spec (no planner): prefer a discriminating test and "
-                             "fall back to the graded review when a test cannot carry "
-                             "the integration requirement"),
+        verification_reason=("root spec (no planner): PREFER AT LEAST ONE REVIEW ANGLE; "
+                             "a discriminating test is welcome when feasible and should "
+                             "be named concretely, and when a test cannot carry the "
+                             "integration requirement the graded review does"),
     )
     return root, grader_paths
 

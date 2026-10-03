@@ -92,6 +92,14 @@ PI_PROMPT = (
     "satisfied, stop.\n\nRequest:\n{request}\n"
 )
 
+#: Ticket 25 ``--ask-tests``: an EXPLICIT testing instruction appended to the base prompt,
+#: so the owner can compare pi with and without one (the baseline run wrote no test).
+PI_ASK_TESTS_SUFFIX = (
+    "\nAlso WRITE one or more test files under tests/ that FAIL on the current (buggy) "
+    "code and PASS once it is fixed, then RUN them (for example `python -m pytest -q`) "
+    "and iterate until they pass.\n"
+)
+
 
 def find_pi() -> str | None:
     """The pi executable, resolved through symlinks so it survives a bwrap ro-bind."""
@@ -322,6 +330,8 @@ def run_once(task_dir: Path, out_dir: Path, args: argparse.Namespace,
 
     sandbox = bool(shutil.which("bwrap")) and not args.no_sandbox
     prompt = PI_PROMPT.format(request=task["request"].strip())
+    if getattr(args, "ask_tests", False):
+        prompt += PI_ASK_TESTS_SUFFIX
     cmd, env, cwd = _command(pi_bin, workdir, prompt, args.base_url, args.model,
                              args.provider, args.thinking, run_root, agent_dir, home,
                              sandbox)
@@ -346,6 +356,7 @@ def run_once(task_dir: Path, out_dir: Path, args: argparse.Namespace,
         "model": args.model,
         "provider": args.provider,
         "thinking": args.thinking,
+        "ask_tests": bool(getattr(args, "ask_tests", False)),
         "sandbox": ("bwrap" if sandbox else "none (cwd + prompt only)"),
         "timed_out": timed_out,
         "timeout_s": args.timeout,
@@ -378,8 +389,9 @@ def run_once(task_dir: Path, out_dir: Path, args: argparse.Namespace,
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--tasks", required=True,
-                    help="comma-separated task dir names (bench/corpus or bench/anchor)")
+    ap.add_argument("--tasks", default="all",
+                    help="'all' for the whole corpus+anchor, or a comma-separated list of "
+                         "task dir names (bench/corpus or bench/anchor)")
     ap.add_argument("--n", type=int, default=1)
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--provider", default=DEFAULT_PROVIDER)
@@ -392,6 +404,9 @@ def main() -> int:
                     help="run root (ABSOLUTE /tmp path; default /tmp/pi-baseline-<ts>)")
     ap.add_argument("--no-sandbox", action="store_true",
                     help="do not wrap in bwrap; rely on cwd + prompt confinement only")
+    ap.add_argument("--ask-tests", action="store_true",
+                    help="append an explicit 'write and run your own tests' instruction to "
+                         "the prompt, for the with/without-testing-instruction comparison")
     args = ap.parse_args()
 
     pi_bin = find_pi()
@@ -407,26 +422,36 @@ def main() -> int:
     root.mkdir(parents=True, exist_ok=True)
     results = root / "results.jsonl"
 
+    # ``--tasks all`` sweeps the same corpus+anchor set the harness sweep uses; otherwise a
+    # comma list selects exact task dir names from either tree.
+    available = [p for base in (ROOT / "bench" / "corpus", ROOT / "bench" / "anchor")
+                 for p in sorted(base.iterdir())
+                 if p.is_dir() and p.name[:2] in ("T-", "A-")]
+    if args.tasks.strip().lower() == "all":
+        task_dirs = available
+    else:
+        want = {n.strip() for n in args.tasks.split(",") if n.strip()}
+        task_dirs = [p for p in available if p.name in want]
+
     rows: list[dict] = []
-    for name in args.tasks.split(","):
-        for task_dir in (ROOT / "bench" / "corpus" / name, ROOT / "bench" / "anchor" / name):
-            if not task_dir.is_dir():
-                continue
-            for idx in range(1, args.n + 1):
-                rec = run_once(task_dir, root / f"{name}-{idx}", args, pi_bin)
-                rows.append(rec)
-                with results.open("a") as fh:
-                    fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
-                outcome = "TIMEOUT" if rec["timed_out"] else "done"
-                print(f"[pi] {name} #{idx}: {outcome} claimed={rec['claimed']} "
-                      f"actual={rec['actual']} quadrant={rec['quadrant']} "
-                      f"turns={rec['turns']} tools={rec['tool_calls']} "
-                      f"pytest={rec['ran_pytest']} test_file={rec['wrote_test']} "
-                      f"wall={rec['wall_s']}s", flush=True)
+    for task_dir in task_dirs:
+        name = task_dir.name
+        for idx in range(1, args.n + 1):
+            rec = run_once(task_dir, root / f"{name}-{idx}", args, pi_bin)
+            rows.append(rec)
+            with results.open("a") as fh:
+                fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            outcome = "TIMEOUT" if rec["timed_out"] else "done"
+            print(f"[pi] {name} #{idx}: {outcome} claimed={rec['claimed']} "
+                  f"actual={rec['actual']} quadrant={rec['quadrant']} "
+                  f"turns={rec['turns']} tools={rec['tool_calls']} "
+                  f"pytest={rec['ran_pytest']} test_file={rec['wrote_test']} "
+                  f"wall={rec['wall_s']}s", flush=True)
 
     if rows:
         summary = {
-            "agent": "pi", "model": args.model, "runs": len(rows),
+            "agent": "pi", "model": args.model,
+            "ask_tests": bool(getattr(args, "ask_tests", False)), "runs": len(rows),
             "timeouts": sum(1 for r in rows if r["timed_out"]),
             "actual_pass": f"{sum(r['actual'] for r in rows)}/{len(rows)}",
             "claimed_pass": f"{sum(r['claimed'] for r in rows)}/{len(rows)}",

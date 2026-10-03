@@ -1955,6 +1955,19 @@ def test_planner_guidance_declares_the_verification_covenant():
     assert "verification_policy" not in question
 
 
+def test_planner_guidance_leads_with_at_least_one_review_angle():
+    """Ticket 25 (owner direction): the planner prompt leans toward a review, treats a
+    test as welcome-but-optional, says plainly when a test is hard/impossible, and keeps
+    the both-lists-empty path as an explicit substantive reason."""
+    from harness.node import _plan_node_question
+
+    question = _plan_node_question("", 0)
+    assert "PREFER AT LEAST ONE REVIEW ANGLE" in question
+    assert "do NOT have to force a test" in question
+    assert "HARD or IMPOSSIBLE" in question
+    assert "explicit, substantive reason" in question
+
+
 def test_tree_run_record_counts_best_effort_declarations_and_downgrades():
     """Item 4: the run-level counters make an 'everywhere best_effort' plan auditable, and
     a fully weakened run is flagged covenant-diluted so its weakened claim is excluded from

@@ -55,6 +55,7 @@ from harness.budget import Budget, default_deadline  # noqa: E402
 from harness.gate_report import JUNIT_FAMILY_ARGS  # noqa: E402
 from harness.leaf import (  # noqa: E402
     REVIEW_ANGLE_PROMPTS,
+    VERIFICATION_MODES,
     covenant_diluted,
     IndependentTestCandidate,
     IndependentTestRequest,
@@ -168,8 +169,11 @@ DEFAULT_SERVER = "http://127.0.0.1:8833"
 #: ``either`` policy with this REQUIRED reason. A discriminating own test is preferred;
 #: the graded, multi-angle review carries the claim when the test cannot.
 DEFAULT_VERIFICATION_REASON = (
-    "single-leaf root spec (no planner): prefer a discriminating own test; fall back to "
-    "the graded multi-angle review when the run's test cannot carry the requirement")
+    "single-leaf root spec (no planner): PREFER AT LEAST ONE REVIEW ANGLE --- an "
+    "independent graded review is the evidence that survives when writing a good test "
+    "is hard; a discriminating own test is welcome when it is feasible and should be "
+    "named concretely; when a test looks hard or impossible, say so plainly and let the "
+    "graded multi-angle review carry the requirement")
 
 #: debug_judge ``blame`` → the judge's MULTI-LABEL verdict (ticket 19 A). ``both`` maps to
 #: implementation+test (an ambiguous verdict is still never credited to the test alone).
@@ -298,7 +302,8 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
                  run_wall_s: float, judge_enabled: bool = False,
                  iv_enabled: bool = False, review_enabled: bool = False,
                  acs: list[str] | None = None, verified_quad: str = "",
-                 budget: Budget | None = None) -> dict:
+                 budget: Budget | None = None,
+                 verify_mode: str = "full") -> dict:
     """Assemble the persisted run record. One place, so the JSON that lands in
     ``run.json`` and the shape the tests pin cannot drift apart — including the
     wasted escalations that used to live only in the process-global ledger, every
@@ -319,6 +324,9 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         "goal": goal,
         "acs": list(acs or []),
         "withheld_grader_paths": withheld,
+        # Ticket 25: the verification MODE this run was measured under (one of
+        # full | test | review | raw); the seam flags below show what actually ran.
+        "verify_mode": verify_mode,
         "judge": judge_enabled,
         "iv": iv_enabled,
         "review": review_enabled,
@@ -695,7 +703,20 @@ def covenant_weakened(outcome: LeafOutcome) -> bool:
 
 def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
              deadline_hours: float, use_judge: bool = True,
-             use_iv: bool = True, use_review: bool = True) -> dict:
+             use_iv: bool = True, use_review: bool = True,
+             verify_mode: str = "full") -> dict:
+    # Ticket 25: the verification MODE is authoritative over the individual seam flags.
+    # ``full`` (default) uses them as given; the other arms force what may run:
+    #   test   -> self-test loop only (no independent test, no review)
+    #   review -> the graded review is the only feedback (no independent test)
+    #   raw    -> DEVELOPMENT ONLY: no self-test, no independent test, no review, no claim
+    mode = verify_mode if verify_mode in VERIFICATION_MODES else "full"
+    if mode == "raw":
+        use_judge, use_iv, use_review = False, False, False
+    elif mode == "test":
+        use_iv = use_review = False
+    elif mode == "review":
+        use_judge, use_iv, use_review = False, False, True
     task = load_task(task_dir)
     spec = build_spec(task)
 
@@ -721,7 +742,7 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     review = (lambda request: model_review(model, request)) if use_review else None
     started = time.monotonic()
     outcome = asyncio.run(run_leaf(model, spec, workdir, budget, judge=judge, iv=iv,
-                                   review=review))
+                                   review=review, verification_mode=mode))
     wall = round(time.monotonic() - started, 1)
 
     produced = produced_files(workdir)
@@ -736,9 +757,12 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
         task["task_id"], spec.goal, outcome, withheld=withheld, produced=produced,
         score=score, quad=quad, run_wall_s=wall, judge_enabled=use_judge,
         iv_enabled=use_iv, review_enabled=use_review, acs=spec.acs, verified_quad=vquad,
-        budget=budget)
+        budget=budget, verify_mode=mode)
 
     print(f"== v2 leaf: {task['task_id']} ==")
+    print(f"[verify-mode] {mode} "
+          f"(judge={'on' if use_judge else 'off'} iv={'on' if use_iv else 'off'} "
+          f"review={'on' if use_review else 'off'})")
     print(f"[judge]  {'on' if use_judge else 'off (conservative baseline)'} "
           f"({len(outcome.judge_verdicts)} verdict(s))")
     print(f"[iv]  {'on' if use_iv else 'off (own-test basis)'} "
@@ -800,6 +824,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--review", action=argparse.BooleanOptionalAction, default=True,
                         help="run the mandatory REVIEW-based verification when no test can "
                              "carry verification (default ON); --no-review stops honestly")
+    parser.add_argument("--verify", choices=list(VERIFICATION_MODES), default="full",
+                        help="verification MODE (ticket 25, default full): raw = DEVELOPMENT "
+                             "ONLY (no self-test/test/review, no claim); test = self-test "
+                             "loop only; review = graded review drives verification "
+                             "(no self-test); full = today's whole flow. The mode is "
+                             "authoritative over --judge/--iv/--review")
     return parser
 
 
@@ -812,7 +842,8 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     record = run_once(task_dir, out_dir, args.server, args.calls, args.deadline_hours,
-                      use_judge=args.judge, use_iv=args.iv, use_review=args.review)
+                      use_judge=args.judge, use_iv=args.iv, use_review=args.review,
+                      verify_mode=args.verify)
     record_path = out_dir / "run.json"
     record_path.write_text(json.dumps(record, indent=1, ensure_ascii=False))
     print(f"[persist] {record_path}")

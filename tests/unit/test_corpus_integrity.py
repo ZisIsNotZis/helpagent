@@ -131,3 +131,43 @@ def test_pristine_task_is_broken_but_internally_coherent(task: Path, tmp_path: P
         f"{verify.returncode}:\n{out}")
     assert "[contract] OK" in out and "[tests]" in out and "FAIL" in out, (
         f"{task.name}: expected the UNTOUCHED contract OK and the repo tests FAIL:\n{out}")
+
+
+def test_no_cache_artifacts_inside_any_task_repo():
+    """A stale ``.pytest_cache`` inside a task repo leaks the grader's own test node ids
+    into a run's view (found 2026-10-03 by the mature-agent baseline). Caches must never
+    ship in the corpus - and staging withholds them if one ever appears again."""
+    import subprocess
+    root = Path(__file__).resolve().parents[2]
+    # Only the task's repo/ is ever staged into a run, so that is what must be clean. A
+    # task-root __pycache__ is created by running the task's own checks.py from this test
+    # suite and never reaches a run.
+    bad: list[str] = []
+    for corpus in (root / "bench" / "corpus", root / "bench" / "anchor"):
+        if not corpus.is_dir():
+            continue
+        for task in sorted(corpus.iterdir()):
+            repo = task / "repo"
+            if not repo.is_dir():
+                continue
+            proc = subprocess.run(
+                ["find", str(repo), "-type", "d", "(", "-name", ".pytest_cache",
+                 "-o", "-name", "__pycache__", "-o", "-name", ".mypy_cache",
+                 "-o", "-name", ".ruff_cache", ")", "-not", "-path", "*/.venv/*"],
+                capture_output=True, text=True, check=False)
+            bad.extend(line for line in proc.stdout.splitlines() if line)
+    assert bad == [], f"cache artifacts ship inside task repos: {bad}"
+
+
+def test_staging_withholds_a_shipped_cache_artifact(tmp_path: Path):
+    """Defense in depth: even if a task repo ships a cache, the blind projection drops it
+    and records it as withheld."""
+    from harness.staging import excluded_paths, source_only, stage_blind
+    files = {"src/app.py": "x = 1\n",
+             ".pytest_cache/v/cache/nodeids": '["tests/test_secret.py::test_x"]'}
+    blind = source_only(files)
+    assert set(blind) == {"src/app.py"}
+    assert excluded_paths(files) == [".pytest_cache/v/cache/nodeids"]
+    withheld = stage_blind(tmp_path, files)
+    assert withheld == [".pytest_cache/v/cache/nodeids"]
+    assert not (tmp_path / ".pytest_cache").exists()

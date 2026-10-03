@@ -41,6 +41,8 @@ __all__ = [
     "PYTEST_ISOLATION_ENV",
     "gate_env",
     "shadowing_paths",
+    "cache_artifact",
+    "withheld_path",
     "excluded_paths",
     "is_test_infrastructure",
     "is_test_path",
@@ -106,13 +108,36 @@ def owned_paths(rel: str) -> bool:
     return is_test_path(rel) or is_test_infrastructure(rel)
 
 
+#: Cache artifacts the interpreter and pytest rewrite independently of any run. They are
+#: NEVER staged. A corpus repo that ships a stale ``.pytest_cache`` would otherwise leak
+#: the grader's own test node ids into the run's view - found 2026-10-03: 12 of 40 tasks
+#: shipped one with the grader's exact test names inside, and a mature-agent baseline run
+#: READ it (``cat .pytest_cache/v/cache/lastfailed``) before hunting for the test file.
+#: This is exam leakage, the same class the blind protocol exists to prevent.
+_CACHE_PARTS = frozenset({".pytest_cache", "__pycache__", ".mypy_cache", ".ruff_cache", ".git"})
+_CACHE_SUFFIXES = (".pyc", ".pyo")
+
+
+def cache_artifact(rel: str) -> bool:
+    """True for a path that is interpreter/pytest cache output, never run-visible content."""
+    if any(part in _CACHE_PARTS for part in PurePosixPath(rel).parts):
+        return True
+    return rel.endswith(_CACHE_SUFFIXES)
+
+
+def withheld_path(rel: str) -> bool:
+    """Everything a run may not see: grader-owned paths AND cache artifacts."""
+    return owned_paths(rel) or cache_artifact(rel)
+
+
 def excluded_paths(files: Mapping[str, str]) -> list[str]:
-    return sorted(rel for rel in files if owned_paths(rel))
+    """The withheld list recorded in the ledger: grader-owned paths plus cache artifacts."""
+    return sorted(rel for rel in files if withheld_path(rel))
 
 
 def source_only(files: Mapping[str, str]) -> dict[str, str]:
     """The harness-visible projection: source and configuration only."""
-    return {rel: text for rel, text in files.items() if not owned_paths(rel)}
+    return {rel: text for rel, text in files.items() if not withheld_path(rel)}
 
 
 def stage_blind(workdir: Path, files: Mapping[str, str]) -> list[str]:

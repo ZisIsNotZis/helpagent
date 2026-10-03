@@ -289,6 +289,7 @@ __all__ = [
     "LEDGER_ROUTES",
     "LEDGER_STATES",
     "STRATEGY_LAYER",
+    "VERIFICATION_MODES",
     "CriterionEvidence",
     "CriterionLedgerEntry",
     "Escalation",
@@ -375,6 +376,13 @@ STOP_REASONS: tuple[str, ...] = (
 #: is a total order (``test`` > ``review`` > ``none``); a claim's tier is enforced
 #: against the plan's declared requirement.
 VERIFICATION_TIERS: tuple[str, ...] = ("test", "review", "none")
+
+#: Ticket 25: the verification MODE matrix for the development-vs-verification experiment.
+#: ``full`` (default) is today's whole flow (self-test + independent test + review);
+#: ``test`` is the self-test loop alone; ``review`` runs the graded review as its only
+#: feedback (no self-test required); ``raw`` is DEVELOPMENT ONLY (no self-test, no
+#: verification, no claim --- the model's write is delivered to the grader unverified).
+VERIFICATION_MODES: tuple[str, ...] = ("full", "test", "review", "raw")
 
 # ---------------------------------------------------------------------------
 # The per-criterion LEDGER and the evidence-backed FAILURE REPORT (ticket 21)
@@ -4011,9 +4019,17 @@ async def run_leaf(
     run_tests: Callable[[Path], Awaitable[ShapedResult] | ShapedResult] | None = None,
     now: Callable[[], float] | None = None,
     on_event: Callable[[str, dict], None] | None = None,
+    verification_mode: str = "full",
 ) -> LeafOutcome:
     clock = now or time.monotonic
     tests = run_tests or _default_run_tests
+    # Ticket 25: the verification mode is an explicit, recorded choice, never implicit.
+    # ``full`` keeps today's whole flow; ``test``/``review``/``raw`` are the measurement
+    # arms (see :data:`VERIFICATION_MODES`). An unknown value falls back to ``full``.
+    verification_mode = (verification_mode if verification_mode in VERIFICATION_MODES
+                         else "full")
+    raw_mode = verification_mode == "raw"
+    run_self_test = verification_mode in ("full", "test")
     # The judge is PROACTIVE (ticket 19 A): it is consulted when the run's own test
     # REPORTS RED, not only when the model volunteers a blame. ``attribution`` keeps the
     # old name for the seam; ``judge=None`` means no attribution and the conservative
@@ -4063,7 +4079,9 @@ async def run_leaf(
     red_code_changes = 0
     # Ticket 19 B/C: REVIEW-BASED verification state. Ticket 20 adds ``reason`` mode (a
     # best-effort node with no test and no reviewer) and tracks the terminal tier.
-    verification_basis = "test"
+    # Ticket 25: a RAW (development-only) run has no verification basis at all, recorded
+    # as ``raw`` so the record never presents it as a test-based run.
+    verification_basis = "raw" if raw_mode else "test"
     review_verdicts: list[ReviewVerdict] = []
     review_reason = ""
     review_approved = False
@@ -5549,138 +5567,153 @@ async def run_leaf(
         stop("handover", "deadline", "deadline")
         return finish()
 
-    # ---- step 1: the run's own test, RUN and required to be RED ON ARRIVAL ----
-    self_env, failure = await request_envelope(
-        partial(_request_write, model, _self_test_artifacts(spec), _SELF_TEST_QUESTION),
-        "self-test")
-    if failure == "calls":
-        stop("honest-failure", "call-budget", "calls")
-        return finish()
-    if failure == "deadline":
-        stop("handover", "deadline", "deadline")
-        return finish()
-    normalized = _relocate_self_test(self_env, spec, workdir, emit)
-    if normalized is None:
-        # No usable test path. Ticket 19 C2: an unwritable test path means review is the
-        # mandatory verification (a review verdict with evidence may carry the claim);
-        # otherwise the honest self-test refusal stands.
-        if not enter_review("the run's own test could not be written at a safe path"):
-            refuse_self_test(self_env, "self-test-refused", "self-test", open_question=True)
+    # ---- ticket 25: REVIEW mode runs the graded review as its only feedback, so no
+    # self-test is required; RAW mode skips the self-test and all verification entirely.
+    if verification_mode == "review":
+        if not enter_review("verification mode 'review': the graded review drives "
+                            "verification, so no self-test is required"):
+            stop("honest-failure", "review-mode-unavailable", "review-mode")
             return finish()
-    else:
-        if normalized != getattr(self_env, "file_path", ""):
-            _, problem = _self_test_problem(self_env, spec, workdir)
-            refusals.append(f"{getattr(self_env, 'file_path', '')}: {problem} -> "
-                            f"{normalized} (self-test relocated)")
-        problem = write_self_test(normalized, self_env.content)
-        if problem:
-            if not enter_review(f"the run's own test path was unwritable: {problem}"):
-                stop("honest-failure", f"unwritable self-test target: {problem}", "write-shape")
+
+    # ---- step 1: the run's own test, RUN and required to be RED ON ARRIVAL ----
+    if run_self_test:
+        self_env, failure = await request_envelope(
+            partial(_request_write, model, _self_test_artifacts(spec), _SELF_TEST_QUESTION),
+            "self-test")
+        if failure == "calls":
+            stop("honest-failure", "call-budget", "calls")
+            return finish()
+        if failure == "deadline":
+            stop("handover", "deadline", "deadline")
+            return finish()
+        normalized = _relocate_self_test(self_env, spec, workdir, emit)
+        if normalized is None:
+            # No usable test path. Ticket 19 C2: an unwritable test path means review is
+            # the mandatory verification (a review verdict with evidence may carry the
+            # claim); otherwise the honest self-test refusal stands.
+            if not enter_review("the run's own test could not be written at a safe path"):
+                refuse_self_test(self_env, "self-test-refused", "self-test",
+                                 open_question=True)
                 return finish()
         else:
-            self_test = normalized
-
-    if verification_basis == "test":
-        res = await _maybe_await(tests, workdir)
-        gate = record_gate(res)
-        if _is_green(res):
-            # A test that passes on arrival does not exercise the failure. Re-ask ONCE
-            # with that evidence; never emit red=True without having observed a red.
-            emit("self_test_green_on_arrival", path=self_test)
-            previous_path = self_test
-            previous_content = _read(workdir, self_test)
-            (workdir / self_test).unlink(missing_ok=True)
-            self_test = None
-            retry_env, failure = await request_envelope(
-                partial(_request_write, model,
-                        _retry_self_test_artifacts(spec, previous_path, previous_content),
-                        _RETRY_SELF_TEST_QUESTION),
-                "self-test-retry")
-            if failure == "calls":
-                stop("honest-failure", "call-budget", "calls")
-                return finish()
-            if failure == "deadline":
-                stop("handover", "deadline", "deadline")
-                return finish()
-            normalized = _relocate_self_test(retry_env, spec, workdir, emit)
-            if normalized is None:
-                if not enter_review("the run's own test could not be written at a safe path"):
-                    refuse_self_test(retry_env, "no-red-target", "no-red-target",
-                                     open_question=False)
+            if normalized != getattr(self_env, "file_path", ""):
+                _, problem = _self_test_problem(self_env, spec, workdir)
+                refusals.append(f"{getattr(self_env, 'file_path', '')}: {problem} -> "
+                                f"{normalized} (self-test relocated)")
+            problem = write_self_test(normalized, self_env.content)
+            if problem:
+                if not enter_review(f"the run's own test path was unwritable: {problem}"):
+                    stop("honest-failure", f"unwritable self-test target: {problem}",
+                         "write-shape")
                     return finish()
             else:
-                if normalized != getattr(retry_env, "file_path", ""):
-                    _, problem = _self_test_problem(retry_env, spec, workdir)
-                    refusals.append(f"{getattr(retry_env, 'file_path', '')}: {problem} -> "
-                                    f"{normalized} (self-test relocated)")
-                problem = write_self_test(normalized, retry_env.content)
-                if problem:
-                    if not enter_review(f"the run's own test path was unwritable: {problem}"):
-                        stop("honest-failure",
-                             f"unwritable self-test target: {problem}", "write-shape")
-                        return finish()
-                else:
-                    self_test = normalized
-                    res = await _maybe_await(tests, workdir)
-                    gate = record_gate(res)
-        if verification_basis == "test" and (
-                _exit_code(res) is None or (gate is not None and not gate.observed)):
-            # We could not trust an observation of the run's own tests: a transport error /
-            # sandbox block, or a gate report that is missing or holds no testcase. Nothing
-            # may be recorded as a red, so no target is kept.
-            emit("self_test_unverified", path=self_test, reason="tests did not run")
-            (workdir / self_test).unlink(missing_ok=True)
-            self_test = None
-            stop("honest-failure", "self-test-unverified", "self-test")
-            return finish()
-        if verification_basis == "test" and _is_green(res):
-            # The one re-ask was green too: no red target. Ticket 19 A: consult the judge
-            # IMMEDIATELY (spec / environment are actionable here); ticket 19 B: otherwise
-            # switch to mandatory review verification when a reviewer is injected.
-            emit("self_test_green_on_arrival", path=self_test)
-            previous_path = self_test
-            previous_content = _read(workdir, self_test)
-            (workdir / self_test).unlink(missing_ok=True)
-            self_test = None
-            if attribution is not None and can_afford(2):
-                jr = _no_red_judge_request(spec, workdir, previous_path, previous_content,
-                                           baseline)
-                verdict, failure = await consult_judge(jr)
+                self_test = normalized
+
+        if verification_basis == "test":
+            res = await _maybe_await(tests, workdir)
+            gate = record_gate(res)
+            if _is_green(res):
+                # A test that passes on arrival does not exercise the failure. Re-ask ONCE
+                # with that evidence; never emit red=True without having observed a red.
+                emit("self_test_green_on_arrival", path=self_test)
+                previous_path = self_test
+                previous_content = _read(workdir, self_test)
+                (workdir / self_test).unlink(missing_ok=True)
+                self_test = None
+                retry_env, failure = await request_envelope(
+                    partial(_request_write, model,
+                            _retry_self_test_artifacts(spec, previous_path, previous_content),
+                            _RETRY_SELF_TEST_QUESTION),
+                    "self-test-retry")
                 if failure == "calls":
                     stop("honest-failure", "call-budget", "calls")
                     return finish()
-                if verdict is not None:
-                    action = await handle_verdict(
-                        verdict, Escalation("L1-resample", "sampling", False, "no red target"),
-                        None)
-                    if action == "stop":
+                if failure == "deadline":
+                    stop("handover", "deadline", "deadline")
+                    return finish()
+                normalized = _relocate_self_test(retry_env, spec, workdir, emit)
+                if normalized is None:
+                    if not enter_review("the run's own test could not be written at a "
+                                        "safe path"):
+                        refuse_self_test(retry_env, "no-red-target", "no-red-target",
+                                         open_question=False)
                         return finish()
-            if not enter_review("the run's own test could not be made to fail on arrival"):
-                stop("honest-failure", "no-red-target", "no-red-target")
+                else:
+                    if normalized != getattr(retry_env, "file_path", ""):
+                        _, problem = _self_test_problem(retry_env, spec, workdir)
+                        refusals.append(f"{getattr(retry_env, 'file_path', '')}: {problem} -> "
+                                        f"{normalized} (self-test relocated)")
+                    problem = write_self_test(normalized, retry_env.content)
+                    if problem:
+                        if not enter_review(
+                                f"the run's own test path was unwritable: {problem}"):
+                            stop("honest-failure",
+                                 f"unwritable self-test target: {problem}", "write-shape")
+                            return finish()
+                    else:
+                        self_test = normalized
+                        res = await _maybe_await(tests, workdir)
+                        gate = record_gate(res)
+            if verification_basis == "test" and (
+                    _exit_code(res) is None or (gate is not None and not gate.observed)):
+                # We could not trust an observation of the run's own tests: a transport
+                # error / sandbox block, or a gate report that is missing or holds no
+                # testcase. Nothing may be recorded as a red, so no target is kept.
+                emit("self_test_unverified", path=self_test, reason="tests did not run")
+                (workdir / self_test).unlink(missing_ok=True)
+                self_test = None
+                stop("honest-failure", "self-test-unverified", "self-test")
                 return finish()
-        if (verification_basis == "test" and self_test is not None
-                and not _own_test_collectible(last_gate, self_test)):
-            # Ticket 23 item 4: the run's own test cannot even be COLLECTED (a syntax or
-            # import error, an empty file, or a report holding no test id from it). It is a
-            # test DEFECT, not a valid red target, so the run must not iterate against it.
-            # Record the refusal and its evidence, drop the target, and take the owner's
-            # review route; with no reviewer this is an honest stop.
-            anomaly = last_gate.anomaly if last_gate is not None else "no-report"
-            detail = last_gate.detail if last_gate is not None else "no gate report"
-            evidence = f"{anomaly}: {detail}"
-            refusals.append(f"{self_test}: the run's own test cannot be collected "
-                            f"({evidence})")
-            emit("self_test_invalid", path=self_test, anomaly=anomaly, detail=detail)
-            (workdir / self_test).unlink(missing_ok=True)
-            self_test = None
-            if not enter_review("the run's own test cannot be collected (an import/"
-                                "collection error, not a valid target)"):
-                stop("honest-failure", "self-test-invalid", "self-test-invalid")
-                return finish()
-            last_excerpts = [f"the run's own test cannot be collected: {evidence}"]
-        elif verification_basis == "test":
-            last_excerpts = excerpts_of(res)
-            emit("self_test_written", path=self_test, red=True)
+            if verification_basis == "test" and _is_green(res):
+                # The one re-ask was green too: no red target. Ticket 19 A: consult the
+                # judge IMMEDIATELY (spec / environment are actionable here); ticket 19 B:
+                # otherwise switch to mandatory review verification when a reviewer is
+                # injected.
+                emit("self_test_green_on_arrival", path=self_test)
+                previous_path = self_test
+                previous_content = _read(workdir, self_test)
+                (workdir / self_test).unlink(missing_ok=True)
+                self_test = None
+                if attribution is not None and can_afford(2):
+                    jr = _no_red_judge_request(spec, workdir, previous_path, previous_content,
+                                               baseline)
+                    verdict, failure = await consult_judge(jr)
+                    if failure == "calls":
+                        stop("honest-failure", "call-budget", "calls")
+                        return finish()
+                    if verdict is not None:
+                        action = await handle_verdict(
+                            verdict,
+                            Escalation("L1-resample", "sampling", False, "no red target"),
+                            None)
+                        if action == "stop":
+                            return finish()
+                if not enter_review("the run's own test could not be made to fail on arrival"):
+                    stop("honest-failure", "no-red-target", "no-red-target")
+                    return finish()
+            if (verification_basis == "test" and self_test is not None
+                    and not _own_test_collectible(last_gate, self_test)):
+                # Ticket 23 item 4: the run's own test cannot even be COLLECTED (a syntax
+                # or import error, an empty file, or a report holding no test id from it).
+                # It is a test DEFECT, not a valid red target, so the run must not iterate
+                # against it. Record the refusal and its evidence, drop the target, and
+                # take the owner's review route; with no reviewer this is an honest stop.
+                anomaly = last_gate.anomaly if last_gate is not None else "no-report"
+                detail = last_gate.detail if last_gate is not None else "no gate report"
+                evidence = f"{anomaly}: {detail}"
+                refusals.append(f"{self_test}: the run's own test cannot be collected "
+                                f"({evidence})")
+                emit("self_test_invalid", path=self_test, anomaly=anomaly, detail=detail)
+                (workdir / self_test).unlink(missing_ok=True)
+                self_test = None
+                if not enter_review("the run's own test cannot be collected (an import/"
+                                    "collection error, not a valid target)"):
+                    stop("honest-failure", "self-test-invalid", "self-test-invalid")
+                    return finish()
+                last_excerpts = [f"the run's own test cannot be collected: {evidence}"]
+            elif verification_basis == "test":
+                last_excerpts = excerpts_of(res)
+                emit("self_test_written", path=self_test, red=True)
 
     # ---- step 2: attempt loop (bounded by Budget and 3 × files, cap 9) ----
     while True:
@@ -5749,7 +5782,7 @@ async def run_leaf(
         # that claim is credited (ticket 17 policy, kept by ticket 19). The PROACTIVE
         # trigger below is the ticket-19 addition: the judge is consulted on a red REPORTS
         # signal even when the model volunteers nothing.
-        if _claims_test_wrong(env):
+        if verification_mode != "raw" and _claims_test_wrong(env):
             if attribution is None:
                 # No independent judge: the model's own word is never enough. Treat
                 # the claim as an implementation failure and let the ladder advance.
@@ -5791,7 +5824,22 @@ async def run_leaf(
             refusals.append(f"{source_rel}: {refusal}")
             emit("implement_refused", path=source_rel, reason=refusal)
             last_excerpts = [f"implement refused: {refusal}"]
-        res = await _maybe_await(tests, workdir) if wrote else None
+        if raw_mode and wrote and source_rel:
+            # Ticket 25 RAW = DEVELOPMENT ONLY: no tests, no independent test, no review,
+            # no claim. The model's first landed implementation is the development answer,
+            # delivered to the external grader unverified; the run stops here (the loop
+            # itself stays bounded by the call budget and the attempt-cap).
+            attempts.append(Attempt(
+                node_id="leaf", layer=esc.layer, strategy=esc.strategy or "L1-resample",
+                claimed_delta=getattr(env, "comment", "") or "",
+                failure_signature="", touched_files=[source_rel], outcome="pass"))
+            emit("raw_development_write", path=source_rel, attempt=len(attempts))
+            stop("unverified", "raw", "raw")
+            break
+        # REVIEW/RAW modes do not run the run's own test: review mode's feedback is the
+        # graded review, and raw mode has no verification at all.
+        res = (await _maybe_await(tests, workdir)
+               if wrote and verification_mode in ("full", "test") else None)
         if res is not None:
             record_gate(res)
             last_excerpts = excerpts_of(res)

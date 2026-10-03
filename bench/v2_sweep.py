@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from bench.v2_leaf import DEFAULT_SERVER, run_once  # noqa: E402
+from harness.leaf import VERIFICATION_MODES  # noqa: E402
 
 CORPUS = ROOT / "bench" / "corpus"
 ANCHOR = ROOT / "bench" / "anchor"
@@ -46,6 +47,9 @@ def build_parser() -> argparse.ArgumentParser:
     # Ticket 19 B: review-based verification when no test can carry verification.
     ap.add_argument("--review", action=argparse.BooleanOptionalAction, default=True,
                     help="run the mandatory review verification (default ON)")
+    # Ticket 25: the verification MODE matrix, forwarded verbatim to the driver.
+    ap.add_argument("--verify", choices=list(VERIFICATION_MODES), default="full",
+                    help="verification MODE (ticket 25): raw | test | review | full")
     return ap
 
 
@@ -73,7 +77,7 @@ def main() -> int:
             try:
                 record = run_once(task, out_dir, args.server, args.calls, args.deadline_hours,
                                   use_judge=args.judge, use_iv=args.iv,
-                                  use_review=args.review)
+                                  use_review=args.review, verify_mode=args.verify)
             except Exception as exc:                       # keep the sweep recoverable
                 record = {"task": task.name, "run_idx": idx, "claimed": False, "actual": False,
                           "quadrant": "honest-failure", "signal": "crashed",

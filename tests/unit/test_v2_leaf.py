@@ -848,6 +848,9 @@ def test_v2_driver_stages_a_source_only_blind_spec(tmp_path):
     assert spec.grader_paths == ("tests/test_grader.py",)
     # acceptance criteria are derived from the request (round 7)
     assert spec.acs == ["fix the thing"]
+    # ticket 25: the single-leaf root reason leans toward at least one review angle
+    assert spec.planned_reviews == ("ac-correctness", "contract-compat")
+    assert "PREFER AT LEAST ONE REVIEW ANGLE" in spec.verification_reason
 
 
 def test_extract_acs_is_deterministic_over_prose_and_bullets():
@@ -2791,13 +2794,65 @@ def test_sweep_exposes_and_forwards_the_judge_and_iv_flags(tmp_path, monkeypatch
     monkeypatch.setattr(v2_sweep, "run_once", fake_run_once)
     monkeypatch.setattr("sys.argv", ["v2_sweep", "--tasks", "all"])
     assert v2_sweep.main() == 0
-    assert seen == [{"use_judge": True, "use_iv": True, "use_review": True}]
+    assert seen == [{"use_judge": True, "use_iv": True, "use_review": True,
+                     "verify_mode": "full"}]
 
     seen.clear()
     monkeypatch.setattr("sys.argv", ["v2_sweep", "--tasks", "all", "--no-judge", "--no-iv",
                                      "--no-review"])
     assert v2_sweep.main() == 0
-    assert seen == [{"use_judge": False, "use_iv": False, "use_review": False}]
+    assert seen == [{"use_judge": False, "use_iv": False, "use_review": False,
+                     "verify_mode": "full"}]
+
+    # Ticket 25: --verify is exposed and forwarded to the driver.
+    assert parser.parse_args([]).verify == "full"
+    seen.clear()
+    monkeypatch.setattr("sys.argv", ["v2_sweep", "--tasks", "all", "--verify", "raw"])
+    assert v2_sweep.main() == 0
+    assert seen == [{"use_judge": True, "use_iv": True, "use_review": True,
+                     "verify_mode": "raw"}]
+
+
+def test_verify_mode_selects_the_seams_and_forwards_the_mode(tmp_path, monkeypatch):
+    """Ticket 25: ``--verify`` is authoritative over the seam flags. ``run_once`` maps
+    each mode to exactly the seams it permits and forwards the mode to ``run_leaf`` so the
+    leaf itself can skip the self-test for ``raw``/``review``."""
+    from bench import v2_leaf
+    from harness.leaf import VERIFICATION_MODES
+
+    assert VERIFICATION_MODES == ("full", "test", "review", "raw")
+    parser = v2_leaf.build_parser()
+    choices = parser._option_string_actions["--verify"].choices
+    assert set(choices) == set(VERIFICATION_MODES)
+    assert parser.parse_args(["--task", "x"]).verify == "full"
+
+    task_dir = tmp_path / "T-mode"
+    (task_dir / "repo" / "pkg").mkdir(parents=True)
+    (task_dir / "repo" / "pkg" / "calc.py").write_text("def result():\n    return 0\n")
+    (task_dir / "request.md").write_text("make result() return 42")
+    monkeypatch.setattr(v2_leaf, "LlamaServerRunner", lambda server: object())
+
+    captured: dict = {}
+
+    async def fake_run_leaf(model, spec, workdir, budget, **kw):
+        captured.update(kw)
+        raise RuntimeError("stop after capturing the seams")
+
+    monkeypatch.setattr(v2_leaf, "run_leaf", fake_run_leaf)
+
+    def _seams(mode):
+        captured.clear()
+        with pytest.raises(RuntimeError):
+            v2_leaf.run_once(task_dir, tmp_path / f"o-{mode}", "http://s", 3, 1.0,
+                             verify_mode=mode)
+        assert captured["verification_mode"] == mode
+        return (captured["judge"] is not None, captured["iv"] is not None,
+                captured["review"] is not None)
+
+    assert _seams("full") == (True, True, True)
+    assert _seams("test") == (True, False, False)
+    assert _seams("review") == (False, False, True)
+    assert _seams("raw") == (False, False, False)
 
 
 def test_run_record_records_the_gate_report_evidence():
