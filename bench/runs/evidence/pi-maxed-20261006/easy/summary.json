@@ -1,0 +1,72 @@
+{
+ "agent": "pi",
+ "model": "localhost",
+ "ask_tests": false,
+ "runs": 10,
+ "timeouts": 0,
+ "actual_pass": "10/10",
+ "claimed_pass": "10/10",
+ "per_task": {
+  "T-01-ttl-seconds-ms": {
+   "claimed": true,
+   "actual": true,
+   "quadrant": "true-success",
+   "wall_s": 106.1
+  },
+  "T-02-off-by-one": {
+   "claimed": true,
+   "actual": true,
+   "quadrant": "true-success",
+   "wall_s": 117.1
+  },
+  "T-03-wrong-comparison": {
+   "claimed": true,
+   "actual": true,
+   "quadrant": "true-success",
+   "wall_s": 237.7
+  },
+  "T-04-missing-default": {
+   "claimed": true,
+   "actual": true,
+   "quadrant": "true-success",
+   "wall_s": 19.0
+  },
+  "T-05-mutable-default": {
+   "claimed": true,
+   "actual": true,
+   "quadrant": "true-success",
+   "wall_s": 125.4
+  },
+  "T-06-tz-naive-compare": {
+   "claimed": true,
+   "actual": true,
+   "quadrant": "true-success",
+   "wall_s": 43.6
+  },
+  "T-07-f-string-sql": {
+   "claimed": true,
+   "actual": true,
+   "quadrant": "true-success",
+   "wall_s": 37.7
+  },
+  "T-08-add-cache-invalidation": {
+   "claimed": true,
+   "actual": true,
+   "quadrant": "true-success",
+   "wall_s": 123.3
+  },
+  "T-09-add-rate-limit-hook": {
+   "claimed": true,
+   "actual": true,
+   "quadrant": "true-success",
+   "wall_s": 136.2
+  },
+  "T-10-port-dict-keys-view": {
+   "claimed": true,
+   "actual": true,
+   "quadrant": "true-success",
+   "wall_s": 38.2
+  }
+ },
+ "output_root": "/tmp/pi-max-easy"
+}

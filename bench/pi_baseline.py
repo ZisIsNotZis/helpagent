@@ -59,6 +59,16 @@ DEFAULT_MODEL = "localhost"
 DEFAULT_PROVIDER = "local"
 DEFAULT_TIMEOUT_S = 900            # generous but finite (~15 min per task)
 
+#: Ticket 26 ``--reasoning``: a temp models entry that DECLARES reasoning support, so pi
+#: honours ``--thinking`` instead of clamping it to ``off`` (docs/rpc-commands.md: a model
+#: without reasoning support advertises only ``["off"]``). The context window is pinned to
+#: the 32768-token llama-server's real window, and the per-turn output limit to 8192 - a
+#: quarter of the window, large enough for a verbose thinking block plus answer/tool call
+#: while leaving ~24k tokens for the tool transcript. (The recorded 8192-total-context arm
+#: truncated 9/10 tail runs on a thinking block; this removes that ceiling.)
+REASONING_CONTEXT_WINDOW = 32768
+REASONING_MAX_TOKENS = 8192
+
 #: The claim-equivalent: pi has no claim gate, so its FINAL assistant message is the only
 #: thing that can stand in for "the agent says it did the job". These markers are our
 #: reading of that text, not pi's; the raw text is stored in the record so a reader can
@@ -112,11 +122,24 @@ def find_pi() -> str | None:
         return found
 
 
-def write_agent_dir(agent_dir: Path, base_url: str) -> None:
-    """A TEMP pi config directory: only the local provider, nothing of the owner's."""
+def write_agent_dir(agent_dir: Path, base_url: str, reasoning: bool = False) -> None:
+    """A TEMP pi config directory: only the local provider, nothing of the owner's.
+
+    With ``reasoning`` the temp model entry declares reasoning support so pi's ``--thinking``
+    is honoured (otherwise it is clamped to ``off``) and pins the model's context window and
+    output limit to the server's real 32768-token window.
+    """
     agent_dir.mkdir(parents=True, exist_ok=True)
     payload = json.loads(json.dumps(_MODELS_JSON))
-    payload["providers"]["local"]["baseUrl"] = base_url
+    provider = payload["providers"]["local"]
+    provider["baseUrl"] = base_url
+    if reasoning:
+        provider["models"] = [{
+            "id": DEFAULT_MODEL,
+            "reasoning": True,
+            "contextWindow": REASONING_CONTEXT_WINDOW,
+            "maxTokens": REASONING_MAX_TOKENS,
+        }]
     (agent_dir / "models.json").write_text(json.dumps(payload, indent=1))
 
 
@@ -321,7 +344,7 @@ def run_once(task_dir: Path, out_dir: Path, args: argparse.Namespace,
     run_root = out_dir.parent          # holds the temp pi agent dir and HOME
     agent_dir, home = run_root / "agent", run_root / "home"
     if not agent_dir.exists():
-        write_agent_dir(agent_dir, args.base_url)
+        write_agent_dir(agent_dir, args.base_url, bool(getattr(args, "reasoning", False)))
     home.mkdir(parents=True, exist_ok=True)
 
     workdir = out_dir / "work"
@@ -356,6 +379,7 @@ def run_once(task_dir: Path, out_dir: Path, args: argparse.Namespace,
         "model": args.model,
         "provider": args.provider,
         "thinking": args.thinking,
+        "reasoning": bool(getattr(args, "reasoning", False)),
         "ask_tests": bool(getattr(args, "ask_tests", False)),
         "sandbox": ("bwrap" if sandbox else "none (cwd + prompt only)"),
         "timed_out": timed_out,
@@ -398,6 +422,11 @@ def main() -> int:
     ap.add_argument("--base-url", default=DEFAULT_BASE_URL,
                     help="OpenAI-compatible endpoint for the temp models.json")
     ap.add_argument("--thinking", default="off")
+    ap.add_argument("--reasoning", action=argparse.BooleanOptionalAction, default=False,
+                    help="declare reasoning support on the temp model entry so --thinking "
+                         "is honoured rather than clamped to off, and pin the model's "
+                         "32768-token context window and output limit; OFF by default so "
+                         "the recorded arms stay reproducible")
     ap.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_S,
                     help="seconds per task; a timeout is an outcome, not a crash")
     ap.add_argument("--out", default="",
