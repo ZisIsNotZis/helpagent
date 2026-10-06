@@ -106,7 +106,11 @@ Reading it:
   earlier sweep it lost T-05 and T-18 the same way). The iteration can talk the model out of a
   correct one-shot fix.
 - **Ten tasks no arm fixed** (anchors A-01..A-03 plus T-24, T-26, T-27, T-28, T-31, T-32,
-  T-34): the capability tail. T-31's four-file parameter threading is in that set.
+  T-34): the capability tail. T-31's four-file parameter threading is in that set — **but see
+  section 8: T-31 is fixed by the same 4B when the mature CLI is given reasoning budget and a
+  32k window, so that task was throttled by our 8192-token server, not by the model's ceiling.**
+  These arms were all measured against that 8k server; the tail-band re-measurement at 32k is
+  recorded in section 8.
 
 ## 2. What the harness does (one paragraph each)
 
@@ -240,6 +244,9 @@ llama-server \
 
 ## 8. Mature agent CLI baseline (the same model, all 40 tasks, clean)
 
+> **The pi rows below were THROTTLED by our own configuration** (thinking clamped off, 8192
+> tokens of context). Read **8b** for the corrected measurement before quoting any of them.
+
 `bench/pi_baseline.py` runs the real **`pi` CLI headless** against a corpus task with the same
 blind staging (source-only; the grader never enters the run), a temp pi agent dir (the owner's
 real config is never touched), a bwrap sandbox, and the same external grader. Measured on all
@@ -251,7 +258,8 @@ real config is never touched), a bwrap sandbox, and the same external grader. Me
 | harness `--verify test` | 23/40 (58%) | 0 | 0 | 4.9 calls/task, ~28 s |
 | harness `--verify review` | 22/40 (55%) | 34 | **13** | 5.4 calls/task, ~18 s |
 | harness `--verify full` (default) | 20/33 (61%)\* | 12 | 2 | 10.2 calls/task, ~96 s |
-| **pi CLI, request only** | **21/40 (52%)** | 21 | **4** | ~8 turns/task, ~120 s |
+| **pi CLI, request only** (throttled — see 8b) | **21/40 (52%)** | 21 | **4** | ~8 turns/task, ~120 s |
+| **pi CLI, request only, reasoning max + 32k (8b)** | **27/40 (68%)** | 29 | **2** | 8.9 turns/task, 131 s |
 | **pi CLI + an explicit "write and run your own tests" instruction** | **16/40 (40%)** | 22 | **6** | ~8 turns/task, 90-160 s |
 | our minimal agent loop (`bench/v2_agent.py`) | 0/6 (hard subset) | n/a | n/a | - |
 | our plain one-shot driver (`bench/v2_free.py`) | 3/12 | n/a | n/a | 1 call |
@@ -268,15 +276,56 @@ Per band, pi (request only) vs the harness arms on the same tasks:
 | T-21..T-30 (hard) | 5/10 | 6/10 | **7/10** |
 | T-31..T-35 + anchors (tail) | **0/10** | 0/10 | 0/10 |
 
-**What this shows.** Development capability is a TIE: a mature agent CLI and our development-only
-protocol both fix 21 of 40, on the same model - the harness's forced structure does not cost
-development power, and it reaches the same result with ~1 model call per task instead of ~8
-turns. The hard tail (T-31's four-file threading, the anchors, T-27/T-28/T-32/T-34) defeats BOTH
-equally: that is a model-capability boundary, not a harness defect. Where the harness differs is
-on top of development: its mechanisms add ~6-9 points (section 1a) and its gates keep false
-successes at 1-2 while pi, which has no claim gate, certified four wrong fixes.
+**What this shows (REVISED 2026-10-06 — the original reading is retracted).** The original text
+here said development capability was a TIE, and that the hard tail was a model-capability
+boundary. Both readings were measured against a **throttled** pi: `--thinking` was `off`, and
+it could not have been anything else because the temp model entry declared no reasoning support
+(pi clamps the level to what the model advertises), on a server with only **8192 tokens of
+context** — which is exactly where that arm's tail runs were dying. Re-measured with those
+ceilings removed (section 8b): pi fixes **27/40 (68%)**, not 21/40. So we do **not** tie a
+properly configured mature CLI, and T-31 is not a model-capability boundary. What survives is
+narrower and better supported: the harness's gates keep false successes at 0-2 where pi, which
+has no claim gate, certifies wrong fixes, and the anchor band (writing a whole correct
+implementation from a text spec) is still 0/5 both ways.
 
-**Asking a small model to write its own tests makes a mature CLI WORSE.** On the same 40
+### 8b. The same pi, configured properly (reasoning + 32k) — 2026-10-06
+
+The owner asked whether the comparison above was fair. It was not, in two ways that were ours:
+`--thinking off` was not merely a weaker setting but the only level the model declaration
+allowed, and the server's window was 8k. `bench/pi_baseline.py` now has `--reasoning` (default
+off, so the arms above stay reproducible) which declares reasoning support and the server's real
+32768-token window; the server was restarted at `-c 32768` with quantised KV cache.
+
+| band | recorded (thinking≈off, 8k) | **maxed (thinking max, 32k)** |
+| --- | --- | --- |
+| T-01..T-10 easy | 9/10 | **10/10** |
+| T-11..T-20 middle | 7/10 | **9/10** |
+| T-21..T-30 hard | 5/10 | **7/10** |
+| T-31..T-35 tail | 0/5 | **1/5** (T-31) |
+| A-01..A-05 anchors | 0/5 | **0/5** |
+| **total** | 21/40 (52%), 25 claimed, 4 false | **27/40 (68%)**, 29 claimed, **2 false** |
+
+Mean cost 131 s and 8.9 turns per task. On the 33 tasks the harness `full` arm also ran, pi here
+is **22/33 (67%)** against the harness's recorded **20/33 (61%)**; pi-only wins are T-01, T-12,
+T-28, T-31 and the harness-only wins are T-33, T-35. Evidence (per-task records, band summaries
+and a reasoning-trace-free README): `bench/runs/evidence/pi-maxed-20261006/`, guarded by
+`tests/unit/test_pi_maxed_evidence.py`.
+
+**What the extra budget actually buys — and what it does not.** It buys *agency*: T-31's
+four-file threading is fixed (49 s, 9 turns) and the mid/easy bands gain four tasks, i.e. long
+multi-step tool sequences were being cut off by our window, not by the model. It buys nothing on
+*authoring a correct implementation*: the anchors stay 0/5, and the failure shape is the
+diagnosis — A-03 spent 238 s in **one** turn making **zero** tool calls and A-05 207 s with zero
+tool calls, because a single thinking block ate the per-turn output budget and was truncated.
+Two false successes remain (A-02 "The implementation is complete and verified.", T-35), so a
+reasoning budget does not substitute for a claim gate either.
+
+**Still un-remeasured, and therefore not claimed:** whether an explicit "write and run your own
+tests" instruction still *harms* pi at 32k. The 9-of-10 length-truncated tail runs that finding
+rested on were an 8k artifact, so that paragraph below is now only known to hold at 8k.
+
+**Asking a small model to write its own tests made a mature CLI WORSE (measured at 8k; see the
+caveat above).** On the same 40
 tasks, pi with the request alone fixes 21; with an explicit "write test files that fail on the
 buggy code and pass once fixed, then run them" instruction it fixes **16** (per band: 7/10,
 4/10, 4/10, 1/10 versus 9, 7, 5, 0). The behavioural trace explains why: the 4B cannot emit a
