@@ -324,6 +324,46 @@ reasoning budget does not substitute for a claim gate either.
 tests" instruction still *harms* pi at 32k. The 9-of-10 length-truncated tail runs that finding
 rested on were an 8k artifact, so that paragraph below is now only known to hold at 8k.
 
+### 8c. Our harness at 32k — the other half of the fairness gap, and an unfavourable result
+
+Every recorded harness arm used the 8192-token server, so the comparison in 8b would have been
+unfair to *us*. The `full` arm was therefore re-run on all 40 tasks, N=1, four sequential bands,
+against the same 32768-token server (`bench/runs/v2sweep-20261006T040753Z`, `...T041641Z`,
+`...T042104Z`, `...T042844Z`).
+
+| arm (all 40 tasks, N=1, same grader) | actual | claimed | missed | **FALSE** | mean cost |
+| --- | --- | --- | --- | --- | --- |
+| harness `full`, 8k server (33 tasks) | 20/33 (61%) | 12 | 8 | 2 | 96 s, 10.2 calls |
+| **harness `full`, 32k server (40 tasks)** | **22/40 (55%)** | 14 | **11** | **3** | 47 s, 8.5 calls |
+| **pi CLI, reasoning max + 32k (40 tasks)** | **27/40 (68%)** | 29 | - | **2** | 131 s, 8.9 turns |
+
+On the 21 tasks measured under both harness configurations, 8k fixed 16 and 32k fixed 14: **more
+context did not make our protocol better** (our prompts and evidence are bounded, so the window
+was not our limiter), and on the whole set we are now **five tasks behind a mature CLI that we
+previously recorded as tied**, with one more false success. That is the honest headline.
+
+**Where the eleven missed wins went** (grader passed, the harness did not claim):
+
+| blocker | count | tasks |
+| --- | --- | --- |
+| `independent-test-red-on-final` | **8** | T-06, T-10, T-12, T-19, T-20, T-21, T-22, T-35 |
+| `ladder` (the escalation ladder ran out) | 3 | T-02, T-17, T-30 |
+
+The dominant blocker is not the model, it is our own independently authored verification: in the
+cases examined, its test **asserts the pre-fix behaviour** and turns red precisely because the bug
+was fixed — T-10's IV test demands `pytest.raises(IndexError)` for the crash the request asks to
+remove; T-22's asserts `["Zoe", "alice"]`, the ordering the request calls wrong; T-06's passes on
+the buggy code and fails on the fixed code. Because we already record each IV test's outcome on
+the original and the final revision, the signature is deterministic: `iv_inverted_tests`
+(final-red, original-green, 3 of the 5 examined here) versus `iv_unmet_tests` (red on both, i.e.
+genuinely unaddressed or an unsatisfiable test — T-12's test is red on both revisions and T-21's
+suite demands both "raises" and "does not raise"). The three false successes all ended
+`stop=green`, i.e. own test green, independent test green and review approved on a revision the
+grader rejects — the opposite failure of the same weak-model test-authoring problem.
+
+Working record and the open decision (may an inverted-test block be sent to the judge, or does
+the rule stay absolute): `.scratch/26-pi-maxed/issues/26-pi-maxed.md`.
+
 **Asking a small model to write its own tests made a mature CLI WORSE (measured at 8k; see the
 caveat above).** On the same 40
 tasks, pi with the request alone fixes 21; with an explicit "write test files that fail on the

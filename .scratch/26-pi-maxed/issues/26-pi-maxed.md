@@ -53,7 +53,11 @@ wrong fix.
 `--verify full`, all 40 tasks, 4 sequential bands, against the same 32768-token server. This
 was run *after* the correction above, so that our side is not the one with a hidden ceiling.
 
-Result recorded in `docs/STATUS.md` §8b (filled in from the run's `results.jsonl`).
+Result, all 40 tasks against the same 32768-token server: **actual 22/40 (55%)**, 14 claimed, 11
+missed, **3 false**; mean 47 s and 8.5 model calls per task. Per band: T-01..T-10 7/10,
+T-11..T-20 7/10, T-21..T-30 6/10, tail+anchors 2/10. Eight of the eleven missed wins were blocked
+by `independent-test-red-on-final` and three by `ladder`; the three false successes all ended
+`stop=green`. Full breakdown and the comparison against the maxed pi arm: `docs/STATUS.md` §8b/§8c.
 
 ## The defect this probe found (bigger than the score)
 
