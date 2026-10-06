@@ -10,16 +10,29 @@ and §10.10 (implemented vs designed-but-not-built).
 
 ## State
 
-**Current measured position (2026-10-03, clean, all 40 tasks, N=1):** development-only
+**Current measured position (2026-10-06, clean, all 40 tasks, N=1):** development-only
 (harness `--verify raw`) fixes **21/40 (52%)**; the full default reaches 20/33 (61%) on the
-tasks it completed; **pi itself, same model, also fixes 21/40 - a tie, at ~20x our wall time**.
-The hard tail (T-31's four-file threading, the anchors, T-27/28/32/34) defeats every agent
-equally: a capability boundary. Asking the small model to write its own tests makes pi WORSE
-(21 -> 16). Full tables and caveats: `docs/STATUS.md` sections 1, 1a and 8 (section 1's
-review-tier numbers were measured under the retracted cache leak; treat them as optimistic). The
-claim rule (spec-time verification policy; a graded, grant-calibre review outranks a
-conflicting test; one recorded plan update when a test cannot be made to work) is settled by
-measurement - three rules were compared on the same tasks in `docs/STATUS.md` section 1.
+tasks it completed, all measured against an 8192-token server. **The mature-agent comparison
+was corrected on 2026-10-06: the recorded pi arm was throttled by our own configuration**
+(`--thinking` was clamped to `off` because the temp model entry declared no reasoning support,
+and the server window was 8k). Re-measured with reasoning max and a 32768-token window, pi fixes
+**27/40 (68%)** with 2 false successes — so the earlier "development capability is a TIE" and
+"the hard tail is a capability boundary" readings are **retracted**; T-31 (four-file parameter
+threading) is fixed by the same 4B given room to iterate. What survives: the anchor band
+(writing a whole correct implementation from a text spec) is 0/5 both ways, and our claim gates
+keep false successes at 0-2 where pi has no gate. Full tables and caveats: `docs/STATUS.md`
+sections 1, 1a, 8 and **8b** (section 1's review-tier numbers were measured under the retracted
+cache leak; the "asking for tests makes pi worse" finding is an 8k-only measurement and has not
+been re-measured at 32k). Working record: `.scratch/26-pi-maxed/issues/26-pi-maxed.md`.
+
+**The largest known loss channel is now our own independent verification.** In the 32k `full`
+run, several tasks reached a revision the grader accepts and the harness still refused to claim
+it, because the independently authored test **asserts the pre-fix behaviour** (T-10's IV test
+demands `pytest.raises(IndexError)` for the crash the request asks to fix) and therefore turns
+red when the bug is fixed. The per-test outcomes on the original and final revisions are already
+recorded, so this is deterministically separable into `iv_inverted_tests` (final-red,
+original-green) and `iv_unmet_tests` (red on both). An owner decision is open on whether the
+inverted case may go to the judge; see the ticket.
 
 - The test gate is the authority: `uv run pytest` (includes the repository's own tamper guard
   and the 107-case corpus-integrity suite). It must be green before and after any change.
