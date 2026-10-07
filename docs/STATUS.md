@@ -339,9 +339,11 @@ against the same 32768-token server (`bench/runs/v2sweep-20261006T040753Z`, `...
 
 **pi's claim columns are not the same measurement as ours.** pi has no claim gate: its
 "claimed" is this driver's regex reading of its final assistant message, so "missed" is 0 by
-construction and its 11 non-claims are almost all *empty* final messages (10 of 40 records carry
-`claim_reason: no assistant message`, i.e. the turn was truncated) rather than an admission of
-failure. Only `actual` and `false success` are comparable across the two columns; on those, pi
+construction and its non-claims are *empty* final messages (a truncated turn at the output cap),
+not an admission of failure — 11 non-claiming tasks, of which 10 end with a completely empty
+message and the eleventh stops mid-sentence ("Let me search for any spec, corpus, or test hints
+related to this task."). pi was never asked to state a claim, so that instrument measures nothing
+about honesty. Only `actual` and `false success` are comparable across the two; on those, pi
 asserted success on a wrong result twice and we did so three times (section 8d).
 
 On the 21 tasks measured under both harness configurations, 8k fixed 16 and 32k fixed 14: **more
@@ -377,15 +379,25 @@ The gap holds seven tasks on pi's side (T-01, T-05, T-07, T-14, T-16, T-28, T-31
 ours (T-33, T-35). Reading the per-attempt records, **six of the seven are our own machinery, not
 the model's capability:**
 
-| task | what our record shows | whose defect |
+| task | what the records and the delivered bytes show | whose defect |
 | --- | --- | --- |
-| T-05 | our own written test (`test_tagger.py`) stayed RED and burned the attempts; the same code fixed this task at 8k (18 calls) | our self-test loop |
-| T-07 | own test died with ImportError, then independent test red; fixed at 8k (16 calls) | our self-test loop |
+| T-01 | `touched_files: []` on all six attempts; six refusals of `auth/sessions.py`. The bug is `auth/config.py: SESSION_TTL_SECONDS = 60`, and **config.py was in the run's view on every attempt** (`spec.files` carries README.md, auth/__init__.py, auth/config.py, auth/sessions.py). pi read all four files and edited config.py in one turn | refusal loop: no redirect, and M1 says "regenerate … from the failure history as your only intelligence" |
+| T-05 | own test red, 10 calls; the delivered `tagger/notes.py` is **byte-identical to the buggy original** (no `tags=None` guard). The same code fixed this task at 8k (18 calls, different own test) | M1 erase + no delivery check |
+| T-16 | our own test was CORRECT (two carts, `cart2.contents() == []`); the delivered `cart/cart.py` differs from the buggy original by **one trailing newline** | M1 erase + no delivery check |
+| T-13 | delivered a whitespace-only change | M1 erase + no delivery check |
+| T-31 | per-attempt writes alternate `transport.py` / `client.py`; the spec and AC-2 name all four artifacts and the coverage gate listed them, but one file per attempt + an M1 erase means the changes never coexist | no multi-file write path; M1 erase |
+| T-07 | own test died with ImportError, then independent test red; fixed at 8k (16 calls) | self-test loop |
 | T-14 | fixed at 8k in 5 calls; at 32k the graded review marked all three criteria `violated` | review-driven iteration |
-| T-01 | **`touched_files: []`** — six refusals of `auth/sessions.py` (`grader-owned path`), so the run never wrote anything; the contract freezes that file and the fix belongs in `auth/config.py`, which the model never opened | refusal loop: no redirect after a refusal |
-| T-31 | per-attempt writes alternate `transport.py` / `client.py`, and each M1 attempt erases the draft, so the two files' fixes can never coexist in one revision | M1 erase vs multi-file tasks |
-| T-16 | stopped at 6 model calls of a 24-call budget (`ladder-exhausted`) | our early-exit rules |
-| T-28 | one attempt, own test never written, independent test `unobserved`, review approved a wrong `plugins/registry.py` | gate correlation (see below) |
+| T-28 | one attempt, own test never written, independent test `unobserved`, review approved a class where the repo's own README (in the run's view) documents module-level functions | gate correlation |
+
+**The single clearest number: five of the forty runs delivered nothing.** Comparing each
+delivered work tree against the task's pristine sources, file by file (non-test `.py`): T-01 and
+T-05 and T-34 changed nothing at all, T-13 changed only whitespace, and T-16 changed only a
+trailing newline. All five failed the grader, and **pi fixed three of them** (T-01, T-05, T-16).
+In all five the LAST attempt was an M1 erase attempt (`_mode` returns M1 after any `same` or
+`undecided` verdict; the prompt then says the draft was erased and to regenerate from the failure
+history). Nothing in the pipeline checks, before handing the revision over, that it differs from
+the baseline in any file the request named.
 
 Details worth stating plainly:
 
@@ -413,6 +425,17 @@ Details worth stating plainly:
   its reviewer all inherit that reading — agreement between checks that share the generator is
   not evidence. pi has the same weak judge but no gate, so it lands in the same trap less often
   (two false successes) only because its loop keeps working instead of declaring green early.
+  These are **not** requirement-extraction failures: T-26's request states verbatim that the port
+  "must keep the old dict-style access working" and the delivered plain `@dataclass` has no
+  `__getitem__`, and T-28's required module-level API is printed in the repo's own `README.md`,
+  which the run was shown.
+
+**A gap that limits this forensics.** The per-attempt MODEL OUTPUT is not persisted: the record
+keeps `claimed_delta` (the model's own one-line summary), `touched_files` and the failure
+signature, but not the `file_path`/`content` the envelope carried. So "did the model emit a no-op
+file, or did something revert a real fix?" can only be inferred from the delivered bytes plus the
+M1 mode, not read off directly. Capturing the envelope content (or its hash) per attempt is a
+prerequisite for the next round.
 
 None of these was fixed in this round: the sweep had to stay on one code revision, and the fixes
 change behaviour the owner has opinions about (the M1 erase, the early-exit ladder, the review-only

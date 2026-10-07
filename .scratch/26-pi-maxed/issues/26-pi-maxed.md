@@ -156,3 +156,121 @@ evidence. That, not a new bug, is why our false-success count exceeds pi's.
    for a claim, or record that a claim rests on a single correlated reviewer (T-26/T-28/A-05).
 5. **Inversion detection** (from round 1): record `iv_inverted_tests` / `iv_unmet_tests`; owner
    decision pending on whether the inverted case may reach the judge.
+
+## Round 3 — the concrete forensics (owner: "this report is too abstract")
+
+Every claim below is from a record, a delivered file, or pi's own event stream. No new model
+runs were made. Where the record cannot answer the question, that is stated as a gap.
+
+### T-01, step by step
+
+- The bug is `repo/auth/config.py`: `SESSION_TTL_SECONDS = 60`; `auth/sessions.py` only consumes
+  it (`now + timedelta(seconds=config.SESSION_TTL_SECONDS)`).
+- `build_spec` puts BOTH files in the run's view: `spec.files` = README.md, auth/__init__.py,
+  **auth/config.py**, **auth/sessions.py**. The run's `current_files` artifact is built from
+  `_repo_view(spec, workdir, baseline)` = those files, so the model was shown the broken
+  constant on every attempt.
+- `checks.py` `UNTOUCHED` includes `repo/auth/sessions.py`, and `build_spec` folds UNTOUCHED into
+  `grader_paths`, so the write guard refuses it — correctly (writing it fails the contract).
+- All six attempts targeted `auth/sessions.py` and were refused: `refusals` = 6x
+  `auth/sessions.py: grader-owned path`; `touched_files` = [] on every attempt; each attempt's
+  own claim text reads "Updated session TTL to 3600 seconds…" (the model believed it had written).
+- The feedback the model got was `implement refused: grader-owned path` (in `failure_output`),
+  and the M1 wording it got next was "Your previous draft was erased. Regenerate the target file
+  **from the failure history as your only intelligence**." Nothing in the loop says which files it
+  MAY write, and nothing forces a different target.
+- So: the specification was not wrong. The requirement text ("a seconds/milliseconds mixup when
+  the session TTL was moved into config") and the visible file set both pointed at config.py; the
+  **implementation step chose the frozen call site every time**, and the loop's only response was
+  to count the refusal.
+- pi, same model, same task: `ls`+`find`, then read README.md, **auth/config.py**,
+  auth/sessions.py, auth/__init__.py, then `edit auth/config.py` 60 -> 3600, then ran four ad-hoc
+  assertions including the 3599/3601 s boundary and `inspect.signature` to prove the public API
+  was unchanged. One file, one correct change, self-verified.
+
+### Multi-file: there is no multi-file write, and there never was in this driver
+
+- The implement question is literally: "Emit the complete new content of **ONE** implementation
+  file (file_path + content)." The envelope carries a single `file_path` + `content`.
+- What DOES allow many files is the leaf's write BOUNDARY (`PlanNode.files`, up to 10) and the
+  tree's decomposition; `docs/DESIGN.md` line 291 names "(multi-file, control-flow-restructuring,
+  cross-module contracts)" as the class of task that must be SPLIT into children. The 40-task
+  sweep runs the single-leaf driver, i.e. the un-split path.
+- T-31's spec is not the problem: `spec.files` = client, service, transport, bulk (all visible)
+  and AC-2 says verbatim "Add a `timeout` parameter (default 1.0) to the transport's `send()`,
+  thread it through the client's `fetch()`, and make sure BOTH call sites (the service … )".
+  The coverage gate later names exactly those untouched artifacts. The run's per-attempt writes
+  alternate `transport.py` / `client.py` because each attempt writes one file and M1
+  (`_erase_draft`) restores every written file to its pristine content after any `same`/`undecided`
+  verdict — so the two changes never coexist in the delivered revision.
+- Best-evidence capture is ranked by evidence (own test / independent test / review), never by how
+  much of the required surface a revision covers, so the more complete revision is not preserved.
+
+### T-16, step by step
+
+- The run's own test was CORRECT (`test_carts_are_independent`: `cart1.add(...)`; `assert
+  cart2.contents() == []`).
+- Attempt modes: M2, M1, M2, M1, M1 (M1 = erase). The final delivered `cart/cart.py` differs from
+  the buggy original by **one missing trailing newline** — `items = []` is still a CLASS attribute.
+  The grader failed on both of the run's own assertions.
+- pi: read `cart/cart.py`, `cart/__init__.py`, `README.md`, wrote an `__init__` with a per-instance
+  list, then ran a two-cart check in bash. 5 turns.
+
+### T-05 and the "8k good / 32k worse" question
+
+- The context/output cap was NOT hit: `malformed_steps` is `[]` in both the 8k and the 32k records
+  (50 envelopes, 0 truncated), and the 32k run spent 10 of its 24 calls.
+- 8k: own test `test_tagger_bleed.py` ("explicit tags list is respected"), 18 calls, delivered a
+  CHANGED `tagger/notes.py`, grader PASSED.
+- 32k: own test `test_tagger.py` ("explicit tags list can be shared"), 10 calls, and the delivered
+  `tagger/notes.py` is BYTE-IDENTICAL to the buggy original (`diff` empty; no `tags=None` guard).
+  The failing signature at the end is only the independence test, i.e. the run had regressed to the
+  unmodified file. The last attempt was M1 (erase -> "regenerate from the failure history").
+- So the difference is not context size but the run's own iteration: a different self-test changed
+  the failure the loop optimised for, and the last M1 attempt replaced the draft with a copy of the
+  original. N=1 per cell; the mechanism, not the delta, is the finding.
+
+### The strongest single number: five of forty runs delivered nothing
+
+Comparing the delivered work tree against the task's pristine sources file by file (non-test .py):
+`T-01` (nothing at all), `T-05` (nothing), `T-34` (nothing), `T-13` (whitespace only),
+`T-16` (trailing newline only). All five failed the grader; **pi fixed three of them (T-01, T-05,
+T-16).** In all five the LAST attempt was an M1 erase attempt. The pipeline has no delivery-time
+check that the revision it is about to hand over differs from the baseline in any file it was
+supposed to fix.
+
+### pi's "claim" column is not a measurement of honesty
+
+12 non-claiming rows (11 tasks after de-duplicating A-01, which two bands measured): **10 have a
+completely empty final assistant message and the eleventh ends mid-sentence** ("Let me search for
+any spec, corpus, or test hints related to this task."). The driver's `claimed` field is a regex
+over that message; an empty message is a TRUNCATED turn at the output cap, not an admission of
+failure. pi was never asked to state a claim, so "missed = 0" is an artifact of the instrument.
+The only claim-related numbers that compare across agents are `actual` and "asserted success on a
+revision the grader rejects".
+
+### The false successes are not a requirement-decomposition failure
+
+- T-26: the request says verbatim "must keep the old dict-style access working for callers not yet
+  migrated" AND "Plan instances must be real dataclass objects with attribute access". The
+  delivered `plan/model.py` is a plain `@dataclass` with no `__getitem__`, so `p["name"]` raises
+  `TypeError` — the grader's first test. The requirement was explicit and in the ACs; the review
+  marked all three ACs `satisfied` (`review:ac-correctness`).
+- T-28: the required API is documented IN THE REPO, in `repo/README.md`, which `build_spec` puts in
+  the model's view: "Plugin registry: register(name, fn) / get(name) / run(name, *args)." The run
+  wrote a `Registry` CLASS instead, so `registry.register(...)` raised AttributeError. Review:
+  definitely-ok; own test: never written; independent test: `unobserved`.
+- A-05: independent test ran 22 nodes, 0 failed, but was rejected as
+  `independent-test-not-discriminating` (its nodes pinned only AC1-4); AC5-21 were marked
+  `satisfied` by the review alone; the grader then failed the two puzzle-answer tests.
+- Common pattern: no own test was ever written, the independent test was unusable (unobserved or
+  non-discriminating), and `claim_decision`'s documented rule 6 lets the review carry the claim —
+  with the reviewer being the same model that wrote the code.
+
+### What the record CANNOT answer (stated as a gap, not a guess)
+
+The per-attempt MODEL OUTPUT is not persisted: the record keeps `claimed_delta` (the model's
+one-line summary), `touched_files`, and the failure signature, but not the `file_path`/`content`
+the envelope carried. So "did the model emit a no-op file, or did something revert a real fix?"
+can only be answered indirectly (the delivered bytes + the M1 mode), not read off directly. Adding
+the envelope content (or its hash) per attempt is a prerequisite for the next round of forensics.
