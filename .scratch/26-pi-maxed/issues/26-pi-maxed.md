@@ -274,3 +274,102 @@ one-line summary), `touched_files`, and the failure signature, but not the `file
 the envelope carried. So "did the model emit a no-op file, or did something revert a real fix?"
 can only be answered indirectly (the delivered bytes + the M1 mode), not read off directly. Adding
 the envelope content (or its hash) per attempt is a prerequisite for the next round of forensics.
+
+## Round 4 — T-01: what the model was actually shown, and what it was never told
+
+### First, the persistence question (owner: "trajectory 保存全部信息，根本不需要看 Git")
+
+Checked, three ways:
+
+1. `harness/runner.py::llm_step` builds `LLMRequest(step_type, artifacts, question, tools,
+   fresh, prompt)` and calls `model.complete(request)`. The only thing it records is
+   `note("llm_invocation", step_type, cache_hit, prompt_tokens, completion_tokens,
+   wall_model_s)` — and the module docstring says so explicitly: "counters only, never
+   content" (KERNEL_API §5, a deliberate design decision). No prompt, no response.
+2. There is no environment switch or debug sink that dumps them (`os.environ` appears only
+   for the pytest/sandbox env in `harness/exec.py` and `harness/staging.py`).
+3. The llama-server log (`/tmp/llama-max-ctx.log`, the 32k server these runs used) logs token
+   counts and timings, not content.
+
+So for OUR runs the per-attempt model text is genuinely unrecoverable. The only model-authored
+text kept per attempt is `claimed_delta` (= the envelope's `comment`, one line). By contrast
+pi's `events.jsonl` keeps the system prompt, the user message, every `thinking_*` delta and
+every tool call — which is why pi's thinking can be quoted verbatim and ours cannot. That is a
+harness gap to close (capture the request/response per call), not a fact of nature.
+
+### T-01: the exact inputs, reconstructed deterministically
+
+`build_spec` gives the run the whole source projection, and both steps push it into the prompt:
+
+- Step 1 (`write_test`) artifacts: `goal`, `acceptance_criteria`, `interfaces` (empty), and
+  `repo_files` = **the full text of all four files**, including
+  `auth/config.py` = `SESSION_TTL_SECONDS = 60` and `README.md` = "Sessions last one hour
+  (documented product behavior)".
+- Every implement attempt gets: `goal`, `acceptance_criteria`, `interfaces`, `current_files`
+  (again all four files), `self_test`, `failure_output`, `failure_history`, `escalation`,
+  `escalation_detail`, `retry_mode`.
+
+What the artifacts never contain: **a list of files the run may write**, any statement that
+`auth/sessions.py` is frozen, and any hint about which file holds the defect.
+
+The implement question is: "Emit the complete new content of ONE implementation file
+(file_path + content). Never edit a test file or a grader path — fix the source."
+
+After the first refusal, the next attempt receives exactly:
+
+- `failure_output` = `implement refused: grader-owned path`   ← **the file name is not in it**
+  (`_source_write_problem` returns the bare reason; the record's `refusals` list adds
+  `source_rel`, but `last_excerpts = [f"implement refused: {refusal}"]` — only the reason — is
+  what the model sees),
+- `failure_history` = `- [L1-resample/sampling] claim='Updated session TTL to 3600 seconds to
+  restore 1-hour expiry.' sig= verdict=same` (nothing about the code),
+- `retry_mode` = `M1`, and the question: "Your previous draft was erased. Regenerate the target
+  file **from the failure history as your only intelligence**."
+
+### The reconstructed flow (consistent with `calls: 9`)
+
+1. `write_test`: the model writes a test for the TTL bug. It **passes on the buggy source**
+   (it does not discriminate), so the one re-ask fires, it passes again → `self_test = None`
+   (the file is deleted), `no-red-target` path.
+2. The judge is consulted there and answers with the correct diagnosis:
+   `implementation_wrong: true, reason: "The code sets SESSION_TTL_SECONDS to 60, causing
+   sessions to expire in 60 seconds instead of the required 1 hour."` (its `raw` vote said
+   `blame: test`, which the deterministic filter coerced, because the defect text named no
+   failing test).
+3. `handle_verdict` takes the `implementation_wrong` branch: `return "implementation"` — the
+   diagnosis text is **not** written into `last_excerpts`, so it never reaches the implementer.
+4. The run enters review verification and starts the ladder: six implement attempts, every one
+   targeting `auth/sessions.py`, every one refused (`refusals` = 6 x "auth/sessions.py:
+   grader-owned path"), `touched_files` = [] each time.
+5. All six verdicts are `same` (nothing written, nothing new claimed) → exhaustion
+   `"same-verdict tail across layers [implementation,sampling,spec]"`.
+6. Delivered revision: unchanged files (`applied: ["auth/config.py"]`, content identical to
+   pristine). Grader: `tests/test_sessions.py:21: AssertionError` → FAIL.
+
+Call accounting: 1 self-test + 1 re-ask + 1 judge + 6 implement attempts = **9 = `calls`**. The
+reconstruction therefore matches the record exactly.
+
+### Why sessions.py, and was it ever going to do config.py?
+
+What we can prove: it was shown config.py's broken line on every step, it chose sessions.py six
+times, its own words each time were about "session TTL" ("Updated session TTL to 3600
+seconds…"), and it never attempted config.py. What we cannot prove: whether it considered
+config.py and rejected it, or was about to change both — the chain of thought is not captured.
+Its choice also contradicts the request's own clause "don't touch the public API while fixing
+it" (sessions.py holds `create_session`/`is_expired`).
+
+pi, for the same task, with the same text: THINK #5 says, verbatim, "The public API here is
+likely the functions in `sessions.py` — `create_session` and `is_expired`. We shouldn't change
+those. We should only fix the config value." It read README.md, auth/config.py, auth/sessions.py
+and auth/__init__.py first (pi has a `read` tool and chose to use it), then made one edit.
+
+### Defects this walkthrough establishes (T-01 alone)
+
+1. **The implementer is never told which files it may write**, and the refusal text it gets
+   omits even the file name. (Contrast: the record's `refusals` has the name; the prompt does
+   not.)
+2. **The judge's correct diagnosis is dropped** on the `implementation_wrong` path.
+3. **A refusal is treated as "no information about the code"** and yet the next prompt says to
+   regenerate "from the failure history as your only intelligence" — a write refusal carries no
+   code information at all, so the retry is blind by construction.
+4. **Nothing checks that the delivered revision differs from the baseline.**
