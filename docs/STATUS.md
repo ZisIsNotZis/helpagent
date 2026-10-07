@@ -335,7 +335,14 @@ against the same 32768-token server (`bench/runs/v2sweep-20261006T040753Z`, `...
 | --- | --- | --- | --- | --- | --- |
 | harness `full`, 8k server (33 tasks) | 20/33 (61%) | 12 | 8 | 2 | 96 s, 10.2 calls |
 | **harness `full`, 32k server (40 tasks)** | **22/40 (55%)** | 14 | **11** | **3** | 47 s, 8.5 calls |
-| **pi CLI, reasoning max + 32k (40 tasks)** | **27/40 (68%)** | 29 | - | **2** | 131 s, 8.9 turns |
+| **pi CLI, reasoning max + 32k (40 tasks)** | **27/40 (68%)** | 29 | 0 | **2** | 131 s, 8.9 turns |
+
+**pi's claim columns are not the same measurement as ours.** pi has no claim gate: its
+"claimed" is this driver's regex reading of its final assistant message, so "missed" is 0 by
+construction and its 11 non-claims are almost all *empty* final messages (10 of 40 records carry
+`claim_reason: no assistant message`, i.e. the turn was truncated) rather than an admission of
+failure. Only `actual` and `false success` are comparable across the two columns; on those, pi
+asserted success on a wrong result twice and we did so three times (section 8d).
 
 On the 21 tasks measured under both harness configurations, 8k fixed 16 and 32k fixed 14: **more
 context did not make our protocol better** (our prompts and evidence are bounded, so the window
@@ -363,6 +370,54 @@ grader rejects — the opposite failure of the same weak-model test-authoring pr
 
 Working record and the open decision (may an inverted-test block be sent to the judge, or does
 the rule stay absolute): `.scratch/26-pi-maxed/issues/26-pi-maxed.md`.
+
+### 8d. Why our actual pass rate is lower: the seven tasks only pi fixed
+
+The gap holds seven tasks on pi's side (T-01, T-05, T-07, T-14, T-16, T-28, T-31) against two on
+ours (T-33, T-35). Reading the per-attempt records, **six of the seven are our own machinery, not
+the model's capability:**
+
+| task | what our record shows | whose defect |
+| --- | --- | --- |
+| T-05 | our own written test (`test_tagger.py`) stayed RED and burned the attempts; the same code fixed this task at 8k (18 calls) | our self-test loop |
+| T-07 | own test died with ImportError, then independent test red; fixed at 8k (16 calls) | our self-test loop |
+| T-14 | fixed at 8k in 5 calls; at 32k the graded review marked all three criteria `violated` | review-driven iteration |
+| T-01 | **`touched_files: []`** — six refusals of `auth/sessions.py` (`grader-owned path`), so the run never wrote anything; the contract freezes that file and the fix belongs in `auth/config.py`, which the model never opened | refusal loop: no redirect after a refusal |
+| T-31 | per-attempt writes alternate `transport.py` / `client.py`, and each M1 attempt erases the draft, so the two files' fixes can never coexist in one revision | M1 erase vs multi-file tasks |
+| T-16 | stopped at 6 model calls of a 24-call budget (`ladder-exhausted`) | our early-exit rules |
+| T-28 | one attempt, own test never written, independent test `unobserved`, review approved a wrong `plugins/registry.py` | gate correlation (see below) |
+
+Details worth stating plainly:
+
+- **T-01's refusal is correct, its consequence is not.** `auth/sessions.py` is in the task's
+  `UNTOUCHED` contract (byte-identity), so refusing the write is right; the message says
+  "grader-owned path", which is misleading (the file is visible but frozen), and the loop then
+  counted six identical attempts and exited on `same-verdict tail` without ever prompting the
+  model to write a *different* file. The write-guard and the coverage gate both fire *after* the
+  model has chosen a target, so nothing in the loop is forced to re-plan.
+- **T-31 is the multi-file case the M1 erase cannot survive.** `_mode()` picks M1
+  (`_erase_draft`, which restores every written file to its pristine content) after any `same` or
+  `undecided` verdict; the write seam accepts one implementation file per attempt. A task whose
+  fix spans four files therefore cannot accumulate: the record shows exactly that oscillation,
+  and the run died on `attempt-cap` with the request-coverage gate naming the untouched files.
+  Best-evidence capture is ranked by *evidence* (own test / independent test / review), never by
+  how much of the required surface a revision covers, so the multi-file revision was not saved.
+- **The three false successes are one path, not three accidents.** All three (T-26, T-28, A-05)
+  ended `stop=green`, `claimed_basis=review`, **`self_test: null`** (no own test was ever
+  written) and **`iv approved=false`** (`independent-test-unobserved` for T-26/T-28;
+  `independent-test-not-discriminating` for A-05, whose 22-test suite pinned only AC1-4 while
+  AC5-21 were marked `satisfied` by the review). `claim_decision`'s own docstring makes this
+  deliberate: a vacuous or non-discriminating independent test "is NOT a red verdict and does
+  not block", and rule 6 lets a review carry the claim when the own test was never written. The
+  cost is that when the model keeps its own wrong reading, its own test, its independent test and
+  its reviewer all inherit that reading — agreement between checks that share the generator is
+  not evidence. pi has the same weak judge but no gate, so it lands in the same trap less often
+  (two false successes) only because its loop keeps working instead of declaring green early.
+
+None of these was fixed in this round: the sweep had to stay on one code revision, and the fixes
+change behaviour the owner has opinions about (the M1 erase, the early-exit ladder, the review-only
+claim path). They are the concrete agenda for the next round, in this order — refusal redirect,
+multi-file accumulation / coverage-ranked best-evidence, then the review-only claim path.
 
 **Asking a small model to write its own tests made a mature CLI WORSE (measured at 8k; see the
 caveat above).** On the same 40

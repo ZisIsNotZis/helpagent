@@ -98,3 +98,61 @@ verification blocks a review-backed claim"):
 Recommendation: **B**. Step 1 (recording `iv_inverted_tests` / `iv_unmet_tests`) is safe and
 does not touch the rule; it was deliberately NOT implemented during the sweep (a code change
 mid-sweep would have put two code versions into one evidence set).
+
+## Round 2 — trajectory forensics on the three owner questions (2026-10-06)
+
+The owner asked: why is our actual pass rate lower than pi's; why was pi's "missed" column a
+dash; and why do we have MORE false successes. Answers from the per-attempt records (no new
+model runs were made).
+
+### What the records show (`bench/runs/v2sweep-20261006T04*`)
+
+Seven tasks are pi-only wins: T-01, T-05, T-07, T-14, T-16, T-28, T-31. Six of the seven are
+our own machinery, not the model:
+
+| task | record evidence | defect |
+| --- | --- | --- |
+| T-05 | own test `test_tagger.py::test_tags_are_independent...` red in attempts 3-6, verdicts `same`; the SAME code passed this task at 8k (18 calls) | self-test loop |
+| T-07 | own test ImportError, then independent test red; passed at 8k (16 calls) | self-test loop |
+| T-14 | passed at 8k in 5 calls; at 32k the review marked all three criteria `violated` | review-driven iteration |
+| T-01 | `touched_files: []`, six `refusals: auth/sessions.py: grader-owned path`, exit on `same-verdict tail`; sessions.py is in the task's UNTOUCHED contract, the fix belongs in `auth/config.py` | refusal loop never re-plans |
+| T-31 | attempt writes alternate `transport.py` / `client.py`; `_mode()` returns M1 (`_erase_draft`) after each `same`/`undecided` verdict, erasing the other file's fix; ends `attempt-cap` with coverage naming the untouched files | M1 erase vs multi-file fixes |
+| T-16 | stopped at 6 model calls of a 24-call budget (`ladder-exhausted`) | early-exit ladder |
+| T-28 | 1 attempt, `self_test: null`, `iv approved=false (unobserved)`, review approved; grader: 4 failed | gate correlation |
+
+Three of the seven (T-05, T-07, T-14) were fixed by our own harness at 8k, so part of the gap is
+a 32k regression of ours rather than pi's superiority (N=1 per task).
+
+### pi's "missed" is not a dash, and the column is not comparable
+
+pi has no claim gate; the driver's `claimed` is a regex over its final assistant message.
+Counter over the 40 records: (claimed, actual) = (True, True) 27, (False, False) 11,
+(True, False) 2 => missed 0, false 2. Ten of the eleven non-claims are `claim_reason: no
+assistant message` (a truncated turn), not an admission of failure. Only `actual` and
+`false success` are comparable across the two agents. `docs/STATUS.md` 8c was corrected.
+
+### The false successes are one deliberate path
+
+All three of ours (T-26, T-28, A-05) ended `stop=green` with `claimed_basis=review`,
+`self_test: null` and `iv approved=false` (`independent-test-unobserved`, or
+`-not-discriminating` in A-05 where 22 IV tests pinned only AC1-4 and the review marked AC5-21
+satisfied). `claim_decision`'s docstring states this is by design: a vacuous/non-discriminating
+independent test "is NOT a red verdict and does not block", and rule 6 lets a review carry a
+claim when no own test was ever written. So a run that keeps a wrong reading of the request
+carries its own test, its independent test and its reviewer with it — correlated agreement, not
+evidence. That, not a new bug, is why our false-success count exceeds pi's.
+
+### Agenda for the next round (in order, none implemented yet — the sweep needed one code revision)
+
+1. **Refusal → re-plan**: after a refused write, the next attempt must be told the refusal and
+   the writable set, and must choose a different target; the current loop only counts the
+   attempt and eventually exits on a same-verdict tail (T-01).
+2. **Multi-file accumulation**: either keep a per-attempt draft (a non-erasing mode for
+   multi-artifact requests), or make best-evidence ranking coverage-aware so the most complete
+   revision is preserved across an M1 erase (T-31).
+3. **Early exit**: the ladder ends runs with most of the call budget unspent (T-16); separate
+   "the ladder has no new idea" from "the task is not done".
+4. **Review-only claim path**: require at least one *observed, discriminating* independent check
+   for a claim, or record that a claim rests on a single correlated reviewer (T-26/T-28/A-05).
+5. **Inversion detection** (from round 1): record `iv_inverted_tests` / `iv_unmet_tests`; owner
+   decision pending on whether the inverted case may reach the judge.
