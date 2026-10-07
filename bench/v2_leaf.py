@@ -40,7 +40,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -52,6 +52,8 @@ from bench.external_score import (  # noqa: E402
     untouched_paths,
 )
 from harness.budget import Budget, default_deadline  # noqa: E402
+from harness.telemetry import clear_sinks, jsonl_sink, set_sink
+from harness.telemetry import record as trace
 from harness.gate_report import JUNIT_FAMILY_ARGS  # noqa: E402
 from harness.leaf import (  # noqa: E402
     REVIEW_ANGLE_PROMPTS,
@@ -295,6 +297,32 @@ def build_spec(task: dict) -> LeafSpec:
         planned_reviews=("ac-correctness", "contract-compat"),
         verification_reason=(DEFAULT_VERIFICATION_REASON),
     )
+
+
+def _changed_vs_pristine(task_dir: Path, produced: Mapping[str, str]) -> dict[str, str]:
+    """Which delivered files differ from the corpus's pristine sources, and how.
+
+    ``unchanged`` is the class that matters: a run can end with nothing written (T-01,
+    T-05, T-34) or with a whitespace-only edit (T-13, T-16), and both used to fail the
+    grader silently. This is recorded on the delivery event so no analysis has to compare
+    bytes by hand afterwards.
+    """
+    out: dict[str, list[str]] = {"changed": [], "unchanged": [], "new": [], "deleted": []}
+    pristine = task_dir / "repo"
+    for rel, text in sorted(produced.items()):
+        source = pristine / rel
+        if not source.is_file():
+            out["new"].append(rel)
+        elif source.read_text() == text:
+            out["unchanged"].append(rel)
+        else:
+            out["changed"].append(rel)
+    for source in sorted(pristine.rglob("*")):
+        if source.is_file():
+            rel = str(source.relative_to(pristine))
+            if rel not in produced and not rel.endswith(".pyc"):
+                out["deleted"].append(rel)
+    return {k: v for k, v in out.items()}
 
 
 def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: list[str],
@@ -741,12 +769,33 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     # when no test can carry verification.
     review = (lambda request: model_review(model, request)) if use_review else None
     started = time.monotonic()
-    outcome = asyncio.run(run_leaf(model, spec, workdir, budget, judge=judge, iv=iv,
-                                   review=review, verification_mode=mode))
+    # Owner direction 2026-10-06: the trajectory is kept in FULL, always. One JSONL per
+    # run holds every model call (rendered prompt, raw answer, parsed envelope, tokens),
+    # every harness event, every write and test execution, and the delivery.
+    traj = out_dir / "trajectory.jsonl"
+    set_sink(jsonl_sink(traj))
+    try:
+        trace("run_start", task=task["task_id"], verify_mode=mode,
+               visible_source=sorted(spec.files), withheld_grader_paths=list(withheld),
+               write_forbidden=sorted(spec.grader_paths), acceptance_criteria=list(spec.acs),
+               planned_tests=[c.file for c in spec.planned_tests],
+               planned_reviews=list(spec.planned_reviews), workdir=str(workdir))
+        outcome = asyncio.run(run_leaf(model, spec, workdir, budget, judge=judge, iv=iv,
+                                       review=review, verification_mode=mode))
+    finally:
+        clear_sinks()
     wall = round(time.monotonic() - started, 1)
 
     produced = produced_files(workdir)
     score = external_score(task_dir, produced, out_dir / "grade")
+    set_sink(jsonl_sink(traj))
+    try:
+        trace("delivery", produced=sorted(produced), grader_passed=score.passed,
+               grader_exit=score.exit, grader_notes=list(score.notes),
+               claimed=bool(outcome.claimed), stop_reason=outcome.stop_reason,
+               changed_files=_changed_vs_pristine(task_dir, produced))
+    finally:
+        clear_sinks()
     quad = quadrant(outcome.claimed, score.passed)
     weakened = covenant_weakened(outcome)
     diluted = bool(outcome.claimed) and covenant_diluted(1 if weakened else 0, 1)

@@ -112,7 +112,7 @@ def test_how_list_from_envelope_assigns_ids_ranks_and_priors_from_order():
 
 def test_plan_node_binds_result_to_a_how_id():
     assert SCHEMAS["how_list"] is HowList
-    assert len(SCHEMAS) == 28  # ticket 20 step 2b-ii: +manager_decision
+    assert len(SCHEMAS) == 29  # ticket 26: +implement_write (the leaf source write)
     bound = PlanNode.model_validate({
         "status": "ok", "comment": "one how",
         "goal": "g", "behavior": "b", "implementation_notes": "n",

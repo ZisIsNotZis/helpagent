@@ -17,6 +17,7 @@ from pydantic import ValidationError
 
 from harness.envelopes import JUDGE_STEP_PREFIX, SCHEMAS, Envelope
 from harness.normalize import normalize_payload
+from harness.telemetry import jsonable_envelope, record
 
 # Step types whose envelope validators consume a validation context (ENVELOPE_SCHEMAS
 # §4/§6/§7/§9/§10: seam candidates + grounding, node_kind, boundary subset, ac_id ∈ map).
@@ -28,7 +29,12 @@ CONTEXT_SENSITIVE_STEPS = frozenset({"expand", "draft_acs", "write_spec", "test_
 # Code-carrying steps: the envelope content is a whole file and goes through the
 # tree-sitter parse-on-arrival + bounded repair respawn (DESIGN §4.7, harness/repair.py).
 # write_test is the only content-emitting schema left (ENVELOPE_SCHEMAS §24).
-CONTENT_STEPS = frozenset({"write_test"})
+CONTENT_STEPS = frozenset({"write_test", "implement_write"})
+
+#: The label the model sees for a step. ``implement_write`` is the leaf's source write;
+#: showing it as ``implement`` keeps the prompt in the vocabulary a model expects
+#: (ticket 26: it used to read "STEP: write_test" while asking for a source fix).
+STEP_DISPLAY = {"implement_write": "implement"}
 
 # ---------------------------------------------------------------------------
 # Byte-stable prefix — scaffold + static standing knowledge only (DESIGN §2.7).
@@ -136,7 +142,7 @@ def compose_prompt(
             "- \"status\" describes YOUR edit, never the test results: \"ok\" = you are "
             "returning the complete new file as instructed, even if other tests still fail. "
             "Do not set \"failed\" just because the tests currently fail.")
-    parts.append(f"STEP: {step_type}")
+    parts.append(f"STEP: {STEP_DISPLAY.get(step_type, step_type)}")
     if role:
         parts.append(f"ROLE: {role}")
     if fresh:
@@ -259,6 +265,11 @@ async def llm_step(
                 failure_message = (
                     f"{step_type}: output was malformed JSON — attempt erased, failure summary only"
                 )
+                record("model_call", step_type=step_type, role=role, fresh=fresh,
+                       best_of_n=best_of_n, prompt=prompt, question=question,
+                       artifacts=dict(artifacts or {}), raw=out, envelope=None,
+                       status="malformed-json", error=f"offset {exc.pos}",
+                       metrics=metrics, wall_s=wall_model_s)
                 continue
         else:
             payload = out
@@ -299,6 +310,12 @@ async def llm_step(
                     note("candidate_unparseable", step_type=step_type)
                     fallback, envelope = envelope, None
                     continue
+            record("model_call", step_type=step_type, role=role, fresh=fresh,
+                   best_of_n=best_of_n, prompt=prompt, question=question,
+                   artifacts=dict(artifacts or {}), raw=out,
+                   envelope=jsonable_envelope(envelope), status="ok",
+                   tolerances=list(tolerance_notes), metrics=metrics,
+                   wall_s=wall_model_s)
             break
         except ValidationError as exc:
             # the full pydantic detail (incl. offending values) is ledger evidence —
@@ -308,19 +325,28 @@ async def llm_step(
             failure_message = (
                 f"{step_type}: schema violation: {first_msg} — attempt erased, failure summary only"
             )
+            record("model_call", step_type=step_type, role=role, fresh=fresh,
+                   best_of_n=best_of_n, prompt=prompt, question=question,
+                   artifacts=dict(artifacts or {}), raw=out, envelope=None,
+                   status="schema-violation", error=str(exc),
+                   tolerances=list(tolerance_notes), metrics=metrics,
+                   wall_s=wall_model_s)
     if envelope is None:
         if fallback is not None:
             envelope = fallback   # nothing parsed — the repair path still gets its one respawn
         else:
             raise SchemaViolation(failure_message or f"{step_type}: no candidates produced")
 
-    if repair and envelope.status == "ok" and step_type in CONTENT_STEPS:
+    if repair and envelope.status == "ok" and step_type in CONTENT_STEPS and isinstance(
+            getattr(envelope, "content", None), str):
         from harness.repair import repair_code  # lazy: repair imports runner.llm_step
 
         repaired = await repair_code(envelope.content, model, step_type, question,
                                      context=context,
                                      ground_truth={k: str(v) for k, v in (artifacts or {}).items()})
         if repaired != envelope.content:
+            record("model_output_repaired", step_type=step_type, before=envelope.content,
+                   after=repaired)
             envelope.content = repaired
 
     note("step_completed", step_type=step_type)

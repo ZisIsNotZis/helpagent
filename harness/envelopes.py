@@ -460,6 +460,45 @@ class WriteTest(Envelope):
     content: str = req(min_length=1)  # complete file — whole-file, never diffs (§10)
 
 
+class FileContent(NestedModel):
+    file_path: str = req(min_length=1)
+    content: str = req(min_length=1)
+
+
+class ImplementWrite(Envelope):
+    """§11b: the leaf's SOURCE write — the complete new content of the files to change.
+
+    Ticket 26 (owner direction 2026-10-06). Two defects this replaces:
+
+    1. the leaf used to issue this step as ``write_test`` (the self-test schema), so the
+       prompt read "STEP: write_test" while asking for a source fix; it now has its own
+       step type and its own schema;
+    2. it carried exactly ONE file, and the question said so ("Emit the complete new
+       content of ONE implementation file"), which is false for a multi-site fix such as
+       T-31 (four call sites) — the run could never land two files in one revision.
+       ``files`` accepts up to 10, bounded by the leaf write boundary the caller injects.
+
+    Parameter-layer tolerance (owner policy): a well-formed single-file answer
+    (``file_path`` + ``content``) is the same intent as a one-element ``files`` list, so it
+    is promoted rather than refused — the field is a parameter, the intent is not.
+    """
+
+    files: list[FileContent] = req(min_length=1, max_length=10)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_single_file(cls, data: object) -> object:
+        if isinstance(data, dict) and "files" not in data and "file_path" in data:
+            path, content = data.get("file_path"), data.get("content")
+            if isinstance(path, str) and isinstance(content, str):
+                promoted = dict(data)
+                promoted["files"] = [{"file_path": path, "content": content}]
+                promoted.pop("file_path", None)
+                promoted.pop("content", None)
+                return promoted
+        return data
+
+
 # ---------------------------------------------------------------------------
 # §11 implement
 # ---------------------------------------------------------------------------
@@ -984,6 +1023,7 @@ SCHEMAS: dict[str, type[Envelope]] = {
     "test_plan": TestPlan,  # §9
     "write_test": WriteTest,  # §10
     "implement": Implement,  # §11
+    "implement_write": ImplementWrite,  # §11b (the leaf's source write; see the class doc)
     "failure_judge": FailureJudge,  # §12
     "identify_bugs": IdentifyBugs,  # §13
     "propose_probe": ProposeProbe,  # §14

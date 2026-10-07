@@ -187,6 +187,11 @@ class Attempt(BaseModel):
     verdict: Novelty | None = None   # filled by prefilter or judge
     judge: JudgeVerdict | None = None  # the independent attribution, when one was consulted
     calls_used: int = 1
+    #: Ticket 26: the write was REFUSED before it reached disk (a frozen/grader path, a
+    #: test path, or a bad target shape). Nothing was learned about the code, so the
+    #: escalation must not treat this like "the same attempt again" — see
+    #: :func:`harness.leaf._mode` / ``_implement_question``.
+    refused: bool = False
     at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

@@ -39,7 +39,7 @@ def test_envelope_rejects_missing_self_summary():
 def test_unable_alternative_is_in_every_envelope_schema():
     """Iterate the per-leaf-type schema library; assert each has a discriminant
     accepting `unable: reason` — and that the unable alternative actually parses."""
-    assert len(SCHEMAS) == 28  # ticket 20 step 2b-ii: +manager_decision
+    assert len(SCHEMAS) == 29  # ticket 26: +implement_write (the leaf source write)
     for step_type, model in SCHEMAS.items():
         assert issubclass(model, Envelope), step_type
         values = get_args(model.model_fields["status"].annotation)
@@ -52,6 +52,7 @@ def test_unable_alternative_is_in_every_envelope_schema():
 
 
 VALID_PAYLOADS = {
+    "implement_write": {"files": [{"file_path": "pkg/calc.py", "content": "def result():\n    return 42\n"}]},
     "fix_plan": {"steps": ["locate the env lookup", "return env before default", "keep default types"]},
     "task_card": {"task_class": "bugfix", "goal": "Fix session expiry."},
     "find_ambiguities": {"items": []},
@@ -444,6 +445,7 @@ def _nested_models_across_schemas():
 #: refuses to run if a nested model is discovered without an entry here, so a new nested
 #: model cannot be added without a presence-check fixture.
 NESTED_VALID_PAYLOADS: dict[str, dict] = {
+    "FileContent": {"file_path": "pkg/calc.py", "content": "x = 1\n"},
     "Ambiguity": {"kind": "needs-user", "topic": "requirement", "question": "q"},
     "ChildFill": {"seam_id": "seam-1", "what": "w", "why": "y", "leaf": True,
                   "est_rounds": 3},

@@ -272,6 +272,7 @@ from harness.gate_report import (
 )
 from harness.questions import Question, QuestionQueue
 from harness.runner import llm_step, note
+from harness.telemetry import jsonable_envelope, record
 from harness.staging import (
     PYTEST_ISOLATION_ARGS,
     gate_env,
@@ -2536,10 +2537,24 @@ def _history_text(attempts: Sequence[Attempt]) -> str:
 
 def _mode(attempts: Sequence[Attempt]) -> str:
     """M2 first (keep the draft, ask "do you have a new idea?"); M1 once a ``same``
-    or ``undecided`` verdict says the draft is stuck (erase and regenerate)."""
+    or ``undecided`` verdict says the draft is stuck (erase and regenerate).
+
+    Ticket 26: a REFUSED write never reached disk, so there is no draft to erase — after a
+    refusal the mode is M2 and the question says what actually happened (the file is
+    frozen, here is what you may write) instead of the M1 wording that told the model to
+    regenerate "from the failure history as your only intelligence" (a write refusal
+    carries no information about the code at all).
+    """
     if not attempts:
         return "M2"
+    if attempts[-1].refused:
+        return "M2"
     return "M2" if attempts[-1].verdict == "novel" else "M1"
+
+
+def _last_refused(attempts: Sequence[Attempt]) -> bool:
+    """True when the last attempt's write was refused (T-01: six of them in a row)."""
+    return bool(attempts) and bool(attempts[-1].refused)
 
 
 def _claims_test_wrong(env: Any) -> bool:
@@ -3603,6 +3618,7 @@ async def _run_iv_gate(
             res = await _maybe_await(run_tests, root)
         else:
             res = await _maybe_await(run_tests, root, node_ids=node_ids)
+        _record_test_run(f"private-copy:{iv_path}", res)
     return res, getattr(res, "gate", None)
 
 
@@ -3848,10 +3864,22 @@ def _implement_artifacts(
     mode: str,
     baseline: Mapping[str, str | None],
 ) -> dict[str, str]:
+    # Ticket 26 (T-01): the run was never told which files it MAY write, was never told
+    # when a named artifact was still untouched, and got a refusal message that did not
+    # even name the file. All three are now injected ground truth.
+    forbidden = set(spec.grader_paths)
+    writable = [rel for rel in sorted(spec.files) if rel not in forbidden]
+    frozen = [rel for rel in sorted(forbidden) if rel in spec.files]
+    untouched = _request_artifact_messages(_request_coverage(spec, workdir, baseline))
     return {
         "goal": spec.goal,
         "acceptance_criteria": "\n".join(f"- {a}" for a in spec.acs),
         "interfaces": "\n".join(f"- {i}" for i in spec.interfaces),
+        "writable_files": "\n".join(f"- {rel}" for rel in writable) or "(none)",
+        "frozen_files": "\n".join(
+            f"- {rel}: this file must stay byte-identical (the task contract freezes it)"
+            for rel in frozen) or "(none)",
+        "untouched_required_artifacts": "\n".join(f"- {m}" for m in untouched) or "(none)",
         "current_files": json.dumps(_repo_view(spec, workdir, tuple(baseline)),
                                     ensure_ascii=False),
         "self_test": _read(workdir, self_test),
@@ -3863,25 +3891,37 @@ def _implement_artifacts(
     }
 
 
-def _implement_question(mode: str, esc: Escalation) -> str:
-    if mode == "M2":
+def _implement_question(mode: str, esc: Escalation, last_refused: bool = False) -> str:
+    if last_refused:
+        lead = ("Your previous write was REFUSED before it reached disk, so you did not "
+                "change anything and you learned nothing about the code. Do NOT repeat "
+                "that target. Pick a different file from ``writable_files`` and explain "
+                "in 'comment' which file the defect is in and why. If no writable file can "
+                "carry the fix, say so with status=blocked and name the file that must "
+                "change. ")
+    elif mode == "M2":
         lead = ("You still hold your current draft. Do you have a new idea? Keep what "
                 "works and change only what the failure requires. ")
     else:
-        lead = ("Your previous draft was erased. Regenerate the target file from the "
-                "failure history as your only intelligence. ")
+        lead = ("Your previous draft was erased. Regenerate the file from the failure "
+                "history plus the failure output below. ")
     if esc.strategy == "L2-guided":
         lead += "First enumerate the ordered fix steps, then emit the complete file. "
     elif esc.strategy == "L3-deeper-explore":
-        lead += "Explore the repository view more deeply before writing. "
+        lead += ("Check every file in current_files against the acceptance criteria before "
+                 "writing; a defect often sits in the file that DEFINES a value, not the "
+                 "one that uses it. ")
     elif esc.strategy == "L4-rule-diagnosis":
         lead += f"Apply this deterministic diagnosis: {esc.detail}. "
     elif esc.strategy == "L5-review-judge":
         lead += "An independent review is watching; justify the change against the goal. "
     return (
         lead
-        + "Emit the complete new content of ONE implementation file (file_path + content). "
-        "Never edit a test file or a grader path — fix the source."
+        + "Emit the complete new content of the file(s) you are changing, as "
+        "{\"status\": \"ok\", \"comment\": \"...\", \"files\": [{\"file_path\": ..., "
+        "\"content\": ...}]}. A task may need more than one file: change every file that "
+        "needs it, and name any remaining ones in 'comment'. Never write a test file or a "
+        "grader path — fix the source."
     )
 
 
@@ -3915,6 +3955,16 @@ def _source_view(spec: LeafSpec) -> dict[str, str]:
 
 async def _request_write(model: Any, artifacts: dict[str, str], question: str) -> Any:
     return await llm_step(model, "write_test", artifacts=artifacts, question=question)
+
+
+async def _request_implement(model: Any, artifacts: dict[str, str], question: str) -> Any:
+    """The SOURCE write (ticket 26): its own step type, its own schema, N files.
+
+    It used to be issued as ``write_test`` — the self-test schema — so the prompt read
+    "STEP: write_test" while asking for a source fix, and the envelope carried exactly one
+    file, which made a multi-site fix impossible to land in one revision.
+    """
+    return await llm_step(model, "implement_write", artifacts=artifacts, question=question)
 
 
 def _normalize_test_path(rel: str, spec: LeafSpec, workdir: Path) -> tuple[str, str]:
@@ -4213,6 +4263,9 @@ async def run_leaf(
 
     def emit(kind: str, **data: Any) -> None:
         note(kind, **data)
+        # The event name rides its own field so an event whose payload contains a
+        # ``kind`` key cannot collide with the trajectory record's own discriminator.
+        record("harness_event", event=kind, data=dict(data))
         if on_event is not None:
             on_event(kind, data)
 
@@ -4749,6 +4802,7 @@ async def run_leaf(
                     return "stop"
                 test_rewrites += 1
                 rres = await _maybe_await(tests, workdir)
+                _record_test_run("own-test-repair", rres)
                 record_gate(rres)
                 if not _own_test_collectible(getattr(rres, "gate", None), self_test):
                     # Ticket 23 item 4: a REPAIRED test that still cannot be collected is
@@ -4810,6 +4864,14 @@ async def run_leaf(
             emit("test_repair_unavailable",
                  status=getattr(repaired, "status", "unknown"))
         # implementation_wrong alone (or an uncredited/ambiguous verdict): keep implementing
+        # Ticket 26: the judge's own words are the most specific diagnosis the run has —
+        # T-01's judge named the exact defect ("SESSION_TTL_SECONDS is 60") and the old code
+        # dropped it, so the next attempt got only "implement refused: grader-owned path".
+        diagnosis = verdict.defect or verdict.reason or verdict.evidence
+        if diagnosis:
+            attribution_label = verdict.attribution or "the implementation"
+            last_excerpts = [f"the judge attributed this failure to {attribution_label}: "
+                             f"{diagnosis}"]
         return "implementation"
 
     def stop(sig: str, reason: str, why: str, *, exhausted: bool = False,
@@ -5611,6 +5673,7 @@ async def run_leaf(
 
         if verification_basis == "test":
             res = await _maybe_await(tests, workdir)
+            _record_test_run("own-test", res)
             gate = record_gate(res)
             if _is_green(res):
                 # A test that passes on arrival does not exercise the failure. Re-ask ONCE
@@ -5653,6 +5716,7 @@ async def run_leaf(
                     else:
                         self_test = normalized
                         res = await _maybe_await(tests, workdir)
+                        _record_test_run("own-test-reask", res)
                         gate = record_gate(res)
             if verification_basis == "test" and (
                     _exit_code(res) is None or (gate is not None and not gate.observed)):
@@ -5746,6 +5810,7 @@ async def run_leaf(
             continue
 
         mode = _mode(attempts)
+        write_refused_now = False   # ticket 26: set when this attempt's write was refused
         pending_verdict: JudgeVerdict | None = None
         judge_attempted = False   # FIX 2: at most one judge consultation per attempt
         review_approved = False   # ticket 20: recomputed each attempt (review angles)
@@ -5762,10 +5827,10 @@ async def run_leaf(
         # recomputed from THIS attempt's evidence, never carried over from an earlier one.
         current_rank, current_tier = 0, ""
         env, failure = await request_bounded(
-            partial(_request_write, model,
+            partial(_request_implement, model,
                     _implement_artifacts(spec, workdir, esc, attempts, last_excerpts,
                                          self_test, mode, baseline),
-                    _implement_question(mode, esc)),
+                    _implement_question(mode, esc, _last_refused(attempts))),
             "implement")
         if failure == "calls":
             stop("honest-failure", "call-budget", "calls")
@@ -5809,21 +5874,50 @@ async def run_leaf(
                 # uncredited and the run keeps implementing.
 
         # normal path: write the source candidate (guarded) and run the tests
-        wrote, source_rel, refusal, shape = _write_candidate(env, spec, workdir, self_test, baseline)
-        if shape:
+        # Ticket 26: the source write accepts up to N files (a multi-site fix such as T-31
+        # has four call sites). Every file still goes through the SAME blind write guard.
+        write_status = getattr(env, "status", "unable")
+        pairs: list[tuple[str, str]] = (
+            [(fc.file_path, fc.content) for fc in (getattr(env, "files", None) or [])]
+            if write_status == "ok" else []
+        )
+        written: list[str] = []
+        refused_pairs: list[tuple[str, str]] = []
+        shape_problem: tuple[str, str] | None = None
+        if write_status != "ok":
+            refused_pairs.append(("", f"status={write_status}"))
+        for rel_i, content_i in pairs:
+            ok_i, rel_out, problem_i, shape_i = _write_one(rel_i, content_i, spec, workdir,
+                                                           self_test, baseline)
+            if shape_i:
+                shape_problem = (rel_out, problem_i)
+                break
+            if ok_i:
+                written.append(rel_out)
+            else:
+                refused_pairs.append((rel_out, problem_i))
+        wrote = bool(written)
+        source_rel = written[0] if written else (refused_pairs[0][0] if refused_pairs else "")
+        refusal = "; ".join(f"{r}: {p}" for r, p in refused_pairs)
+        write_refused_now = bool(refused_pairs)
+        if shape_problem is not None:
             # A bad target SHAPE on a source write has no safe normalization (we cannot
             # guess which file the model meant), so stop honestly instead of raising.
-            refusals.append(f"{source_rel}: {refusal} (un-normalizable target shape)")
-            emit("write_shape_refused", path=source_rel, reason=refusal)
-            stop("honest-failure", f"un-normalizable write target: {refusal}", "write-shape")
+            refusals.append(f"{shape_problem[0]}: {shape_problem[1]} (un-normalizable target shape)")
+            emit("write_shape_refused", path=shape_problem[0], reason=shape_problem[1])
+            stop("honest-failure", f"un-normalizable write target: {shape_problem[1]}",
+                 "write-shape")
             break
-        if refusal:
-            # A refused source write (a test path, test infrastructure, a grader path,
-            # or a module-shadow path) never touches the tree and never runs the gate;
-            # the attempt is recorded and the ladder continues.
-            refusals.append(f"{source_rel}: {refusal}")
-            emit("implement_refused", path=source_rel, reason=refusal)
-            last_excerpts = [f"implement refused: {refusal}"]
+        if refused_pairs:
+            # A refused source write (a test path, test infrastructure, a grader/frozen
+            # path, or a module-shadow path) never touches the tree and never runs the
+            # gate. The model is told WHICH path, WHY, and what it may write instead
+            # (ticket 26: the old text was "implement refused: grader-owned path" with no
+            # file name at all, and the model repeated the same target six times).
+            for rel_r, problem_r in refused_pairs:
+                refusals.append(f"{rel_r}: {problem_r}")
+                emit("implement_refused", path=rel_r, reason=problem_r)
+            last_excerpts = [_refusal_feedback(refused_pairs, spec)]
         if raw_mode and wrote and source_rel:
             # Ticket 25 RAW = DEVELOPMENT ONLY: no tests, no independent test, no review,
             # no claim. The model's first landed implementation is the development answer,
@@ -5841,6 +5935,7 @@ async def run_leaf(
         res = (await _maybe_await(tests, workdir)
                if wrote and verification_mode in ("full", "test") else None)
         if res is not None:
+            _record_test_run("attempt", res)
             record_gate(res)
             last_excerpts = excerpts_of(res)
 
@@ -5911,9 +6006,10 @@ async def run_leaf(
             strategy=esc.strategy or "L1-resample",
             claimed_delta=getattr(env, "comment", "") or "",
             failure_signature=signature,
-            touched_files=[source_rel] if wrote else [],
+            touched_files=list(written),
             outcome="pass" if approved else "fail",
             judge=pending_verdict,
+            refused=write_refused_now,
         )
         if not wrote:
             candidate.verdict = "same"
@@ -6276,21 +6372,70 @@ async def run_leaf(
     return finish()
 
 
-def _write_candidate(
-    env: Any, spec: LeafSpec, workdir: Path, self_test: str | None,
+def _sha(text: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _record_test_run(label: str, res: Any) -> None:
+    """Archive one test execution: the command, the exit status and the output tails.
+
+    The shaping layer caps each stream at 8 KiB, so storing the tails is the most
+    complete evidence that exists at this point; the gate report rides along when the
+    runner attached one.
+    """
+    if res is None:
+        return
+    gate = getattr(res, "gate", None)
+    record(
+        "test_run", label=label,
+        command=list(getattr(res, "command", []) or []),
+        exit=getattr(res, "exit", None),
+        verdict=getattr(res, "verdict", ""),
+        policy_blocked=getattr(res, "policy_blocked", None),
+        n_failures=getattr(res, "n_failures", None),
+        duration_s=getattr(res, "duration_s", None),
+        excerpts=list(getattr(res, "excerpts", []) or []),
+        stdout_tail=getattr(res, "stdout_tail", ""),
+        stderr_tail=getattr(res, "stderr_tail", ""),
+        gate=jsonable_envelope(gate) if hasattr(gate, "model_dump") else gate,
+    )
+
+
+def _refusal_feedback(pairs: Sequence[tuple[str, str]], spec: LeafSpec) -> str:
+    """What the model is told after a refused write (ticket 26, the T-01 defect).
+
+    The text it used to get was "implement refused: grader-owned path" — no file name, no
+    reason, and no statement of what it MAY write instead. T-01's model therefore retried
+    the same frozen path six times, and the run delivered an unchanged file.
+    """
+    forbidden = set(spec.grader_paths)
+    writable = [rel for rel in sorted(spec.files) if rel not in forbidden]
+    lines = ["YOUR WRITE WAS REFUSED — nothing was written to disk:"]
+    for rel, problem in pairs:
+        lines.append(f"  - {rel or '(no file_path given)'}: {problem}")
+    lines.append("  A refused path cannot be changed by this run at all (frozen by the task "
+                 "contract, grader-owned, a test path, or a bad target shape).")
+    lines.append("Files this run MAY write: " + (", ".join(writable) or "(none)"))
+    lines.append("Choose a DIFFERENT file from that list and say in your comment which file "
+                 "the defect is in and why; if the defect cannot be fixed in any of them, "
+                 "answer status=blocked and name the file that must change.")
+    return "\n".join(lines)
+
+
+def _write_one(
+    rel: str, content: str, spec: LeafSpec, workdir: Path, self_test: str | None,
     baseline: dict[str, str | None],
 ) -> tuple[bool, str, str, bool]:
-    """Apply an implementation envelope through the blind write guard.
+    """Apply ONE file through the blind write guard.
 
-    Returns ``(wrote, rel, refusal, shape)``. ``shape`` is True when the ONLY problem
-    is an un-normalizable target shape (an existing directory at the target, or a path
-    component that is an existing file): the caller stops honestly instead of raising
-    ``IsADirectoryError``/``FileExistsError``. Any other refusal does not touch the
-    tree; the loop records it as a red attempt and lets the ladder advance.
+    Returns ``(wrote, rel, refusal, shape)``. ``shape`` is True when the ONLY problem is an
+    un-normalizable target shape (an existing directory at the target, or a path component
+    that is an existing file): the caller stops honestly instead of raising
+    ``IsADirectoryError``/``FileExistsError``. Any other refusal does not touch the tree;
+    the loop records it as a red attempt and lets the ladder advance.
     """
-    if getattr(env, "status", "unable") != "ok":
-        return False, "", f"status={getattr(env, 'status', 'unknown')}", False
-    rel = _env_path(env)
     if not rel:
         return False, "", "no file_path", False
     problem = _source_write_problem(rel, spec, self_test)
@@ -6306,14 +6451,31 @@ def _write_candidate(
         if rel not in baseline:
             target = workdir / rel
             baseline[rel] = target.read_text() if target.exists() else None
-        _write(workdir, rel, env.content)
+        _write(workdir, rel, content)
     except WriteShapeRefused as exc:
         # The shape probe above did not anticipate this one; it is still a write-shape
         # refusal (F3), never a crash.
+        record("source_write_refused", path=rel, reason=exc.detail, shape=True)
         return False, rel, exc.detail, True
     except (ValueError, OSError) as exc:      # embedded NUL / ENAMETOOLONG on the probe-free path
+        record("source_write_refused", path=rel,
+               reason=f"unwritable path ({type(exc).__name__}: {exc})", shape=True)
         return False, rel, f"unwritable path ({type(exc).__name__}: {exc})", True
+    record("source_write", path=rel, sha256=_sha(content),
+           bytes=len(content.encode("utf-8")), baseline_was=baseline.get(rel),
+           changed=(baseline.get(rel) != content))
     return True, rel, "", False
+
+
+def _write_candidate(
+    env: Any, spec: LeafSpec, workdir: Path, self_test: str | None,
+    baseline: dict[str, str | None],
+) -> tuple[bool, str, str, bool]:
+    """Single-file wrapper kept for the self-test path and the unit tests."""
+    if getattr(env, "status", "unable") != "ok":
+        return False, "", f"status={getattr(env, 'status', 'unknown')}", False
+    return _write_one(_env_path(env), getattr(env, "content", ""), spec, workdir,
+                      self_test, baseline)
 
 
 def _no_red_judge_request(
