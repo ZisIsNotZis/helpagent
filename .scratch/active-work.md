@@ -5,6 +5,10 @@ As of 2026-10-01 (handover while the owner was away).
 **Read first:** [`../docs/STATUS.md`](../docs/STATUS.md) — what works, what was measured,
 what is known not to work, and the recommended next steps.
 
+**The flow itself:** [`../docs/FLOW.md`](../docs/FLOW.md) — the owner spec for how a task is
+processed (one flow, exploration in every step, node structure, execution, verdict). Where the
+older `docs/DESIGN.md` §10 describes a different layering, FLOW.md wins.
+
 **Then, if you are changing code:** [`../docs/DESIGN.md`](../docs/DESIGN.md) §10 (the v2 flow)
 and §10.10 (implemented vs designed-but-not-built).
 

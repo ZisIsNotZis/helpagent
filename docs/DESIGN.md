@@ -308,6 +308,12 @@ response is FLOW TIERING, not deletion:
 
 ---
 
+> **The flow is specified in [`docs/FLOW.md`](FLOW.md) (owner spec, 2026-10-06).** This
+> section describes the leaf/tree layering as built; where the two disagree, FLOW.md wins —
+> in particular there is ONE flow (a single leaf is a tree of one node), every node step may
+> explore, implementation and test authoring run in parallel, and a node declares four lists
+> (docs/files/tests/reviews) whose emptiness requires a reason.
+
 ## 10. v2 flow (owner direction 2026-09-29 — supersedes the single-leaf contract in §4.8/§5)
 
 ### 10.1 Fixed steps, code-aware
