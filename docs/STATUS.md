@@ -262,7 +262,7 @@ real config is never touched), a bwrap sandbox, and the same external grader. Me
 | **pi CLI, request only, reasoning max + 32k (8b)** | **27/40 (68%)** | 29 | **2** | 8.9 turns/task, 131 s |
 | **pi CLI + an explicit "write and run your own tests" instruction** | **16/40 (40%)** | 22 | **6** | ~8 turns/task, 90-160 s |
 | our minimal agent loop (`bench/v2_agent.py`) | 0/6 (hard subset) | n/a | n/a | - |
-| our plain one-shot driver (`bench/v2_free.py`) | 3/12 | n/a | n/a | 1 call |
+| our plain one-shot driver (`bench/v2_free.py`, **removed 2026-10-06**) | 3/12 (historical) | n/a | n/a | 1 call |
 
 \* the `full` arm hit the 25-minute per-lane cap at 33 of 40 tasks; the number is on the 33 that
 ran, which is why the comparison table in section 1a uses the tasks every arm completed.

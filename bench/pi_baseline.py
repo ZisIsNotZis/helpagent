@@ -3,7 +3,8 @@
 
 Owner question (twice): a full coding agent such as pi is not our minimal loop, so what
 does IT do with the same small local model (Spark-X2.5-4B) on the same corpus tasks?
-:mod:`bench.v2_agent` answers that for a hand-rolled list/read/write/run loop (measured
+the hand-rolled list/read/write/run baseline that used to answer this for a
+plain agent loop (measured
 at 0/6). This driver answers it for pi itself, and it keeps the comparison honest:
 
 1. the task is staged SOURCE-ONLY (``harness.staging.stage_blind``) into a temp workdir,
