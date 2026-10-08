@@ -28,36 +28,57 @@ Every step — (A), every (B), every judge/review call — **may explore**.
 
 ## 2. The node structure — fields
 
-One model step produces the whole node. `req` = must be present; `opt` = may be empty, never null.
+There is **no `kind`**: whether a node splits is expressed by whether its Hows declare children.
+There is **no budget estimate**: nobody can estimate calls for a step that has not happened.
+
+### 2.1 The node
 
 | field | type | notes |
 | --- | --- | --- |
-| `kind` | `leaf` \| `internal` | a leaf executes (§4); an internal node only splits |
-| `description` | str `req` | what this node is and why; the goal it owns |
-| `reason` | str `req` | **ONE reason field for the whole node**, required whether the lists are empty or not: why this shape — why these files/tests/reviews/docs, why any of them is empty, why these approaches in this order |
-| `acs` | [str] | the acceptance criteria this node owns; a leaf needs ≥1 |
-| `interfaces` | [str] `opt` | names/signatures the node is allowed to rely on |
-| `docs_updates` | [DocUpdate] `opt` | see §3 |
-| `files` | [FileChange] `opt` | see §3; **empty means "no restriction"** |
-| `tests` | [DeclaredTest] `opt` | see §3 |
-| `reviews` | [ReviewAngle] `opt` | see §3 |
-| `approaches` | [Approach] `req` (≥1) | ordered by rank = position; see §3 |
-| `est_calls` | int `req` | the node's own budget estimate |
+| `description` | str `req` | the node's basic description: what it is, in the user's terms |
+| `hows` | [How] `req` (≥1) | ordered: position = priority (1 first) |
 
-### 3. The four lists and the approaches — item fields
+That is the whole node. **Everything else lives under a How**, because different approaches
+touch different files, need different tests and deserve different review angles.
 
-There is **no per-item reason**; the node's single `reason` covers them.
+### 2.2 A How (an implementation approach)
+
+| field | type | notes |
+| --- | --- | --- |
+| `rank` | int | 1 = first; the run executes them in order, non-redundantly |
+| `what` | str `req` | the concrete plan: what this approach does |
+| `reason` | str `req` | **ONE reason for this How** — required whether the lists are empty or not: why these files/tests/reviews/docs, why any of them is empty, why this ordering, why anything was dropped |
+| `docs_updates` | [DocUpdate] `opt` | may be empty |
+| `files` | [FileChange] `opt` | may be empty |
+| `tests` | [DeclaredTest] `opt` | may be empty |
+| `reviews` | [ReviewAngle] `opt` | may be empty |
+| `interfaces` | [str] `opt` | names/signatures this approach may rely on (currently always empty in practice) |
+| `children` | [node] `opt` | `[]` = this How runs as a single work unit; non-empty = it splits, and each child is a node of this same shape |
+
+**Empty means DOES NOT EXIST, never "unrestricted".** `files: []` says this approach changes no
+source file at all (a docs-only requirement is exactly that); it does NOT license writing
+anything. A write outside the declared `files` is therefore a **deviation**: allowed (writes are
+never refused), recorded, and it forces a node update (§6.2) — the How's `files` is extended, with
+its `reason` updated. The same reading applies to `tests` and `reviews`: empty means this approach
+declares none.
+
+### 2.3 The four lists — item fields
 
 | item | fields |
 | --- | --- |
-| `DocUpdate` | `path` (str), `what` (str: the doc change) |
-| `FileChange` | `path` (str), `action` (`create` \| `change`), `what` (str) |
-| `DeclaredTest` | `ac_ids` ([str] — which criteria it pins), `file` (str), `names` ([str] — test node names), `what` (str — the behaviour asserted) |
-| `ReviewAngle` | `angle` (str — e.g. `ac-correctness`, `contract-compat`, `security`, …), `what` (str — what the reviewer must establish) |
-| `Approach` | `rank` (int; 1 = first), `what` (str — the concrete plan), `est_calls` (int), `children` ([node] — `[]` = this approach does not split) |
+| `DocUpdate` | `path` (str), `what` (str) |
+| `FileChange` | `path` (str), `what` (str), and optionally `region` (a line range/symbol/anchor) with `change` (what to change there) — a file entry may be as coarse as a whole file or as fine as one region |
+| `DeclaredTest` | `file` (str), `cases` ([str] — the test node names this entry adds), `what` (str — the behaviour each pins), optionally `kind` (`unit` \| `integration`) |
+| `ReviewAngle` | `angle` (str, from our predefined angle list), `what` (str — what the reviewer must establish) |
 
-A node with no docs, no files, no tests and no reviews is legal **only** with a `reason` that says
-why; the reason is what makes it honest.
+### 2.4 Where the "acceptance criteria" went
+
+Nowhere: **the criteria ARE the declared tests and reviews.** The old flow extracted criteria by
+splitting the user's text into sentences, which is how T-01's own test ended up asserting "a
+session must expire exactly 60 seconds" — the reported symptom read back as the requirement.
+Instead, evidence is now per declared check: the ledger lists every declared test and review, its
+state (§4), and the evidence for that state. A How that declares no check anywhere still has to
+say why in its `reason`.
 
 ## 4. Execution and the three states
 
@@ -112,8 +133,9 @@ integration check passed; `fail` if any child failed; otherwise `uncertain`.)
   pristine source; **green before, red after = regression** → blocks the claim, drives another
   iteration.
 - **Nothing else counts.** Touching one file or a thousand makes no difference; there is **no
-  refusal for an "unexpected" file**. The writable set is what the node declared in `files[]`;
-  **empty `files[]` means everything visible is writable.**
+  refusal for an "unexpected" file**. The writable set is what the executing How declared in `files[]`; empty means that How
+  touches no source file (never "unrestricted"), and any write outside it is a recorded
+deviation that forces a node update (§6.2).
 - Write integrity the harness itself needs (its own test infrastructure, pytest config, module
   shadows) is preserved by **allowing the write and restoring the file before grading**, with the
   attempt recorded — never by refusing (six blind retries in T-01 came from refusing).
@@ -149,10 +171,10 @@ the author's conversation. Its verdict selects the next move:
 2. **Review cap exceeded** and the review is still uncertain/fail → update the node: drop the
    review (recorded) or change approach.
 3. **The judge says `spec`** → the parent node re-plans this subtree.
-4. **A criterion has no possible check** (no test and no review can pin it) → either add one in the
-   node update, or drop that criterion with the node's `reason` as the record.
-5. **The chosen approach needs a file it did not declare** → the node's `files[]` is extended in a
-   node update (recorded; writes were never refused).
+4. **A requirement has no possible check** (no test and no review pins it) → add one in the node
+   update, or record in the How's `reason` why none can exist.
+5. **The executing How needs a file it did not declare** → that How's `files[]` is extended in a
+   node update (recorded, with its `reason` updated; writes were never refused).
 6. **Regression detected** → the node is updated: fix or revert that part, and `files[]`/`tests`
    are adjusted accordingly.
 7. **Budget/deadline exhausted** → handover: the node stops with state `uncertain`, delivering its
@@ -179,7 +201,7 @@ delivery and the grader's verdict. Complete, always on.
 | --- | --- | --- |
 | 1 | two drivers (`v2_leaf` direct leaf, `v2_tree` tree) | ONE runner; a single leaf is a tree of one node |
 | 2 | no exploration; the whole source is pushed into every prompt | an explicit bounded read step inside every node step |
-| 3 | leaf driver: no test plan, two fixed review angles | the node declares docs/files/tests/reviews + ONE reason |
+| 3 | leaf driver: no test plan, two fixed review angles | each How declares docs/files/tests/reviews + ONE reason |
 | 4 | tests authored first, required red on arrival | implementation ∥ tests; discrimination checked post-hoc on the pristine source |
 | 5 | a red test iterates the implementation directly | a red test goes to the judge (§6.1) first |
 | 6 | file list from the plan (tree) or regex over the requirement (leaf) | from exploration; the requirement-text regex is judge input, never a gate |
