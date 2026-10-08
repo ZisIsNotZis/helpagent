@@ -226,6 +226,8 @@ def node_record(outcome: NodeOutcome, *, diluted: bool = False) -> dict:
         "node": outcome.node_id,
         "claimed": outcome.claimed,
         "stop_reason": outcome.stop_reason,
+        #: FLOW §1.5 S5 (P1c): the node's explicit three-state verdict (+ parked/user).
+        "state": outcome.state,
         "calls": outcome.calls,
         "wall_s": outcome.wall_s,
         # Ticket 20 step 2e: the node pool's conservation check (initial/remaining/spent +

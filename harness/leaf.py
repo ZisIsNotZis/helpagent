@@ -422,6 +422,100 @@ EVIDENCE_GAP_STOPS: tuple[str, ...] = ("attempts", "ladder", "calls", "attempt-c
 #: strongest, a graded review next, ``none`` (a written reason) weakest (ticket 20/22).
 _TIER_RANK: dict[str, int] = {"test": 2, "review": 1, "none": 0}
 
+# ---------------------------------------------------------------------------
+# The three states, the How terminal rules and the best-of (FLOW §1.5 S4/S5, §4)
+# ---------------------------------------------------------------------------
+
+#: FLOW §1.5 S3/S5, §4 (P1c): the terminal state of a node, a How, or a leaf run.
+#: ``pass`` a check carried the claim; ``fail`` a check RAN and FAILED on the final
+#: revision (a red test, a rejected review) --- never "uncertain"; ``uncertain`` the
+#: check could not be evaluated, or the run ran out with no confirmed failure; ``parked``
+#: the deadline/call budget ended the run (handover); ``needs-user`` the environment
+#: cannot be fixed in-process.
+OUTCOME_STATES: tuple[str, ...] = ("pass", "uncertain", "fail", "parked", "needs-user")
+
+#: FLOW §1.5 S5 (P1c): the three states a How contributes to a node's best-of. A node
+#: whose Hows are all exhausted is UNCERTAIN when ANY How is uncertain (or unevaluated),
+#: otherwise FAIL --- a node with a passing How is ``pass`` before best-of is consulted.
+HOW_STATES: tuple[str, ...] = ("pass", "uncertain", "fail")
+
+#: The state a How's recorded lifecycle ``status`` maps to when no per-How state was
+#: computed from the candidate's outcome (``untried``/``active`` never ran a check).
+_HOW_STATE_BY_STATUS: dict[str, str] = {
+    "succeeded": "pass", "failed": "fail", "abandoned": "fail",
+    "untried": "uncertain", "active": "uncertain",
+}
+
+
+def own_test_fail(own_test: str | None, gate: GateReport | None) -> bool:
+    """True when the run's own test is a CONFIRMED FAIL on the final revision.
+
+    FLOW §4.1 (P1c): ``fail`` is a declared test that RAN and is RED. A missing,
+    anomalous, or unobserved report (a collection/import error, a transport fault) is
+    UNCERTAIN, never a fail --- only a real observed red ends the How as FAIL and closes
+    the review seam.
+    """
+    if own_test is None or gate is None:
+        return False
+    return bool(gate.observed and not gate.green)
+
+
+def best_of_how_states(states: Sequence[str]) -> str:
+    """FLOW §1.5 S5 (P1c): the state of a node whose Hows are all exhausted.
+
+    UNCERTAIN if ANY How is uncertain (or unevaluated), otherwise FAIL. ``pass`` is never
+    returned here: a node with a passing How is ``pass`` before best-of is consulted. An
+    empty/blank input is UNCERTAIN (nothing was evaluated) --- never a fail.
+    """
+    values = [s for s in states if s]
+    if not values:
+        return "uncertain"
+    if any(s == "uncertain" for s in values):
+        return "uncertain"
+    return "fail"
+
+
+def propagate_node_state(children: Sequence[str], *, integration_passed: bool = False,
+                         own: str = "") -> str:
+    """FLOW §1.5 S3/S5, §4.4 (P1c): an internal node's state from its children.
+
+    ``fail`` if any child failed (or the node's own integration work failed); ``pass``
+    only when EVERY child passed AND the integration check passed; otherwise
+    ``uncertain`` --- a child that was not evaluated can never read as a pass.
+    """
+    states = [s for s in children]
+    if own == "fail" or any(s == "fail" for s in states):
+        return "fail"
+    if states and all(s == "pass" for s in states) and integration_passed:
+        return "pass"
+    return "uncertain"
+
+
+def leaf_terminal_state(*, claimed: bool, needs_user: bool, stop_reason: str,
+                        signal: str, own_test_failed: bool,
+                        review_verdicts: Sequence[ReviewVerdict] = ()) -> str:
+    """FLOW §4.1/§4.2/§1.5 S5 (P1c): a leaf run's terminal state.
+
+    ``pass`` when a claim held; ``needs-user`` for a park the environment alone can fix;
+    ``parked`` for a deadline/call-budget handover; ``fail`` when a check RAN and FAILED
+    on the final revision (a confirmed red own test, or a graded review that rejected);
+    ``uncertain`` otherwise --- a check that could not be evaluated, or a give-up with no
+    confirmed failure. A red test is ALWAYS ``fail`` (never ``uncertain``); ``uncertain``
+    is reserved for a test/judge the run could not evaluate.
+    """
+    if claimed:
+        return "pass"
+    if needs_user:
+        return "needs-user"
+    if stop_reason in ("deadline", "calls") or signal == "handover":
+        return "parked"
+    if own_test_failed:
+        return "fail"
+    graded = [v for v in review_verdicts if not v.coerced]
+    if graded and all(review_grade_rank(v.grade) < 0 for v in graded):
+        return "fail"
+    return "uncertain"
+
 
 def verification_floor(planned_tests: Sequence[Any],
                        planned_reviews: Sequence[Any]) -> int:
@@ -1102,6 +1196,12 @@ class LeafOutcome:
     exhaustion_reason: str
     layers_used: list[str]
     stop_reason: str = ""
+    #: FLOW §1.5 S5 / §4 (P1c): the run's explicit terminal state (one of
+    #: :data:`OUTCOME_STATES`): ``pass`` | ``uncertain`` | ``fail`` plus the ``parked``/
+    #: ``needs-user`` cases. Computed in :func:`finish` from the terminal test/review
+    #: evidence by :func:`leaf_terminal_state` --- a confirmed red test is always ``fail``,
+    #: never ``uncertain``.
+    state: str = "uncertain"
     wasted_escalations: list[Escalation] = field(default_factory=list)
     test_rewrites: int = 0
     own_test_mutated: bool = False
@@ -5727,6 +5827,12 @@ async def run_leaf(
                  regressions=list(report.regressions),
                  regression_observable=report.regression_observable,
                  regression_detail=report.regression_detail)
+        # FLOW §1.5 S5 / §4 (P1c): the explicit terminal state, from the terminal
+        # test/review evidence (a confirmed red test is FAIL, never UNCERTAIN).
+        terminal_state = leaf_terminal_state(
+            claimed=claimed, needs_user=needs_user, stop_reason=stop_reason,
+            signal=signal, own_test_failed=own_test_fail(self_test, last_gate),
+            review_verdicts=tuple(review_verdicts))
         return LeafOutcome(
             claimed=claimed,
             signal=signal,
@@ -5737,6 +5843,7 @@ async def run_leaf(
             questions=queue.all(),
             exhausted=node_exhausted,
             exhaustion_reason=reason,
+            state=terminal_state,
             layers_used=list(dict.fromkeys(a.layer for a in attempts)),
             stop_reason=stop_reason,
             wasted_escalations=list(wasted_escalations),
@@ -5808,6 +5915,16 @@ async def run_leaf(
         False when neither route is available.
         """
         nonlocal verification_basis, review_reason
+        # FLOW §1.5 S4 W5 / §4.1 / §11 H3 (P1c): the REVIEW SEAM. A test PASS or
+        # UNCERTAIN may proceed to the review; a test that RAN and FAILED ends this How
+        # as FAIL and the review does NOT run. (A test that was never written, or was
+        # deliberately dropped after a rewrite, is ABSENT, not a fail, so review-only and
+        # repaired-test Hows still reach review.)
+        if own_test_fail(self_test, last_gate):
+            emit("review_blocked_by_failed_test", path=self_test,
+                 reason="the run's own test FAILED on the final revision; a FAIL test "
+                        "ends the How as FAIL and the review does not run")
+            return False
         if not has_reviews:
             if not spec.best_effort:
                 return False
@@ -6198,20 +6315,32 @@ async def run_leaf(
         # Ticket 19 B / ticket 20: when no test can carry verification, the declared review
         # ANGLES are the gate (weighted, critical-angle veto, no negative grade).
         if verification_basis == "review" and wrote and source_rel:
-            status, why = await run_reviews(review_reason)
-            if status is None:
-                stop("honest-failure", "call-budget", "calls")
-                break
-            review_approved = bool(status)
-            if review_approved:
-                # Ticket 23 item 1, ranked by ticket 23 round 2: a combined-positive
-                # grant-calibre review is the WEAKEST evidence milestone, not the
-                # strongest (the run's own test and the independent verification both
-                # outrank it).
-                note_current_evidence(BEST_EVIDENCE_RANKS["review"], "review",
-                                      "a combined-positive graded review approved the diff")
+            # FLOW §1.5 S4 W2/W5, §4.1, §11 H3 (P1c): once review verification is in
+            # force it owns every later attempt --- UNLESS the run's own test is a
+            # CONFIRMED FAIL on the final revision. A FAIL test ends this How as FAIL and
+            # the review does NOT run (the candidate below is recorded fail and the loop
+            # iterates on the judge's advice; at the cap the How is FAIL). A test that was
+            # never written or was deliberately dropped is ABSENT, not a fail.
+            if own_test_fail(self_test, last_gate):
+                emit("review_blocked_by_failed_test", path=self_test,
+                     reason="the run's own test FAILED on the final revision; the review "
+                            "does not run (a FAIL test ends the How as FAIL)")
             else:
-                last_excerpts = [f"review did not approve: {why}"]
+                status, why = await run_reviews(review_reason)
+                if status is None:
+                    stop("honest-failure", "call-budget", "calls")
+                    break
+                review_approved = bool(status)
+                if review_approved:
+                    # Ticket 23 item 1, ranked by ticket 23 round 2: a combined-positive
+                    # grant-calibre review is the WEAKEST evidence milestone, not the
+                    # strongest (the run's own test and the independent verification both
+                    # outrank it).
+                    note_current_evidence(BEST_EVIDENCE_RANKS["review"], "review",
+                                          "a combined-positive graded review approved the "
+                                          "diff")
+                else:
+                    last_excerpts = [f"review did not approve: {why}"]
 
         signature = failure_signature(last_excerpts, last_excerpts)
         if verification_basis == "review":

@@ -3181,3 +3181,103 @@ def test_descendant_request_misses_supply_the_integration_close_gate():
                              integration_passed=True, all_children_closed=True)
     assert blocked.claimed is False
     assert blocked.blocker == "request-artifacts-uncovered"
+
+
+# ---------------------------------------------------------------------------
+# P1c-1: the three states and best-of propagation (FLOW §1.5 S3/S5, §4.4)
+# ---------------------------------------------------------------------------
+
+
+def test_best_of_how_states_uncertain_beats_fail():
+    """FLOW §1.5 S5 (P1c): a node whose Hows are all exhausted takes the BEST of them —
+    UNCERTAIN if ANY How is uncertain, otherwise FAIL; an empty/unevaluated list is
+    UNCERTAIN, never a fail (and PASS is never returned by best-of)."""
+    from harness.leaf import best_of_how_states
+
+    assert best_of_how_states(["fail", "fail"]) == "fail"
+    assert best_of_how_states(["fail", "uncertain", "fail"]) == "uncertain"
+    assert best_of_how_states([]) == "uncertain"
+    assert best_of_how_states(["", ""]) == "uncertain"
+
+
+def test_propagate_node_state_child_fail_and_integration():
+    """FLOW §1.5 S3/S5, §4.4 (P1c): a parent is PASS only when EVERY child passed AND the
+    integration check passed; a child FAIL makes it FAIL; otherwise UNCERTAIN."""
+    from harness.leaf import propagate_node_state
+
+    assert propagate_node_state(["pass", "pass"], integration_passed=True) == "pass"
+    assert propagate_node_state(["pass", "fail"], integration_passed=True) == "fail"
+    assert propagate_node_state(["pass", "pass"], integration_passed=False) == "uncertain"
+    assert propagate_node_state(["pass", "uncertain"], integration_passed=True) == "uncertain"
+
+
+def _run_two_how_leaf_node(tmp_path, monkeypatch, states, *, files=None, out_name="out"):
+    """Drive the node's How path with ``len(states)`` leaf-Hows, each returning its scripted
+    state; the manager advances to the next How until they are exhausted."""
+    files = files or ("pkg/a.py", "pkg/b.py", "pkg/c.py", "pkg/d.py")
+    workdir = tmp_path / "work"
+    stage(workdir, {f: "x = 1\n" for f in files})
+    fake = FakeLeaf([
+        leaf_outcome(claimed=False, signal="honest-failure", stop="attempts", state=s,
+                     exhaustion_reason="the declared test is red")
+        for s in states
+    ])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    root = NodeSpec(goal="root goal", files=files, acs=(), kind="internal")
+    model = FakeModelRunner({
+        "how_list": [how_env([how(f"approach {i}") for i in range(len(states))])],
+        "plan_node": [plan_env([], files=files) for _ in states],
+    })
+
+    def manager(view):
+        return ManagerDecision("continue-with-next-how", "try the next approach")
+
+    return run_tree_sync(model, root, make_tree(), workdir,
+                         Budget(calls=80, deadline_ts=_FAR),
+                         run_outdir=tmp_path / out_name, manager=manager)
+
+
+def test_all_hows_fail_makes_the_node_fail(tmp_path, monkeypatch):
+    """(c) FLOW §1.5 S5 (P1c): a How list whose Hows ALL end FAIL yields a FAIL node
+    (never a silent ``parked``), and each How records its own state."""
+    out = _run_two_how_leaf_node(tmp_path, monkeypatch, ["fail", "fail"])
+    assert out.claimed is False
+    assert out.root.state == "fail"
+    assert [h["state"] for h in out.root.hows] == ["fail", "fail"]
+
+
+def test_one_uncertain_how_makes_the_node_uncertain(tmp_path, monkeypatch):
+    """(d) FLOW §1.5 S5 (P1c): a list with one UNCERTAIN How and the rest FAIL yields an
+    UNCERTAIN node — the best-of lets uncertainty outrank a confirmed failure."""
+    out = _run_two_how_leaf_node(tmp_path, monkeypatch,
+                                 ["fail", "uncertain", "fail"], out_name="out-d")
+    assert out.claimed is False
+    assert out.root.state == "uncertain"
+    states = [h["state"] for h in out.root.hows]
+    assert states == ["fail", "uncertain", "fail"]
+
+
+def test_a_failed_child_makes_the_parent_fail(tmp_path, monkeypatch):
+    """(e) FLOW §1.5 S3/S5 (P1c): a child FAIL propagates upward — the parent is FAIL even
+    though its integration check PASSES and the other child passed."""
+    workdir = tmp_path / "work"
+    stage(workdir)
+    root = NodeSpec(goal="root goal", files=("pkg/a.py", "pkg/b.py"),
+                    acs=("the cross-child behavior holds",), kind="internal")
+    fake = FakeLeaf([
+        leaf_outcome(claimed=True),
+        leaf_outcome(claimed=False, signal="honest-failure", stop="attempts",
+                     state="fail", exhaustion_reason="the child's declared test is red"),
+        leaf_outcome(claimed=True),                       # the dedicated integration leaf
+    ])
+    monkeypatch.setattr(tree_run, "run_leaf", fake)
+    out = run_tree_sync(_plan_two_writers(), root, make_tree(), workdir,
+                        Budget(calls=40, deadline_ts=_FAR), run_tests=Gates(green=True),
+                        run_outdir=tmp_path / "out")
+
+    assert out.claimed is False
+    assert out.root.stop_reason == "open"
+    assert out.root.state == "fail"
+    assert [c.state for c in out.root.children] == ["pass", "fail"]
+    # the integration check itself PASSED: the FAIL comes from the child, not integration
+    assert set(out.root.integration_verdicts.values()) == {"pass"}

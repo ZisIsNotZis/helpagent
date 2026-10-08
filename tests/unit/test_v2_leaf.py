@@ -3167,25 +3167,27 @@ def test_grant_calibre_review_evidence_rule():
 
 def test_grant_calibre_evidence_is_required_for_a_review_backed_claim(tmp_path):
     """Ticket 22 round 2 fix 1, the demonstrated attack as a regression: with the run
-    forced to review, a WRONG fix (``return 7`` against a goal of 42), a RED own test, and
-    a ``definitely-ok`` review whose evidence names ONLY the changed path, the run must NOT
-    claim. The SAME run with grant-calibre evidence (criterion + observed behaviour) DOES
-    claim, so the rule blocks thin evidence without blocking a substantive review."""
+    forced to review, a ``definitely-ok`` review whose evidence names ONLY the changed
+    path, the run must NOT claim. The SAME run with grant-calibre evidence (criterion +
+    observed behaviour) DOES claim, so the rule blocks thin evidence without blocking a
+    substantive review.
+
+    FLOW §1.5 S4 W5 (P1c): the review here is forced by an UNRESOLVABLE criterion while
+    the run's own test is GREEN, so the review seam legitimately runs; a red own test
+    would end the How as FAIL before any review (see
+    ``test_a_red_test_with_an_implementation_wrong_judge_ends_the_how_fail``)."""
     def run(tmp_root, verdict: ReviewVerdict):
         spec = dataclasses.replace(
             make_spec(), acs=["thread the timeout through the result and helper call sites"])
         stage(tmp_root, spec.files)
         model = FakeModelRunner({"write_test": [
             SELF_TEST,                                    # own test RED on arrival
-            impl("def result():\n    return 1\n"),        # attempt 1: own test green, review rejects
-            impl("def result():\n    return 7\n"),        # attempt 2: wrong fix, own test RED
+            impl(),                                        # attempt 1: own test GREEN
         ]})
-        rejecting = ReviewVerdict(grade="probably-problematic",
-                                  evidence="pkg/calc.py:1 does not thread the timeout")
-        reviews = ScriptedReview([rejecting, rejecting, verdict])
+        reviews = ScriptedReview([verdict])
         return run_leaf_sync(
-            model, spec, tmp_root, Budget(calls=12, deadline_ts=_FAR_FUTURE),
-            review=reviews, run_tests=ScriptedTests([1, 0, 1, 1]))
+            model, spec, tmp_root, Budget(calls=10, deadline_ts=_FAR_FUTURE),
+            review=reviews, run_tests=ScriptedTests([1, 0]))
 
     # the attack: path-only evidence names no criterion and no observed behaviour
     attacked = run(tmp_path / "thin", ReviewVerdict(grade="definitely-ok",
@@ -4645,11 +4647,12 @@ def test_conflict_text_says_cannot_characterise_when_the_assertions_are_identica
     assert "cannot characterise the difference" in out.own_test_conflict_reason
 
 
-def test_exhaustion_review_outranks_a_red_own_test_and_claims(tmp_path):
-    """Ticket 22 item 3 (supersedes the round-5 blocking conflict): THE GRADED REVIEW
-    DECIDES. At exhaustion an approving review carries the claim even though the run's
-    own test is RED on the SAME final revision; the disagreement is recorded, never
-    hidden, and the basis stays ``review`` so a consumer can filter to test-backed claims.
+def test_exhaustion_review_does_not_run_over_a_red_own_test(tmp_path):
+    """FLOW §1.5 S4 W2/W5, §4.1, §11 H3 (P1c): a test FAIL ends the How as FAIL and the
+    review does NOT run. This REVERSES the old ticket-22 path where the graded review
+    outranked a red own test: at exhaustion the run's own test is RED on the final
+    revision, so the approving reviewer is never consulted, nothing is claimed, and the
+    leaf's state is FAIL (never ``uncertain``).
 
     ``--no-iv`` route: no independent producer."""
     files = {"pkg/calc.py": "def result():\n    return 0\n"}
@@ -4657,29 +4660,27 @@ def test_exhaustion_review_outranks_a_red_own_test_and_claims(tmp_path):
                     acs=["result() returns 42"], interfaces=["result() -> int"])
     spec = dataclasses.replace(spec, planned_reviews=("ac-correctness", "contract-compat"))
     stage(tmp_path, files)
-    wrong = impl("def result():\n    return 100\n")     # the wrong fix the review accepts
+    wrong = impl("def result():\n    return 100\n")     # the wrong fix the reviewer would accept
     model = FakeModelRunner({"write_test": [SYMPTOM_TEST] + [wrong] * 8})
+    reviews = ScriptedReview([_passing_review])
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=16, deadline_ts=_FAR_FUTURE),
-                        review=_passing_review,
+                        review=reviews,
                         run_tests=ScriptedTests([1, 1, 1, 1, 1, 0]))
 
-    assert out.claimed is True and out.stop_reason == "green"
-    assert out.claimed_basis == "review"
-    assert out.own_test_conflict is False
-    assert "assert result() == 3" in out.verification_disagreement
-    assert "RED on the final source" in out.verification_disagreement
-    assert "APPROVED the same revision" in out.verification_disagreement
-    assert "verification_disagreement" in ledger_kinds()
-    assert out.ledger[0].state == "satisfied"
-    assert out.ledger[0].check == "review:ac-correctness"
-    assert out.verified is True and out.claim_status == "verified-success"
+    assert out.claimed is False
+    assert out.claimed_basis != "review"
+    assert out.stop_reason == "attempts"
+    assert out.state == "fail"                        # a FAIL test is FAIL, never uncertain
+    assert reviews.calls == 0                          # the review never ran
+    assert out.review_verdicts == []
+    assert "review_blocked_by_failed_test" in ledger_kinds()
 
 
-def test_exhaustion_review_outranks_a_vacuous_independent_test_and_claims(tmp_path):
-    """Ticket 22 item 3, the vacuous/uncollected route: an independent test that is NOT
-    red on the pristine source (``independent-test-not-red`` after its one repair) leaves
-    the review path, and the APPROVING review now DECIDES even while the run's own test is
-    RED on the wrong fix — the disagreement is recorded and the claim rests on review."""
+def test_exhaustion_review_does_not_run_over_a_red_test_with_a_vacuous_iv(tmp_path):
+    """FLOW §1.5 S4 W2/W5, §4.1, §11 H3 (P1c): even when the independent test is vacuous
+    (``independent-test-not-red`` after its one repair), the run's OWN test is RED on the
+    final revision, so the review does NOT run and nothing is claimed; the leaf's state is
+    FAIL. The old ticket-22 'the review decides over the red test' path is gone."""
     files = {"pkg/calc.py": "def result():\n    return 0\n"}
     spec = LeafSpec(goal="make result() return 42", files=files,
                     acs=["result() returns 42"], interfaces=["result() -> int"])
@@ -4689,17 +4690,18 @@ def test_exhaustion_review_outranks_a_vacuous_independent_test_and_claims(tmp_pa
     model = FakeModelRunner({"write_test": [SYMPTOM_TEST] + [wrong] * 8})
     vacuous = iv_candidate(path="tests/test_vacuous.py",
                            content="def test_goal():\n    assert True\n")
+    reviews = ScriptedReview([_passing_review])
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=18, deadline_ts=_FAR_FUTURE),
-                        review=_passing_review, iv=lambda request: vacuous,
+                        review=reviews, iv=lambda request: vacuous,
                         run_tests=ScriptedTests([1, 1, 1, 1, 0, 0]))
 
-    assert out.claimed is True and out.stop_reason == "green"
-    assert out.claimed_basis == "review"
-    assert out.own_test_conflict is False
-    assert out.iv_verdicts[-1].approved is False
-    assert "RED on the final source" in out.verification_disagreement
-    assert "APPROVED the same revision" in out.verification_disagreement
-    assert out.ledger[0].check == "review:ac-correctness"
+    assert out.claimed is False
+    assert out.claimed_basis != "review"
+    assert out.state == "fail"
+    assert reviews.calls == 0
+    assert out.review_verdicts == []
+    assert out.iv_verdicts and out.iv_verdicts[-1].approved is False
+    assert "review_blocked_by_failed_test" in ledger_kinds()
 
 
 def test_exhaustion_review_with_no_own_test_still_claims(tmp_path):
@@ -4865,15 +4867,13 @@ def test_coverage_miss_blocks_an_ok_review_verdict(tmp_path):
 # (the last: the MAIN-PATH review route claimed while the run's own test was RED).
 # ===========================================================================
 
-def test_main_path_review_with_a_red_own_test_claims_on_review(tmp_path):
-    """Ticket 22 item 3 supersedes the round-6 blocker: when the MAIN-PATH review route's
-    graded review APPROVES a revision the run's own test rejects, the REVIEW DECIDES and
-    the run claims with ``claimed_basis=review``; the disagreement is recorded, and the
-    basis label lets a consumer filter to test-backed claims only.
-
-    Sequence: attempt 1 makes the own test green but a criterion resolves to no artifact,
-    so review is forced and REJECTS; the loop keeps the RED own test as the target.
-    Attempt 2 writes a wrong fix (own test RED) that the reviewer approves."""
+def test_main_path_review_does_not_run_over_a_red_own_test(tmp_path):
+    """FLOW §1.5 S4 W2/W5, §4.1, §11 H3 (P1c): the MAIN-PATH review route no longer runs
+    once the run's own test is RED on the final revision. Sequence (the old ticket-22
+    scenario): attempt 1 makes the own test green but a criterion resolves to no artifact,
+    so review is forced and REJECTS; attempt 2 writes a wrong fix (own test RED) the
+    reviewer would approve — but that second review is NEVER consulted. Nothing is claimed
+    and the leaf's state is FAIL; the first (legitimate) review stayed on the record."""
     spec = dataclasses.replace(
         make_spec(), acs=["thread the timeout through the result and helper call sites"])
     stage(tmp_path, spec.files)
@@ -4887,20 +4887,15 @@ def test_main_path_review_with_a_red_own_test_claims_on_review(tmp_path):
                       evidence="pkg/calc.py:1 does not thread the timeout"),
         _approving_review,
     ])
-    # gate order: self-test red, attempt1 green, attempt2 red (the review calls are separate)
-    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
-                        review=reviews, run_tests=ScriptedTests([1, 0, 1, 1]))
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=18, deadline_ts=_FAR_FUTURE),
+                        review=reviews, run_tests=ScriptedTests([1, 0, 1, 1, 1, 1]))
 
-    assert out.claimed is True
-    assert out.stop_reason == "green"
-    assert out.claimed_basis == "review"
-    assert out.verification_basis == "review"
-    assert out.own_test_conflict is False
-    assert "RED on the final source" in out.verification_disagreement
-    assert "APPROVED the same revision" in out.verification_disagreement
-    assert "verification_disagreement" in ledger_kinds()
-    assert out.ledger[0].state == "satisfied"
-    assert out.ledger[0].check == "review:ac-correctness"
+    assert out.claimed is False
+    assert out.state == "fail"
+    assert out.verification_basis == "review"          # attempt 1 legitimately entered review
+    # the red test stopped the seam: attempt 1's two-angle review is the ONLY review run
+    assert reviews.calls == 2
+    assert "review_blocked_by_failed_test" in ledger_kinds()
 
 
 def test_test_plan_update_switches_to_review_and_claims(tmp_path):
@@ -5808,12 +5803,14 @@ def test_request_level_coverage_blocks_the_review_route(tmp_path):
     assert "review_request_artifacts_blocked" in ledger_kinds()
 
 
-def test_red_independent_verification_blocks_a_review_backed_claim(tmp_path):
-    """PROBE (b), the T-14 #2 fix: the independent per-criterion verification FAILED on
-    the delivered code (its tests are red on the final source) while the graded review
-    APPROVED. Fresh and independently authored, the independent verification is NOT the
-    model-written test the review-precedence rule outranks, so no claim is made and the
-    disagreement (review approved / independent verification rejected) is recorded."""
+def test_red_own_test_blocks_the_review_before_a_red_independent_verification(tmp_path):
+    """FLOW §1.5 S4 W2/W5, §4.1 (P1c): the run's own test is RED on the final revision,
+    so the REVIEW SEAM never opens --- the review does not run regardless of the
+    independent verification. The IV still runs on the delivered code and is recorded as
+    ``independent-test-red-on-final``, but the outcome is FAIL either way. The old ticket
+    23 T-14 rule (a red IV blocks an approving review) is pinned directly on the claim
+    gate in ``test_claim_gate_enforces_every_rule_directly``; the flow now stops the
+    review earlier."""
     files = {"pkg/calc.py": "def result():\n    return 0\n"}
     spec = LeafSpec(goal="make result() return 42", files=files,
                     acs=["result() returns 42"], interfaces=["result() -> int"])
@@ -5821,22 +5818,25 @@ def test_red_independent_verification_blocks_a_review_backed_claim(tmp_path):
     stage(tmp_path, files)
     wrong = impl("def result():\n    return 100\n")
     model = FakeModelRunner({"write_test": [SYMPTOM_TEST] + [wrong] * 8})
+    reviews = ScriptedReview([_passing_review])
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=20, deadline_ts=_FAR_FUTURE),
-                        review=_passing_review, iv=lambda request: iv_candidate(),
+                        review=reviews, iv=lambda request: iv_candidate(),
                         run_tests=ScriptedTests([1, 1, 1, 1, 1, 1]))
 
     assert out.claimed is False
+    assert out.state == "fail"
+    assert reviews.calls == 0                       # the review never ran
+    assert out.review_verdicts == []
     assert out.iv_verdicts[-1].reason == "independent-test-red-on-final"
-    assert out.stop_reason == "independent-test-red-on-final"
-    assert "REJECTED the same revision" in out.verification_disagreement
-    assert "APPROVED the final revision" in out.verification_disagreement
-    assert "review_blocked_by_red_independent_test" in ledger_kinds()
+    assert "review_blocked_by_failed_test" in ledger_kinds()
 
 
-def test_vacuous_independent_verification_does_not_block_a_review_claim(tmp_path):
-    """PROBE (c): a VACUOUS / non-discriminating independent test (it passes on the
-    pristine source) is NOT a red verdict, so the approving review still carries the
-    claim — stated plainly."""
+def test_red_own_test_stops_the_review_even_with_a_vacuous_independent_test(tmp_path):
+    """FLOW §1.5 S4 W2/W5, §4.1 (P1c): a VACUOUS independent test (it passes on the
+    pristine source) does not matter once the run's own test is RED on the final
+    revision: the review seam stays shut, nothing is claimed, and the leaf's state is
+    FAIL. (The claim-gate rule that a vacuous IV does not block a review is pinned in
+    ``test_claim_gate_enforces_every_rule_directly``.)"""
     files = {"pkg/calc.py": "def result():\n    return 0\n"}
     spec = LeafSpec(goal="make result() return 42", files=files,
                     acs=["result() returns 42"], interfaces=["result() -> int"])
@@ -5846,14 +5846,18 @@ def test_vacuous_independent_verification_does_not_block_a_review_claim(tmp_path
     model = FakeModelRunner({"write_test": [SYMPTOM_TEST] + [wrong] * 8})
     vacuous = iv_candidate(path="tests/test_vacuous.py",
                            content="def test_goal():\n    assert True\n")
+    reviews = ScriptedReview([_passing_review])
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=20, deadline_ts=_FAR_FUTURE),
-                        review=_passing_review, iv=lambda request: vacuous,
+                        review=reviews, iv=lambda request: vacuous,
                         run_tests=ScriptedTests([1, 1, 1, 1, 0, 0]))
 
-    assert out.claimed is True and out.stop_reason == "green"
-    assert out.claimed_basis == "review"
+    assert out.claimed is False
+    assert out.state == "fail"
+    assert reviews.calls == 0
+    assert out.review_verdicts == []
     assert out.iv_verdicts[-1].approved is False
     assert out.iv_verdicts[-1].reason == "independent-test-not-red"
+    assert "review_blocked_by_failed_test" in ledger_kinds()
 
 
 def test_request_coverage_exempts_a_frozen_artifact_named_by_the_request(tmp_path):
@@ -6034,3 +6038,102 @@ def test_requirement_coverage_exempts_a_criterion_naming_a_frozen_artifact(tmp_p
     strict = _requirement_coverage(dataclasses.replace(spec, grader_paths=()),
                                    tmp_path, dict(files))[0]
     assert "serialize/base.py" in strict.missing
+
+
+# ===========================================================================
+# P1c-1: the three states + How terminal semantics (FLOW §1.5 S4/S5, §4, §11 H3/H4)
+# ===========================================================================
+
+
+def test_leaf_terminal_state_maps_the_three_states_and_the_parked_cases():
+    """FLOW §1.5 S5 / §4 (P1c): the explicit state machine — a claim is PASS; a confirmed
+    red test is FAIL (never UNCERTAIN); a give-up with no confirmed failure is UNCERTAIN;
+    a deadline/call-budget handover is PARKED; a broken environment is NEEDS-USER."""
+    from harness.leaf import OUTCOME_STATES, leaf_terminal_state
+
+    assert set(OUTCOME_STATES) >= {"pass", "uncertain", "fail", "parked", "needs-user"}
+    base = dict(claimed=False, needs_user=False, stop_reason="attempts",
+                signal="honest-failure", own_test_failed=False, review_verdicts=())
+    assert leaf_terminal_state(**{**base, "claimed": True}) == "pass"
+    assert leaf_terminal_state(**base) == "uncertain"
+    assert leaf_terminal_state(**{**base, "own_test_failed": True}) == "fail"
+    assert leaf_terminal_state(**{**base, "stop_reason": "calls"}) == "parked"
+    assert leaf_terminal_state(**{**base, "stop_reason": "deadline"}) == "parked"
+    assert leaf_terminal_state(**{**base, "needs_user": True}) == "needs-user"
+    # a graded review that RAN and REJECTED on the final revision is a confirmed fail too
+    rejected = ReviewVerdict(angle="ac-correctness", grade="definitely-problematic",
+                             evidence="pkg/calc.py:1 returns 0 for AC-1")
+    assert leaf_terminal_state(**{**base, "review_verdicts": (rejected, )}) == "fail"
+
+
+def test_a_red_test_with_an_implementation_wrong_judge_ends_the_how_fail(tmp_path):
+    """FLOW §1.5 S4 W2/W5, §4.1, §11 H3 (P1c) (a): a red own test plus a judge that
+    attributes the failure to the IMPLEMENTATION exhausts the retries as FAIL — the review
+    is NEVER called (a FAIL test does not reach the review seam)."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST]
+                             + [impl("def result():\n    return 7\n")] * 6})
+
+    def judge(request: JudgeRequest) -> JudgeVerdict:
+        return JudgeVerdict(attribution="implementation",
+                            defect="result() does not return 42; the source is wrong")
+
+    reviews = ScriptedReview([_approving_review])
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=14, deadline_ts=_FAR_FUTURE),
+                        judge=judge, review=reviews,
+                        run_tests=ScriptedTests([1] * 8))
+
+    assert out.claimed is False
+    assert out.state == "fail"
+    assert reviews.calls == 0                     # the review never ran
+    assert out.review_verdicts == []
+    assert "review_blocked_by_failed_test" in ledger_kinds()
+
+
+def test_b_red_test_with_a_judge_repair_into_a_discriminating_test_continues(tmp_path):
+    """FLOW §1.5 S4 W2/W5, §6.1 (P1c) (b): when the judge attributes the red test to the
+    TEST, a bounded repair that IS a real discriminator (red on the pristine source) is
+    accepted and the How CONTINUES to the next attempt — it does not end as a red-test
+    FAIL. (Contrast (a): an implementation-wrong judge leaves the red test in place and
+    the How ends FAIL.)"""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    repaired = write_env("tests/test_leaf_self.py",
+                         "def test_goal():\n    assert result() == 42\n")
+    model = FakeModelRunner({"write_test": [SELF_TEST, blocked(), repaired, impl()]})
+
+    def judge(request: JudgeRequest) -> JudgeVerdict:
+        return JudgeVerdict(attribution="tests", raw="tests",
+                            defect="test_goal asserts the wrong expectation for AC-1")
+
+    reviews = ScriptedReview([_approving_review])
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
+                        judge=judge, review=reviews, run_tests=ScriptedTests([1, 1, 0]))
+
+    assert out.test_rewrites == 1
+    assert out.attempts[0].layer == "tests"        # the repair, not a red-test FAIL
+    assert "test_rewritten" in ledger_kinds()
+    # the How CONTINUED: the discriminating repair was accepted and a later fix greened
+    assert out.claimed is True and out.state == "pass"
+    assert out.claimed_basis == "review"
+
+
+def test_leaf_state_is_pass_for_a_claim_and_fail_for_an_exhausted_red_test(tmp_path):
+    """FLOW §1.5 S5 (P1c): the leaf's explicit state end-to-end — a discriminating own
+    test that greens is PASS; a red own test at exhaustion is FAIL."""
+    green = tmp_path / "green"
+    spec = make_spec()
+    stage(green, spec.files)
+    out_green = run_leaf_sync(
+        FakeModelRunner({"write_test": [SELF_TEST, impl()]}), spec, green,
+        Budget(calls=8, deadline_ts=_FAR_FUTURE), run_tests=ScriptedTests([1, 0]))
+    assert out_green.claimed is True and out_green.state == "pass"
+
+    red = tmp_path / "red"
+    stage(red, spec.files)
+    out_red = run_leaf_sync(
+        FakeModelRunner({"write_test": [SELF_TEST] + [impl("def result():\n    return 7\n")] * 6}),
+        spec, red, Budget(calls=12, deadline_ts=_FAR_FUTURE),
+        run_tests=ScriptedTests([1] * 8))
+    assert out_red.claimed is False and out_red.state == "fail"

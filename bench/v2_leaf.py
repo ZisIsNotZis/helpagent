@@ -369,6 +369,9 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         "review": review_enabled,
         "claimed": outcome.claimed,
         "claimed_basis": outcome.claimed_basis,
+        #: FLOW §1.5 S5 / §4 (P1c): the explicit terminal state (pass | uncertain | fail
+        #: plus parked/needs-user) computed from the terminal test/review evidence.
+        "state": outcome.state,
         "verification_basis": outcome.verification_basis,
         # Ticket 20: the explicit verification record (ordered tier, written reason and
         # its deterministic check, the independent review verdicts, and any recorded

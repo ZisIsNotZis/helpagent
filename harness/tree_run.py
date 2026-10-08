@@ -93,10 +93,13 @@ from harness.leaf import (
     LeafSpec,
     ReviewRequest,
     ReviewVerdict,
+    _HOW_STATE_BY_STATUS,
     _call_review,  # one reviewer call incl. verdict conversion (shared with the leaf)
     _default_run_tests,  # the tree's default check runner
+    best_of_how_states,
     claim_decision,  # the tree close routes through the ONE claim gate (ticket 21 r6)
     combine_review_verdicts,
+    propagate_node_state,
     review_angles_for_level,
     review_grade_rank,
     run_leaf,
@@ -256,6 +259,13 @@ class NodeOutcome:
     node_id: str
     claimed: bool
     stop_reason: str
+    #: FLOW §1.5 S3/S5 (P1c): the node's explicit terminal state (one of
+    #: :data:`OUTCOME_STATES`, from :func:`harness.leaf.propagate_node_state`/
+    #: :func:`harness.leaf.best_of_how_states`/the leaf's own state). ``pass`` only when
+    #: every child passed and the integration check passed; a child FAIL makes it
+    #: ``fail``; an exhausted node takes the BEST of its Hows (a How ``uncertain`` makes
+    #: the node ``uncertain``, else ``fail``).
+    state: str = ""
     leaf: LeafOutcome | None = None
     children: list[NodeOutcome] = field(default_factory=list)
     calls: int = 0
@@ -1048,9 +1058,10 @@ def _parked(node_id: str, reason: str, wall_s: float, *, evidence: str = "",
             leaf: LeafOutcome | None = None,
             resplit_rounds: int = 0, respec_rounds: int = 0,
             close_rule: str = "", integration_reopen_rounds: int = 0,
-            integration_verdicts: dict[str, str] | None = None) -> NodeOutcome:
+            integration_verdicts: dict[str, str] | None = None,
+            state: str = "parked") -> NodeOutcome:
     return NodeOutcome(node_id=node_id, claimed=False, stop_reason="parked",
-                       leaf=leaf, children=children or [], wall_s=wall_s,
+                       state=state, leaf=leaf, children=children or [], wall_s=wall_s,
                        evidence=evidence or reason,
                        resplit_rounds=resplit_rounds, respec_rounds=respec_rounds,
                        close_rule=close_rule,
@@ -1058,9 +1069,17 @@ def _parked(node_id: str, reason: str, wall_s: float, *, evidence: str = "",
                        integration_verdicts=dict(integration_verdicts or {}))
 
 
-def _how_dict(how: How) -> dict:
+def _how_dict(how: How, state: str = "") -> dict:
+    """One How's recorded facts plus its FLOW §1.5 S5 STATE (P1c).
+
+    ``state`` is the per-How three-state (one of :data:`HOW_STATES`) computed from the
+    candidate's outcome when it ran; when no state was computed the lifecycle ``status``
+    is mapped (:data:`harness.leaf._HOW_STATE_BY_STATUS`) so an untried/active How reads
+    ``uncertain`` and never a false pass.
+    """
     return {"how_id": how.id, "text": how.text, "rank": how.rank,
-            "reason": how.reason, "prior": how.prior, "status": how.status}
+            "reason": how.reason, "prior": how.prior, "status": how.status,
+            "state": state or _HOW_STATE_BY_STATUS.get(how.status, "uncertain")}
 
 
 def _leaf_outcomes(outcome: NodeOutcome):
@@ -1410,6 +1429,9 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
     greedy = ctx.how_explore <= 1
     records: list[CandidateRecord] = []
     closed: list[tuple[CandidateRecord, NodeOutcome]] = []
+    #: FLOW §1.5 S5 (P1c): the per-How state computed from each candidate's outcome, so
+    #: an exhausted node can take the BEST of them (uncertain beats fail).
+    how_state: dict[str, str] = {}
     repair_action = ""
     refusal = ""
     reuse_handles: list[NodeHandle] = []
@@ -1531,14 +1553,17 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
             cs.record_selection(how.id, selection)
             if selection.needs_repair:
                 # A negative review is an ACTION ITEM, not a lost comparison: do not
-                # accept it; keep working on the remaining Hows.
+                # accept it; keep working on the remaining Hows. The How ran and its
+                # review rejected, so FLOW §4.2 makes it a FAIL.
                 repair_action = selection.repair_reason
                 record.status = "abandoned"
                 cs.hows = cs.hows.with_status(how.id, "abandoned")
+                how_state[how.id] = "fail"
                 ctx.emit("candidate_repair", node=nid, how=how.id,
                          reason=selection.repair_reason)
             else:
                 cs.succeed(how.id)
+                how_state[how.id] = "pass"
                 closed.append((record, result))
                 if len(closed) >= parallel_limit:
                     # Greedy (``parallel_limit == 1``): the first candidate that closes is
@@ -1559,6 +1584,11 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
                 (result.leaf.exhaustion_reason if result.leaf is not None else "")
                 or f"the leaf did not close (stop_reason={stop_reason})")
         cs.fail(how.id, evidence=evidence, reason=stop_reason)
+        # FLOW §1.5 S5 (P1c): the How's state comes from its candidate's outcome — a
+        # confirmed red test/planted FAIL is ``fail``, an unevaluated/ran-out candidate is
+        # ``uncertain``. A decomposition that could not be applied was never evaluated.
+        how_state[how.id] = (result.state if result is not None and result.state
+                             else "uncertain")
         last_candidate = result
         records.append(CandidateRecord(how.id, how.rank, "failed", str(ws.path), None,
                                        evidence, planned_points=plan_dicts,
@@ -1612,8 +1642,16 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
             if ws is not None:
                 abandon_candidate(ws)
         evidence = repair_action or refusal or "no candidate closed"
+        # FLOW §1.5 S5 (P1c): every How exhausted with no pass -> take the BEST of them
+        # (UNCERTAIN if any How is uncertain, otherwise FAIL), never a silent "parked".
+        # Untried/active Hows that never ran read UNCERTAIN, so an unfinished exploration
+        # can never be mistaken for a confirmed failure.
+        final_state = best_of_how_states(
+            [how_state.get(h.id, _HOW_STATE_BY_STATUS.get(h.status, "uncertain"))
+             for h in cs.hows])
         parked = _parked(nid, "parked", round(ctx.now() - started, 3),
-                         evidence=f"no How candidate closed: {evidence}", leaf=last_leaf)
+                         evidence=f"no How candidate closed: {evidence}", leaf=last_leaf,
+                         state=final_state)
         if last_candidate is not None:
             # Keep the last candidate's subtree so the record answers whether any leaf
             # actually executed (ticket 20 step 2c).
@@ -1622,7 +1660,7 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
             parked.close_rule = last_candidate.close_rule
             parked.integration_verdicts = dict(last_candidate.integration_verdicts)
             parked.integration_reopen_rounds = last_candidate.integration_reopen_rounds
-        parked.hows = [_how_dict(h) for h in cs.hows]
+        parked.hows = [_how_dict(h, how_state.get(h.id, "")) for h in cs.hows]
         parked.candidates = records
         parked.manager_decisions = [{"decision": d.decision, "reason": d.reason}
                                     for d in cs.decisions]
@@ -1645,13 +1683,16 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
         if record is not winner_record:
             record.status = "abandoned"
             cs.hows = cs.hows.with_status(record.how_id, "abandoned")
+        # Every closed candidate passed its checks; a losing one is still a ``pass`` How.
+        how_state.setdefault(record.how_id, "pass")
     for how in list(cs.hows):
         ws = cs.workspaces.pop(how.id, None)
         if ws is not None and how.id != winner_record.how_id:
             abandon_candidate(ws)
     ctx.emit("node_hows_selected", node=nid, winner=winner_record.how_id,
              candidates=len(records), decisions=len(cs.decisions))
-    winner_outcome.hows = [_how_dict(h) for h in cs.hows]
+    winner_outcome.hows = [_how_dict(h, how_state.get(h.id, "")) for h in cs.hows]
+    winner_outcome.state = "pass"
     winner_outcome.candidates = records
     winner_outcome.manager_decisions = [{"decision": d.decision, "reason": d.reason}
                                         for d in cs.decisions]
@@ -1890,7 +1931,7 @@ async def _run_node_body(ctx: _TreeContext, node: NodeHandle, budget: Budget,
                     return _parked(nid, "needs-user", round(ctx.now() - started, 3),
                                    evidence="spec bubble: no reset; append a How via the "
                                             "How path to try a new approach",
-                                   children=result.children)
+                                   children=result.children, state="needs-user")
                 return result
 
     # Leaf path (a declared leaf, or a node that could not afford to decompose).
@@ -1913,7 +1954,7 @@ async def _run_node_body(ctx: _TreeContext, node: NodeHandle, budget: Budget,
             _merge_candidate(snapshot, workdir)
             return _parked(nid, "needs-user", round(ctx.now() - started, 3),
                            evidence="node exhausted; no new How available (no destructive "
-                                    "reset)", leaf=result.leaf)
+                                    "reset)", leaf=result.leaf, state="needs-user")
     finally:
         shutil.rmtree(snapshot, ignore_errors=True)
     # A spec bubble ("respec") is NOT handled here: it propagates UP to the owning node,
@@ -1974,23 +2015,25 @@ async def _run_leaf_node(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
         outcome = replace(
             outcome, claimed=False, signal="honest-failure",
             stop_reason=reason, exhausted=False, needs_parent=False,
-            exhaustion_reason=detail)
+            state="fail", exhaustion_reason=detail)
     _record_leaf_map(node, spec, outcome)
 
     if outcome.claimed:
         _force_done(ctx, node)
         ctx.emit("leaf_closed", node=node.id, stop_reason=outcome.stop_reason)
         return NodeOutcome(node_id=node.id, claimed=outcome.claimed, stop_reason="closed",
-                           leaf=outcome, calls=outcome.calls, wall_s=outcome.wall_s,
-                           boundary_audit=audit)
+                           state="pass", leaf=outcome, calls=outcome.calls,
+                           wall_s=outcome.wall_s, boundary_audit=audit)
     if outcome.signal == "exhausted":
         return NodeOutcome(node_id=node.id, claimed=False, stop_reason="resplit",
-                           leaf=outcome, calls=outcome.calls, wall_s=outcome.wall_s,
+                           state=outcome.state, leaf=outcome, calls=outcome.calls,
+                           wall_s=outcome.wall_s,
                            evidence=outcome.exhaustion_reason or "node exhausted",
                            boundary_audit=audit)
     if outcome.needs_parent and outcome.stop_reason == "spec-bubble":
         return NodeOutcome(node_id=node.id, claimed=False, stop_reason="respec",
-                           leaf=outcome, calls=outcome.calls, wall_s=outcome.wall_s,
+                           state="uncertain", leaf=outcome, calls=outcome.calls,
+                           wall_s=outcome.wall_s,
                            evidence=f"spec bubble: {outcome.exhaustion_reason}",
                            boundary_audit=audit)
     if outcome.stop_reason in ("deadline", "calls"):
@@ -1999,8 +2042,8 @@ async def _run_leaf_node(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
         return parked
     return NodeOutcome(node_id=node.id, claimed=False,
                        stop_reason=outcome.stop_reason or outcome.signal or "honest-failure",
-                       leaf=outcome, calls=outcome.calls, wall_s=outcome.wall_s,
-                       boundary_audit=audit)
+                       state=outcome.state, leaf=outcome, calls=outcome.calls,
+                       wall_s=outcome.wall_s, boundary_audit=audit)
 
 
 async def _run_integration_leaf(ctx: _TreeContext, integration_handle: NodeHandle,
@@ -2089,6 +2132,9 @@ def _finish_internal(ctx: _TreeContext, node: NodeHandle,
              reasons=list(getattr(closed, "reasons", []) or []))
     return (NodeOutcome(node_id=node.id, claimed=claimed,
                         stop_reason="closed" if claimed else "open",
+                        state=("pass" if claimed else propagate_node_state(
+                            [c.state for c in done],
+                            integration_passed=bool(closed))),
                         children=done, wall_s=round(ctx.now() - started, 3),
                         integration_verdicts=verdicts, close_rule=rule,
                         integration_reopen_rounds=integration_reopen_rounds,
@@ -2152,6 +2198,7 @@ async def _attempt_internal(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
                 if outcome.stop_reason in ("respec", "parked"):
                     return (NodeOutcome(node_id=node.id, claimed=False,
                                         stop_reason=outcome.stop_reason,
+                                        state=outcome.state or "uncertain",
                                         children=[o for o in outcomes if o is not None],
                                         wall_s=round(ctx.now() - started, 3),
                                         evidence=outcome.evidence), handles)
@@ -2193,7 +2240,7 @@ async def _attempt_internal(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
                 node.id, "needs-integration", round(ctx.now() - started, 3),
                 evidence="needs-integration: the dedicated integration leaf exposed no "
                          "test artifact (no keys -> no close)",
-                children=done, close_rule="needs-integration",
+                children=done, close_rule="needs-integration", state="uncertain",
                 integration_reopen_rounds=reopen_rounds), handles
 
         node.set_ac_test_map(_integration_map(integration_spec.acs, keys))
@@ -2215,6 +2262,8 @@ async def _attempt_internal(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
             ctx.emit("internal_open", node=node.id, verdicts=dict(results.verdicts),
                      reasons=reasons)
             return (NodeOutcome(node_id=node.id, claimed=False, stop_reason="open",
+                                state=propagate_node_state(
+                                    [c.state for c in done], integration_passed=False),
                                 children=done, wall_s=round(ctx.now() - started, 3),
                                 integration_verdicts=dict(results.verdicts),
                                 close_rule="needs-integration",
@@ -2224,7 +2273,7 @@ async def _attempt_internal(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
                 node.id, "needs-integration", round(ctx.now() - started, 3),
                 evidence="needs-integration: the integration verdict kept failing after "
                          f"{reopen_rounds} reopen round(s)",
-                children=done, close_rule="needs-integration",
+                children=done, close_rule="needs-integration", state="uncertain",
                 integration_reopen_rounds=reopen_rounds,
                 integration_verdicts=dict(results.verdicts)), handles
         fresh = _reopen_budgets(ctx, budget, len(responsible))
@@ -2233,7 +2282,7 @@ async def _attempt_internal(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec,
                 node.id, "needs-integration", round(ctx.now() - started, 3),
                 evidence="needs-integration: no call budget left to re-run the responsible "
                          "writers after a failing integration verdict",
-                children=done, close_rule="needs-integration",
+                children=done, close_rule="needs-integration", state="uncertain",
                 integration_reopen_rounds=reopen_rounds,
                 integration_verdicts=dict(results.verdicts)), handles
         reopen_rounds += 1
