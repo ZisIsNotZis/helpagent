@@ -45,7 +45,12 @@ from typing import Any, Mapping
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from bench.blind_run import produced_files, quadrant, verified_quadrant  # noqa: E402
+from bench.blind_run import (  # noqa: E402
+    produced_files,
+    quadrant,
+    restore_deviations,
+    verified_quadrant,
+)
 from bench.external_score import (  # noqa: E402
     ExternalScore,
     external_score,
@@ -277,10 +282,13 @@ def build_spec(task: dict) -> LeafSpec:
 
     ``grader_paths`` is the UNION of the staged-owned paths (every test path / test
     infrastructure path :func:`harness.staging.owned_paths` owns) and the corpus task's
-    own ``UNTOUCHED`` list from ``checks.py`` (ticket 17 F2). Before this fix the leaf
-    guarded only ``owned_paths`` while the grader also restored ``UNTOUCHED``, so a run
-    could green by writing a frozen source file (``api/__init__.py``) that the grader
-    then restored — a false success. One definition, used by both sides.
+    own ``UNTOUCHED`` list from ``checks.py`` (ticket 17 F2). FLOW §6 (P1a): the frozen
+    list is NO LONGER A WRITE GUARD — a run never consults it to decide what it may
+    write. A write to a grader/frozen path (or a test path, test infrastructure, a
+    module-shadow path, or a path outside the declared boundary) LANDs and is recorded as
+    a deviation, then restored before grading; the external grader still restores these
+    paths and checks byte-identity. ``grader_paths`` rides along only so such a write is a
+    recorded deviation and the path stays EXEMPT from the artifact-coverage rule (T-33).
     """
     frozen = untouched_paths(Path(task["task_dir"])) if task.get("task_dir") else set()
     grader_paths = tuple(sorted(set(excluded_paths(task["files"])) | frozen))
@@ -331,7 +339,8 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
                  iv_enabled: bool = False, review_enabled: bool = False,
                  acs: list[str] | None = None, verified_quad: str = "",
                  budget: Budget | None = None,
-                 verify_mode: str = "full") -> dict:
+                 verify_mode: str = "full",
+                 deviation_restores: list[str] | None = None) -> dict:
     """Assemble the persisted run record. One place, so the JSON that lands in
     ``run.json`` and the shape the tests pin cannot drift apart — including the
     wasted escalations that used to live only in the process-global ledger, every
@@ -415,6 +424,15 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         "failure_report": (dataclasses.asdict(outcome.failure_report)
                            if outcome.failure_report is not None else None),
         "evidence_gap": outcome.evidence_gap,
+        # FLOW §4 W4 / §5 (P1b): the visible-suite regression evidence on the delivered
+        # revision (the ids that passed on the pristine source and no longer pass, the
+        # recorded baseline, the suite output, and whether the suite was observable on
+        # both runs — an empty list with observable=False is UNOBSERVABLE, not "clean").
+        "regressions": outcome.regressions,
+        "regression_observable": outcome.regression_observable,
+        "regression_detail": outcome.regression_detail,
+        "regression_baseline": outcome.regression_baseline,
+        "regression_output": outcome.regression_output,
         # Ticket 21 round 3 (fix A), tightened round 4 (fix 1): the run's own test was red
         # on the final code while the independent verification passed — two imperfect
         # verifiers DISAGREE at the same revision, so the node did not claim (agreement is
@@ -487,6 +505,12 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         # deterministic "attribution unavailable" fallback.
         "judge_unavailable": outcome.judge_unavailable,
         "refusals": outcome.refusals,
+        # FLOW §6 (P1a): the writes the run made OUTSIDE its declared plan (never refused;
+        # each carries its pre-run bytes) and the restores the driver performed on the
+        # produced repository BEFORE grading, so the grader sees the same bytes it saw
+        # when off-plan writes were refused.
+        "deviations": [dataclasses.asdict(d) for d in outcome.deviations],
+        "deviation_restores": list(deviation_restores or []),
         # Interpreter isolation (ticket 17 round 5) and the report policy (round 6):
         # both the leaf's own pytest and the grader's pytest run the same env/args,
         # and both gate on a report in a private directory outside the repo.
@@ -786,11 +810,16 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
         clear_sinks()
     wall = round(time.monotonic() - started, 1)
 
+    # FLOW §6 (P1a): every recorded write deviation is restored to its pre-run bytes
+    # (or dropped when the run invented it) BEFORE grading, so the grader sees the same
+    # bytes it saw when off-plan writes were refused.
     produced = produced_files(workdir)
+    produced, deviation_restores = restore_deviations(produced, outcome.deviations)
     score = external_score(task_dir, produced, out_dir / "grade")
     set_sink(jsonl_sink(traj))
     try:
         trace("delivery", produced=sorted(produced), grader_passed=score.passed,
+               deviation_restores=list(deviation_restores),
                grader_exit=score.exit, grader_notes=list(score.notes),
                claimed=bool(outcome.claimed), stop_reason=outcome.stop_reason,
                changed_files=_changed_vs_pristine(task_dir, produced))
@@ -806,7 +835,7 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
         task["task_id"], spec.goal, outcome, withheld=withheld, produced=produced,
         score=score, quad=quad, run_wall_s=wall, judge_enabled=use_judge,
         iv_enabled=use_iv, review_enabled=use_review, acs=spec.acs, verified_quad=vquad,
-        budget=budget, verify_mode=mode)
+        budget=budget, verify_mode=mode, deviation_restores=deviation_restores)
 
     print(f"== v2 leaf: {task['task_id']} ==")
     print(f"[verify-mode] {mode} "

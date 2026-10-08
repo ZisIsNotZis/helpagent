@@ -50,6 +50,7 @@ from harness.leaf import (
     ReviewRequest,
     ReviewVerdict,
     VerificationRecord,
+    WriteDeviation,
     _criterion_unresolved,
     _declared_test_case_problems,
     _evidence_is_grant_calibre,
@@ -462,7 +463,12 @@ def test_non_test_self_test_path_is_relocated_into_tests(tmp_path):
     assert "tolerance_fired" in ledger_kinds()
 
 
-def test_implement_cannot_write_a_test_or_grader_path(tmp_path):
+def test_implement_writes_to_a_test_or_grader_path_land_as_deviations(tmp_path):
+    """FLOW §6 (P1a): an implementation write to the run's OWN test or a grader path is
+    NO LONGER refused — it LANDS and is recorded as a deviation, and the driver restores
+    the run's own test and drops the invented grader file before grading."""
+    from bench.blind_run import produced_files, restore_deviations
+
     grader = ("tests/test_chain.py",)
     spec = make_spec(grader=grader)
     stage(tmp_path, spec.files)
@@ -474,10 +480,20 @@ def test_implement_cannot_write_a_test_or_grader_path(tmp_path):
     ]})
     out = run_leaf_sync(model, spec, tmp_path,
                         Budget(calls=8, deadline_ts=_FAR_FUTURE),
-                        run_tests=ScriptedTests([1, 0]))
+                        run_tests=ScriptedTests([1, 1, 1, 0]))
 
-    assert (tmp_path / "tests/test_leaf_self.py").read_text() == SELF_TEST["content"]
-    assert not (tmp_path / "tests/test_chain.py").exists()
+    tested = "tests/test_leaf_self.py"
+    # both off-plan writes LANDED and are recorded as deviations ...
+    assert (tmp_path / tested).read_text() == "def test_goal():\n    assert False\n"
+    assert (tmp_path / "tests/test_chain.py").exists()
+    assert any(d.path == tested for d in out.deviations)
+    assert any(d.path == "tests/test_chain.py" and "grader-owned" in d.reason
+               for d in out.deviations)
+    # ... and the driver restores the run's own test and drops the invented grader file.
+    restored, restores = restore_deviations(produced_files(tmp_path), out.deviations)
+    assert restored[tested] == SELF_TEST["content"]
+    assert "tests/test_chain.py" not in restored
+    assert any(tested in r and "restored" in r for r in restores)
     assert out.claimed is True
 
 
@@ -2419,11 +2435,13 @@ def test_v2_driver_iv_mode_changes_the_claim_basis(tmp_path, monkeypatch):
 # ------------------------------------------ round 5: one owned-path definition
 
 
-def test_run_written_conftest_is_refused_and_never_reaches_the_gate(tmp_path):
-    """Attack 3B reproduced: staging decided "grader-owned" by ``is_test_path`` only, so
-    a run-written ``conftest.py`` with a ``pytest_sessionfinish`` hook was accepted and
-    made the LEAF's own pytest exit 0 (a manufactured ``claimed=True``). The write is now
-    refused as test infrastructure, recorded, and never runs the gate."""
+def test_run_written_conftest_lands_is_a_deviation_and_is_restored_before_grading(tmp_path):
+    """Attack 3B, ported to FLOW §6 (P1a): a run-written ``conftest.py`` with a
+    ``pytest_sessionfinish`` hook is NO LONGER refused — it lands, is recorded as a
+    DEVIATION (test infrastructure), and the driver restores it before grading, so the
+    grader never sees the run's hook."""
+    from bench.blind_run import produced_files, restore_deviations
+
     spec = make_spec()
     stage(tmp_path, spec.files)
     hook = ("import pytest\n\n\ndef pytest_sessionfinish(session, exitstatus):\n"
@@ -2431,19 +2449,25 @@ def test_run_written_conftest_is_refused_and_never_reaches_the_gate(tmp_path):
     conftest = write_env("conftest.py", hook, comment="make the gate green")
     model = FakeModelRunner({"write_test": [SELF_TEST, conftest, impl()]})
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=5, deadline_ts=_FAR_FUTURE),
-                        run_tests=ScriptedTests([1, 0]))
+                        run_tests=ScriptedTests([1, 1, 0]))
 
-    assert not (tmp_path / "conftest.py").exists()          # refused, never written
-    assert any("conftest.py" in r for r in out.refusals)
-    assert any("infrastructure" in r for r in out.refusals)
-    assert "implement_refused" in ledger_kinds()
-    # only the self-test red and the real implementation green drove the gate
+    assert (tmp_path / "conftest.py").exists()              # landed, never refused
+    assert any(d.path == "conftest.py" and "infrastructure" in d.reason
+               for d in out.deviations)
+    assert any("conftest.py" in a.deviations for a in out.attempts)
+    conftest_dev = next(d for d in out.deviations if d.path == "conftest.py")
+    restored, restores = restore_deviations(produced_files(tmp_path), out.deviations)
+    assert conftest_dev.created and "conftest.py" not in restored
+    assert any("conftest.py" in r and "removed" in r for r in restores)
+    # the real implementation still drove the gate to green
     assert out.claimed is True and out.signal == "green"
 
 
-def test_leaf_refuses_a_module_shadow_source_write(tmp_path):
-    """Attack 3A through the leaf: a run may not land a top-level module that shadows an
-    interpreter import. The write is refused (recorded) and the escalation continues."""
+def test_leaf_records_a_module_shadow_source_write_as_a_deviation(tmp_path):
+    """Attack 3A, ported to FLOW §6 (P1a): a run-authored top-level module that shadows an
+    interpreter import is no longer refused at write time — it lands and is recorded as a
+    DEVIATION (the gate still refuses to RUN with a shadow in the tree, and the driver
+    restores it before grading)."""
     spec = make_spec()
     stage(tmp_path, spec.files)
     shadow = write_env("json.py", "import sys\nsys.exit(0)\n", comment="make the grader pass")
@@ -2451,10 +2475,11 @@ def test_leaf_refuses_a_module_shadow_source_write(tmp_path):
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
                         run_tests=ScriptedTests([1, 1, 0]))
 
-    assert not (tmp_path / "json.py").exists()
-    assert any("json.py" in r for r in out.refusals)
-    assert any("module-shadow" in r for r in out.refusals)
-    assert "implement_refused" in ledger_kinds()
+    assert (tmp_path / "json.py").exists()                  # landed, never refused
+    assert any(d.path == "json.py" and "module-shadow" in d.reason
+               for d in out.deviations)
+    assert any("json.py" in a.deviations for a in out.attempts)
+    assert "write_deviation_recorded" in ledger_kinds()
 
 
 def test_leaf_gate_refuses_to_run_with_a_shadow_file_in_the_tree(tmp_path):
@@ -2496,7 +2521,7 @@ def test_leaf_gate_lets_a_legit_test_import_its_package(tmp_path):
 # ------------------------------------------------- round 5: run-record audit
 
 
-def test_run_record_records_refusals_and_the_isolation_env():
+def test_run_record_records_deviations_refusals_and_the_isolation_env():
     from bench.external_score import ExternalScore
     from bench.v2_leaf import build_record
 
@@ -2504,15 +2529,23 @@ def test_run_record_records_refusals_and_the_isolation_env():
         claimed=False, signal="honest-failure", attempts=[], calls=2, wall_s=1.0,
         self_test=None, questions=[], exhausted=False, exhaustion_reason="calls",
         layers_used=[], stop_reason="calls",
-        refusals=["json.py: a module-shadow path (would shadow an interpreter import)"])
+        refusals=["json.py: a module-shadow path (would shadow an interpreter import)"],
+        deviations=[WriteDeviation("json.py", "a module-shadow path", None)])
     score = ExternalScore(passed=False, exit=1, shadowed=["json.py"],
                           isolation={"PYTHONSAFEPATH": "1",
                                      "PYTEST_ADDOPTS": "-p no:cacheprovider"})
 
+    restore_line = "json.py: removed (a recorded write deviation: a module-shadow path)"
     record = build_record("T-x", "goal", outcome, withheld=[], produced={}, score=score,
-                          quad="honest-failure", run_wall_s=1.0)
+                          quad="honest-failure", run_wall_s=1.0,
+                          deviation_restores=[restore_line])
 
     assert record["refusals"] == outcome.refusals
+    # FLOW §6 (P1a): the deviation is persisted with its snapshotted original (None = the
+    # run created it) and the driver's restore is recorded.
+    assert record["deviations"] == [
+        {"path": "json.py", "reason": "a module-shadow path", "original": None}]
+    assert record["deviation_restores"] == [restore_line]
     assert record["grader_shadowed"] == ["json.py"]
     assert record["isolation"]["env"]["PYTHONSAFEPATH"] == "1"
     assert record["isolation"]["grader_env"]["PYTHONSAFEPATH"] == "1"
@@ -2524,10 +2557,11 @@ def test_run_record_records_refusals_and_the_isolation_env():
 
 
 def test_end_to_end_shadow_module_wrong_fix_is_not_a_true_success(tmp_path, monkeypatch):
-    """The driver case an adversarial pass demonstrated: a wrong fix whose only other
-    change is a run-authored ``json.py`` must not reach the true-success quadrant. The
-    leaf refuses the shadow write and the external grader would refuse it too, so the
-    real source bug stands and the run reports honestly."""
+    """The driver case an adversarial pass demonstrated, ported to FLOW §6 (P1a): a wrong
+    fix whose only other change is a run-authored ``json.py`` must not reach the
+    true-success quadrant. The shadow write LANDS and is recorded as a deviation, then the
+    driver restores it before grading, so the real source bug stands and the run reports
+    honestly."""
     import harness.leaf as leaf_mod
     from bench import v2_leaf
 
@@ -2547,8 +2581,11 @@ def test_end_to_end_shadow_module_wrong_fix_is_not_a_true_success(tmp_path, monk
     assert record["claimed"] is False
     assert record["actual"] is False
     assert record["quadrant"] != "true-success"
-    assert any("json.py" in r for r in record["refusals"])
-    assert not (tmp_path / "out" / "work" / "json.py").exists()
+    # the shadow write is recorded as a deviation and was restored out of the graded
+    # repository before the external grader saw it.
+    assert any(d["path"] == "json.py" for d in record["deviations"])
+    assert any("json.py" in r for r in record["deviation_restores"])
+    assert "json.py" not in record["produced"]
 
 
 # ---------------------------- round 6: the gate is a machine-readable pytest report (F1)
@@ -2639,7 +2676,12 @@ def test_an_exit_zero_without_a_report_is_not_green():
 # guarded only owned_paths, so a run could green by writing a frozen source file the
 # grader then restored — a false success.
 
-def test_t31_untouched_files_are_grader_paths_and_the_write_is_refused(tmp_path):
+def test_t31_untouched_files_are_grader_paths_and_the_write_is_a_deviation(tmp_path):
+    """FLOW §6 (P1a): the corpus ``UNTOUCHED`` files stay in ``grader_paths`` (for the
+    deviation record, the coverage exemption, and the external grader's restore), but they
+    are NO LONGER a write guard: a write to ``api/__init__.py`` LANDS and is recorded as a
+    deviation, then restored before grading."""
+    from bench.blind_run import produced_files, restore_deviations
     from bench.v2_leaf import build_spec, load_task
 
     spec = build_spec(load_task(T31))
@@ -2655,16 +2697,76 @@ def test_t31_untouched_files_are_grader_paths_and_the_write_is_refused(tmp_path)
         impl(path="api/transport.py", content="def send(url, payload, timeout=1.0):\n    return 1\n"),
     ]})
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
-                        run_tests=ScriptedTests([1, 0]))
+                        run_tests=ScriptedTests([1, 1, 0]))
 
-    assert (tmp_path / "api" / "__init__.py").read_text() == frozen   # never written
-    assert any("api/__init__.py" in r and "grader-owned" in r for r in out.refusals)
-    assert "implement_refused" in ledger_kinds()
+    # the frozen write LANDED (never refused) and is recorded as a deviation ...
+    assert (tmp_path / "api" / "__init__.py").read_text() == "# rewritten by the run\n"
+    frozen_dev = next(d for d in out.deviations if d.path == "api/__init__.py")
+    assert "grader-owned" in frozen_dev.reason and frozen_dev.original == frozen
+    assert "implement_refused" not in ledger_kinds()
+    # ... and the driver restores the frozen bytes before grading.
+    restored, restores = restore_deviations(produced_files(tmp_path), out.deviations)
+    assert restored["api/__init__.py"] == frozen
+    assert any("api/__init__.py" in r and "restored" in r for r in restores)
     # Ticket 19 E: the request names the client's fetch() (and both call sites) but the
     # run touched only the transport, so per-requirement artifact coverage refuses the
     # claim — the design answer to the T-31 false success.
     assert out.claimed is False
     assert any("fetch" in m for m in out.coverage_missing)
+
+
+# --------------------------- FLOW §6 (P1a): allow + record + restore instead of refuse
+
+
+def test_off_plan_write_lands_is_recorded_and_restores_before_grading(tmp_path):
+    """PROBE (a)/(c) at the write seam: a write to a grader/frozen path LANDS and is
+    recorded as a deviation carrying its pre-run bytes; ``restore_deviations`` puts those
+    bytes back before grading. The mechanical shape refusal still refuses."""
+    from bench.blind_run import produced_files, restore_deviations
+    from harness.leaf import _write_one
+
+    spec = make_spec(grader=("frozen/keep.py",))
+    stage(tmp_path, {**spec.files, "frozen/keep.py": "KEEP = 1\n"})
+    baseline: dict[str, str | None] = {}
+    deviations: list[WriteDeviation] = []
+
+    wrote, rel, reason, shape = _write_one(
+        "frozen/keep.py", "KEEP = 2\n", spec, tmp_path, None, baseline, deviations)
+
+    assert wrote and rel == "frozen/keep.py" and not shape
+    assert reason and "grader-owned" in reason
+    assert deviations[0].path == "frozen/keep.py"
+    assert deviations[0].original == "KEEP = 1\n" and not deviations[0].created
+    assert (tmp_path / "frozen" / "keep.py").read_text() == "KEEP = 2\n"   # landed
+
+    produced, restores = restore_deviations(produced_files(tmp_path), deviations)
+    assert produced["frozen/keep.py"] == "KEEP = 1\n"
+    assert any("frozen/keep.py" in r and "restored" in r for r in restores)
+
+    # PROBE (c): the mechanical shape refusal still refuses — a directory at the target.
+    (tmp_path / "adir").mkdir()
+    wrote2, _rel2, _reason2, shape2 = _write_one("adir", "X = 1\n", spec, tmp_path,
+                                                 None, {}, [])
+    assert not wrote2 and shape2
+
+
+def test_declared_boundary_violation_lands_and_is_recorded_not_refused(tmp_path):
+    """PROBE (b): a write outside the leaf's declared write boundary LANDS (never refused)
+    and is recorded as a deviation on the outcome and the attempt."""
+    spec = dataclasses.replace(make_spec(), write_boundary=("pkg/calc.py",))
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST,
+        impl(path="pkg/elsewhere.py", content="X = 1\n"),
+        impl(),
+    ]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 1, 0]))
+
+    assert (tmp_path / "pkg" / "elsewhere.py").read_text() == "X = 1\n"   # landed
+    assert any(d.path == "pkg/elsewhere.py" and "boundary" in d.reason
+               for d in out.deviations)
+    assert any("pkg/elsewhere.py" in a.deviations for a in out.attempts)
 
 
 # ------------------------------- round 6: two more crash shapes become honest refusals (F3)
@@ -5034,6 +5136,137 @@ def test_claim_gate_enforces_every_rule_directly():
                           integration_passed=True, all_children_closed=False).claimed is False
     assert claim_decision(route="integration", criteria_count=0,
                           integration_passed=False, all_children_closed=True).claimed is False
+
+
+def test_claim_gate_refuses_a_visible_suite_regression():
+    """FLOW §4 W4 / §5 (P1b): a baseline-green test that no longer passes is a hard block
+    on EVERY leaf route, through the ONE gate's ``regressions`` input."""
+    base = {
+        "criteria_count": 1, "ledger": _gate_ledger(), "own_test": "tests/t.py",
+        "own_test_green": True, "test_rewrites": 0, "iv_approved": False,
+        "iv_red_on_final": False, "review_approved": False, "review_verdicts": (),
+        "coverage_missing": (), "test_case_problems": (),
+        "verification_basis": "test", "tier_allowed": True,
+    }
+    assert claim_decision(route="own-test", **base).claimed is True
+    blocked = claim_decision(route="own-test", **base,
+                             regressions=("tests/test_visible.py::test_ok",))
+    assert blocked.claimed is False and blocked.blocker == "regression"
+    assert "tests/test_visible.py::test_ok" in blocked.detail
+    # the review route cannot override a regression (it comes BEFORE the review step)
+    review_blocked = claim_decision(
+        route="review", **{**base, "own_test": None, "own_test_green": False,
+                            "review_approved": True,
+                            "review_verdicts": (_grounded_review(),),
+                            "verification_basis": "review"},
+        regressions=("tests/test_visible.py::test_ok",))
+    assert review_blocked.claimed is False and review_blocked.blocker == "regression"
+
+
+def test_a_visible_suite_regression_blocks_the_claim_and_is_recorded(tmp_path):
+    """P1b wiring, end to end through ``run_leaf``: the visible suite is recorded green
+    on the PRISTINE source, the final revision breaks it, and the claim is refused with
+    the failing id in the outcome, the failure report and the ledger event."""
+    visible_id = "tests/test_visible.py::test_ok"
+    self_id = "tests/test_leaf_self.py::test_goal"
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    stage(tmp_path, {"tests/test_visible.py": "def test_ok():\n    assert True\n"})
+
+    def suite(workdir, node_ids=None):
+        source = (workdir / "pkg/calc.py").read_text()
+        own_written = (workdir / "tests/test_leaf_self.py").exists()
+        if not own_written:
+            # the PRISTINE baseline: the visible suite is green
+            return _leaf_suite(passed=(visible_id,))
+        if "return 42" not in source:
+            # the run's own test is red on arrival
+            return _leaf_suite(passed=(), failed=(self_id,), exit=1)
+        # the final revision: the run's own gate is GREEN, but the baseline-visible test
+        # no longer runs (deleted/hidden) — exactly the gap the own-test gate cannot see.
+        return _leaf_suite(passed=(self_id,))
+
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=2, deadline_ts=_FAR_FUTURE),
+                        run_tests=suite)
+
+    assert out.claimed is False
+    assert out.regressions == [visible_id]
+    assert out.regression_observable is True
+    assert out.regression_baseline == [visible_id]
+    assert "regression" in out.regression_detail
+    assert out.failure_report is not None
+    assert out.failure_report.regressions == (visible_id,)
+    assert out.failure_report.regression_observable is True
+    kinds = ledger_kinds()
+    assert "regression_baseline" in kinds and "regression_check" in kinds
+    assert "regression_blocks_claim" in kinds
+
+
+def _leaf_suite(passed=(), failed=(), *, exit: int = 0) -> ShapedResult:
+    """A shaped suite result with a genuine machine-readable gate report."""
+    green = exit == 0 and not failed
+    return ShapedResult(
+        command=["python3", "-m", "pytest", "-q"], exit=exit,
+        verdict="ok" if green else "failed",
+        excerpts=[] if green else [f"FAILED {nid}" for nid in failed],
+        gate=GateReport(report_path="(fake)", process_exit=exit, canary="fake",
+                        expected_files=(), n_tests=len(passed) + len(failed),
+                        n_failed=len(failed), n_errors=0, passed_ids=tuple(passed),
+                        failed_ids=tuple(failed), missing=(), observed=True,
+                        anomaly="" if green else "tests-failed",
+                        detail="" if green else "1 failure(s)"))
+
+
+def test_a_visible_suite_that_stays_green_does_not_block_the_claim(tmp_path):
+    """A visible suite that keeps passing is not a regression: the run still claims, and
+    the outcome records the observed-but-clean check."""
+    visible_id = "tests/test_visible.py::test_ok"
+    self_id = "tests/test_leaf_self.py::test_goal"
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    stage(tmp_path, {"tests/test_visible.py": "def test_ok():\n    assert True\n"})
+
+    def suite(workdir, node_ids=None):
+        source = (workdir / "pkg/calc.py").read_text()
+        if not (workdir / "tests/test_leaf_self.py").exists():
+            return _leaf_suite(passed=(visible_id,))
+        if "return 42" not in source:
+            return _leaf_suite(passed=(), failed=(self_id,), exit=1)
+        return _leaf_suite(passed=(self_id, visible_id))
+
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=4, deadline_ts=_FAR_FUTURE),
+                        run_tests=suite)
+
+    assert out.claimed is True
+    assert out.regressions == []
+    assert out.regression_observable is True
+    assert out.regression_baseline == [visible_id]
+    assert out.failure_report is None
+
+
+def test_a_baseline_without_a_final_check_is_unobservable(tmp_path):
+    """A run that stops before the final-revision check records UNOBSERVABLE with the
+    baseline kept — never the false claim that the suite was clean or absent."""
+    visible_id = "tests/test_visible.py::test_ok"
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    stage(tmp_path, {"tests/test_visible.py": "def test_ok():\n    assert True\n"})
+
+    def suite(workdir, node_ids=None):
+        return _leaf_suite(passed=(visible_id,))
+
+    # calls=0: the baseline is captured (no model call), then the self-test cannot afford
+    # a call and the run hands over before any final-revision check.
+    out = run_leaf_sync(FakeModelRunner({}), spec, tmp_path,
+                        Budget(calls=0, deadline_ts=_FAR_FUTURE), run_tests=suite)
+
+    assert out.claimed is False
+    assert out.regressions == []
+    assert out.regression_observable is False
+    assert out.regression_baseline == [visible_id]
+    assert "did not run" in out.regression_detail
 
 
 #: The EXACT `claim_decision(...)` call sites the package is allowed to have (ticket 22

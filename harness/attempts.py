@@ -187,11 +187,17 @@ class Attempt(BaseModel):
     verdict: Novelty | None = None   # filled by prefilter or judge
     judge: JudgeVerdict | None = None  # the independent attribution, when one was consulted
     calls_used: int = 1
-    #: Ticket 26: the write was REFUSED before it reached disk (a frozen/grader path, a
-    #: test path, or a bad target shape). Nothing was learned about the code, so the
-    #: escalation must not treat this like "the same attempt again" — see
+    #: Ticket 26: the write was REFUSED before it reached disk (a bad target SHAPE only
+    #: now: an existing directory, a path under a file, an embedded NUL, an over-long
+    #: name, or a path that escapes the repository). Nothing was learned about the code,
+    #: so the escalation must not treat this like "the same attempt again" — see
     #: :func:`harness.leaf._mode` / ``_implement_question``.
     refused: bool = False
+    #: FLOW §6 (P1a): the paths this attempt wrote OUTSIDE its declared plan — a
+    #: grader-owned/frozen/test path, a module-shadow path, or a path outside the
+    #: node's declared write boundary. The write LANDED (never refused), is snapshotted
+    #: for restore before grading, and is recorded here and on the leaf outcome.
+    deviations: list[str] = Field(default_factory=list)
     at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

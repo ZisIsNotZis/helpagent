@@ -271,6 +271,13 @@ from harness.gate_report import (
     private_report_path,
 )
 from harness.questions import Question, QuestionQueue
+from harness.regression import (
+    RegressionCheck,
+    VisibleSuiteBaseline,
+    capture_baseline,
+    check_regression,
+)
+from harness.regression import visible_test_files as regression_visible_test_files
 from harness.runner import llm_step, note
 from harness.telemetry import jsonable_envelope, record
 from harness.staging import (
@@ -304,6 +311,7 @@ __all__ = [
     "LeafSpec",
     "PlanUpdate",
     "VerificationRecord",
+    "WriteDeviation",
     "WriteShapeRefused",
     "apply_judge_filter",
     "build_criterion_ledger",
@@ -1038,6 +1046,14 @@ class FailureReport:
     criteria: tuple[CriterionLedgerEntry, ...] = ()
     evidence_gap: bool = False
     evidence_gap_reason: str = ""
+    #: FLOW §4 W4 / §5 (P1b): the visible-suite REGRESSION evidence. ``regressions`` are
+    #: the baseline test ids that no longer pass on the delivered revision; ``regression_
+    #: observable`` is True only when the suite was observed on BOTH the pristine baseline
+    #: and the final revision (so an empty ``regressions`` with ``observable=False`` is
+    #: UNOBSERVABLE, never "no regression"). ``regression_detail`` names the ids/output.
+    regressions: tuple[str, ...] = ()
+    regression_observable: bool = False
+    regression_detail: str = ""
 
     @property
     def violated(self) -> tuple[CriterionLedgerEntry, ...]:
@@ -1128,6 +1144,10 @@ class LeafOutcome:
     # a normalized landing spot. Persisted in the run record so a forged-green attempt
     # is visible after the fact.
     refusals: list[str] = field(default_factory=list)
+    #: FLOW §6 (P1a): every write the run made OUTSIDE its declared plan, with the pre-run
+    #: bytes snapshotted for restore before grading. A deviation is RECORDED, never
+    #: refused (the one exception is a path that cannot be written at all — a bad SHAPE).
+    deviations: list[WriteDeviation] = field(default_factory=list)
     # Every gate report anomaly seen (ticket 17 F1): a missing/unparsable pytest report,
     # a report without the per-run canary, a report that contradicts the exit status.
     # A gate with an anomaly is RED and the detail lands here and in the run record.
@@ -1228,6 +1248,17 @@ class LeafOutcome:
     #: (the terminal revision is delivered instead). Empty when no evidence snapshot
     #: existed.
     delivered_revision: dict[str, Any] = field(default_factory=dict)
+    #: FLOW §4 W4 / §5 (P1b): the visible-suite REGRESSION evidence on the delivered
+    #: revision. ``regressions`` are the baseline test ids that no longer pass;
+    #: ``regression_observable`` is True only when the visible suite was OBSERVED on both
+    #: the pristine baseline and the final revision (so an empty ``regressions`` with
+    #: ``observable=False`` is UNOBSERVABLE, never "no regression"). ``regression_baseline``
+    #: is the recorded baseline id set and ``regression_output`` the final suite's output.
+    regressions: list[str] = field(default_factory=list)
+    regression_observable: bool = False
+    regression_detail: str = ""
+    regression_baseline: list[str] = field(default_factory=list)
+    regression_output: list[str] = field(default_factory=list)
 
     @property
     def verification_policy(self) -> str:
@@ -1485,6 +1516,7 @@ def claim_decision(
     review_verdicts: Sequence[ReviewVerdict] = (),
     coverage_missing: Sequence[str] = (),
     request_coverage_missing: Sequence[str] = (),
+    regressions: Sequence[str] = (),
     test_case_problems: Sequence[str] = (),
     verification_basis: str = "test",
     tier_allowed: bool = True,
@@ -1510,6 +1542,9 @@ def claim_decision(
        round 3, the T-31 fix) — a request that names N call sites is not done until the
        diff touches all N, on EVERY route (ticket 23 round 4, fix 2: including the tree's
        ``integration`` close, which used to bypass it);
+    3c. no claim when the visible-suite REGRESSION check found a baseline-green test that
+       no longer passes on this revision (FLOW §4 W4 / §5, P1b) — a hard block on every
+       leaf route;
     4. on the REVIEW route the graded review DECIDES over a conflicting TEST (ticket 22
        item 3): an approving review carries the claim even when the run's own test is red
        on the SAME final revision, and a rejecting review blocks it even when a test is
@@ -1569,6 +1604,12 @@ def claim_decision(
         return _blocked_claim("no-acceptance-criteria")
     if not ledger:
         return _blocked_claim("empty-ledger")
+    if regressions:
+        # FLOW §4 W4 / §5 (P1b): the visible test suite was green on the pristine source
+        # and one of those tests no longer passes on this revision — a REGRESSION blocks
+        # the claim on EVERY route (the grader's suite is withheld, so this is the
+        # deterministic part of the regression check that the run itself can observe).
+        return _blocked_claim("regression", detail="; ".join(regressions))
     if coverage_missing:
         return _blocked_claim("requirement-uncovered")
     if request_coverage_missing:
@@ -1926,23 +1967,36 @@ def _new_test_problem(rel: str, spec: LeafSpec, workdir: Path) -> str:
     return ""
 
 
-def _source_write_problem(rel: str, spec: LeafSpec, self_test: str | None) -> str:
-    """Why ``rel`` may not be written as an implementation file ("" when it may).
+def _source_write_deviation(rel: str, spec: LeafSpec, self_test: str | None) -> str:
+    """Why a write to ``rel`` is a DEVIATION from the plan ("" when it is in-plan).
 
-    The implementation seam excludes every :func:`harness.staging.owned_paths` path —
-    a run may never write a test path, ``conftest.py``/pytest config/``sitecustomize``,
-    or a module-shadow path that would subvert the interpreter's own imports.
+    FLOW §5/§6 (P1a): a write to a path the run is not allowed to change is NO LONGER
+    refused. It lands, and this reason is recorded as a deviation (telemetry + the leaf
+    outcome + the :class:`~harness.attempts.Attempt`) so the pre-existing bytes can be
+    restored before grading. The declared ``files``/``write_boundary`` remain the PLAN:
+    a write outside it is a recorded deviation, never a refusal. The declared test
+    cases / reviews are the verification plan.
+
+    The conditions that used to REFUSE — a grader-owned or task-frozen path, test
+    infrastructure, a test path, the run's own test, a module-shadow path, or a path
+    outside the node's declared write boundary — now all return a deviation reason.
+    The ONE mechanical exception that still refuses lives in :func:`_write_one`: a path
+    that cannot be written at all (a directory at the target, an unusable name, or an
+    escaping path) has nothing to write.
+
+    The corpus ``UNTOUCHED`` list is no longer a write GUARD: the run never consults it
+    to decide what it may write. It rides :attr:`LeafSpec.grader_paths` only so a write
+    there is a recorded deviation and the path stays EXEMPT from the artifact-coverage
+    rule (the external grader still restores it and checks byte-identity).
     """
-    if _escapes_repo(rel):
-        return "escapes the repository"
     if rel in set(spec.grader_paths):
-        return "grader-owned path"
+        return "a grader-owned or task-frozen path (the grader owns its bytes)"
     if self_test is not None and rel == self_test:
-        return "the run's own test file (outside the implementation seam)"
+        return "the run's own test file (outside the implementation plan)"
     if owned_paths(rel):
         if is_test_infrastructure(rel):
             return "test infrastructure (grader-owned)"
-        return "a test path (outside the implementation seam)"
+        return "a test path (grader-owned)"
     if shadowing_path(rel):
         return "a module-shadow path (would shadow an interpreter import)"
     if spec.write_boundary is not None:
@@ -1951,6 +2005,27 @@ def _source_write_problem(rel: str, spec: LeafSpec, self_test: str | None) -> st
         if canon is None or canon not in boundary:
             return "outside the node's declared write boundary"
     return ""
+
+
+@dataclass(frozen=True)
+class WriteDeviation:
+    """One write the run made OUTSIDE its declared plan (FLOW §6, P1a).
+
+    ``reason`` is :func:`_source_write_deviation`'s classification. ``original`` is the
+    pre-run content of the path (``None`` when the run CREATED it), snapshotted at the
+    first harness write so :func:`bench.blind_run.restore_deviations` can put the tree
+    back before grading. The write itself LANDED — a deviation is recorded, never
+    refused.
+    """
+
+    path: str
+    reason: str
+    original: str | None = None
+
+    @property
+    def created(self) -> bool:
+        """True when the path did not exist before the run (restore = delete)."""
+        return self.original is None
 
 
 class WriteShapeRefused(RuntimeError):
@@ -4116,6 +4191,11 @@ async def run_leaf(
     iv_attempts = 0
     iv_repairs = 0
     refusals: list[str] = []
+    # FLOW §6 (P1a): every write the run made OUTSIDE its declared plan (a grader-owned/
+    # frozen path, a test path, test infrastructure, a module-shadow path, or a path
+    # outside the write boundary). The write LANDED; each entry carries the pre-run bytes
+    # so the driver can restore it before grading.
+    deviations: list[WriteDeviation] = []
     gate_anomalies: list[str] = []
     # Ticket 19 round 2 (F5): every envelope step that stayed malformed past its retries.
     malformed_steps: list[str] = []
@@ -4196,6 +4276,15 @@ async def run_leaf(
     # revision — the restore-refusal rule for an own-test snapshot needs it.
     coverage_files: dict[str, str] | None = None
     coverage_missing_at: tuple[str, ...] = ()
+    # FLOW §4 W4 / §5 (P1b): the visible-suite REGRESSION stage. ``regression_baseline``
+    # is captured on the PRISTINE staged source before the run's first write (None when
+    # the staged view ships no visible test file). ``regression_last`` caches the last
+    # check keyed by the deliverable-file map it was computed on, so the same revision is
+    # never re-run twice. ``regression_result`` is the terminal check recorded on the run.
+    regression_baseline: VisibleSuiteBaseline | None = None
+    regression_attempted = False
+    regression_last: tuple[dict[str, str], RegressionCheck] | None = None
+    regression_result: RegressionCheck | None = None
 
     def capture_best_evidence(rank: int, tier: str, reason: str) -> None:
         """Snapshot the work tree when an attempt reaches the STRONGEST evidence yet.
@@ -4476,6 +4565,52 @@ async def run_leaf(
         """
         return _request_artifact_messages(
             _request_coverage(spec, workdir, baseline))
+
+    async def ensure_regression_baseline() -> VisibleSuiteBaseline | None:
+        """Capture the visible suite's baseline on the PRISTINE staged source (FLOW §5).
+
+        Runs ONCE, before the run's first write (the self-test write in step 1), so the
+        recorded ids come from the source the run started with. Skipped entirely when the
+        staged view ships no visible test file — the grader's own suite is withheld by the
+        blind protocol, so the corpus baseline is empty and the check is not applicable
+        (recorded as such on the outcome, never as "no regression").
+        """
+        nonlocal regression_baseline, regression_attempted
+        if regression_baseline is not None or regression_attempted:
+            return regression_baseline
+        regression_attempted = True
+        if not regression_visible_test_files(workdir):
+            return None
+        baseline_check = await capture_baseline(workdir, tests)
+        regression_baseline = baseline_check
+        emit("regression_baseline", observable=baseline_check.observable,
+             passed_ids=list(baseline_check.passed_ids), detail=baseline_check.detail)
+        return regression_baseline
+
+    async def regression_now() -> RegressionCheck:
+        """The regression check for the revision CURRENTLY on disk (FLOW §4 W4).
+
+        Reuses the cached result when the deliverable-file map is unchanged, so a claim
+        evaluation and the terminal record do not run the visible suite twice on the same
+        revision. With no baseline (no visible suite) the check is not applicable.
+        """
+        nonlocal regression_last, regression_result
+        if regression_baseline is None:
+            return RegressionCheck(
+                observable=False,
+                detail=("no visible test suite in the staged source: the regression "
+                        "check is not applicable"))
+        signature = _snapshot_deliverable_files(workdir)
+        if regression_last is not None and regression_last[0] == signature:
+            return regression_last[1]
+        current = await check_regression(regression_baseline, workdir, tests)
+        regression_last = (signature, current)
+        regression_result = current
+        emit("regression_check", observable=current.observable,
+             regressions=list(current.regressions), baseline_ids=list(current.baseline_ids),
+             passed_ids=list(current.passed_ids), detail=current.detail,
+             output=list(current.output))
+        return current
 
     async def run_reviews(reason: str) -> tuple[bool | None, str]:
         """Ticket 20 (items 1-3): run ONE fresh-context review per declared ANGLE and
@@ -5144,6 +5279,8 @@ async def run_leaf(
         outranked (ticket 22 item 3). On a refusal it records the specific blocker — the
         test-vs-test CONFLICT, ``green-after-test-rewrite``, the zero-criteria or
         empty-ledger block, the coverage block, or the covenant re-check — and stops.
+        A visible-suite REGRESSION (FLOW §4 W4 / §5, P1b) is the one refusal that does NOT
+        stop: it records the failing ids and returns False so the caller can rework.
         Returns True when the claim was granted.
         """
         nonlocal claimed, claimed_basis, own_test_conflict, own_test_conflict_reason
@@ -5181,6 +5318,17 @@ async def run_leaf(
         if decision.blocker == "no-acceptance-criteria":
             emit("no_acceptance_criteria_claim_blocked")
             stop("honest-failure", "no-acceptance-criteria", "no-acceptance-criteria")
+            return False
+        if decision.blocker == "regression":
+            # FLOW §4 W4 / §5 (P1b): the visible suite was green on the pristine source and
+            # a test that passed there no longer passes on this revision. This is a RED
+            # signal: the claim is REFUSED on every route and the failing ids become the
+            # next attempt's context. On the main path the caller iterates (rework); where
+            # no iteration is possible (the exhaustion/terminal check) the run ends
+            # unclaimed with the regression recorded.
+            emit("regression_blocks_claim", basis=verification_basis,
+                 regressions=list(regression_result.regressions if regression_result else ()),
+                 detail=decision.detail)
             return False
         if decision.blocker == "requirement-uncovered":
             emit("requirement_uncovered", missing=list(coverage_missing))
@@ -5320,6 +5468,9 @@ async def run_leaf(
                     # second independent check) instead.
                     test_could_not_carry = True
                 else:
+                    # FLOW §4 W4 / §5 (P1b): the regression check on the FINAL revision
+                    # is a hard input to the gate here too (no iteration is possible now).
+                    regression = await regression_now()
                     decision = claim_decision(
                         route="independent-test", criteria_count=len(spec.acs),
                         ledger=ledger_now(), own_test=self_test,
@@ -5329,6 +5480,7 @@ async def run_leaf(
                         review_approved=False, review_verdicts=tuple(review_verdicts),
                         coverage_missing=coverage_missing,
                         request_coverage_missing=request_coverage_missing,
+                        regressions=regression.regressions,
                         test_case_problems=test_case_problems,
                         verification_basis=verification_basis,
                         conflict_detail=verifier_conflict_reason(), tier_allowed=allowed,
@@ -5354,6 +5506,7 @@ async def run_leaf(
                 allowed, tier_failure = await enforce_verification("review")
                 if allowed:
                     state = _final_own_test_state(self_test, last_gate)
+                    regression = await regression_now()
                     decision = claim_decision(
                         route="review", criteria_count=len(spec.acs),
                         ledger=ledger_now(), own_test=self_test,
@@ -5363,6 +5516,7 @@ async def run_leaf(
                         review_approved=True, review_verdicts=tuple(review_verdicts),
                         coverage_missing=coverage_missing,
                         request_coverage_missing=request_coverage_missing,
+                        regressions=regression.regressions,
                         test_case_problems=test_case_problems,
                         verification_basis=verification_basis,
                         conflict_detail=review_conflict_reason(), tier_allowed=allowed,
@@ -5510,6 +5664,41 @@ async def run_leaf(
         concrete = any(e.state in ("satisfied", "violated") for e in ledger)
         evidence_gap = bool(not claimed and not concrete
                             and (stop_reason or signal) in EVIDENCE_GAP_STOPS)
+        # FLOW §4 W4 / §5 (P1b): the visible-suite regression evidence for the DELIVERED
+        # revision. ``observable`` is True only when the suite ran on BOTH the pristine
+        # baseline and the final revision; an empty regression set with "unobservable" is
+        # never read as "no regression". A best-evidence RESTORE changes the revision after
+        # the terminal check ran, which is recorded honestly rather than hidden.
+        if regression_result is not None:
+            regression_ids = tuple(regression_result.regressions)
+            regression_observable = regression_result.observable
+            regression_detail = regression_result.detail
+            regression_baseline_ids = list(regression_result.baseline_ids)
+            regression_output = list(regression_result.output)
+        elif regression_baseline is not None:
+            # A baseline was captured but the run stopped before any final-revision check
+            # (an early stop, e.g. the call budget ran out before the first write): the
+            # suite was NOT observed on the delivered revision. Recorded as unobservable,
+            # never as "no regression".
+            regression_ids = ()
+            regression_observable = False
+            regression_baseline_ids = list(regression_baseline.passed_ids)
+            regression_output = []
+            regression_detail = ("the regression check did not run on the delivered "
+                                 "revision: the visible suite was recorded on the pristine "
+                                 "source but no final-revision check was made")
+        else:
+            regression_ids = ()
+            regression_observable = False
+            regression_baseline_ids = []
+            regression_output = []
+            regression_detail = ("the regression check is not applicable: no visible test "
+                                 "suite was present in the staged source")
+        if delivered.get("restored") and regression_result is not None:
+            regression_detail += (
+                "; NOTE: a best-evidence revision was restored AFTER this check ran, so "
+                "the recorded regression verdict describes the revision checked, not the "
+                "restored one")
         report = None
         if not claimed:
             gap_reason = ""
@@ -5521,15 +5710,23 @@ async def run_leaf(
                     "EVIDENCE, not a normal honest failure")
             report = FailureReport(stop_reason=stop_reason or signal,
                                    criteria=tuple(ledger), evidence_gap=evidence_gap,
-                                   evidence_gap_reason=gap_reason)
+                                   evidence_gap_reason=gap_reason,
+                                   regressions=regression_ids,
+                                   regression_observable=regression_observable,
+                                   regression_detail=regression_detail)
         emit("criterion_ledger", claimed=claimed,
-             criteria=[asdict(e) for e in ledger], evidence_gap=evidence_gap)
+             criteria=[asdict(e) for e in ledger], evidence_gap=evidence_gap,
+             regressions=list(regression_ids), regression_observable=regression_observable,
+             regression_detail=regression_detail)
         if report is not None:
             emit("failure_report", stop_reason=report.stop_reason,
                  violated=[asdict(e) for e in report.violated],
                  unverifiable=[asdict(e) for e in report.unverifiable],
                  evidence_gap=evidence_gap,
-                 evidence_gap_reason=report.evidence_gap_reason)
+                 evidence_gap_reason=report.evidence_gap_reason,
+                 regressions=list(report.regressions),
+                 regression_observable=report.regression_observable,
+                 regression_detail=report.regression_detail)
         return LeafOutcome(
             claimed=claimed,
             signal=signal,
@@ -5563,6 +5760,7 @@ async def run_leaf(
             iv_uncovered_indices=list(last.uncovered_indices) if last is not None else [],
             iv_shared_node_ids=list(last.shared_node_ids) if last is not None else [],
             refusals=list(refusals),
+            deviations=list(deviations),
             gate_anomalies=list(gate_anomalies),
             verification_basis=verification_basis,
             review_verdicts=list(review_verdicts),
@@ -5591,6 +5789,11 @@ async def run_leaf(
             plan_updates=list(plan_updates),
             verification_disagreement=verification_disagreement,
             delivered_revision=delivered,
+            regressions=list(regression_ids),
+            regression_observable=regression_observable,
+            regression_detail=regression_detail,
+            regression_baseline=list(regression_baseline_ids),
+            regression_output=list(regression_output),
         )
 
     def enter_review(why: str) -> bool:
@@ -5628,6 +5831,11 @@ async def run_leaf(
     if budget.expired(clock()):
         stop("handover", "deadline", "deadline")
         return finish()
+
+    # ---- FLOW §4 W4 / §5 (P1b): capture the REGRESSION baseline on the PRISTINE staged
+    # source BEFORE the run's first write. Skipped when the staged view ships no visible
+    # test file (the grader's own suite is withheld, so a corpus baseline is empty).
+    await ensure_regression_baseline()
 
     # ---- ticket 25: REVIEW mode runs the graded review as its only feedback, so no
     # self-test is required; RAW mode skips the self-test and all verification entirely.
@@ -5873,9 +6081,11 @@ async def run_leaf(
                 # A malformed judge (FIX 2) leaves the model's own test-blaming word
                 # uncredited and the run keeps implementing.
 
-        # normal path: write the source candidate (guarded) and run the tests
+        # normal path: write the source candidate and run the tests
         # Ticket 26: the source write accepts up to N files (a multi-site fix such as T-31
-        # has four call sites). Every file still goes through the SAME blind write guard.
+        # has four call sites). FLOW §6 (P1a): every file lands; a file the run is not
+        # allowed to change is a recorded DEVIATION (never a refusal), snapshotted so it
+        # can be restored before grading.
         write_status = getattr(env, "status", "unable")
         pairs: list[tuple[str, str]] = (
             [(fc.file_path, fc.content) for fc in (getattr(env, "files", None) or [])]
@@ -5884,18 +6094,25 @@ async def run_leaf(
         written: list[str] = []
         refused_pairs: list[tuple[str, str]] = []
         shape_problem: tuple[str, str] | None = None
+        deviations_before = len(deviations)
         if write_status != "ok":
             refused_pairs.append(("", f"status={write_status}"))
         for rel_i, content_i in pairs:
             ok_i, rel_out, problem_i, shape_i = _write_one(rel_i, content_i, spec, workdir,
-                                                           self_test, baseline)
+                                                           self_test, baseline, deviations)
             if shape_i:
                 shape_problem = (rel_out, problem_i)
                 break
             if ok_i:
                 written.append(rel_out)
+                if problem_i:
+                    # A recorded deviation: tell the model WHICH path was off-plan so the
+                    # next attempt can move onto a declared file (the T-01 fix: the model
+                    # used to be stonewalled by a refusal and repeated the same target).
+                    emit("write_deviation_recorded", path=rel_out, reason=problem_i)
             else:
                 refused_pairs.append((rel_out, problem_i))
+        attempt_deviations = [d.path for d in deviations[deviations_before:]]
         wrote = bool(written)
         source_rel = written[0] if written else (refused_pairs[0][0] if refused_pairs else "")
         refusal = "; ".join(f"{r}: {p}" for r, p in refused_pairs)
@@ -5909,15 +6126,19 @@ async def run_leaf(
                  "write-shape")
             break
         if refused_pairs:
-            # A refused source write (a test path, test infrastructure, a grader/frozen
-            # path, or a module-shadow path) never touches the tree and never runs the
-            # gate. The model is told WHICH path, WHY, and what it may write instead
-            # (ticket 26: the old text was "implement refused: grader-owned path" with no
-            # file name at all, and the model repeated the same target six times).
+            # A source write the FILESYSTEM refuses (an escaping path, a status!=ok
+            # envelope) never touches the tree and never runs the gate. The model is told
+            # WHICH path and WHY (ticket 26: the old text was "implement refused:
+            # grader-owned path" with no file name at all, and the model repeated the same
+            # target six times).
             for rel_r, problem_r in refused_pairs:
                 refusals.append(f"{rel_r}: {problem_r}")
                 emit("implement_refused", path=rel_r, reason=problem_r)
             last_excerpts = [_refusal_feedback(refused_pairs, spec)]
+        elif attempt_deviations:
+            # A deviation does not refuse the attempt, but the next attempt must know which
+            # paths were off-plan so it can move onto the declared files (FLOW §6.2 item 5).
+            last_excerpts = [_deviation_feedback(deviations[deviations_before:], spec)]
         if raw_mode and wrote and source_rel:
             # Ticket 25 RAW = DEVELOPMENT ONLY: no tests, no independent test, no review,
             # no claim. The model's first landed implementation is the development answer,
@@ -5926,7 +6147,8 @@ async def run_leaf(
             attempts.append(Attempt(
                 node_id="leaf", layer=esc.layer, strategy=esc.strategy or "L1-resample",
                 claimed_delta=getattr(env, "comment", "") or "",
-                failure_signature="", touched_files=[source_rel], outcome="pass"))
+                failure_signature="", touched_files=[source_rel], outcome="pass",
+                deviations=list(attempt_deviations)))
             emit("raw_development_write", path=source_rel, attempt=len(attempts))
             stop("unverified", "raw", "raw")
             break
@@ -6010,6 +6232,7 @@ async def run_leaf(
             outcome="pass" if approved else "fail",
             judge=pending_verdict,
             refused=write_refused_now,
+            deviations=list(attempt_deviations),
         )
         if not wrote:
             candidate.verdict = "same"
@@ -6328,6 +6551,10 @@ async def run_leaf(
                 route = "independent-test" if iv_approved else "reason"
             else:
                 route = "own-test"
+            # FLOW §4 W4 / §5 (P1b): the visible-suite regression check for THIS revision.
+            # It is a hard input to the ONE gate; a regression REFUSES the claim and the
+            # failing ids drive the next attempt (rework) instead of a blind retry.
+            regression = await regression_now()
             decision = claim_decision(
                 route=route, criteria_count=len(spec.acs), ledger=ledger_now(),
                 own_test=self_test,
@@ -6338,6 +6565,7 @@ async def run_leaf(
                 review_verdicts=tuple(review_verdicts),
                 coverage_missing=coverage_missing,
                 request_coverage_missing=request_coverage_missing,
+                regressions=regression.regressions,
                 test_case_problems=test_case_problems,
                 verification_basis=verification_basis,
                 conflict_detail=claim_conflict_detail(), tier_allowed=allowed,
@@ -6348,6 +6576,22 @@ async def run_leaf(
                          reason=verification_reason)
                 else:
                     emit("leaf_green", strategy=esc.strategy, after_test_rewrite=False)
+                break
+            if decision.blocker == "regression":
+                # A regression blocks the claim (above) and DRIVES ANOTHER ITERATION:
+                # record the failed candidate and let the loop rework with the failing ids
+                # as context (FLOW §6.2 item 6).
+                candidate.outcome = "fail"
+                candidate.verdict = prefilter(attempts, candidate)
+                attempts.append(candidate)
+                last_excerpts = [
+                    f"REGRESSION against the visible suite: {decision.detail}",
+                    *list(regression.output)]
+                route_failed_candidate()
+                emit("attempt_recorded", strategy=esc.strategy, layer=esc.layer,
+                     verdict=candidate.verdict, signature=signature)
+                rung += 1
+                continue
             break
 
         attempts.append(candidate)
@@ -6366,6 +6610,13 @@ async def run_leaf(
             and _changed_files(workdir, baseline)):
         emit("final_verification", stop_reason=stop_reason)
         await final_verification()
+
+    # ---- FLOW §4 W4 / §5 (P1b): record the regression verdict for the DELIVERED
+    # revision. A run that already evaluated the current revision reuses the cached
+    # check; a run whose last evaluation was on an earlier revision (or that never reached
+    # a claim) runs it here, so the failure report always carries the regression evidence.
+    if regression_baseline is not None:
+        await regression_now()
 
     emit("leaf_stop", signal=signal, claimed=claimed, calls=calls,
          reason=exhaustion_reason, stop_reason=stop_reason)
@@ -6410,13 +6661,12 @@ def _refusal_feedback(pairs: Sequence[tuple[str, str]], spec: LeafSpec) -> str:
     reason, and no statement of what it MAY write instead. T-01's model therefore retried
     the same frozen path six times, and the run delivered an unchanged file.
     """
-    forbidden = set(spec.grader_paths)
-    writable = [rel for rel in sorted(spec.files) if rel not in forbidden]
-    lines = ["YOUR WRITE WAS REFUSED — nothing was written to disk:"]
+    writable = [rel for rel in sorted(spec.files)]
+    lines = ["YOUR WRITE COULD NOT BE APPLIED — nothing was written to disk:"]
     for rel, problem in pairs:
         lines.append(f"  - {rel or '(no file_path given)'}: {problem}")
-    lines.append("  A refused path cannot be changed by this run at all (frozen by the task "
-                 "contract, grader-owned, a test path, or a bad target shape).")
+    lines.append("  (A write the run is not allowed to change is now applied and recorded "
+                 "as a deviation — never refused; only an unusable target SHAPE is refused.)")
     lines.append("Files this run MAY write: " + (", ".join(writable) or "(none)"))
     lines.append("Choose a DIFFERENT file from that list and say in your comment which file "
                  "the defect is in and why; if the defect cannot be fixed in any of them, "
@@ -6424,33 +6674,56 @@ def _refusal_feedback(pairs: Sequence[tuple[str, str]], spec: LeafSpec) -> str:
     return "\n".join(lines)
 
 
+def _deviation_feedback(entries: Sequence[WriteDeviation], spec: LeafSpec) -> str:
+    """What the model is told after a write LANDED but was OFF-PLAN (FLOW §6, P1a).
+
+    The write is applied and recorded as a deviation (then restored before grading), so
+    the attempt is not refused — but the model must still move onto a declared file. This
+    replaces the old refusal loop that cost T-01 six attempts.
+    """
+    declared = list(spec.write_boundary) if spec.write_boundary is not None else sorted(spec.files)
+    lines = ["YOUR WRITE WAS APPLIED BUT IS OFF-PLAN (recorded as a deviation):"]
+    for entry in entries:
+        lines.append(f"  - {entry.path}: {entry.reason}")
+    lines.append("  An off-plan write is allowed and recorded, but it is restored before "
+                 "grading and does not count as the fix — put the change in a declared "
+                 "file.")
+    lines.append("Files this node declared (the plan): " + (", ".join(declared) or "(none)"))
+    return "\n".join(lines)
+
+
 def _write_one(
     rel: str, content: str, spec: LeafSpec, workdir: Path, self_test: str | None,
     baseline: dict[str, str | None],
+    deviations: list[WriteDeviation] | None = None,
 ) -> tuple[bool, str, str, bool]:
-    """Apply ONE file through the blind write guard.
+    """Apply ONE file through the blind write seam (FLOW §6, P1a).
 
-    Returns ``(wrote, rel, refusal, shape)``. ``shape`` is True when the ONLY problem is an
-    un-normalizable target shape (an existing directory at the target, or a path component
-    that is an existing file): the caller stops honestly instead of raising
-    ``IsADirectoryError``/``FileExistsError``. Any other refusal does not touch the tree;
-    the loop records it as a red attempt and lets the ladder advance.
+    Returns ``(wrote, rel, reason, shape)``. A write to a path the run is not allowed to
+    change (a grader-owned/frozen path, a test path, test infrastructure, a
+    module-shadow path, or a path outside the declared boundary) is ALLOWED: it lands and
+    ``reason`` is the recorded DEVIATION, with the pre-run bytes snapshotted into
+    ``baseline`` and a :class:`WriteDeviation` appended to ``deviations``. A CLEAN in-plan
+    write returns ``reason=""``.
+
+    The ONE mechanical exception still refuses (``wrote=False``): a path that cannot be
+    written at all — a directory at the target, a path under an existing file, an
+    unusable name (embedded NUL / ENAMETOOLONG), or a path that escapes the repository.
+    ``shape=True`` marks that case; the caller stops honestly instead of raising
+    ``IsADirectoryError``/``FileExistsError``.
     """
     if not rel:
         return False, "", "no file_path", False
-    problem = _source_write_problem(rel, spec, self_test)
-    if problem:
-        return False, rel, problem, False
+    if _escapes_repo(rel):
+        return False, rel, "escapes the repository", True
     shape = _write_shape_problem(rel, workdir)
     if shape:
         return False, rel, shape, True
+    deviation = _source_write_deviation(rel, spec, self_test)
     if rel not in baseline:
         target = workdir / rel
         baseline[rel] = target.read_text() if target.exists() else None
     try:
-        if rel not in baseline:
-            target = workdir / rel
-            baseline[rel] = target.read_text() if target.exists() else None
         _write(workdir, rel, content)
     except WriteShapeRefused as exc:
         # The shape probe above did not anticipate this one; it is still a write-shape
@@ -6464,18 +6737,27 @@ def _write_one(
     record("source_write", path=rel, sha256=_sha(content),
            bytes=len(content.encode("utf-8")), baseline_was=baseline.get(rel),
            changed=(baseline.get(rel) != content))
-    return True, rel, "", False
+    if deviation:
+        # The write LANDED: record the deviation (telemetry event + the caller's list), with
+        # the pre-run bytes snapshotted so the driver can restore it before grading.
+        entry = WriteDeviation(path=rel, reason=deviation, original=baseline.get(rel))
+        if deviations is not None:
+            deviations.append(entry)
+        record("write_deviation", path=rel, reason=deviation,
+               created=entry.created, bytes=len(content.encode("utf-8")))
+    return True, rel, deviation, False
 
 
 def _write_candidate(
     env: Any, spec: LeafSpec, workdir: Path, self_test: str | None,
     baseline: dict[str, str | None],
+    deviations: list[WriteDeviation] | None = None,
 ) -> tuple[bool, str, str, bool]:
     """Single-file wrapper kept for the self-test path and the unit tests."""
     if getattr(env, "status", "unable") != "ok":
         return False, "", f"status={getattr(env, 'status', 'unknown')}", False
     return _write_one(_env_path(env), getattr(env, "content", ""), spec, workdir,
-                      self_test, baseline)
+                      self_test, baseline, deviations)
 
 
 def _no_red_judge_request(

@@ -518,8 +518,24 @@ The run's own tests gate the run, and a claim additionally needs an independent 
   grader adds its OWN report gate and marks the grade `suspected_contaminated_grade` when
   the corpus check exits 0 but the report does not. A transport error (`exit is None`), a
   policy-blocked result, and an un-runnable self-test (`self-test-unverified`, no file
-  left behind) remain red. The run's writable scope is the union of the staged-owned paths
-  and the corpus task's `UNTOUCHED` list — exactly what the grader restores (F2).
+  left behind) remain red. **FLOW §5/§6 (P1a, 2026-10-06) supersede the old write guard:**
+  a write to the staged-owned paths or the corpus task's `UNTOUCHED` list is NO LONGER
+  refused — it lands and is recorded as a deviation (with the pre-run bytes snapshotted),
+  and the driver restores it before grading, so the grader still sees exactly what it
+  restores (F2). `UNTOUCHED` is not a write guard; the grader's restore + byte-identity
+  check is the scoring side and stays.
+- **A visible-suite REGRESSION blocks the claim (FLOW §4 W4 / §5, P1b, 2026-10-06).**
+  Before the run's FIRST WRITE the task's VISIBLE test suite — the test files present in the
+  staged view; the grader's own suite is withheld by the blind protocol — is run on the
+  PRISTINE source and every passing test id is recorded as the baseline; the SAME suite is
+  run again on the FINAL revision and every baseline-green id that no longer passes is a
+  REGRESSION. `harness/regression.py` owns the comparison (through the leaf's pytest seam
+  and the JUnit gate report — never a hand-rolled shell call), and the result is a hard
+  input to the single claim gate (`claim_decision(regressions=...)`, `blocker="regression"`),
+  recorded with the failing ids and suite output in the failure report, the ledger event and
+  the trajectory. Only a REAL regression blocks a claim; a suite that could not be OBSERVED
+  is recorded as unobservable, NEVER as "no regression". Only the visible suite can be
+  checked, so the verdict is PARTIAL — the external grader is the final word (FLOW §11 H6).
 
 ### 10.4 Stops — there is no "give up"
 

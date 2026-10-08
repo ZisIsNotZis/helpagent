@@ -47,7 +47,7 @@ from harness.leaf import (
     LeafOutcome,
     LeafSpec,
     ReviewVerdict,
-    _source_write_problem,
+    _source_write_deviation,
 )
 from harness.node import (
     Decomposition,
@@ -814,10 +814,11 @@ def test_failed_integration_reopens_writers_then_a_passing_verdict_closes(tmp_pa
     assert fake.writer_calls == ["pkg/a.py", "pkg/b.py"] * 2   # initial + one reopen
 
 
-def test_declared_write_boundary_is_enforced_at_runtime(tmp_path):
-    """``leaf_spec_from`` hands a child its declared files as BOTH the view and the write
-    boundary: a sibling's file is refused (parameter-layer, never a crash), its own file
-    and a declared-but-missing path it is meant to create are writable (ticket 18 gap 3)."""
+def test_declared_write_boundary_violation_is_recorded_not_refused(tmp_path):
+    """FLOW §6 (P1a): ``leaf_spec_from`` hands a child its declared files as BOTH the view
+    and the write boundary. A sibling's file is no longer refused — the write lands and is
+    recorded as a DEVIATION (parameter-layer, never a crash); the leaf's own file and a
+    declared-but-missing path it is meant to create are in-plan (no deviation)."""
     stage(tmp_path)
     sib1 = tree_run.leaf_spec_from(
         NodeSpec(goal="one", files=("pkg/a.py", "pkg/new.py"), acs=("c",)),
@@ -829,17 +830,17 @@ def test_declared_write_boundary_is_enforced_at_runtime(tmp_path):
     assert sib1.write_boundary == ("pkg/a.py", "pkg/new.py")
     assert set(sib1.files) == {"pkg/a.py"}         # the missing path is not in the view
     assert set(sib2.files) == {"pkg/b.py"}
-    # own file and a declared-but-missing file are writable
-    assert _source_write_problem("pkg/a.py", sib1, None) == ""
-    assert _source_write_problem("pkg/new.py", sib1, None) == ""
-    # the sibling's file is refused, and a path alias does not evade the boundary
-    assert "boundary" in _source_write_problem("pkg/b.py", sib1, None)
-    assert _source_write_problem("./pkg/b.py", sib1, None) != ""
+    # own file and a declared-but-missing file are in-plan (no deviation)
+    assert _source_write_deviation("pkg/a.py", sib1, None) == ""
+    assert _source_write_deviation("pkg/new.py", sib1, None) == ""
+    # the sibling's file is a recorded DEVIATION, and a path alias does not evade it
+    assert "boundary" in _source_write_deviation("pkg/b.py", sib1, None)
+    assert _source_write_deviation("./pkg/b.py", sib1, None) != ""
 
-    # the single-leaf driver sets no explicit boundary ⇒ behaviour unchanged.
+    # the single-leaf driver sets no explicit boundary ⇒ no boundary deviation.
     open_spec = LeafSpec(goal="g", files=dict(_FILES), acs=[], interfaces=[])
     assert open_spec.write_boundary is None
-    assert _source_write_problem("pkg/b.py", open_spec, None) == ""
+    assert _source_write_deviation("pkg/b.py", open_spec, None) == ""
 
 
 # ---------------------------------------------------------------------------
@@ -1559,7 +1560,7 @@ def test_integration_leaf_reads_the_code_under_integration(tmp_path, monkeypatch
     assert set(view.files) == {"pkg/a.py", "pkg/b.py"}
     assert view.files["pkg/a.py"] == "# rewritten\n"      # the INTEGRATED code, not the goal
     assert view.files["pkg/b.py"] == "# rewritten\n"
-    assert _source_write_problem("pkg/a.py", view, None) != ""   # read-only
+    assert _source_write_deviation("pkg/a.py", view, None) != ""   # read-only → deviation
     sources = [s for s in fake.specs if s.write_boundary != ()]
     assert {b for s in sources for b in s.write_boundary} == {"pkg/a.py", "pkg/b.py"}
 
@@ -1577,7 +1578,7 @@ def test_integration_spec_is_read_only_over_the_parent_files(tmp_path):
     leaf = tree_run.leaf_spec_from(node, tmp_path, root_grader_paths=(_GRADER,))
     assert set(leaf.files) == {"pkg/a.py", "pkg/b.py"}
     assert leaf.write_boundary == ()
-    assert _source_write_problem("pkg/a.py", leaf, None) != ""
+    assert _source_write_deviation("pkg/a.py", leaf, None) != ""   # read-only → deviation
 
 
 def test_an_incomplete_snapshot_cannot_certify_a_leaf(tmp_path, monkeypatch):

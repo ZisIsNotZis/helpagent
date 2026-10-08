@@ -450,21 +450,22 @@ _SOURCE_TABLE = ["api/transport.py", "pkg/calc.py", "src/module.py", "contest.py
 
 def test_owned_path_definition_is_the_same_in_every_consumer():
     """One definition of what a run may not touch (ticket 17 round 5): staging's
-    ``owned_paths`` drives the blind projection, the leaf's source-write guard, and the
-    grader's restore set, so a newly guarded infrastructure path cannot leak past any of
-    them."""
+    ``owned_paths`` drives the blind projection, the leaf's source-write DEVIATION
+    classifier, and the grader's restore set, so a newly guarded infrastructure path
+    cannot leak past any of them. FLOW §6 (P1a): the classifier no longer REFUSES — a
+    non-empty reason is a recorded deviation."""
     spec = leaf_mod.LeafSpec(goal="g", files={"pkg/calc.py": "x = 1\n"}, acs=[],
                              interfaces=[])
     for rel in _OWNED_TABLE:
         assert owned_paths(rel) is True
         assert excluded_paths({rel: "x"}) == [rel]
         assert source_only({rel: "x"}) == {}
-        assert leaf_mod._source_write_problem(rel, spec, None) != ""
+        assert leaf_mod._source_write_deviation(rel, spec, None) != ""
         assert ext_mod._grader_owned(rel, set()) is True
     for rel in _SOURCE_TABLE:
         assert owned_paths(rel) is False
         assert source_only({rel: "x"}) == {rel: "x"}
-        assert leaf_mod._source_write_problem(rel, spec, None) == ""
+        assert leaf_mod._source_write_deviation(rel, spec, None) == ""
         assert ext_mod._grader_owned(rel, set()) is False
     # the corpus UNTOUCHED list is still honoured by the grader (a source path there is
     # grader-owned even though owned_paths does not know it)

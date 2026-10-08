@@ -65,6 +65,48 @@ def produced_files(workdir: Path) -> dict[str, str]:
     return out
 
 
+def restore_deviations(produced: dict[str, str], deviations) -> tuple[dict[str, str], list[str]]:
+    """Put every recorded write DEVIATION back before grading (FLOW §6, P1a).
+
+    A deviation (a write outside the run's declared plan — a grader-owned/frozen/test
+    path, a module-shadow path, or a path outside the write boundary) LANDED during the
+    run, but the grader must see the same bytes it saw when such writes were refused. For
+    each deviation the produced repository is restored to the snapshotted pre-run content
+    (or the invented file is dropped), and the restore is recorded.
+
+    ``deviations`` items are :class:`harness.leaf.WriteDeviation` (an object with ``path``,
+    ``reason``, ``original``) or an equivalent mapping/model dump. Returns
+    ``(produced, restores)``; the input dict is not mutated.
+    """
+    out = dict(produced)
+    restores: list[str] = []
+    seen: set[str] = set()
+    for entry in deviations:
+        if isinstance(entry, dict):
+            path = entry.get("path", "")
+            reason = entry.get("reason", "")
+            original = entry.get("original")
+        else:
+            path = getattr(entry, "path", "")
+            reason = getattr(entry, "reason", "")
+            original = getattr(entry, "original", None)
+        if not path or path in seen:
+            continue
+        seen.add(path)
+        if original is None:
+            if path in out:
+                del out[path]
+                restores.append(f"{path}: removed (a recorded write deviation: {reason})")
+            else:
+                restores.append(f"{path}: left absent (a recorded write deviation: {reason})")
+        else:
+            out[path] = original
+            restores.append(
+                f"{path}: restored from the recorded pre-run bytes (write deviation: "
+                f"{reason})")
+    return out, restores
+
+
 def quadrant(claimed: bool, actual: bool) -> str:
     if claimed and actual:
         return "true-success"

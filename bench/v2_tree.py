@@ -55,7 +55,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from bench.blind_run import produced_files, quadrant, verified_quadrant  # noqa: E402
+from bench.blind_run import (  # noqa: E402
+    produced_files,
+    quadrant,
+    restore_deviations,
+    verified_quadrant,
+)
 from bench.external_score import ExternalScore, external_score, untouched_paths  # noqa: E402
 from bench.v2_leaf import (  # noqa: E402
     extract_acs,
@@ -364,11 +369,20 @@ def _verification_tally(outcome: NodeOutcome) -> tuple[int, int]:
     return declared, downgrades
 
 
+def _leaf_deviations(outcome: NodeOutcome) -> list:
+    """Every write deviation recorded by any leaf in the tree (FLOW §6, P1a)."""
+    devs = list(outcome.leaf.deviations) if outcome.leaf is not None else []
+    for child in outcome.children:
+        devs.extend(_leaf_deviations(child))
+    return devs
+
+
 def build_record(task_id: str, goal: str, outcome: TreeOutcome, *, withheld: list[str],
                  produced: dict[str, str], score: ExternalScore, quad: str,
                  run_wall_s: float, judge_enabled: bool, iv_enabled: bool,
                  review_enabled: bool, acs: list[str], verified_quad: str = "",
-                 how_explore: int = 1) -> dict:
+                 how_explore: int = 1, deviations: list | None = None,
+                 deviation_restores: list[str] | None = None) -> dict:
     declared, downgrades = _verification_tally(outcome.root)
     weakened, nodes = _covenant_counts(outcome.root)
     diluted = covenant_diluted(weakened, nodes)
@@ -414,6 +428,10 @@ def build_record(task_id: str, goal: str, outcome: TreeOutcome, *, withheld: lis
         },
         "nodes": node_record(outcome.root, diluted=diluted),
         "produced": sorted(produced),
+        # FLOW §6 (P1a): every write an off-plan leaf made (never refused) and the
+        # restores applied to the produced repository BEFORE grading.
+        "deviations": [dataclasses.asdict(d) for d in (deviations or [])],
+        "deviation_restores": list(deviation_restores or []),
         "grader_exit": score.exit,
         "grader_notes": score.notes[-6:],
         "grader_restored": score.restored,
@@ -460,7 +478,11 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
         run_outdir=out_dir, manager=manager, how_explore=how_explore))
     wall = round(time.monotonic() - started, 1)
 
+    # FLOW §6 (P1a): restore every recorded leaf write deviation before grading, so the
+    # grader sees the same bytes it saw when off-plan writes were refused.
+    deviations = _leaf_deviations(outcome.root)
     produced = produced_files(workdir)
+    produced, deviation_restores = restore_deviations(produced, deviations)
     score = external_score(task_dir, produced, out_dir / "grade")
     quad = quadrant(outcome.claimed, score.passed)
     weakened, nodes = _covenant_counts(outcome.root)
@@ -473,7 +495,8 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
         task["task_id"], root.goal, outcome, withheld=withheld, produced=produced,
         score=score, quad=quad, run_wall_s=wall, judge_enabled=use_judge,
         iv_enabled=use_iv, review_enabled=use_review, acs=list(root.acs),
-        verified_quad=vquad, how_explore=how_explore)
+        verified_quad=vquad, how_explore=how_explore, deviations=deviations,
+        deviation_restores=deviation_restores)
 
     print(f"== v2 tree: {task['task_id']} ==")
     print(f"[judge]  {'on' if use_judge else 'off (conservative baseline)'}")
