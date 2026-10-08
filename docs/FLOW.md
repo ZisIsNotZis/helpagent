@@ -26,6 +26,65 @@ user text
 
 Every step — (A), every (B), every judge/review call — **may explore**.
 
+## 1.5 The flow as a state machine, with every case
+
+```
+S0  input: the user's text
+S1  TRIAGE (one call; may explore) -> issues[] (>=1); each issue is a root node
+S2  NODE (one call per node; may explore) -> {what, reason, hows[]}
+      per How: {what, reason, docs[], files[], tests[], reviews[], children[]}
+S3  the node takes its FIRST How (list order); the previous How must be confirmed failed
+      children != []  -> recurse S2 for every child
+                         all children pass           -> the How passes (then the integration check)
+                         any child uncertain/failed  -> the How is uncertain
+      children == []  -> work unit, S4
+S4  WORK UNIT
+      W1 implement || author tests          (two writers: source vs test file)
+      W2 run the declared tests
+           green              -> W3
+           red                -> judge (attribution), then:
+                                   implementation -> W1 (bounded by the attempt cap)
+                                   tests          -> repair/replace the test (bounded)
+                                   spec           -> BUBBLE: the parent re-plans this subtree
+                                   environment    -> PARK the node (needs-user)
+      W3 discrimination check: every declared case must be RED on the pristine source
+           red on pristine (discriminates) -> W4
+           green on pristine (vacuous)     -> the test is UNCERTAIN: repair it (bounded);
+                                              if it cannot be made to discriminate -> node update
+                                              (drop that test, reason updated)
+      W4 regression check: every visible test that passed on the pristine sources must
+         still pass on the final revision
+           no regression -> W5
+           regression    -> judge -> iterate, or node update (fix/revert)
+      W5 review (the declared angles)
+           pass                 -> S5
+           uncertain / fail     -> iterate (bounded); cap exceeded -> node update
+                                   (drop the review, reason updated) or take the next How
+S5  VERDICT AND CLAIM
+      every declared check of the executing How is `pass`, no regression, coverage/mutation
+      of the declared files accounted for -> the existing claim gate decides the claim
+      the How is confirmed failed -> the next How
+      every How exhausted with no pass -> the node's state is UNCERTAIN: claim nothing,
+        deliver the best-evidence revision, report the node with all Hows' evidence
+S6  SUMMARY: per issue/node: pass | uncertain | parked-for-user
+```
+
+### Case table
+
+| case | what happens |
+| --- | --- |
+| How splits | children recurse; the How itself executes nothing; its four lists are its plan/expectation (§11 H1) |
+| How does not split, tests only | W1-W4, then W5 skipped; the test evidence must carry the claim |
+| How does not split, reviews only | W1 (no test), W4 (regression on the visible suite), W5; the review evidence carries the claim |
+| How does not split, both | all of W1-W5; a review that cannot pass may be dropped by a node update, and a test-based claim survives that |
+| How declares neither check | §11 H2: currently unverifiable — the How cannot establish "requirement satisfied" |
+| tests red, judge unavailable/malformed | §11 H8: the verdict is uncredited; the run keeps implementing (today's rule) or stops by policy |
+| regression found | judge first (it is a red signal), then iterate or node update |
+| budget/deadline exhausted mid-node | handover: stop with `uncertain`, deliver best evidence, record where it stopped |
+| a criterion that no check can pin | the How says so in its `reason`; the claim cannot rest on it |
+| two nodes writing the same file | §11 H5: they cannot be executed in parallel without isolation |
+| one issue passes, another does not | the summary reports per issue; the run as a whole does not claim the failed one |
+
 ## 2. The node structure — fields
 
 Two rules decide what exists here:
@@ -211,6 +270,22 @@ delivery and the grader's verdict. Complete, always on.
 | 8 | no regression stage | regression = visible suite green before, red after |
 | 9 | judge/review/independent test = the same small model | configurable; expected to be a stronger model |
 | 10 | non-pass states collapse into "not claimed" | explicit three-state test/review, and the node update is a recorded act |
+
+## 11. Holes in this flow (found while walking it; none is decided)
+
+| # | hole | why it matters | proposal |
+| --- | --- | --- | --- |
+| **H1** | A How that SPLITS also has four lists — what do they mean? | either they are a redundant copy of the children's, or they are a plan the children must narrow (then `child ⊆ parent` must be checked on files/tests/reviews) | treat them as the parent's PLAN/expectation, and validate each child as a subset; a child may exceed it only with a recorded node update |
+| **H2** | A How that declares NEITHER tests NOR reviews | it has no way to establish "requirement satisfied" — yet today's spec allows it with just a `reason` | require at least one check per How (a test or a review angle); a How with neither is UNVERIFIABLE → node update or `uncertain` |
+| **H3** | The node's terminal states | we wrote pass/fail/uncertain, but the How loop's terminal state is `uncertain`, and a parked environment is neither | node states = {`pass`, `uncertain`, `parked-for-user`}; "fail" does not exist at node level |
+| **H4** | All Hows failed | today's spec says "uncertain and stop" — but three failed approaches usually means the NODE was mis-specified (its `what`/lists are wrong), not that the task is impossible | bubble to the PARENT for a re-plan (the same path a `spec` verdict takes), and only report `uncertain` if the parent cannot improve it |
+| **H5** | "Siblings are independent, so they run in parallel" | true for exploration; FALSE for writes — two nodes touching one file cannot both write it | serialize nodes whose declared `files` overlap, or give each parallel writer a confined work tree and merge afterwards |
+| **H6** | The regression check's coverage | it can only run the VISIBLE test suite; the grader's own suite is withheld by the blind protocol, so a run can be regression-free by our check and still fail the grader | state it plainly in every report: our regression verdict is partial; the external grader is the final word |
+| **H7** | When is the judge consulted? | every red (one extra call per attempt) versus after K consecutive reds (today: K=2, plus a volunteer trigger) | every red: T-01/T-05 both burned 4-6 attempts churning against a wrong test, which one judge call would have stopped |
+| **H8** | The judge is unavailable or malformed | the attribution is missing, and "keep implementing" is a guess | keep implementing for at most one attempt, then treat the test as UNCERTAIN and repair it (a wrong test is the likelier defect in that state) |
+| **H9** | The work unit's stop conditions are not enumerated | "iterate (bounded)" hides: what is the cap, what happens at the cap, does the cap reset when the judge changes the diagnosis | one cap per How (attempts), renewed only by a node update; at the cap the How is confirmed failed and the next How starts |
+| **H10** | Exploration bookkeeping | "every step may explore" says nothing about what the exploration found, who pays for it, or whether the later steps can see it | an exploration result is a first-class artifact: reads are recorded in the trajectory, their excerpts ride into the steps of the SAME node, and the reads are charged to that node's budget |
+| **H11** | The top level with several issues | the flow says "one or more issues" but not whether they are sequential, parallel, or what the run claims when one passes and another does not | execute issues in order (or in parallel only when their `files` do not overlap — H5); the run's report is per issue and the run claims nothing that failed |
 
 ## 10. Open decisions for the owner
 
