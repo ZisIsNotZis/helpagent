@@ -18,7 +18,7 @@ user text
      └─(B) per node: ONE recursive step
            · explores the repository freely (read), then
            · emits ONE structure (§2): description, ONE reason, the four lists,
-             and the ranked approaches (each declaring whether it splits and into what)
+             and the ordered approaches (each declaring whether it splits and into what)
            └─(C) children recurse (B); siblings are independent
                  └─(D) work unit: implement ∥ author tests → run → review
                        └─(E) verdict: requirement satisfied AND no regression
@@ -28,57 +28,59 @@ Every step — (A), every (B), every judge/review call — **may explore**.
 
 ## 2. The node structure — fields
 
-There is **no `kind`**: whether a node splits is expressed by whether its Hows declare children.
-There is **no budget estimate**: nobody can estimate calls for a step that has not happened.
+Two rules decide what exists here:
+
+- **A list carries its own order** — never add a `rank` field to a list.
+- **`what` is freeform text holding everything meaningful for the next step; `reason` is freeform
+  text holding why (audit).** Nothing that a `what` can say gets its own field.
+
+There is **no `kind`** (whether a node splits is what its `children` say), **no budget estimate**
+(nobody can estimate calls for a step that has not happened), **no `interfaces`** (that is `what`),
+and **no separate acceptance criteria** (§2.4).
 
 ### 2.1 The node
 
 | field | type | notes |
 | --- | --- | --- |
-| `description` | str `req` | the node's basic description: what it is, in the user's terms |
-| `hows` | [How] `req` (≥1) | ordered: position = priority (1 first) |
-
-That is the whole node. **Everything else lives under a How**, because different approaches
-touch different files, need different tests and deserve different review angles.
+| `what` | str `req` | what this node is, in the user's terms |
+| `reason` | str `req` | why this node exists and why it decomposes the way it does |
+| `hows` | [How] `req` (≥1) | the approaches, in priority order (first = first attempted) |
 
 ### 2.2 A How (an implementation approach)
 
 | field | type | notes |
 | --- | --- | --- |
-| `rank` | int | 1 = first; the run executes them in order, non-redundantly |
-| `what` | str `req` | the concrete plan: what this approach does |
-| `reason` | str `req` | **ONE reason for this How** — required whether the lists are empty or not: why these files/tests/reviews/docs, why any of them is empty, why this ordering, why anything was dropped |
-| `docs_updates` | [DocUpdate] `opt` | may be empty |
+| `what` | str `req` | the plan: how to do it, what exactly to do — everything the next step needs |
+| `reason` | str `req` | **why** — required whether the lists below are empty or not: why these files/tests/reviews/docs, why any of them is empty, why anything was dropped |
+| `docs` | [DocUpdate] `opt` | may be empty |
 | `files` | [FileChange] `opt` | may be empty |
 | `tests` | [DeclaredTest] `opt` | may be empty |
 | `reviews` | [ReviewAngle] `opt` | may be empty |
-| `interfaces` | [str] `opt` | names/signatures this approach may rely on (currently always empty in practice) |
-| `children` | [node] `opt` | `[]` = this How runs as a single work unit; non-empty = it splits, and each child is a node of this same shape |
+| `children` | [node] `opt` | `[]` = this How runs as one work unit; non-empty = it splits, each child a node of this same shape |
 
 **Empty means DOES NOT EXIST, never "unrestricted".** `files: []` says this approach changes no
 source file at all (a docs-only requirement is exactly that); it does NOT license writing
 anything. A write outside the declared `files` is therefore a **deviation**: allowed (writes are
-never refused), recorded, and it forces a node update (§6.2) — the How's `files` is extended, with
-its `reason` updated. The same reading applies to `tests` and `reviews`: empty means this approach
-declares none.
+never refused), recorded, and it forces a node update — the How's `files` is extended and its
+`reason` updated.
 
 ### 2.3 The four lists — item fields
 
 | item | fields |
 | --- | --- |
-| `DocUpdate` | `path` (str), `what` (str) |
-| `FileChange` | `path` (str), `what` (str), and optionally `region` (a line range/symbol/anchor) with `change` (what to change there) — a file entry may be as coarse as a whole file or as fine as one region |
-| `DeclaredTest` | `file` (str), `cases` ([str] — the test node names this entry adds), `what` (str — the behaviour each pins), optionally `kind` (`unit` \| `integration`) |
-| `ReviewAngle` | `angle` (str, from our predefined angle list), `what` (str — what the reviewer must establish) |
+| `DocUpdate` | `path`, `what` |
+| `FileChange` | `path`, `what`, optionally `region` (a line range / symbol / anchor) — an entry may be as coarse as a file or as fine as one region |
+| `DeclaredTest` | `file`, `cases` ([str] — the test node names this entry adds), `what` (the behaviour each pins) |
+| `ReviewAngle` | `angle` (from our predefined angle list), `what` (what the reviewer must establish) |
 
 ### 2.4 Where the "acceptance criteria" went
 
 Nowhere: **the criteria ARE the declared tests and reviews.** The old flow extracted criteria by
-splitting the user's text into sentences, which is how T-01's own test ended up asserting "a
-session must expire exactly 60 seconds" — the reported symptom read back as the requirement.
-Instead, evidence is now per declared check: the ledger lists every declared test and review, its
-state (§4), and the evidence for that state. A How that declares no check anywhere still has to
-say why in its `reason`.
+splitting the user's text into sentences, which is how T-01's own test came to assert "a session
+must expire exactly 60 seconds" — the reported symptom read back as the requirement. Evidence is
+now per declared check: the ledger lists every declared test and review, its state (§4), and the
+evidence for that state. A How that declares no check anywhere still has to say why in its
+`reason`.
 
 ## 4. Execution and the three states
 
@@ -110,12 +112,12 @@ claim that rested on it. The same rule for reviews: pass, or update the node and
 ### 4.4 The approach (How) loop
 
 ```
-for approach in approaches (rank order):
+for how in hows (list order):
     run the work unit; on a non-pass state, iterate up to the node's attempt cap
       · each iteration may repair the implementation, the test, or the review target
       · every iteration's evidence is recorded
     if pass → the node may claim (§5), subject to the existing claim gate
-    if the cap is exceeded with uncertain/fail → this approach has FAILED (confirmed)
+    if the cap is exceeded with uncertain/fail → this How has FAILED (confirmed)
         → take the next approach (non-redundant: only after the previous one is confirmed failed)
 if no approach passed → the node's state is UNCERTAIN
         → nothing is claimed; the best-evidence revision is delivered and the node reports
