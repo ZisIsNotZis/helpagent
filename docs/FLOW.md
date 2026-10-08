@@ -1,130 +1,197 @@
 # FLOW — the one flow (owner spec, 2026-10-06)
 
-This file is the single source of truth for how a run processes a task. It replaces the
-"single-leaf mode vs tree mode" split: **a single leaf is just a tree of one node**, so there is
-one flow and one runner. `docs/DESIGN.md` §10 describes the older leaf/tree layering; where the
-two disagree, this file wins.
+Single source of truth for how a run processes a task. It replaces the "single-leaf mode vs tree
+mode" split: **a single leaf is just a tree of one node**. `docs/DESIGN.md` §10 describes the older
+layering; where they disagree, this file wins.
 
-Nothing in this file leaks the benchmark: a requirement NEVER names a file, so no step may take a
-file list from the user's text. File lists are produced by **exploration** of the repository.
+**Nothing here leaks the benchmark.** A requirement NEVER names a file, so no step may take a file
+list from the user's text; file lists come from **exploration** of the repository.
 
-## 1. The shape
+Priority order (owner direction): **accuracy first**; parallelism is a principle to apply
+everywhere it can be applied, but it is deferred until the accuracy work lands (§7).
+
+## 1. Shape
 
 ```
-user text (the requirement)
+user text
  └─(A) triage: ONE step → one or more ISSUES (each issue = a root node)
-     └─(B) per issue: ONE step, recursion down the tree
+     └─(B) per node: ONE recursive step
            · explores the repository freely (read), then
-           · emits ONE structure: description + the four lists + the ranked approaches,
-             and, per approach, whether it splits and into what
-           └─(C) children recurse (B) — children of a node are INDEPENDENT, so they may run
-                 in parallel (they are reads + their own confined writes)
-                 └─(D) execution of a work unit (a leaf): implement ∥ test, then review
-                      └─(E) verdict: requirement satisfied AND no regression
+           · emits ONE structure (§2): description, ONE reason, the four lists,
+             and the ranked approaches (each declaring whether it splits and into what)
+           └─(C) children recurse (B); siblings are independent
+                 └─(D) work unit: implement ∥ author tests → run → review
+                       └─(E) verdict: requirement satisfied AND no regression
 ```
 
-Every step — including (A) and every (B) — **may explore**: reading is never a separate rarified
-phase, it is how a step decides what it is looking at.
+Every step — (A), every (B), every judge/review call — **may explore**.
 
-## 2. The node structure (one step, one structure)
+## 2. The node structure — fields
 
-One model step produces the whole node. Fields (everything except the description is a list):
+One model step produces the whole node. `req` = must be present; `opt` = may be empty, never null.
 
-| field | meaning | empty |
+| field | type | notes |
 | --- | --- | --- |
-| `description` | what this node is and why (goal + the acceptance criteria it owns) | required |
-| `docs_updates[]` | documentation this node will add/change, with the reason | allowed |
-| `files[]` | source files this node will create/change | allowed |
-| `tests[]` | test cases this node will add/change, each pinning which criterion | allowed |
-| `reviews[]` | review angles this node wants evaluated | allowed |
-| `approaches[]` | 1..N implementation approaches, ORDERED (rank = position) | required |
-| `approaches[i].children[]` | if this approach must be split: the sub-nodes (each one is a node of this same shape) | `[]` = do not split |
-| (unchanged) `acs`, `interfaces`, `est_calls`, … | as today | as today |
+| `kind` | `leaf` \| `internal` | a leaf executes (§4); an internal node only splits |
+| `description` | str `req` | what this node is and why; the goal it owns |
+| `reason` | str `req` | **ONE reason field for the whole node**, required whether the lists are empty or not: why this shape — why these files/tests/reviews/docs, why any of them is empty, why these approaches in this order |
+| `acs` | [str] | the acceptance criteria this node owns; a leaf needs ≥1 |
+| `interfaces` | [str] `opt` | names/signatures the node is allowed to rely on |
+| `docs_updates` | [DocUpdate] `opt` | see §3 |
+| `files` | [FileChange] `opt` | see §3; **empty means "no restriction"** |
+| `tests` | [DeclaredTest] `opt` | see §3 |
+| `reviews` | [ReviewAngle] `opt` | see §3 |
+| `approaches` | [Approach] `req` (≥1) | ordered by rank = position; see §3 |
+| `est_calls` | int `req` | the node's own budget estimate |
 
-**Every one of the four lists is optional — optional means it MAY BE EMPTY, not null — and an
-empty list must carry a substantive reason** (the same rule the two verification lists already
-have: `planned_tests`/`planned_reviews` with `verification_reason`). A node that writes no docs,
-touches no file, adds no test and asks for no review is not "done", it is "unexplained".
+### 3. The four lists and the approaches — item fields
 
-## 3. Recursion and parallelism
+There is **no per-item reason**; the node's single `reason` covers them.
 
-- Node → structure → children (if the chosen approach splits) → each child repeats the same step.
-- **Siblings are independent**: the design may run them in parallel (that is what the whitespace
-  is for). Concurrency is an executor concern; the flow does not change.
-- **Within a work unit, implementation and test authoring run in PARALLEL** — both are authored
-  by the model against the same explored context, and they touch disjoint files (source vs test).
-
-## 4. Execution of a work unit (leaf)
-
-| the unit declared | what happens |
+| item | fields |
 | --- | --- |
-| tests **and** reviews | author implementation ∥ author tests → run tests → **green**: run the reviews → claim rules as today; **red**: attribution (§5) |
-| tests, no reviews | author implementation ∥ author tests → run tests → **green**: the test evidence carries the claim (today's `own-test`/`independent-test` route); **red**: attribution |
-| reviews, no tests | implement → run the reviews → the review evidence carries the claim (today's review route) |
-| neither | implement → only the deterministic per-criterion checks stand; the node records why there is no test and no review, and cannot claim more than those checks support |
+| `DocUpdate` | `path` (str), `what` (str: the doc change) |
+| `FileChange` | `path` (str), `action` (`create` \| `change`), `what` (str) |
+| `DeclaredTest` | `ac_ids` ([str] — which criteria it pins), `file` (str), `names` ([str] — test node names), `what` (str — the behaviour asserted) |
+| `ReviewAngle` | `angle` (str — e.g. `ac-correctness`, `contract-compat`, `security`, …), `what` (str — what the reviewer must establish) |
+| `Approach` | `rank` (int; 1 = first), `what` (str — the concrete plan), `est_calls` (int), `children` ([node] — `[]` = this approach does not split) |
 
-**Tests authored in parallel are still checked for discrimination, after the fact:** a test that
-also passes on the PRISTINE source does not pin the goal and cannot carry a claim (the existing
-`red on arrival` guarantee is kept, just evaluated post-hoc instead of gating the authoring
-order). This is deterministic — we always have the pristine source.
+A node with no docs, no files, no tests and no reviews is legal **only** with a `reason` that says
+why; the reason is what makes it honest.
 
-## 5. Attribution (the value question: whose fault)
+## 4. Execution and the three states
 
-When the tests are red, the run does NOT simply iterate the implementation. It asks the
-independent judge which side is wrong, with the four labels that already exist
-(`implementation_wrong`, `test_wrong`, `spec_wrong`, `environment_broken`). Dominance is
-unchanged: spec → environment → test → implementation, with the deterministic coercion rule
-(a `test_wrong` verdict must name the failing test or assertion, else it is not credited).
+Within a work unit: **the implementation and the test authoring run in parallel** (two writers,
+disjoint targets: source vs test file), followed by the test run, then the review.
 
-The strongest available model should fill this role (see §7): judging your own work with the same
-small model is correlated, not independent.
+### 4.1 Test states
 
-## 6. Verdict: requirement + regression (no file-counting)
+| state | when |
+| --- | --- |
+| **pass** | the declared tests run GREEN on the final revision **and** they discriminate (each is RED on the pristine source — checked after the fact, deterministically) |
+| **fail** | the declared tests run RED on the final revision (the report names the failing ids) |
+| **uncertain** | the tests could not be evaluated (collection/import error in the test, the test was dropped or rewritten without re-proving discrimination, no report, environment fault), or a rewrite left the discrimination unproven |
 
-- **Satisfied**: the acceptance-criteria ledger, each row carrying a check and evidence.
-- **No regression**: the whole visible test suite is run on the final revision and compared with
-  the same suite on the pristine source; **green before, red after = a regression** — it blocks
-  the claim and drives the next iteration. (The grader's own byte-identity contract is exactly
-  such a regression check; the run does not need to be told about it in advance.)
-- **Nothing else counts.** Touching one file or ten makes no difference. There is **no refusal for
-  an "unexpected" file**: the writable set is what the plan declared, and if the plan declared no
-  files, everything visible is writable (§2 `files[]`, empty = no restriction).
-- **Write integrity that the harness itself needs** (its own test infrastructure, pytest config,
-  module shadows) is preserved by **allowing the write and restoring the file before grading**,
-  with the attempt recorded — never by refusing, which is what put T-01's model into six blind
-  retries.
+### 4.2 Review states
 
-## 7. Independence of the judge
+| state | when |
+| --- | --- |
+| **pass** | every declared angle approves, with grant-calibre evidence (names a criterion and an observable behaviour) |
+| **fail** | a critical angle rejects |
+| **uncertain** | mixed verdicts, a missing angle, insufficient evidence, or the reviewer was unavailable |
 
-`judge`, `review` and the independent test may be served by a **stronger model** than the one
-that writes the code. That is a configuration choice (endpoint/model per role), not a flow change.
+### 4.3 What a non-pass state means
+
+**A test is never simply ignored.** If the node declared tests, then either they reach **pass**, or
+the node is **updated** (§6) and the test is dropped in that update — which also invalidates any
+claim that rested on it. The same rule for reviews: pass, or update the node and drop the review.
+
+### 4.4 The approach (How) loop
+
+```
+for approach in approaches (rank order):
+    run the work unit; on a non-pass state, iterate up to the node's attempt cap
+      · each iteration may repair the implementation, the test, or the review target
+      · every iteration's evidence is recorded
+    if pass → the node may claim (§5), subject to the existing claim gate
+    if the cap is exceeded with uncertain/fail → this approach has FAILED (confirmed)
+        → take the next approach (non-redundant: only after the previous one is confirmed failed)
+if no approach passed → the node's state is UNCERTAIN
+        → nothing is claimed; the best-evidence revision is delivered and the node reports
+          "uncertain" with every approach's evidence and the node's reason for each drop
+```
+
+A node whose `approaches` is exhausted this way is **uncertain**, never silently green. (An
+internal node's state is derived from its children: `pass` only if every child passed AND the
+integration check passed; `fail` if any child failed; otherwise `uncertain`.)
+
+## 5. The verdict and the claim
+
+- **Requirement**: the per-criterion ledger, every row carrying a check and evidence.
+- **Regression**: the whole visible test suite on the final revision versus the same suite on the
+  pristine source; **green before, red after = regression** → blocks the claim, drives another
+  iteration.
+- **Nothing else counts.** Touching one file or a thousand makes no difference; there is **no
+  refusal for an "unexpected" file**. The writable set is what the node declared in `files[]`;
+  **empty `files[]` means everything visible is writable.**
+- Write integrity the harness itself needs (its own test infrastructure, pytest config, module
+  shadows) is preserved by **allowing the write and restoring the file before grading**, with the
+  attempt recorded — never by refusing (six blind retries in T-01 came from refusing).
+
+## 6. The judge, and when the node is updated
+
+### 6.1 The judge's output (one envelope, fresh context)
+
+| field | type | meaning |
+| --- | --- | --- |
+| `status` | `ok` \| `failed` \| `blocked` \| `unable` | the envelope grammar (unchanged) |
+| `comment` | str | ≤2 lines, the judge's own summary |
+| `blame` | `implementation` \| `tests` \| `spec` \| `environment` | **exactly one** dominant attribution |
+| `problem` | str | the defect; when `blame=tests` it MUST name the failing test or one of its assertions (otherwise the verdict is not credited — the existing deterministic coercion) |
+| `evidence` | str | what in the diff / the test output supports it |
+| `advice` | str `opt` | what to do next: which file/symbol, or which assertion is wrong (the caller may put it straight into the next attempt's failure context) |
+| `confidence` | `low` \| `medium` \| `high` | how sure the judge is |
+
+The judge sees the goal, the criteria, the diff, the test output and the node's `reason` — never
+the author's conversation. Its verdict selects the next move:
+
+| blame | next move |
+| --- | --- |
+| `implementation` | iterate the implementation (with `problem`/`advice` as the failure context) |
+| `tests` | the test is the defect: repair or replace it (bounded), re-prove discrimination |
+| `spec` | bubble up: the node's own description/ACs are wrong → the PARENT re-plans (§6.2) |
+| `environment` | park the node (`needs-user`); nothing in-process can fix it |
+
+### 6.2 Node-update (re-plan) triggers — the exhaustive list
+
+1. **Test cap exceeded** and the test is still uncertain/fail → update the node: drop the test
+   (recorded) or change approach.
+2. **Review cap exceeded** and the review is still uncertain/fail → update the node: drop the
+   review (recorded) or change approach.
+3. **The judge says `spec`** → the parent node re-plans this subtree.
+4. **A criterion has no possible check** (no test and no review can pin it) → either add one in the
+   node update, or drop that criterion with the node's `reason` as the record.
+5. **The chosen approach needs a file it did not declare** → the node's `files[]` is extended in a
+   node update (recorded; writes were never refused).
+6. **Regression detected** → the node is updated: fix or revert that part, and `files[]`/`tests`
+   are adjusted accordingly.
+7. **Budget/deadline exhausted** → handover: the node stops with state `uncertain`, delivering its
+   best-evidence revision.
+
+## 7. Thinking, and parallelism
+
+- **Thinking is optional and never a decision input.** The model behind any step may think or not;
+  if it thinks, the thinking is recorded in the trajectory and used for nothing else — every
+  decision is computed from the parsed structure's fields.
+- **Parallelism**: every place that can run in parallel, should — siblings, implementation ∥ tests,
+  review angles. **Deferred**: accuracy first. The flow does not depend on it.
 
 ## 8. Evidence
 
-Every run writes `trajectory.jsonl` (see `harness/telemetry.py`): each model call's prompt,
-artifacts, raw answer, parsed structure, tokens and wall time; every harness event; every write
-(sha256 + whether it differs from the baseline); every test execution with its output; the
-delivery and the grader's verdict. Complete and always on — a run that cannot be read back cannot
-be audited.
+Every run writes `trajectory.jsonl` (`harness/telemetry.py`): each model call's prompt, artifacts,
+**thinking (when present)**, raw answer, parsed structure, tokens, wall; every harness event; every
+write (sha256 + whether it differs from the baseline); every test execution with output; the
+delivery and the grader's verdict. Complete, always on.
 
 ## 9. What this changes relative to the current code
 
 | # | today | this spec |
 | --- | --- | --- |
-| 1 | two drivers: `bench/v2_leaf.py` drives one leaf directly (the sweep path), `bench/v2_tree.py` drives the tree | ONE runner; the single-leaf case is a tree of one node (no split declared) |
-| 2 | no exploration; the whole source is pushed into every prompt | an explicit, bounded read/explore action inside every node step |
-| 3 | the leaf driver declares no test plan and two fixed review angles | the node step declares `docs/files/tests/reviews`, each with a reason when empty |
-| 4 | tests are AUTHORED FIRST and must be red on arrival; implementation follows | implementation ∥ tests; discrimination is checked post-hoc against the pristine source |
-| 5 | a red test drives implementation-only iteration | a red test goes to attribution (judge) first |
-| 6 | the file list comes from the plan (tree) or from regex over the requirement (leaf) | from exploration; the requirement-text regex is demoted to judge input, never a gate |
-| 7 | writes outside the boundary / into a frozen path are REFUSED | allowed; recorded; the outcome (tests + judge) decides |
-| 8 | no regression stage | regression = visible tests green before, red after |
-| 9 | judge/review/independent test = the same small model | configurable, expected to be a stronger model |
+| 1 | two drivers (`v2_leaf` direct leaf, `v2_tree` tree) | ONE runner; a single leaf is a tree of one node |
+| 2 | no exploration; the whole source is pushed into every prompt | an explicit bounded read step inside every node step |
+| 3 | leaf driver: no test plan, two fixed review angles | the node declares docs/files/tests/reviews + ONE reason |
+| 4 | tests authored first, required red on arrival | implementation ∥ tests; discrimination checked post-hoc on the pristine source |
+| 5 | a red test iterates the implementation directly | a red test goes to the judge (§6.1) first |
+| 6 | file list from the plan (tree) or regex over the requirement (leaf) | from exploration; the requirement-text regex is judge input, never a gate |
+| 7 | writes outside the boundary / into a frozen path are REFUSED | allowed, recorded, decided by the outcome |
+| 8 | no regression stage | regression = visible suite green before, red after |
+| 9 | judge/review/independent test = the same small model | configurable; expected to be a stronger model |
+| 10 | non-pass states collapse into "not claimed" | explicit three-state test/review, and the node update is a recorded act |
 
 ## 10. Open decisions for the owner
 
-1. **Which model/endpoint serves the judge/review/independent-test role** (§7).
-2. The parallelism granularity in §3: siblings in parallel from the start, or when the budget /
-   wall-clock makes it worth it (the tree today serializes; parallel writers need confined trees).
-3. Whether the four lists must be non-empty at least once per node **subtree** or only "a reason
-   when empty" (today: a reason).
+1. **Which model/endpoint serves the judge/review/independent-test role** (§9 row 9).
+2. §4.4's last line: when no approach passes, confirm the exact output — current spec: deliver the
+   best-evidence revision, claim nothing, report `uncertain` with the reasons.
+3. The parallelism granularity when it is picked up (§7): siblings from the start, or gated by
+   budget/clock; parallel writers need confined work trees.
