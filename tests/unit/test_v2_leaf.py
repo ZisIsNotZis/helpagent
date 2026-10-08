@@ -6257,3 +6257,233 @@ def test_leaf_state_is_pass_for_a_claim_and_fail_for_an_exhausted_red_test(tmp_p
         spec, red, Budget(calls=12, deadline_ts=_FAR_FUTURE),
         run_tests=ScriptedTests([1] * 8))
     assert out_red.claimed is False and out_red.state == "fail"
+
+
+# ===========================================================================
+# P3b (FIX A): an INVERTED independent test — it asserts the PRE-FIX behaviour — must
+# not block a correct fix. The signature is deterministic and needs no model call: a
+# node id that FAILS on the final revision but PASSED on the pristine pre-run gate is
+# "inverted" (evidence the TEST is wrong); one that failed on BOTH gates is "unmet"
+# (a genuine unmet criterion) and keeps today's hard block.
+# ===========================================================================
+
+def _shaped_iv_tests(original_gate: GateReport, final_gate: GateReport,
+                     iv: str = "tests/test_independent.py"):
+    """A ``run_tests`` seam shaped like the two deterministic independent-test gates.
+
+    The run's own test (the independent-test file is absent) is GREEN on arrival; the
+    independent test's whole-file gate is ``original_gate`` on the pre-run source and
+    ``final_gate`` on the fixed source (distinguished by the source content). A
+    per-criterion node-id call on the pre-run tree mirrors the requested ids as passing.
+    """
+    def run(workdir, node_ids=None):
+        root = Path(workdir)
+        if not (root / iv).exists():
+            return ShapedResult(
+                command=["python3", "-m", "pytest", "-q"], exit=0, verdict="ok",
+                excerpts=[],
+                gate=_gate_report("tests/test_leaf_self.py",
+                                  passed=("tests/test_leaf_self.py::test_goal",)))
+        if node_ids is not None:
+            return ShapedResult(
+                command=["python3", "-m", "pytest", "-q"], exit=0, verdict="ok",
+                excerpts=[], gate=_gate_report(iv, passed=tuple(node_ids)))
+        gate = (final_gate if "return 42" in (root / "pkg/calc.py").read_text()
+                else original_gate)
+        return ShapedResult(
+            command=["python3", "-m", "pytest", "-q"],
+            exit=0 if gate.green else 1,
+            verdict="ok" if gate.green else "failed",
+            excerpts=[] if gate.green else [f"FAILED {nid}" for nid in gate.failed_ids],
+            gate=gate)
+    return run
+
+
+def test_iv_inversion_evidence_splits_inverted_from_unmet():
+    """P3b (FIX A) unit: the deterministic split of the final-revision failures into the
+    ids that PASSED on the pristine source (inverted) and the ids that failed on BOTH
+    (unmet). A failure present on neither is never excused, and a missing gate is empty."""
+    from harness.leaf import iv_all_inverted, iv_inversion_evidence
+
+    iv = "tests/test_independent.py"
+    inv = f"{iv}::test_ac1_inverted"
+    unmet = f"{iv}::test_ac2_unmet"
+    original = _gate_report(iv, passed=(inv,), failed=(unmet,), green=False)
+    final = _gate_report(iv, passed=(), failed=(inv, unmet), green=False)
+
+    inverted, unmet_ids = iv_inversion_evidence(original, final)
+    assert inverted == (inv,)
+    assert unmet_ids == (unmet,)
+    partial = IndependentTestVerdict(approved=False,
+                                     reason="independent-test-red-on-final",
+                                     original_gate=original, final_gate=final)
+    assert iv_all_inverted(partial) is False
+
+    all_inverted = _gate_report(iv, passed=(unmet,), failed=(inv,), green=False)
+    all_inv = IndependentTestVerdict(approved=False,
+                                     reason="independent-test-red-on-final",
+                                     original_gate=original, final_gate=all_inverted)
+    assert iv_all_inverted(all_inv) is True
+    # no report / no failing id / a non-red verdict are never "inverted"
+    assert iv_inversion_evidence(None, final) == ((), ())
+    assert iv_all_inverted(None) is False
+    assert iv_all_inverted(IndependentTestVerdict(
+        approved=True, original_gate=original, final_gate=final)) is False
+
+
+def test_all_inverted_independent_test_does_not_block_the_claim(tmp_path):
+    """P3b (FIX A): the independent test is RED on the final revision, but every failing
+    node PASSED on the pristine pre-run source (it asserted the pre-fix behaviour, T-01's
+    inversion). With no own test, the review must still carry the claim; the inversion is
+    recorded with its ids and never blocks."""
+    iv = "tests/test_independent.py"
+    inverted = f"{iv}::test_ac1_inverted"
+    genuine = f"{iv}::test_ac2_genuine"
+    original = _gate_report(iv, passed=(inverted,), failed=(genuine,), green=False)
+    final = _gate_report(iv, passed=(genuine,), failed=(inverted,), green=False)
+
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=14, deadline_ts=_FAR_FUTURE),
+                        iv=lambda request: iv_candidate(), review=_approving_review,
+                        run_tests=_shaped_iv_tests(original, final))
+
+    assert out.claimed is True and out.claimed_basis == "review"
+    assert out.state == "pass"
+    assert out.iv_verdicts[-1].reason == "independent-test-red-on-final"
+    assert out.iv_inverted is True
+    assert out.iv_inverted_tests == [inverted]
+    assert out.iv_unmet_tests == []
+    assert "independent_test_inverted" in ledger_kinds()
+
+
+def test_partially_inverted_independent_test_still_blocks_the_claim(tmp_path):
+    """P3b (FIX A): one failing node passed on the pristine source (inverted) but ANOTHER
+    failed on BOTH (unmet) — the genuine unmet criterion keeps today's hard block, and the
+    inversion is still recorded with its ids."""
+    iv = "tests/test_independent.py"
+    inverted = f"{iv}::test_ac1_inverted"
+    unmet = f"{iv}::test_ac2_unmet"
+    original = _gate_report(iv, passed=(inverted,), failed=(unmet,), green=False)
+    final = _gate_report(iv, passed=(), failed=(inverted, unmet), green=False)
+
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=14, deadline_ts=_FAR_FUTURE),
+                        iv=lambda request: iv_candidate(), review=_approving_review,
+                        run_tests=_shaped_iv_tests(original, final))
+
+    assert out.claimed is False
+    assert out.stop_reason == "independent-test-red-on-final"
+    assert out.iv_inverted is False
+    assert out.iv_inverted_tests == [inverted]
+    assert out.iv_unmet_tests == [unmet]
+    assert out.failure_report is not None and out.failure_report.iv_inverted is False
+    assert out.failure_report.iv_unmet_tests == (unmet,)
+    assert "independent_test_inverted" in ledger_kinds()
+
+
+# ===========================================================================
+# P3b (FIX B): anchor the graded review to the repository's OWN documentation, and
+# honestly label a claim that rests on a review with no observable check.
+# ===========================================================================
+
+def test_review_request_carries_the_repository_documentation(tmp_path):
+    """P3b (FIX B): the review request carries every non-test, non-grader .md/.txt/.rst
+    from the staged repository as GROUND TRUTH, and the driver's review prompt injects it
+    with the module-level-functions-vs-class contract rule."""
+    from bench.v2_leaf import _review_question
+
+    readme = ("# plugins\n\nPlugin registry: register(name, fn) / get(name) / "
+              "run(name, *args).\n")
+    files = {"README.md": readme, "plugins/__init__.py": "", "notes.txt": "old notes\n",
+             "plugins/registry.py": "class Registry:\n    pass\n"}
+    spec = LeafSpec(goal="scaffold the plugin registry", files=files,
+                    acs=["Create the registry module"],
+                    interfaces=[],
+                    grader_paths=("tests/test_plugins.py", "pyproject.toml"),
+                    planned_reviews=("ac-correctness", "contract-compat"))
+    stage(tmp_path, files)
+    request = _review_request(spec, tmp_path, dict.fromkeys(files),
+                              "no test could carry it", "contract-compat")
+
+    docs = dict(request.repo_docs)
+    assert docs["README.md"] == readme and docs["notes.txt"] == "old notes\n"
+    assert "tests/test_plugins.py" not in docs and "pyproject.toml" not in docs
+    assert "plugins/registry.py" not in docs          # source, not documentation
+
+    question = _review_question(request)
+    assert "REPOSITORY DOCUMENTATION" in question and "GROUND TRUTH" in question
+    assert "register(name, fn)" in question
+    assert "class that only offers methods is a FAIL" in question
+
+
+def test_review_only_claim_without_an_observable_check_records_basis_risk(tmp_path):
+    """P3b (FIX B): a granted claim that rests on a review while NO observable check
+    existed (no own test, independent verification unusable) is LABELLED. The label never
+    changes the grant (T-28's false-success shape stays a grant here — that is the
+    owner's rule — but the record is now honest about its basis)."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        review=_approving_review, run_tests=ScriptedTests([0, 0, 0]))
+
+    assert out.claimed is True and out.claimed_basis == "review"
+    assert out.self_test is None
+    assert out.basis_risk == "review-only-no-observable-check"
+
+
+def test_basis_risk_is_absent_when_an_observable_check_existed(tmp_path):
+    """P3b (FIX B): the label is only for a review-only claim with no observable check.
+    An own-test claim (an observed check carried it) and a review that an independent
+    verification AGREED with both carry no label."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
+                        iv=lambda request: iv_candidate(), run_tests=ScriptedTests([1, 0, 1, 1]))
+    assert out.claimed is True and out.claimed_basis == "own-test"
+    assert out.basis_risk == ""
+
+    agreed = claim_decision(
+        route="review", criteria_count=1, ledger=_gate_ledger(),
+        own_test=None, own_test_green=False, test_rewrites=0, iv_approved=True,
+        review_approved=True, review_verdicts=(_grounded_review(),),
+        verification_basis="review", tier_allowed=True)
+    assert agreed.claimed is True and agreed.basis == "review+independent-test"
+    assert agreed.basis_risk == ""
+
+
+def test_run_record_carries_basis_risk_and_iv_inversion_fields():
+    """P3b: the new fields survive the run record (``json.dumps``) so the measurement can
+    read them directly."""
+    from bench.external_score import ExternalScore
+    from bench.v2_leaf import build_record
+
+    iv = "tests/test_independent.py"
+    inverted = f"{iv}::test_ac1_inverted"
+    original = _gate_report(iv, passed=(inverted,), failed=(), green=False)
+    final = _gate_report(iv, passed=(), failed=(inverted,), green=False)
+    outcome = LeafOutcome(
+        claimed=True, signal="green", attempts=[], calls=3, wall_s=1.0, self_test=None,
+        questions=[], exhausted=False, exhaustion_reason="", layers_used=[],
+        stop_reason="green", verification_basis="review", claimed_basis="review",
+        basis_risk="review-only-no-observable-check",
+        iv_inverted=True, iv_inverted_tests=[inverted], iv_unmet_tests=[],
+        iv_verdicts=[IndependentTestVerdict(
+            approved=False, reason="independent-test-red-on-final",
+            original_gate=original, final_gate=final)])
+    score = ExternalScore(passed=True, exit=0, notes=[], work_root="", applied=[],
+                          skipped=[])
+
+    record = build_record("T-x", "goal", outcome, withheld=[], produced={}, score=score,
+                          quad="true-success", run_wall_s=1.0, review_enabled=True)
+
+    assert record["basis_risk"] == "review-only-no-observable-check"
+    assert record["iv_inverted"] is True
+    assert record["iv_inverted_tests"] == [inverted]
+    assert record["iv_unmet_tests"] == []
+    json.dumps(record)

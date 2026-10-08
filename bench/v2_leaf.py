@@ -109,6 +109,16 @@ def _review_question(request: ReviewRequest) -> str:
                 "acceptance criterion; a criterion whose artifact is untouched cannot be "
                 "satisfied):\n- " + "\n- ".join(request.coverage_missing)
                 if request.coverage_missing else "")
+    # P3b (FIX B): the staged repository's OWN documentation as GROUND TRUTH, so the
+    # reviewer checks the delivered interface against what the repository documents
+    # instead of the request restating it. Empty when the repo ships no such docs, so the
+    # prompt is unchanged then.
+    documentation = (
+        "\n\nREPOSITORY DOCUMENTATION (GROUND TRUTH — the staged repository's own docs; "
+        "the delivered interface MUST match what they document, and the request may not "
+        "restate or override them):\n"
+        + "\n".join(f"--- {rel} ---\n{text}" for rel, text in request.repo_docs)
+        if request.repo_docs else "")
     return (
         "You are an INDEPENDENT reviewer. No test can carry verification for this node, so "
         "YOU grade ONE review ANGLE of the final diff. You did not write the code.\n"
@@ -118,6 +128,7 @@ def _review_question(request: ReviewRequest) -> str:
         f"ACCEPTANCE CRITERIA (numbered):\n{acs}\n\n"
         f"ORIGINAL SOURCE (before):\n{original}\n\n"
         f"FINAL SOURCE (after):\n{final}\n"
+        f"{documentation}\n"
         f"{coverage}\n"
         f"WHY REVIEW IS REQUIRED: {request.reason or 'no test could carry verification'}\n\n"
         "Return ONE grade --- exactly one of definitely-ok, probably-ok, uncertain, "
@@ -484,6 +495,16 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         "iv_covered_indices": outcome.iv_covered_indices,
         "iv_uncovered_indices": outcome.iv_uncovered_indices,
         "iv_shared_node_ids": outcome.iv_shared_node_ids,
+        # P3b (FIX A): the inversion evidence of the last independent verification — True
+        # when it was RED on the final revision but EVERY failing node passed on the
+        # pristine pre-run source, with the failing ids split into inverted (passed
+        # pre-run) and unmet (failed on BOTH). An all-inverted verdict does not block.
+        "iv_inverted": outcome.iv_inverted,
+        "iv_inverted_tests": outcome.iv_inverted_tests,
+        "iv_unmet_tests": outcome.iv_unmet_tests,
+        # P3b (FIX B): the honest risk label of a granted review-only claim that had no
+        # observable check (no own test, no usable independent verification).
+        "basis_risk": outcome.basis_risk,
         "iv_original_gate": (dataclasses.asdict(outcome.iv_original_gate)
                               if outcome.iv_original_gate is not None else None),
         "iv_final_gate": (dataclasses.asdict(outcome.iv_final_gate)

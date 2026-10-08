@@ -631,7 +631,10 @@ REVIEW_ANGLE_PROMPTS: dict[str, str] = {
         "actual changed code, not the summary."),
     "contract-compat": (
         "Check whether the final diff keeps every interface, signature, and documented "
-        "contract it must not break."),
+        "contract it must not break. The delivered interface MUST match what the "
+        "REPOSITORY DOCUMENTATION (when provided below) documents as ground truth. If "
+        "the repository documents module-level functions, a class that only offers "
+        "methods is a FAIL for this angle."),
     "edge-and-error": (
         "Check whether the final diff handles the edge cases and error paths the "
         "acceptance criteria imply."),
@@ -1161,6 +1164,14 @@ class FailureReport:
     regressions: tuple[str, ...] = ()
     regression_observable: bool = False
     regression_detail: str = ""
+    #: P3b (FIX A): the independent verification's inversion evidence on the delivered
+    #: revision. ``iv_inverted`` is True when the red-on-final independent test's EVERY
+    #: failing node id PASSED on the pristine source (it asserts the pre-fix behaviour),
+    #: and ``iv_inverted_tests``/``iv_unmet_tests`` are the failing ids split into the
+    #: ones that passed on the pre-run source and the ones that failed on BOTH.
+    iv_inverted: bool = False
+    iv_inverted_tests: tuple[str, ...] = ()
+    iv_unmet_tests: tuple[str, ...] = ()
 
     @property
     def violated(self) -> tuple[CriterionLedgerEntry, ...]:
@@ -1253,6 +1264,20 @@ class LeafOutcome:
     iv_covered_indices: list[int] = field(default_factory=list)
     iv_uncovered_indices: list[int] = field(default_factory=list)
     iv_shared_node_ids: list[str] = field(default_factory=list)
+    #: P3b (FIX A): the independent verification's INVERSION evidence on the delivered
+    #: revision. ``iv_inverted`` is True when the last independent test was RED on the
+    #: final revision but EVERY failing node id PASSED on the pristine pre-run source (it
+    #: asserts the pre-fix behaviour), so it does NOT block the claim;
+    #: ``iv_inverted_tests``/``iv_unmet_tests`` split the failing ids into the ones that
+    #: passed on the pre-run source and the ones that failed on BOTH.
+    iv_inverted: bool = False
+    iv_inverted_tests: list[str] = field(default_factory=list)
+    iv_unmet_tests: list[str] = field(default_factory=list)
+    #: P3b (FIX B): the honest label for a claim that rests on a review while NO observable
+    #: check existed (no own test and no usable independent verification),
+    #: ``"review-only-no-observable-check"``; "" in every other case. A label only — it
+    #: never changes whether the claim was granted.
+    basis_risk: str = ""
     # Every write-guard action (ticket 17 round 5): a refused self-test/source write or
     # a normalized landing spot. Persisted in the run record so a forged-green attempt
     # is visible after the fact.
@@ -1517,6 +1542,12 @@ class ReviewRequest:
     #: touches. Shown to the reviewer as a fact so a partial multi-file fix cannot draw a
     #: ``definitely-ok``; the coverage hard block still vetoes an ``ok`` review.
     coverage_missing: tuple[str, ...] = ()
+    #: P3b (FIX B): the staged repository's OWN documentation (repo-relative path -> text)
+    #: for every non-test, non-grader ``.md``/``.txt``/``.rst`` file in the blind view.
+    #: Shown to the reviewer as GROUND TRUTH, so the delivered interface can be checked
+    #: against what the repository documents (e.g. module-level functions vs a class that
+    #: only offers methods) instead of the request restating its own expectations.
+    repo_docs: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self) -> None:
         reject_node_record_fields(self)
@@ -1587,7 +1618,11 @@ class ClaimDecision:
     human-readable text. ``disagreement`` (ticket 22 item 3) records a review-vs-test
     disagreement in EITHER direction: the graded review still decides the claim, but the
     disagreement is never hidden — a granted review-backed claim carries the text, as
-    does a review-rejected one.
+    does a review-rejected one. ``basis_risk`` (P3b FIX B) is the honest label for a
+    ``review``-basis claim that rests on a review while NO observable check existed (no
+    own test and no usable independent verification):
+    ``"review-only-no-observable-check"``. It is a LABEL only — it never changes whether
+    the claim is granted.
     """
 
     claimed: bool
@@ -1596,11 +1631,14 @@ class ClaimDecision:
     conflict: bool = False
     detail: str = ""
     disagreement: str = ""
+    basis_risk: str = ""
 
 
-def _granted_claim(basis: str, disagreement: str = "") -> ClaimDecision:
+def _granted_claim(basis: str, disagreement: str = "",
+                   basis_risk: str = "") -> ClaimDecision:
     """The ONLY constructor of a claimed decision (pinned by the structural test)."""
-    return ClaimDecision(claimed=True, basis=basis, disagreement=disagreement)
+    return ClaimDecision(claimed=True, basis=basis, disagreement=disagreement,
+                         basis_risk=basis_risk)
 
 
 def _blocked_claim(blocker: str, detail: str = "",
@@ -1612,6 +1650,51 @@ def _blocked_claim(blocker: str, detail: str = "",
 def _conflict_claim(detail: str) -> ClaimDecision:
     return ClaimDecision(claimed=False, blocker="verifier-conflict",
                          conflict=True, detail=detail)
+
+
+def iv_inversion_evidence(
+    original_gate: GateReport | None,
+    final_gate: GateReport | None,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Split the independent test's FINAL-revision failures into
+    ``(inverted_ids, unmet_ids)`` from the two deterministic gate reports (P3b FIX A).
+
+    ``inverted_ids`` are the node ids that FAILED on the final revision but PASSED on
+    the pristine pre-run source: the test pinned the PRE-FIX behaviour, so its failure is
+    evidence that the TEST is wrong, not the fix. ``unmet_ids`` are the ids that failed on
+    BOTH revisions — a genuine unmet criterion (or a non-discriminating selection). A
+    final failure present on NEITHER report is deliberately left out of the inverted set,
+    so it cannot be excused. Both lists are sorted; ``((), ())`` when either report is
+    absent or nothing failed on the final revision.
+    """
+    if original_gate is None or final_gate is None:
+        return (), ()
+    final_failed = set(final_gate.failed_ids)
+    if not final_failed:
+        return (), ()
+    original_passed = set(original_gate.passed_ids)
+    original_failed = set(original_gate.failed_ids)
+    inverted = tuple(sorted(final_failed & original_passed))
+    unmet = tuple(sorted(final_failed & original_failed))
+    return inverted, unmet
+
+
+def iv_all_inverted(verdict: IndependentTestVerdict | None) -> bool:
+    """True when the independent verification is RED on the final revision but EVERY
+    failing node id PASSED on the pristine pre-run source (P3b FIX A).
+
+    Such a verdict is an inversion: it asserts the pre-fix behaviour that the correct fix
+    changed, so it must NOT block the claim — the remaining evidence (the graded review,
+    the run's own test) decides. A red verdict with no failing node id recorded, or with a
+    single unmet/unknown failure, is NOT inverted and keeps the existing hard block.
+    """
+    if verdict is None or verdict.reason != "independent-test-red-on-final":
+        return False
+    final = verdict.final_gate
+    if final is None or not final.failed_ids:
+        return False
+    inverted, _unmet = iv_inversion_evidence(verdict.original_gate, final)
+    return set(final.failed_ids) <= set(inverted)
 
 
 def claim_decision(
@@ -1780,7 +1863,12 @@ def claim_decision(
         if not tier_allowed:
             return _blocked_claim("verification-required", disagreement=disagreement)
         basis = "review+independent-test" if iv_approved else "review"
-        return _granted_claim(basis, disagreement=disagreement)
+        # P3b (FIX B): an honest label for a claim that rests on a review while NO
+        # observable check existed — no own test AND no usable independent verification.
+        # It is a LABEL only: the grant itself is unchanged.
+        risk = ("review-only-no-observable-check"
+                if own_test is None and not iv_approved else "")
+        return _granted_claim(basis, disagreement=disagreement, basis_risk=risk)
 
     # ---- rule 5: the FINAL-revision own-test agreement on the non-review routes
     if own_test_red:
@@ -2994,6 +3082,26 @@ async def _maybe_await(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any
     return result
 
 
+#: File extensions that count as the repository's OWN prose documentation (P3b FIX B).
+_DOC_SUFFIXES: tuple[str, ...] = (".md", ".txt", ".rst")
+
+
+def repo_documentation(spec: LeafSpec) -> tuple[tuple[str, str], ...]:
+    """The staged repository's OWN documentation from the blind view (P3b FIX B).
+
+    Every non-test, non-grader ``.md``/``.txt``/``.rst`` file in ``spec.files`` (the
+    blind, source-only view ``source_only`` already removed the grader's tests and
+    configuration from), sorted by path. It is the GROUND TRUTH a review is anchored to:
+    the delivered interface must match what the repository documents. An empty tuple when
+    the staged repo ships no such documentation (the review prompt then says nothing
+    about it).
+    """
+    grader = set(spec.grader_paths)
+    return tuple(sorted(
+        (rel, text) for rel, text in spec.files.items()
+        if rel.lower().endswith(_DOC_SUFFIXES) and rel not in grader))
+
+
 def _review_request(
     spec: LeafSpec,
     workdir: Path,
@@ -3028,6 +3136,10 @@ def _review_request(
         original={rel: original.get(rel, "") for rel in changed},
         final={rel: final.get(rel, "") for rel in changed},
         reason=reason, angle=angle, coverage_missing=coverage_missing,
+        # P3b (FIX B): hand the reviewer the repository's OWN documentation as ground
+        # truth, so the delivered interface is checked against what the repo documents
+        # (module-level functions vs a class that only offers methods).
+        repo_docs=repo_documentation(spec),
     )
 
 
@@ -4369,6 +4481,9 @@ async def run_leaf(
     #: Ticket 22 item 3: a recorded review-vs-test disagreement (either direction). The
     #: review still decides the claim; the disagreement is kept for audit.
     verification_disagreement = ""
+    #: P3b (FIX B): the honest risk label of a granted claim ("" when none applies),
+    #: set from the gate's :class:`ClaimDecision` on a grant and recorded on the outcome.
+    basis_risk = ""
     # Ticket 20 step 2b-ii: the last own-test gate report, surfaced on the outcome so the
     # tree can score the candidate over the DECLARED test points.
     own_test_report: GateReport | None = None
@@ -5358,15 +5473,21 @@ async def run_leaf(
                 "disagreement is recorded")
 
     def iv_red_on_final() -> bool:
-        """True when the LAST independent verdict is a red-on-final FIX failure.
+        """True when the LAST independent verdict is a red-on-final FIX failure that may
+        BLOCK a claim.
 
         On the review route such a verdict does NOT decide the claim (ticket 22 item 3:
         the review decides). On the other routes it never CARRIES a claim (gate rule 8);
         a green, unrewritten own test can still carry one, because there the independent
-        red is only a recorded label.
+        red is only a recorded label. P3b (FIX A): a red-on-final whose EVERY failing node
+        id PASSED on the pristine pre-run source is an INVERTED test (it asserts the
+        pre-fix behaviour) — evidence the TEST is wrong, not the fix — so it does NOT
+        block; the inversion is recorded separately by :func:`iv_all_inverted` and the
+        run record.
         """
         last = iv_verdicts[-1] if iv_verdicts else None
-        return bool(last is not None and last.reason == "independent-test-red-on-final")
+        return bool(last is not None and last.reason == "independent-test-red-on-final"
+                    and not iv_all_inverted(last))
 
     def iv_red_detail() -> str:
         """The evidence text of the LAST red-on-final independent verdict (or "").
@@ -5404,10 +5525,11 @@ async def run_leaf(
         Returns True when the claim was granted.
         """
         nonlocal claimed, claimed_basis, own_test_conflict, own_test_conflict_reason
-        nonlocal node_exhausted, verification_disagreement
+        nonlocal node_exhausted, verification_disagreement, basis_risk
         if decision.claimed:
             claimed = decision.claimed
             claimed_basis = decision.basis
+            basis_risk = decision.basis_risk
             node_exhausted = False
             if decision.disagreement:
                 verification_disagreement = decision.disagreement
@@ -5728,6 +5850,20 @@ async def run_leaf(
         if last_iv_reason and not claimed:
             reason = f"{reason}; independent-test {last_iv_reason}" if reason else f"independent-test {last_iv_reason}"
         last = iv_verdicts[-1] if iv_verdicts else None
+        # P3b (FIX A): split the last independent test's final-revision failures into the
+        # ones that PASSED on the pristine source (inverted) and the ones that failed on
+        # BOTH (unmet), and record the inversion when any exists. An all-inverted verdict
+        # does not block the claim (see :func:`iv_red_on_final`); the evidence is still
+        # kept so a reader can see WHY the independent test did not decide.
+        iv_inverted_tests, iv_unmet_tests = iv_inversion_evidence(
+            last.original_gate if last is not None else None,
+            last.final_gate if last is not None else None)
+        iv_inverted = iv_all_inverted(last)
+        if iv_inverted or iv_inverted_tests:
+            emit("independent_test_inverted", all_inverted=iv_inverted,
+                 inverted_ids=list(iv_inverted_tests), unmet_ids=list(iv_unmet_tests),
+                 reason=(last.reason if last is not None else ""),
+                 detail=(last.detail if last is not None else ""))
         tier = delivered_tier or verification_tier or (_terminal_tier() if not claimed else "none")
         wrote = _wrote_code()
         record = None
@@ -5833,7 +5969,10 @@ async def run_leaf(
                                    evidence_gap_reason=gap_reason,
                                    regressions=regression_ids,
                                    regression_observable=regression_observable,
-                                   regression_detail=regression_detail)
+                                   regression_detail=regression_detail,
+                                   iv_inverted=iv_inverted,
+                                   iv_inverted_tests=iv_inverted_tests,
+                                   iv_unmet_tests=iv_unmet_tests)
         emit("criterion_ledger", claimed=claimed,
              criteria=[asdict(e) for e in ledger], evidence_gap=evidence_gap,
              regressions=list(regression_ids), regression_observable=regression_observable,
@@ -5846,7 +5985,10 @@ async def run_leaf(
                  evidence_gap_reason=report.evidence_gap_reason,
                  regressions=list(report.regressions),
                  regression_observable=report.regression_observable,
-                 regression_detail=report.regression_detail)
+                 regression_detail=report.regression_detail,
+                 iv_inverted=report.iv_inverted,
+                 iv_inverted_tests=list(report.iv_inverted_tests),
+                 iv_unmet_tests=list(report.iv_unmet_tests))
         # FLOW §1.5 S5 / §4 (P1c): the explicit terminal state, from the terminal
         # test/review evidence (a confirmed red test is FAIL, never UNCERTAIN).
         terminal_state = leaf_terminal_state(
@@ -5886,6 +6028,10 @@ async def run_leaf(
             iv_covered_indices=list(last.covered_indices) if last is not None else [],
             iv_uncovered_indices=list(last.uncovered_indices) if last is not None else [],
             iv_shared_node_ids=list(last.shared_node_ids) if last is not None else [],
+            iv_inverted=iv_inverted,
+            iv_inverted_tests=list(iv_inverted_tests),
+            iv_unmet_tests=list(iv_unmet_tests),
+            basis_risk=basis_risk,
             refusals=list(refusals),
             deviations=list(deviations),
             gate_anomalies=list(gate_anomalies),
