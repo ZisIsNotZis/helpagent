@@ -258,8 +258,11 @@ Fixed contract points, each deliberate:
 from __future__ import annotations
 
 import ast
+import builtins
+import copy
 import inspect
 import json
+import keyword
 import posixpath
 import re
 import tempfile
@@ -938,6 +941,24 @@ _SYMPTOM_REWRITE_QUESTION = (
     + _SELF_TEST_DESIRED_STATE_RULE
 )
 
+#: P3d/FIX 1 (T-12): the ONE bounded rewrite of an own test that CONTRADICTS itself — two
+#: cases assert the same predicate with opposite polarity. The per-test split mislabels
+#: the RED one a discriminator when it is really the reported symptom (the pristine source
+#: happens to allow the class attribute the case negates); the GREEN sibling is the
+#: behaviour to preserve. The rewrite keeps the green case and replaces the red one with a
+#: case that exercises the request's own (currently broken) input path.
+_CONTRADICTION_REWRITE_QUESTION = (
+    "Your test file CONTRADICTS itself: it asserts BOTH a predicate and its negation for "
+    "the SAME input, so no single implementation can pass it. The case(s) listed as "
+    "UNRELIABLE assert the behaviour the request calls broken (the reported symptom); the "
+    "case(s) listed as PRESERVED assert the behaviour the fixed code must produce. Keep the "
+    "PRESERVED case(s) exactly as they are and replace every UNRELIABLE case with one that "
+    "exercises the EXACT scenario the request names (the input path that is currently "
+    "broken) and asserts the DESIRED end state, so the file still FAILS on the CURRENT "
+    "source and would pass on a correct fix. Reply with the complete new test file. "
+    + _SELF_TEST_DESIRED_STATE_RULE
+)
+
 #: Ticket 19 D: the bounded repair for a green run whose test does not expose the DECLARED
 #: test cases (missing file/function names). The declared contract is the harness's, so
 #: the missing names are handed back as evidence.
@@ -1228,6 +1249,10 @@ class FailureReport:
     #: on the failure report so a reader can see exactly which cases could not carry the
     #: run and why.
     own_test_symptom_ids: tuple[str, ...] = ()
+    #: P3d: the documented-API contract violations on the delivered revision (the
+    #: repository's OWN docs document a call-form name the module exposes only as a class
+    #: method). Recorded on the failure report so a refused claim names the contract break.
+    documented_api_missing: tuple[str, ...] = ()
 
     @property
     def violated(self) -> tuple[CriterionLedgerEntry, ...]:
@@ -1396,6 +1421,10 @@ class LeafOutcome:
     #: assert the reported symptom and were rewritten or DROPPED from the target).
     own_test_discriminating: list[str] = field(default_factory=list)
     own_test_symptom_ids: list[str] = field(default_factory=list)
+    #: P3d: the documented-API contract violations on the delivered revision (the repo's
+    #: OWN documentation documents a call-form name the delivered module exposes ONLY as a
+    #: class method, nowhere module level). A non-empty list is a HARD claim block.
+    documented_api_missing: list[str] = field(default_factory=list)
     # Ticket 20: the explicit verification record EVERY node that wrote code carries, with
     # an ORDERED strength tier (test > review > none+reason), the plan's declaration, and
     # any recorded best-effort downgrade. ``None`` when the node wrote no code.
@@ -1774,6 +1803,7 @@ def claim_decision(
     review_verdicts: Sequence[ReviewVerdict] = (),
     coverage_missing: Sequence[str] = (),
     request_coverage_missing: Sequence[str] = (),
+    documented_api_missing: Sequence[str] = (),
     regressions: Sequence[str] = (),
     test_case_problems: Sequence[str] = (),
     verification_basis: str = "test",
@@ -1874,6 +1904,14 @@ def claim_decision(
         return _blocked_claim("request-artifacts-uncovered",
                               detail="; ".join(request_coverage_missing),
                               disagreement="")
+    if documented_api_missing:
+        # P3d: the repository's OWN documentation is a mechanically checkable contract.
+        # A name the docs present in call form that the delivered module exposes ONLY as
+        # a class method (nowhere module level) is a documented-interface break, so no
+        # route may claim. The messages name the documented names, the module, and the
+        # class (the targeted excerpt the next attempt needs).
+        return _blocked_claim("documented-api-missing",
+                              detail="; ".join(documented_api_missing))
 
     own_test_red = own_test is not None and not own_test_green
 
@@ -2944,6 +2982,189 @@ def _delivery_is_unchanged(spec: LeafSpec, workdir: Path) -> bool:
     return _delivered_source_view(workdir) == _pristine_source_view(spec)
 
 
+def _inline_bindings(node: ast.AST, bind: Mapping[str, ast.AST],
+                     depth: int = 0) -> ast.AST:
+    """A copy of ``node`` with local names in ``bind`` replaced by their assigned value.
+
+    Lets two test functions' asserted predicates be compared after their local helpers
+    have been inlined, so ``assert can_publish(author)`` and ``assert not
+    can_publish(author)`` with the SAME ``author = Author(...)`` compare equal. Bounded by
+    ``depth`` (a self-referential binding cannot loop).
+    """
+    out = copy.deepcopy(node)
+    if depth > 6:
+        return out
+
+    class _Inline(ast.NodeTransformer):
+        def visit_Name(self, inner: ast.Name) -> ast.AST:
+            if isinstance(inner.ctx, ast.Load) and inner.id in bind:
+                return _inline_bindings(bind[inner.id], bind, depth + 1)
+            return inner
+
+    return _Inline().visit(out)
+
+
+def _test_function_assertions(func: ast.AST) -> list[tuple[str, bool]]:
+    """Every top-level ``assert`` in ``func`` as ``(canonical predicate, polarity)``.
+
+    Polarity is True for ``assert X`` and False for ``assert not X`` (and for
+    ``assert X is False``). The predicate is inlined through the function's simple local
+    assignments and dumped, so identical inputs compare equal across functions.
+    """
+    bind = _local_bindings(func)
+    out: list[tuple[str, bool]] = []
+    for node in getattr(func, "body", ()):
+        if not isinstance(node, ast.Assert):
+            continue
+        test, polarity = node.test, True
+        if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
+            test, polarity = test.operand, False
+        elif (isinstance(test, ast.Compare) and len(test.ops) == 1
+              and isinstance(test.ops[0], ast.Is)
+              and isinstance(test.comparators[0], ast.Constant)
+              and test.comparators[0].value in (True, False)):
+            polarity = test.comparators[0].value is True
+            test = test.left
+        out.append((ast.dump(_inline_bindings(test, bind)), polarity))
+    return out
+
+
+def _local_bindings(func: ast.AST) -> dict[str, ast.AST]:
+    """The simple ``name = expr`` bindings at the top of a test function's body."""
+    bind: dict[str, ast.AST] = {}
+    for node in getattr(func, "body", ()):
+        if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)):
+            bind[node.targets[0].id] = node.value
+    return bind
+
+
+def _is_simple_test_body(func: ast.AST) -> bool:
+    """True when a test body is ONLY simple assignments and asserts.
+
+    A body with any other statement (``s.push(1)``, a loop, a context manager) carries
+    state the predicate alone cannot see, so its assertions are not comparable across
+    cases and must never be part of the contradiction analysis (the T-23 false positive:
+    ``push``/``pop`` mutate the stack between otherwise identical ``is_empty()`` calls).
+    """
+    for node in getattr(func, "body", ()):
+        if (isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant)
+                and isinstance(node.value.value, str)):
+            continue  # a leading docstring says nothing about the assertion
+        if isinstance(node, ast.Assign):
+            if not (len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)):
+                return False
+        elif not isinstance(node, ast.Assert):
+            return False
+    return True
+
+
+def _test_function_equalities(func: ast.AST) -> list[tuple[str, str]]:
+    """The ``assert X == Y`` / ``assert X is Y`` pairs in a test, canonicalized.
+
+    A GREEN case that asserts two calls are equal licenses treating their (different)
+    inputs as the same predicate, which is what exposes the T-12 shape where the symptom
+    case and the desired case use two different author names for the same role.
+    """
+    bind = _local_bindings(func)
+    out: list[tuple[str, str]] = []
+    for node in getattr(func, "body", ()):
+        if not isinstance(node, ast.Assert):
+            continue
+        test = node.test
+        if (isinstance(test, ast.Compare) and len(test.ops) == 1
+                and isinstance(test.ops[0], (ast.Eq, ast.Is))):
+            out.append((ast.dump(_inline_bindings(test.left, bind)),
+                        ast.dump(_inline_bindings(test.comparators[0], bind))))
+    return out
+
+
+def _own_test_contradictions(source: str, discriminating: Sequence[str],
+                             symptom: Sequence[str]) -> tuple[tuple[str, ...], set[str]]:
+    """P3d/FIX 1: the run's own cases that CONTRADICT each other on the pristine source.
+
+    The per-test split calls a case RED on the pristine source a discriminator and a case
+    GREEN there a symptom. That rule misses the T-12 shape: the symptom-asserting case
+    (``assert can_publish(editor) is False``) is RED on the pristine source because the
+    pristine identity check happens to ALLOW the class attribute, while the desired case
+    (``assert can_publish(editor) is True``) is GREEN. The two assert the SAME predicate
+    with OPPOSITE polarity, so no single implementation can satisfy the file: the red case
+    asserts the reported symptom, not a desired change.
+
+    The match is deliberately conservative so it can never fire on a legitimate test:
+
+    * only test bodies that are simple assignments + asserts are compared (a body with
+      another statement mutates state the predicate cannot see);
+    * a body that asserts BOTH polarities of one predicate is a sequential/stateful test
+      and is skipped;
+    * predicates must match exactly after inlining local bindings, OR the file must carry
+      a GREEN ``assert f(a) == f(b)`` that licenses treating the two inputs as one (the
+      two-different-author-names variant of T-12).
+
+    Returns ``(unreliable, preserved)``: the DISCRIMINATING node ids whose predicate is
+    the direct negation of a green sibling (they must NOT be a red target), and the
+    symptom node ids in the same contradiction (the behaviour the request wants
+    PRESERVED, so they must NOT be dropped). Both empty when no call is asserted both
+    ways.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return (), set()
+    disc_names = {nid.split("::")[-1]: nid for nid in discriminating}
+    symp_names = {nid.split("::")[-1]: nid for nid in symptom}
+    parent: dict[str, str] = {}
+
+    def find(x: str) -> str:
+        root = x
+        while parent.get(root, root) != root:
+            root = parent[root]
+        while parent.get(x, x) != x:
+            parent[x], x = root, parent[x]
+        return root
+
+    def union(a: str, b: str) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    disc_pred: dict[str, set[bool]] = {}
+    disc_nids: dict[str, set[str]] = {}
+    symp_pred: dict[str, set[bool]] = {}
+    symp_nids: dict[str, set[str]] = {}
+    for func in tree.body:
+        is_disc = isinstance(func, ast.FunctionDef) and func.name in disc_names
+        is_symp = isinstance(func, ast.FunctionDef) and func.name in symp_names
+        if not (is_disc or is_symp) or not _is_simple_test_body(func):
+            continue
+        preds = _test_function_assertions(func)
+        per_pred: dict[str, set[bool]] = {}
+        for canon, polarity in preds:
+            per_pred.setdefault(canon, set()).add(polarity)
+        if any(len(pols) > 1 for pols in per_pred.values()):
+            continue  # a stateful/sequential test asserts both ways by design
+        if is_disc:
+            for canon, polarity in preds:
+                disc_pred.setdefault(canon, set()).add(polarity)
+                disc_nids.setdefault(canon, set()).add(disc_names[func.name])
+        if is_symp:
+            for canon, polarity in preds:
+                symp_pred.setdefault(canon, set()).add(polarity)
+                symp_nids.setdefault(canon, set()).add(symp_names[func.name])
+            for left, right in _test_function_equalities(func):
+                union(left, right)  # a GREEN equality licenses the two inputs as one
+    unreliable: list[str] = []
+    preserved: set[str] = set()
+    for d_canon, d_pols in disc_pred.items():
+        for s_canon, s_pols in symp_pred.items():
+            if find(d_canon) != find(s_canon):
+                continue
+            if any(p != q for p in d_pols for q in s_pols):
+                unreliable.extend(disc_nids[d_canon])
+                preserved.update(symp_nids[s_canon])
+    return tuple(sorted(set(unreliable))), preserved
+
+
 def _history_text(attempts: Sequence[Attempt]) -> str:
     lines = [
         f"- [{a.strategy}/{a.layer}] claim={a.claimed_delta!r} "
@@ -3242,6 +3463,170 @@ def repo_documentation(spec: LeafSpec) -> tuple[tuple[str, str], ...]:
     return tuple(sorted(
         (rel, text) for rel, text in spec.files.items()
         if rel.lower().endswith(_DOC_SUFFIXES) and rel not in grader))
+
+
+#: P3d: the identifiers a repository's OWN documentation documents as a CALLABLE API — a
+#: name IMMEDIATELY followed by an open paren (``register(name)``), inside or outside a
+#: backticked span. A bare backticked word is deliberately NOT taken: on this corpus a
+#: bare backtick is a dataclass field (T-04 ``host``/``retries``), a function parameter
+#: (T-13 ``sleep``, T-09 ``on_limit``) or a class method (T-15 ``register``), never a
+#: documented module-level API. Prose before a paren (``one hour (documented ...)``) is
+#: excluded because the name must be ADJACENT to the paren.
+_DOC_CALL = re.compile(r"(?<![A-Za-z0-9_])([A-Za-z_][A-Za-z0-9_]*)\(")
+
+
+def _documented_doc_files(spec: LeafSpec) -> tuple[tuple[str, str], ...]:
+    """The repository's OWN documentation in the run's view (P3d).
+
+    Every ``.md``/``.txt``/``.rst`` file in ``spec.files`` that is NOT a test path,
+    sorted by path. Unlike :func:`repo_documentation` it KEEPS a frozen document (the T-28
+    ``README.md`` is ``UNTOUCHED`` yet is still the repository's stated API contract — the
+    frozen set is a write boundary, not a blinded grader file). Withheld grader files are
+    already absent from ``spec.files``.
+    """
+    return tuple(sorted(
+        (rel, text) for rel, text in spec.files.items()
+        if rel.lower().endswith(_DOC_SUFFIXES) and not is_test_path(rel)))
+
+
+def documented_api_names(spec: LeafSpec) -> tuple[str, ...]:
+    """The callable API names the staged repo's OWN documentation documents (P3d).
+
+    Scans every non-test ``.md``/``.txt``/``.rst`` file in the blind view
+    (:func:`_documented_doc_files`) and returns the sorted set of identifiers that appear
+    in call form (a name immediately followed by ``(``). Python keywords and builtins are
+    dropped: the contract is about the repository's own API, not the language. The
+    extraction is conservative by construction (identical names only; prose with a space
+    before the paren, or a bare backticked word, never counts) so it can never invent a
+    contract the repository does not state. Empty when no doc ships a call form.
+    """
+    names: set[str] = set()
+    for _rel, text in _documented_doc_files(spec):
+        for name in _DOC_CALL.findall(text or ""):
+            if len(name) < 2 or keyword.iskeyword(name) or hasattr(builtins, name):
+                continue
+            names.add(name)
+    return tuple(sorted(names))
+
+
+def module_level_names(source: str) -> set[str]:
+    """The names a module binds at MODULE level (P3d).
+
+    A top-level ``def``/``async def``, an assignment (``X = ...`` / ``X: T = ...``), and
+    an import binding (``import a`` / ``from a import b as c``). A ``def`` nested inside a
+    class or a function is NOT module level — the T-28 shape (a documented ``register``
+    exposed only as a ``Registry`` method) is exactly the miss this exists to catch.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return set()
+    names: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            names.add(node.name)
+        elif isinstance(node, ast.Assign):
+            names.update(t.id for t in node.targets if isinstance(t, ast.Name))
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            names.add(node.target.id)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            for alias in node.names:
+                names.add(alias.asname or alias.name.split(".")[0])
+    return names
+
+
+def class_method_names(source: str) -> dict[str, tuple[str, ...]]:
+    """Method name -> the class names that define it (P3d).
+
+    Only methods of TOP-LEVEL classes count: the documented name must be re-exposed as a
+    module-level binding, and a method is the shape the contract check reports (``your
+    plugins/registry.py exposes them only as methods of Registry``).
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return {}
+    methods: dict[str, list[str]] = {}
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        for item in node.body:
+            if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                methods.setdefault(item.name, []).append(node.name)
+    return {name: tuple(classes) for name, classes in methods.items()}
+
+
+def _documented_api_targets(
+    spec: LeafSpec, workdir: Path, baseline: Mapping[str, str | None]
+) -> tuple[str, ...]:
+    """The delivered module(s) the documented-API contract is checked against (P3d).
+
+    The ``.py`` files the REQUEST names that exist in the delivered tree, else the module
+    files the change PRODUCED (created, then changed) if the request names none. Test
+    paths and grader-owned paths are never targets.
+    """
+    from harness.envelopes import file_tokens
+
+    grader = _grader_set(spec)
+    named: list[str] = []
+    for token in sorted(file_tokens(spec.goal)):
+        canon = _canonical_write_path(token)
+        if (canon is None or not canon.endswith(".py") or canon in grader
+                or is_test_path(canon) or not (workdir / canon).is_file()):
+            continue
+        named.append(canon)
+    if named:
+        return tuple(dict.fromkeys(named))
+    delivered = _snapshot_deliverable_files(workdir)
+    produced = sorted(rel for rel in delivered
+                      if rel.endswith(".py") and not is_test_path(rel)
+                      and rel not in spec.files)
+    if produced:
+        return tuple(produced)
+    changed = _changed_files(workdir, baseline)
+    return tuple(sorted(rel for rel in changed if rel.endswith(".py")))
+
+
+def documented_api_problem(
+    spec: LeafSpec, workdir: Path, baseline: Mapping[str, str | None]
+) -> list[str]:
+    """The documented-API contract violations in the DELIVERED tree (P3d).
+
+    The repository's own documentation is a mechanically checkable contract. A name the
+    docs present in call form must exist at MODULE level in the delivered target module
+    (a function, an assignment, or an import); a name exposed ONLY as a class method is
+    NOT module level and blocks the claim. One message per (module, class) names the
+    documented names, the module, and the class that swallowed them, so the next attempt
+    has a targeted excerpt. Empty when every documented name is module level, when no
+    documentation states a call form, or when no target module was delivered.
+    """
+    names = documented_api_names(spec)
+    if not names:
+        return []
+    targets = _documented_api_targets(spec, workdir, baseline)
+    module_level: set[str] = set()
+    class_only: dict[tuple[str, str], set[str]] = {}
+    for rel in targets:
+        path = workdir / rel
+        if not path.is_file():
+            continue
+        try:
+            source = path.read_text()
+        except (UnicodeDecodeError, OSError):
+            continue
+        module_level |= module_level_names(source)
+        methods = class_method_names(source)
+        for name in names:
+            for class_name in methods.get(name, ()):  # only a class method is the miss
+                class_only.setdefault((rel, class_name), set()).add(name)
+    # A documented name that IS module level somewhere in the targets is satisfied; only a
+    # name that exists solely as a class method (nowhere module level) is the T-28 miss.
+    return [
+        f"the repository documents {', '.join(sorted(missing))} as module-level "
+        f"names; your {rel} exposes them only as methods of {class_name}"
+        for (rel, class_name), missing in sorted(class_only.items())
+        if not (missing & module_level)
+    ]
 
 
 def _review_request(
@@ -4421,6 +4806,31 @@ def _symptom_rewrite_artifacts(
     return artifacts
 
 
+def _contradiction_rewrite_artifacts(
+    spec: LeafSpec, workdir: Path, self_test: str,
+    unreliable: Sequence[str], preserved: Sequence[str],
+) -> dict[str, str]:
+    """P3d/FIX 1: the bounded rewrite artifacts for a self-contradicting own test.
+
+    ``unreliable`` are the cases whose predicate a green sibling negates (they assert the
+    reported symptom, so they must be replaced); ``preserved`` are the green cases that
+    state the desired behaviour and must stay. Each is handed over by node id with the
+    reason it is on that side.
+    """
+    artifacts = _self_test_artifacts(spec)
+    artifacts.update({
+        "current_test_path": self_test,
+        "current_test": _read(workdir, self_test),
+        "unreliable_cases": "\n".join(
+            f"- {nid}: this case contradicts a case that PASSES on the unfixed source, so "
+            "it asserts the reported symptom; replace it" for nid in unreliable),
+        "preserved_cases": "\n".join(
+            f"- {nid}: this case PASSES on the unfixed source and asserts the behaviour "
+            "the request wants; keep it exactly as it is" for nid in sorted(preserved)),
+    })
+    return artifacts
+
+
 def _source_view(spec: LeafSpec) -> dict[str, str]:
     return {rel: text for rel, text in spec.files.items()}
 
@@ -4971,6 +5381,17 @@ async def run_leaf(
         """
         return _request_artifact_messages(
             _request_coverage(spec, workdir, baseline))
+
+    def documented_api_missing_now() -> list[str]:
+        """The current documented-API contract miss (P3d, the T-28 fix).
+
+        A non-empty result is a HARD claim block on EVERY route: the repository's OWN
+        documentation documents the names in call form, and the delivered module exposes
+        them only as class methods (nowhere module level). Deterministic; reads the
+        delivered tree, never model prose. The targeted message is the next attempt's
+        excerpt.
+        """
+        return documented_api_problem(spec, workdir, baseline)
 
     async def ensure_regression_baseline() -> VisibleSuiteBaseline | None:
         """Capture the visible suite's baseline on the PRISTINE staged source (FLOW §5).
@@ -5944,6 +6365,7 @@ async def run_leaf(
                         review_approved=False, review_verdicts=tuple(review_verdicts),
                         coverage_missing=coverage_missing,
                         request_coverage_missing=request_coverage_missing,
+                        documented_api_missing=documented_api_missing_now(),
                         regressions=regression.regressions,
                         test_case_problems=test_case_problems,
                         verification_basis=verification_basis,
@@ -5980,6 +6402,7 @@ async def run_leaf(
                         review_approved=True, review_verdicts=tuple(review_verdicts),
                         coverage_missing=coverage_missing,
                         request_coverage_missing=request_coverage_missing,
+                        documented_api_missing=documented_api_missing_now(),
                         regressions=regression.regressions,
                         test_case_problems=test_case_problems,
                         verification_basis=verification_basis,
@@ -6208,6 +6631,12 @@ async def run_leaf(
                 "the recorded regression verdict describes the revision checked, not the "
                 "restored one")
         report = None
+        # P3d: the documented-API contract on the DELIVERED revision (after any
+        # best-evidence restore). A non-empty list names the repository-documented names a
+        # class swallowed; it blocks every claim route and rides the failure report.
+        doc_api_missing = documented_api_missing_now()
+        if doc_api_missing:
+            emit("documented_api_missing", missing=doc_api_missing)
         if not claimed:
             gap_reason = ""
             if evidence_gap:
@@ -6225,7 +6654,8 @@ async def run_leaf(
                                    iv_inverted=iv_inverted,
                                    iv_inverted_tests=iv_inverted_tests,
                                    iv_unmet_tests=iv_unmet_tests,
-                                   own_test_symptom_ids=tuple(own_test_symptom_ids))
+                                   own_test_symptom_ids=tuple(own_test_symptom_ids),
+                                   documented_api_missing=tuple(doc_api_missing))
         emit("criterion_ledger", claimed=claimed,
              criteria=[asdict(e) for e in ledger], evidence_gap=evidence_gap,
              regressions=list(regression_ids), regression_observable=regression_observable,
@@ -6242,7 +6672,8 @@ async def run_leaf(
                  iv_inverted=report.iv_inverted,
                  iv_inverted_tests=list(report.iv_inverted_tests),
                  iv_unmet_tests=list(report.iv_unmet_tests),
-                 own_test_symptom_ids=list(report.own_test_symptom_ids))
+                 own_test_symptom_ids=list(report.own_test_symptom_ids),
+                 documented_api_missing=list(report.documented_api_missing))
         # FLOW §1.5 S5 / §4 (P1c): the explicit terminal state, from the terminal
         # test/review evidence (a confirmed red test is FAIL, never UNCERTAIN).
         terminal_state = leaf_terminal_state(
@@ -6302,6 +6733,7 @@ async def run_leaf(
             own_test_gate=own_test_report,
             own_test_discriminating=list(own_test_discriminating),
             own_test_symptom_ids=list(own_test_symptom_ids),
+            documented_api_missing=list(doc_api_missing),
             malformed_steps=list(malformed_steps),
             judge_unavailable=judge_unavailable,
             needs_user=needs_user,
@@ -6373,25 +6805,59 @@ async def run_leaf(
         Only the DISCRIMINATING cases (red on the pristine source) may be the target or
         evidence. The green-on-pristine cases get ONE bounded rewrite that asks for the
         DESIRED end state; a case that survives the budget is DROPPED physically from the
-        target and recorded. Returns False when a stop was set (the caller finishes).
+        target and recorded, EXCEPT a green case that a discriminating case contradicts
+        (P3d/FIX 1: that green case states the desired behaviour, so it is preserved).
+        Returns False when a stop was set (the caller finishes).
         """
         nonlocal self_test, last_gate, last_excerpts, symptom_rewrites
         nonlocal own_test_discriminating, own_test_symptom_ids
-        disc, symptom = _own_test_partition(last_gate, self_test)
+
+        def classify() -> tuple[tuple[str, ...], tuple[str, ...],
+                                tuple[str, ...], set[str]]:
+            """Current (discriminating, symptom, unreliable, preserved) from the file.
+
+            The per-test split, then the P3d contradiction reclassification: a RED case
+            whose predicate a GREEN sibling negates is moved from discriminating to
+            symptom (unreliable) and its green sibling is marked preserved.
+            """
+            d, s = _own_test_partition(last_gate, self_test)
+            c, p = _own_test_contradictions(_read(workdir, self_test), d, s) if d \
+                else ((), set())
+            if c:
+                s = tuple(sorted(set(s) | set(c)))
+                d = tuple(x for x in d if x not in c)
+            return d, s, c, p
+
+        disc, symptom, contradictions, preserved = classify()
         own_test_discriminating = list(disc)
         own_test_symptom_ids = list(symptom)
+        if contradictions:
+            # P3d/FIX 1 (T-12): a "discriminating" case whose asserted predicate a GREEN
+            # sibling negates asserts the reported SYMPTOM, not a desired change. It must
+            # not be a red target; its green sibling is the behaviour the request wants,
+            # so it must not be dropped.
+            emit("own_test_contradiction", path=self_test,
+                 unreliable=list(contradictions), preserved=sorted(preserved),
+                 discriminating=list(disc), symptom=list(symptom))
         if not symptom:
             return True
         emit("own_test_partition", path=self_test, discriminating=list(disc),
              symptom=list(symptom))
-        if disc and symptom_rewrites < 1 and can_afford(1):
+        if (disc or contradictions) and symptom_rewrites < 1 and can_afford(1):
             # The ONE bounded rewrite: ask for the DESIRED end state, not the symptom.
             symptom_rewrites += 1
+            if contradictions:
+                artifacts = _contradiction_rewrite_artifacts(
+                    spec, workdir, self_test, contradictions, preserved)
+                question = _CONTRADICTION_REWRITE_QUESTION
+                label = "own-test-contradiction"
+            else:
+                artifacts = _symptom_rewrite_artifacts(
+                    spec, workdir, self_test, disc, symptom)
+                question = _SYMPTOM_REWRITE_QUESTION
+                label = "symptom-rewrite"
             env, failure = await request_bounded(
-                partial(_request_write, model,
-                        _symptom_rewrite_artifacts(spec, workdir, self_test, disc, symptom),
-                        _SYMPTOM_REWRITE_QUESTION),
-                "symptom-rewrite")
+                partial(_request_write, model, artifacts, question), label)
             if failure == "calls":
                 stop("honest-failure", "call-budget", "calls")
                 return False
@@ -6399,9 +6865,9 @@ async def run_leaf(
                     and getattr(env, "content", "")):
                 if not write_self_test(self_test, env.content):
                     rres = await _maybe_await(tests, workdir)
-                    _record_test_run("own-test-symptom-rewrite", rres)
+                    _record_test_run(label + "-rewrite", rres)
                     last_gate = record_gate(rres)
-                    disc, symptom = _own_test_partition(last_gate, self_test)
+                    disc, symptom, contradictions, preserved = classify()
                     own_test_discriminating = list(disc)
                     own_test_symptom_ids = list(symptom)
                     emit("own_test_partition", path=self_test, after_rewrite=True,
@@ -6419,12 +6885,17 @@ async def run_leaf(
                     if not symptom:
                         last_excerpts = excerpts_of(rres)
                         return True
-        # DROP the surviving symptom cases from the target.
+        # DROP the surviving symptom cases from the target, but NEVER a green case that a
+        # contradiction showed to be the desired behaviour (P3d/FIX 1: dropping it was the
+        # T-12 deviation — it left only the symptom-asserting case as the target).
+        drop_ids = [nid for nid in symptom if nid not in preserved]
+        if not drop_ids:
+            return True
         content = _read(workdir, self_test)
-        dropped = _drop_test_functions(content, symptom)
-        emit("own_test_symptom_dropped", path=self_test, ids=list(symptom),
+        dropped = _drop_test_functions(content, drop_ids)
+        emit("own_test_symptom_dropped", path=self_test, ids=list(drop_ids),
              removed=dropped != content)
-        own_test_symptom_ids = list(symptom)
+        own_test_symptom_ids = list(drop_ids)
         if dropped == content:
             return True
         write_self_test(self_test, dropped)
@@ -6433,7 +6904,7 @@ async def run_leaf(
         last_gate = record_gate(rres)
         disc2, symptom2 = _own_test_partition(last_gate, self_test)
         own_test_discriminating = list(disc2)
-        own_test_symptom_ids = sorted(set(symptom) | set(symptom2))
+        own_test_symptom_ids = sorted(set(drop_ids) | set(symptom2))
         if _is_green(rres):
             # Dropping the symptom cases removed every discriminating case too: the file
             # no longer pins the goal, so there is no red target.
@@ -6981,11 +7452,16 @@ async def run_leaf(
             # (the T-31 fix).
             request_coverage = _request_coverage(spec, workdir, baseline)
             request_coverage_missing = _request_artifact_messages(request_coverage)
+            # P3d: the repository's OWN documentation is the same kind of hard contract —
+            # a documented call-form name the delivered module exposes ONLY as a class
+            # method blocks the claim and drives another attempt with the targeted excerpt
+            # (the T-28 false success).
+            documented_api_missing = documented_api_missing_now()
             # Ticket 23 round 2: the verdict for THIS revision rides with the best-evidence
             # snapshot of this revision, so an own-test restore can be refused when the
             # revision leaves a criterion's named artifact untouched.
             note_revision_coverage(new_missing)
-            if new_missing or request_coverage_missing:
+            if new_missing or request_coverage_missing or documented_api_missing:
                 coverage, coverage_missing = new_coverage, new_missing
                 candidate.outcome = "fail"
                 candidate.verdict = prefilter(attempts, candidate)
@@ -7000,9 +7476,13 @@ async def run_leaf(
                     emit("requirement_uncovered", missing=new_missing)
                 if request_coverage_missing:
                     emit("request_artifacts_uncovered", missing=request_coverage_missing)
+                if documented_api_missing:
+                    emit("documented_api_missing", missing=documented_api_missing)
                 last_excerpts = [f"requirement artifact untouched: {m}" for m in new_missing]
                 last_excerpts += [f"request artifact untouched: {m}"
                                   for m in request_coverage_missing]
+                last_excerpts += [f"documented API missing: {m}"
+                                  for m in documented_api_missing]
                 rung += 1
                 continue
             coverage, coverage_missing = new_coverage, []
@@ -7246,6 +7726,7 @@ async def run_leaf(
                 review_verdicts=tuple(review_verdicts),
                 coverage_missing=coverage_missing,
                 request_coverage_missing=request_coverage_missing,
+                documented_api_missing=documented_api_missing_now(),
                 regressions=regression.regressions,
                 test_case_problems=test_case_problems,
                 verification_basis=verification_basis,

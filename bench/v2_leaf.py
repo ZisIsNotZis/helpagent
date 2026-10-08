@@ -470,6 +470,10 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         # assert the reported symptom and were rewritten or DROPPED from the target).
         "own_test_discriminating": outcome.own_test_discriminating,
         "own_test_symptom_ids": outcome.own_test_symptom_ids,
+        # P3d: the documented-API contract on the delivered revision. A non-empty list
+        # names the repository-documented call-form names a class swallowed (the T-28
+        # false success); it is a HARD claim block.
+        "documented_api_missing": outcome.documented_api_missing,
         "needs_parent": outcome.needs_parent,
         "calls": outcome.calls,
         "wall_s": outcome.wall_s,

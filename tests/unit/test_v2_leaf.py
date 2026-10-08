@@ -6714,3 +6714,251 @@ def test_a_real_change_is_not_a_no_change_delivery(tmp_path):
     assert out.stop_reason != "no-change-delivery"
     assert "no_change_delivery" not in ledger_kinds()
     assert out.claimed is True
+
+
+# ===========================================================================
+# P3d/FIX 2: the documented-API contract (the T-28 false success).
+# ===========================================================================
+
+
+def _doc_spec(tmp_path: Path, readme: str, goal: str):
+    """A spec whose blind view ships ``readme`` as the repository's own documentation."""
+    files = {"README.md": readme, "plugins/__init__.py": ""}
+    spec = make_spec(files=files, goal=goal)
+    stage(tmp_path, files)
+    return spec
+
+
+def test_documented_api_names_are_call_forms_only(tmp_path):
+    """P3d: the documented names are the identifiers in CALL form (adjacent paren) in the
+    repo's OWN docs; prose with a space before a paren and a bare backticked word are never
+    taken (they are fields/parameters/methods on this corpus, not a module-level API)."""
+    from harness.leaf import documented_api_names
+
+    spec = _doc_spec(tmp_path, "# plugins\n\nPlugin registry: register(name, fn) / "
+                     "get(name) / run(name, *args). Sessions last one hour (documented).\n",
+                     "Create plugins/registry.py: register/get/run.")
+    assert documented_api_names(spec) == ("get", "register", "run")
+
+
+def test_documented_api_prose_that_merely_contains_words_does_not_trigger(tmp_path):
+    """P3d: a doc with no call form names nothing, so the check is silent (never a false
+    block)."""
+    from harness.leaf import documented_api_names, documented_api_problem
+
+    spec = _doc_spec(tmp_path, "# plugins\n\nA plugin registry with register, get and "
+                     "run helpers. The module is documented in prose only.\n",
+                     "Create plugins/registry.py.")
+    assert documented_api_names(spec) == ()
+    assert documented_api_problem(spec, tmp_path, {}) == []
+
+
+def test_documented_api_class_only_module_blocks_with_a_targeted_message(tmp_path):
+    """P3d/T-28: a module that delivers the documented call-form names ONLY as methods of a
+    class is NOT module level and blocks, with the targeted message the next attempt needs."""
+    from harness.leaf import documented_api_problem
+
+    spec = _doc_spec(tmp_path, "# plugins\n\nPlugin registry: register(name, fn) / "
+                     "get(name) / run(name, *args).\n",
+                     "Create plugins/registry.py: register/get/run.")
+    (tmp_path / "plugins").mkdir(exist_ok=True)
+    (tmp_path / "plugins/registry.py").write_text(
+        "class Registry:\n"
+        "    def register(self, name, fn): pass\n"
+        "    def get(self, name): pass\n"
+        "    def run(self, name, *args): pass\n")
+    problem = documented_api_problem(spec, tmp_path, {})
+    assert len(problem) == 1
+    assert "register" in problem[0] and "get" in problem[0] and "run" in problem[0]
+    assert "plugins/registry.py" in problem[0] and "Registry" in problem[0]
+
+
+def test_documented_api_honest_module_level_functions_pass(tmp_path):
+    """P3d: the honest shape — the documented names as module-level functions — passes."""
+    from harness.leaf import documented_api_problem
+
+    spec = _doc_spec(tmp_path, "# plugins\n\nPlugin registry: register(name, fn) / "
+                     "get(name) / run(name, *args).\n",
+                     "Create plugins/registry.py: register/get/run.")
+    (tmp_path / "plugins").mkdir(exist_ok=True)
+    (tmp_path / "plugins/registry.py").write_text(
+        "def register(name, fn): pass\n"
+        "def get(name): return None\n"
+        "def run(name, *args): pass\n")
+    assert documented_api_problem(spec, tmp_path, {}) == []
+
+
+def test_documented_api_a_module_level_import_satisfies_the_contract(tmp_path):
+    """P3d: a documented name the module legitimately exposes as an import IS module level,
+    so it passes."""
+    from harness.leaf import documented_api_problem
+
+    spec = _doc_spec(tmp_path, "# plugins\n\nPlugin registry: register(name, fn) / "
+                     "get(name) / run(name, *args).\n",
+                     "Create plugins/registry.py: register/get/run.")
+    (tmp_path / "plugins").mkdir(exist_ok=True)
+    (tmp_path / "plugins/registry.py").write_text(
+        "from ._impl import register, get, run\n")
+    assert documented_api_problem(spec, tmp_path, {}) == []
+
+
+def test_documented_api_missing_blocks_every_claim_route():
+    """P3d: the documented-API miss is a HARD block in the ONE claim gate on every route."""
+    base = {
+        "criteria_count": 1, "ledger": _gate_ledger(), "own_test": "tests/t.py",
+        "own_test_green": True, "test_rewrites": 0, "iv_approved": False,
+        "iv_red_on_final": False, "review_approved": False, "review_verdicts": (),
+        "coverage_missing": (), "test_case_problems": (),
+        "verification_basis": "test", "tier_allowed": True,
+    }
+    miss = ["the repository documents register as module-level names; your "
+            "plugins/registry.py exposes them only as methods of Registry"]
+    blocked = claim_decision(route="own-test", **base, documented_api_missing=miss)
+    assert blocked.claimed is False and blocked.blocker == "documented-api-missing"
+    assert "register" in blocked.detail
+    # the same revision WITHOUT the miss claims (the check is the only difference)
+    assert claim_decision(route="own-test", **base).claimed is True
+
+
+def test_run_record_carries_the_documented_api_missing_field():
+    """P3d: the documented-API miss rides the persisted run record."""
+    from bench.external_score import ExternalScore
+    from bench.v2_leaf import build_record
+
+    outcome = LeafOutcome(
+        claimed=False, signal="honest-failure", attempts=[], calls=3, wall_s=1.0,
+        self_test=None, questions=[], exhausted=False, exhaustion_reason="attempts",
+        layers_used=["sampling"], stop_reason="attempts",
+        documented_api_missing=["the repository documents register as module-level names"])
+    score = ExternalScore(passed=False, exit=1, notes=[], work_root="", applied=[],
+                          skipped=[])
+    record = build_record("T-x", "goal", outcome, withheld=[], produced={}, score=score,
+                          quad="honest-failure", run_wall_s=1.0)
+    assert record["documented_api_missing"] == outcome.documented_api_missing
+    json.dumps(record)
+
+
+# ===========================================================================
+# P3d/FIX 1: the self-contradicting own test (the T-12 deviation).
+# ===========================================================================
+
+
+def test_own_test_contradictions_find_the_t12_shape():
+    """P3d/FIX 1: a case asserting ``f(x)`` and one asserting ``not f(x)`` for the SAME
+    inlined input contradict; the red one is unreliable and the green one is preserved."""
+    from harness.leaf import _own_test_contradictions
+
+    source = ("from access.gate import Author, can_publish\n"
+              "from access.roles import Role\n\n\n"
+              "def test_editor_rejected():\n"
+              "    author = Author('e', Role.EDITOR)\n"
+              "    assert not can_publish(author)\n\n\n"
+              "def test_editor_allowed():\n"
+              "    author = Author('e', Role.EDITOR)\n"
+              "    assert can_publish(author)\n")
+    unreliable, preserved = _own_test_contradictions(
+        source, ["t.py::test_editor_rejected"], ["t.py::test_editor_allowed"])
+    assert unreliable == ("t.py::test_editor_rejected",)
+    assert preserved == {"t.py::test_editor_allowed"}
+
+
+def test_own_test_contradictions_ignore_distinct_inputs():
+    """P3d/FIX 1: opposite polarity on DIFFERENT inputs (a viewer rejected, an admin
+    allowed) is NOT a contradiction and must not be mislabelled."""
+    from harness.leaf import _own_test_contradictions
+
+    source = ("def test_admin_allowed():\n"
+              "    author = Author('a', Role.ADMIN)\n"
+              "    assert can_publish(author)\n\n\n"
+              "def test_viewer_rejected():\n"
+              "    author = Author('v', Role.VIEWER)\n"
+              "    assert not can_publish(author)\n")
+    assert _own_test_contradictions(
+        source, ["t.py::test_admin_allowed"], ["t.py::test_viewer_rejected"]) == ((), set())
+
+
+def test_own_test_contradiction_drops_the_symptom_case_and_keeps_the_desired_one(tmp_path):
+    """P3d/FIX 1 (T-12): when a case RED on the pristine source contradicts a green case,
+    the RED case asserts the reported symptom: it is dropped, and the green case (the
+    desired behaviour) is PRESERVED — never dropped as P3c used to (that was the deviation
+    that left only the symptom-asserting case as the target)."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    own = ("def test_symptom_rejected():\n    assert not (result() == 42)\n\n\n"
+           "def test_desired_allowed():\n    assert result() == 42\n")
+    same = write_env("tests/test_leaf_self.py", own)   # the bounded rewrite changes nothing
+    red = "tests/test_leaf_self.py::test_symptom_rejected"
+    green = "tests/test_leaf_self.py::test_desired_allowed"
+    mixed = _own_result(passed=(green,), failed=(red,))
+    after_drop = _own_result(passed=(green,))
+    model = FakeModelRunner({"write_test": [write_env("tests/test_leaf_self.py", own), same,
+                                            impl(), impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=10, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([mixed, mixed, after_drop, after_drop]))
+
+    assert "own_test_contradiction" in ledger_kinds()
+    assert red in out.own_test_symptom_ids
+    text = (tmp_path / "tests/test_leaf_self.py").read_text()
+    assert "def test_desired_allowed" in text          # PRESERVED (the T-12 fix)
+    assert "def test_symptom_rejected" not in text      # dropped
+
+
+def test_own_test_contradictions_link_two_names_through_a_green_equality():
+    """P3d/FIX 1: the T-12 variant where the symptom case and the desired case use two
+    different author names — a GREEN ``assert f(a) == f(b)`` licenses treating them as the
+    same predicate, so the contradiction is still caught."""
+    from harness.leaf import _own_test_contradictions
+
+    source = ("from access.gate import Author, can_publish\n"
+              "from access.roles import Role\n\n\n"
+              "def test_webhook_editor_cannot_publish():\n"
+              "    author = Author('editor_webhook', Role.EDITOR)\n"
+              "    assert can_publish(author) is False\n\n\n"
+              "def test_app_ui_editor_can_publish():\n"
+              "    author = Author('editor_app', Role.EDITOR)\n"
+              "    assert can_publish(author) is True\n\n\n"
+              "def test_equal_roles_are_equal():\n"
+              "    webhook_author = Author('editor_webhook', Role.EDITOR)\n"
+              "    app_author = Author('editor_app', Role.EDITOR)\n"
+              "    assert can_publish(webhook_author) == can_publish(app_author)\n")
+    unreliable, preserved = _own_test_contradictions(
+        source, ["t.py::test_webhook_editor_cannot_publish"],
+        ["t.py::test_app_ui_editor_can_publish", "t.py::test_equal_roles_are_equal"])
+    assert unreliable == ("t.py::test_webhook_editor_cannot_publish",)
+    assert "t.py::test_app_ui_editor_can_publish" in preserved
+
+
+def test_own_test_contradictions_ignore_legitimate_opposite_inputs():
+    """P3d/FIX 1: opposite outcomes for DIFFERENT inputs (an enterprise plan vs a pro plan)
+    with no equality licensing them are legitimate and must not be mislabelled."""
+    from harness.leaf import _own_test_contradictions
+
+    source = ("from billing.plans import is_enterprise, parse_webhook\n\n\n"
+              "def test_is_enterprise_detects_webhook_plan():\n"
+              "    parsed = parse_webhook('plan=enterprise')\n"
+              "    assert is_enterprise(parsed['plan'])\n\n\n"
+              "def test_is_enterprise_false_for_non_enterprise():\n"
+              "    parsed = parse_webhook('plan=pro')\n"
+              "    assert not is_enterprise(parsed['plan'])\n")
+    assert _own_test_contradictions(
+        source, ["t.py::test_is_enterprise_detects_webhook_plan"],
+        ["t.py::test_is_enterprise_false_for_non_enterprise"]) == ((), set())
+
+
+def test_own_test_contradictions_ignore_stateful_tests():
+    """P3d/FIX 1: a test that mutates state between otherwise identical calls (push then
+    is_empty) asserts both polarities by design and is never a contradiction."""
+    from harness.leaf import _own_test_contradictions
+
+    source = ("def test_not_empty_after_push():\n"
+              "    s = Stack()\n"
+              "    s.push(1)\n"
+              "    assert s.is_empty() is False\n\n\n"
+              "def test_empty_again_after_pop():\n"
+              "    s = Stack()\n"
+              "    s.push(1)\n"
+              "    s.pop()\n"
+              "    assert s.is_empty() is True\n")
+    assert _own_test_contradictions(
+        source, ["t.py::test_not_empty_after_push"],
+        ["t.py::test_empty_again_after_pop"]) == ((), set())
