@@ -321,7 +321,7 @@ it triggers the pre-declared split-window path.
 
 ## 5. Event log contract
 
-Append-only event stream; both the ledger and the UI consume it (UI_DESIGN.md §8 — the UI
+Append-only event stream; both the ledger and the UI consume it (the UI design (dropped 2026-10-06; see docs/FLOW.md).md §8 — the UI
 is a consumer, not a peer; killing the UI changes nothing). The same events the ledger
 records; the UI adds zero new state.
 

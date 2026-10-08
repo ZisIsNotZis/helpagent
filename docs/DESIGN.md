@@ -141,8 +141,6 @@ Builds every invocation: `byte-stable prefix + step-specific suffix`. With no to
 - **File tracking & trajectory (harness-owned git):** the model never calls git. After every action whose execution mutated the work tree (edits — and probe commands too, e.g. builds create files), the harness snapshots status+diff and records `{step_id, node_id, files_changed, diff, commands_run, round transcripts, check results, outcome}`. First-class for post-analysis and drives incremental index refresh.
 - **Append-only suffix; never mutate mid-invocation.**
 
-### 4.4 Knowledge Service
-
 <!-- OWNER DECISION 2026-09-17: injection-first, demote the help dispatcher. A small model
 cannot be relied on to self-initiate lookups (it forgets the channel exists), and free-form
 reading pollutes the composed context. The service's primary surface is therefore the
@@ -318,20 +316,12 @@ response is FLOW TIERING, not deletion:
 
 ### 10.1 Fixed steps, code-aware
 
-The flow is FIXED — no step fuses or self-selects its depth; complexity may cost time, never correctness. Every step may read the repository through the controlled surfaces of §10.6.
-
-1. **requirement triage** — one user message → N discrete issues, each written up. Reads the authoritative docs first (SSOT: a documented behaviour is not a bug).
-2. **issue decomposition** — an issue → sub-issues, recursively, while budget allows. Same layer has no dependencies; a real dependency becomes nesting, never a sibling edge.
-3. **specification** — attached to the node being created (one call per node: decompose + specify). A leaf spec carries files to touch, goal, ACs, how to test, and interface (existing vs new). An internal node's spec carries the interface contract between its children plus integration ACs — the file list belongs to whoever actually writes, so an internal node lists files only when it owns work or integration tests of its own.
-4. **implementation and tests** — the two sides are written separately (test writer never sees the implementation), then meet: run, review (optional), and judge.
-5. **judgement** — on test or review failure, an independent judge attributes the failure (implementation / tests / spec / environment) against the specification as the highest contract; spec defects bubble to the parent.
-6. **completion** — a leaf closes only with implementation + passing tests; an internal node closes when its children close and its own integration ACs pass.
-7. **discovery mid-flight** — a node that learns its decomposition or requirement is wrong returns to the owning node: the failed approach (How) is marked abandoned and a NEW How is appended with its own decomposition, and the node's work continues in that How's own candidate directory. Nothing is rolled back destructively (there is no git reset on a candidate path); approaches and decompositions are append-only, and only the winning candidate is merged into the node tree.
-
+**Moved: `docs/FLOW.md` is the flow's SSOT** (§1.5 state machine, §2 node structure, §4 execution and
+the three states, §6 judge and node updates). This subsection used to restate it.
 ### 10.2 Budget
 
-Budget is a first-class node field and the primary control on decomposition depth: a node with budget 1 cannot split. Wall-clock deadline is the PRIMARY budget (local inference has no token cost; the scarce resource is the human's return window — a Friday-afternoon task may run to Monday morning); call units are secondary accounting that orders the ladder and feeds cost stats. A parent splits a share to its children and keeps a reserve for integration and grants; unused child calls return to the parent; grants are recorded with their reason.
-
+Unchanged and owned by `harness/budget.py`: one deadline-based call budget per run, split across
+nodes, released on completion; every spend is accounted (`accounting()`).
 ### 10.3 What "green" may mean (owner policy 2026-09-29 — the worst quadrant is a lie)
 
 The run's own tests gate the run, and a claim additionally needs an independent test; the gate itself must be honest:
@@ -532,29 +522,24 @@ The run's own tests gate the run, and a claim additionally needs an independent 
   and the corpus task's `UNTOUCHED` list — exactly what the grader restores (F2).
 
 ### 10.4 Stops — there is no "give up"
- — there is no "give up"
 
-Six explicit stops, each with its own `stop_reason`: **success** (`green`, or
-`green-after-test-rewrite`), **deadline handover** (`deadline`; the tree is kept so the goal
-survives a human window), **call budget** (`calls`), **attempt cap** (`attempts`), **spec
-bubble** (`spec-bubble`, `signal="bubble"`, `needs_parent=True` — the parent owns the spec),
-and **node exhausted** (below, `signal="exhausted"`). A node is exhausted only when the
-same-verdict tail coincides with either a structural attempt already made (re-split, parent
-spec) or a broadly exercised ladder — so an untried restructuring lever keeps the node alive.
-Wasted escalations are reported in the run record, not only in the process ledger.
-
+Unchanged in spirit; the stop reasons are enumerated in `docs/FLOW.md` §4.4/§11 and
+`LeafOutcome.stop_reason`. A budget/deadline stop is a HANDOVER (resumable), not a failure of the
+task.
 ### 10.5 Escalation ladder
 
-Every escalation must ADD INFORMATION or SHRINK THE UNIT; a repeat that does neither is a wasted call. L1 more samples → L2 guided decomposition → L3 deeper exploration → L4 deterministic rule diagnosis → L5 independent review/judgement → L6 re-split into smaller children → L7 parent spec was wrong → L8 ask the human (non-blocking). Two modes feed the decision: **M1** erase the draft and regenerate with the failure history as intelligence; **M2** keep the draft and ask "do you have a new idea?" (cheapest, tried first). The model's own claim of novelty is never trusted alone: `harness/attempts.py` prefilters on failure signature and touched files and sends only genuine ambiguity to an independent judge.
-
+The ladder still exists (L1–L5 inside a node, L6–L7 restructuring) and is owned by
+`harness/attempts.py`. `docs/FLOW.md` §4.4 replaces the "iterate the implementation" default with
+"ask the judge first"; the ladder's rungs keep their meaning as the *implementation* iterations.
 ### 10.6 Piloting is non-blocking
 
-A question notifies and records a reversible default the run proceeds with; the answer arrives later as a normal tree patch (cascade reopens affected nodes). A question whose blocking nodes finished another way is withdrawn with a recorded reason, so the human returns to a short list of live questions instead of a backlog.
-
+Unchanged: a question never blocks a run; it is parked with a stated default and the run continues
+(`harness/questions.py`). The human-facing surface is still unbuilt.
 ### 10.7 Context is curated, not pre-guessed
 
-The harness injects a bounded repo map (files, symbols, call relations — as precise as fits, never "everything"), and the model may issue budgeted, shaped queries. Content the model has consumed is replaced by its own one-line conclusion (with a pointer back to the source), so exploration is controlled by compression rather than by a hard cutoff; deletion is explicit, never silent. Prefix stability is NOT a principle: KV-cache reuse is a measurable trade against curation benefit, reported per run.
-
+Superseded by the exploration rule in `docs/FLOW.md` §1: every step may read the repository, and
+what it read rides into that node's later steps. The old "inject everything up front" reading is
+what forced the whole source into every prompt.
 ### 10.8a Measured trade-off of the claim rule (owner-facing, 2026-09-29)
 
 Blind, 10 tasks x 2 runs, one reference 4B model, grader outside the run. "claimed" is
@@ -666,43 +651,9 @@ missing/unpassed). Per-requirement artifact coverage is a claim blocker (`covera
 + the `requirement_uncovered` event), not a stop of its own. Full decision-to-code-to-test
 mapping and the round-1 measurement plan live in the ticket-19 work record.
 
-### 10.10 Implementation status (2026-10-01, handover)
+### 10.10 Implementation status
 
-The measured results, the method, and the working limits live in
-[`STATUS.md`](STATUS.md). This section records only what is implemented versus what is
-still design.
-
-**Implemented and covered by the test gate** (each with its own pinned rules; the suite is
-the authority):
-
-- the blind protocol (source-only staging, the external grader, the corpus-integrity suite)
-  and the evidence-based gate (private report path, per-run canary, expected test ids);
-- the leaf loop: red-on-arrival self-test, M2-then-M1 retries, the L1–L5 ladder, attempt
-  accounting with the novelty prefilter and the exhaustion rule;
-- budget: deadline-primary, weighted split with a reserve, release and grant with reasons,
-  and an exact conservation record on every run and node;
-- the verification covenant: ordered tiers, a checked written reason, plan-time
-  `best_effort` with a dilution cap, and an UNVERIFIED claim state;
-- ticket 22: the plan-time verification POLICY (`test`/`review`/`either`) with a REQUIRED
-  reason, the recorded runtime PLAN UPDATE (a judge-confirmed wrong test gives way to
-  review at most once), and the review-outranks-a-conflicting-test precedence with the
-  disagreement recorded and the claim's basis kept explicit;
-- reviews as predefined ANGLES per level with weights and a critical-angle veto;
-- the judge (proactive on red, multi-label, given the goal, the criteria and the failing
-  assertion) and the independent per-criterion verification, consulted at exhaustion;
-- the declared test-case contract, requirement coverage as a hard block, the per-criterion
-  ledger, the EVIDENCE GAP state, and the single claim gate with its structural test;
-- the tree: ranked Hows (greedy by default, competitive exploration opt-in), isolated
-  candidate directories, the four-decision manager loop, the dedicated integration leaf,
-  the structural close rule, and the per-node boundary audit.
-
-**Designed but NOT built** (do not assume these exist):
-
-- the requirement-triage layer (a request is turned into a root spec directly);
-- model-side context curation (§10.7): the harness injects bounded views, the model does
-  not yet compress what it has read;
-- the knowledge service (M6) — present behind a flag, measured as no gain on this corpus;
-- git worktrees / parallel trees: candidate isolation is a directory copy;
-- L6–L8 as distinct leaf rungs: re-split and parent-spec correction live in the tree's
-  manager loop instead;
-- a human-facing piloting surface: questions are recorded in the run record only.
+**That status list is retracted as an SSOT** — `docs/STATUS.md` owns what is implemented versus
+designed-but-not-built, with the revision and the evidence. The handover-era list here drifted
+within a day (it still claimed the How axis and the flip-flop rule were complete when neither
+executed).

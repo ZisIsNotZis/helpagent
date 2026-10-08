@@ -1,1 +1,0 @@
-write_test: output was malformed JSON — attempt erased, failure summary only

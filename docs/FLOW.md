@@ -38,34 +38,34 @@ S3  the node takes its FIRST How (list order); the previous How must be confirme
                          all children pass           -> the How passes (then the integration check)
                          any child uncertain/failed  -> the How is uncertain
       children == []  -> work unit, S4
-S4  WORK UNIT
+S4  WORK UNIT  (the executing How)
       W1 implement || author tests          (two writers: source vs test file)
       W2 run the declared tests
-           green              -> W3
-           red                -> judge (attribution), then:
-                                   implementation -> W1 (bounded by the attempt cap)
-                                   tests          -> repair/replace the test (bounded)
-                                   spec           -> BUBBLE: the parent re-plans this subtree
-                                   environment    -> PARK the node (needs-user)
+           fail               -> the How's state is FAIL; review does NOT run here
+                                 (the judge is asked only about WHOSE fault it is; the state
+                                  stays fail until a check actually passes)
+           pass               -> W3
+           uncertain          -> W3 (an unevaluable test may still go to review)
       W3 discrimination check: every declared case must be RED on the pristine source
-           red on pristine (discriminates) -> W4
-           green on pristine (vacuous)     -> the test is UNCERTAIN: repair it (bounded);
-                                              if it cannot be made to discriminate -> node update
-                                              (drop that test, reason updated)
-      W4 regression check: every visible test that passed on the pristine sources must
-         still pass on the final revision
-           no regression -> W5
-           regression    -> judge -> iterate, or node update (fix/revert)
-      W5 review (the declared angles)
-           pass                 -> S5
-           uncertain / fail     -> iterate (bounded); cap exceeded -> node update
-                                   (drop the review, reason updated) or take the next How
+           discriminates      -> W4
+           green on pristine  -> the test is UNCERTAIN: repair it (bounded); if it cannot be
+                                 made to discriminate -> node update (drop the test, reason updated)
+      W4 regression check: every visible test green on the pristine sources must still be green
+           none               -> W5
+           regression         -> judge -> iterate, or node update (fix/revert)
+      W5 review (only when the test state is pass or uncertain, and only angles were declared)
+           pass               -> S5
+           fail / uncertain   -> iterate (bounded); at the cap, node update (drop the review,
+                                 or switch the check to the other kind) or take the next How
+      RETRY CAP REACHED, state still fail       -> the How is FAIL      (never "uncertain")
+      RETRY CAP REACHED, state still uncertain  -> the How is UNCERTAIN
+      (a review may run after an UNCERTAIN test; a FAIL test never reaches review)
 S5  VERDICT AND CLAIM
-      every declared check of the executing How is `pass`, no regression, coverage/mutation
-      of the declared files accounted for -> the existing claim gate decides the claim
-      the How is confirmed failed -> the next How
-      every How exhausted with no pass -> the node's state is UNCERTAIN: claim nothing,
-        deliver the best-evidence revision, report the node with all Hows' evidence
+      every declared check of the executing How is `pass`, no regression -> the claim gate decides
+      the How ended fail or uncertain -> the NEXT How (both states advance to the next How)
+      every How exhausted with no pass -> take the BEST of them: if any How is UNCERTAIN the
+        node is UNCERTAIN, otherwise the node is FAIL; the state propagates upward that way
+        (claim nothing either way; deliver the best-evidence revision with every How's evidence)
 S6  SUMMARY: per issue/node: pass | uncertain | parked-for-user
 ```
 
@@ -103,6 +103,7 @@ and **no separate acceptance criteria** (§2.4).
 | --- | --- | --- |
 | `what` | str `req` | what this node is, in the user's terms |
 | `reason` | str `req` | why this node exists and why it decomposes the way it does |
+| `docs` / `files` / `tests` / `reviews` | lists `opt` | the node's OWN work — the work that sits ABOVE its children (integration, glue). A node that is purely a parent has all four EMPTY, and that is the normal case; a node that does everything itself may carry them with children absent |
 | `hows` | [How] `req` (≥1) | the approaches, in priority order (first = first attempted) |
 
 ### 2.2 A How (an implementation approach)
@@ -142,6 +143,11 @@ evidence for that state. A How that declares no check anywhere still has to say 
 `reason`.
 
 ## 4. Execution and the three states
+
+**Not every job needs a review, and not every job needs a test.** Hard work deserves a review;
+between the two, **prefer the review** — a test authored by the same weak model is often simply
+wrong (T-01's own test asserted the bug). Trivial work may legitimately declare neither, and the
+`reason` must say so.
 
 Within a work unit: **the implementation and the test authoring run in parallel** (two writers,
 disjoint targets: source vs test file), followed by the test run, then the review.
@@ -247,7 +253,10 @@ the author's conversation. Its verdict selects the next move:
   if it thinks, the thinking is recorded in the trajectory and used for nothing else — every
   decision is computed from the parsed structure's fields.
 - **Parallelism**: every place that can run in parallel, should — siblings, implementation ∥ tests,
-  review angles. **Deferred**: accuracy first. The flow does not depend on it.
+  review angles. **Different nodes are different git worktrees/branches**, merged afterwards (this
+  is how two nodes can write without stepping on each other). **Deferred**: accuracy first; the
+  flow does not depend on it, but the answer to "two writers, one file" is worktree isolation, not
+  serialization.
 
 ## 8. Evidence
 
@@ -275,11 +284,11 @@ delivery and the grader's verdict. Complete, always on.
 
 | # | hole | why it matters | proposal |
 | --- | --- | --- | --- |
-| **H1** | A How that SPLITS also has four lists — what do they mean? | either they are a redundant copy of the children's, or they are a plan the children must narrow (then `child ⊆ parent` must be checked on files/tests/reviews) | treat them as the parent's PLAN/expectation, and validate each child as a subset; a child may exceed it only with a recorded node update |
-| **H2** | A How that declares NEITHER tests NOR reviews | it has no way to establish "requirement satisfied" — yet today's spec allows it with just a `reason` | require at least one check per How (a test or a review angle); a How with neither is UNVERIFIABLE → node update or `uncertain` |
-| **H3** | The node's terminal states | we wrote pass/fail/uncertain, but the How loop's terminal state is `uncertain`, and a parked environment is neither | node states = {`pass`, `uncertain`, `parked-for-user`}; "fail" does not exist at node level |
-| **H4** | All Hows failed | today's spec says "uncertain and stop" — but three failed approaches usually means the NODE was mis-specified (its `what`/lists are wrong), not that the task is impossible | bubble to the PARENT for a re-plan (the same path a `spec` verdict takes), and only report `uncertain` if the parent cannot improve it |
-| **H5** | "Siblings are independent, so they run in parallel" | true for exploration; FALSE for writes — two nodes touching one file cannot both write it | serialize nodes whose declared `files` overlap, or give each parallel writer a confined work tree and merge afterwards |
+| **H1** | RESOLVED: a splitting node's four lists are its OWN work (above the children); a purely parental node leaves them empty, which is normal | — | — |
+| **H2** | RESOLVED: neither check is allowed for trivial work; the `reason` says why, and such a How cannot claim beyond the deterministic checks | — | — |
+| **H3** | RESOLVED: states are pass / fail / uncertain / parked-for-user. A test that says FAIL ends the How as FAIL (never "uncertain"); UNCERTAIN only when the test or the judge itself reports uncertain; when every How is exhausted the node takes the best of them (uncertain if any is uncertain, else fail) | — | — |
+| **H4** | RESOLVED: all Hows exhausted → best-of (uncertain beats fail) → that state propagates upward; a judge's `spec` verdict is still the path that asks the parent to re-plan | — | — |
+| **H5** | RESOLVED: parallel nodes get **separate git worktrees/branches**, merged afterwards | — | — |
 | **H6** | The regression check's coverage | it can only run the VISIBLE test suite; the grader's own suite is withheld by the blind protocol, so a run can be regression-free by our check and still fail the grader | state it plainly in every report: our regression verdict is partial; the external grader is the final word |
 | **H7** | When is the judge consulted? | every red (one extra call per attempt) versus after K consecutive reds (today: K=2, plus a volunteer trigger) | every red: T-01/T-05 both burned 4-6 attempts churning against a wrong test, which one judge call would have stopped |
 | **H8** | The judge is unavailable or malformed | the attribution is missing, and "keep implementing" is a guess | keep implementing for at most one attempt, then treat the test as UNCERTAIN and repair it (a wrong test is the likelier defect in that state) |

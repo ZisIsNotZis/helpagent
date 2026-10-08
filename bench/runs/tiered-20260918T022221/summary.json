@@ -1,9 +1,0 @@
-{
- "per_task": {
-  "T-02-off-by-one": "1/1"
- },
- "overall": "1/1",
- "closing_gear_histogram": {
-  "0": 1
- }
-}

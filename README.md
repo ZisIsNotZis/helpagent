@@ -69,3 +69,22 @@ PyPI-visible dependencies only; Python 3.12+.
 
 `docs/DESIGN.md` is the long-form design and records which parts are implemented, which
 are designed but not built, and the residual risks that are accepted rather than fixed.
+
+## Where each thing is documented (SSOT)
+
+One owner per subject; if two files disagree, the one listed here wins.
+
+| subject | file |
+| --- | --- |
+| the flow: how a task is processed, node structure, execution, states, judge, verdict | `docs/FLOW.md` |
+| architecture: subsystems, data flow, repository layout, design principles | `docs/DESIGN.md` |
+| the measured position: what works, what was retracted, what is not built, how to reproduce | `docs/STATUS.md` |
+| the kernel's envelope/step API and its invariants | `docs/KERNEL_API.md` (index), `docs/ENVELOPE_SCHEMAS.md` (per-schema detail) |
+| the test plan the suite is built from | `docs/TEST_PLAN.md` |
+| known model failure patterns and the rule that fixes each | `bench/FAIL_PATTERNS.md` |
+| the corpus (tasks, anchors, checks contract) | `bench/corpus/README.md` |
+| active work and handover | `.scratch/active-work.md`, `.scratch/<ticket>/` |
+| run evidence (curated) | `bench/runs/evidence/` |
+
+Nothing else in this repository is documentation: a file that only restates another file's subject
+gets deleted, not kept. When a section is superseded, it becomes a one-line pointer.

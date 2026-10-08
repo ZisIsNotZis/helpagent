@@ -1,8 +1,0 @@
-{
- "per_task": {
-  "T-01-ttl-seconds-ms": "1/1",
-  "T-02-off-by-one": "1/1",
-  "mini_repo": "1/1"
- },
- "overall": "3/3"
-}
