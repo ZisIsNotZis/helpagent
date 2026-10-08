@@ -748,8 +748,10 @@ def test_rewrite_green_on_arrival_is_rejected_as_no_red_target(tmp_path):
 
 
 def test_repeated_identical_test_rewrite_is_refused_wasted_and_ladder_advances(tmp_path):
-    """A judge-authorized rewrite is a real attempt: an identical repeat is refused as
-    ``wasted`` and the ladder moves on (the no-repeat invariant must not be bypassed)."""
+    """A judge-authorized rewrite is a real attempt: an identical repeat is refused. P3c/
+    FIX 2 makes the refusal VISIBLE (``test_repair_unavailable``) and advances the ladder
+    instead of crediting the unchanged test (the no-repeat invariant must not be
+    bypassed)."""
     spec = make_spec()
     stage(tmp_path, spec.files)
     repaired = write_env("tests/test_leaf_self.py",
@@ -761,12 +763,11 @@ def test_repeated_identical_test_rewrite_is_refused_wasted_and_ladder_advances(t
                         Budget(calls=8, deadline_ts=_FAR_FUTURE),
                         judge=judge_blames_test, run_tests=ScriptedTests([1] * 6))
 
-    assert len(out.wasted_escalations) == 1
-    assert out.wasted_escalations[0].strategy == LADDER[0]
-    assert "escalation_wasted" in ledger_kinds()
-    assert "implementation" in out.layers_used               # the ladder advanced past L1
-    assert out.test_rewrites == 2
+    # the first repair changed the test (credited); the identical repeat did NOT
+    assert out.test_rewrites == 1
     assert out.own_test_mutated is True
+    assert "test_repair_unavailable" in ledger_kinds()
+    assert "implementation" in out.layers_used               # the ladder advanced past L1
 
 
 def test_insufficient_calls_for_a_multi_call_escalation_stops_cleanly(tmp_path):
@@ -6219,8 +6220,10 @@ def test_b_red_test_with_a_judge_repair_into_a_discriminating_test_continues(tmp
     the How ends FAIL.)"""
     spec = make_spec()
     stage(tmp_path, spec.files)
+    # P3c/FIX 2: the repair must emit a CHANGED test (an identical rewrite is recorded as
+    # ``test_repair_unavailable`` and advances the ladder instead of being credited).
     repaired = write_env("tests/test_leaf_self.py",
-                         "def test_goal():\n    assert result() == 42\n")
+                         "def test_goal():\n    assert result() == 42  # repaired\n")
     model = FakeModelRunner({"write_test": [SELF_TEST, blocked(), repaired, impl()]})
 
     def judge(request: JudgeRequest) -> JudgeVerdict:
@@ -6487,3 +6490,227 @@ def test_run_record_carries_basis_risk_and_iv_inversion_fields():
     assert record["iv_inverted_tests"] == [inverted]
     assert record["iv_unmet_tests"] == []
     json.dumps(record)
+
+
+# ===========================================================================
+# P3c: the three fixes from the 2026-10-08 20-task measurement (T-05/T-12/T-16).
+# ===========================================================================
+
+
+def _own_gate(*, passed=(), failed=(), green=False) -> GateReport:
+    """A scripted report whose own-test node ids are explicit (passed = green on pristine,
+    failed = red on pristine)."""
+    return GateReport(report_path="(scripted)", process_exit=0 if green else 1,
+                      canary="scripted", expected_files=(),
+                      n_tests=len(passed) + len(failed), n_failed=len(failed), n_errors=0,
+                      passed_ids=tuple(passed), failed_ids=tuple(failed), missing=(),
+                      observed=True, anomaly="" if green else "tests-failed",
+                      detail="" if green else "1 failure(s)")
+
+
+def _own_result(*, passed=(), failed=(), green=False) -> ShapedResult:
+    return ShapedResult(command=["python3", "-m", "pytest", "-q"],
+                        exit=0 if green else 1, verdict="ok" if green else "failed",
+                        excerpts=[] if green else ["FAILED"],
+                        gate=_own_gate(passed=passed, failed=failed, green=green))
+
+
+def test_own_test_partition_splits_red_from_green_on_pristine():
+    """FIX 1: the run's own test cases split into DISCRIMINATING (red on the pristine
+    source) and symptom-asserting (green there); the split is scoped to the own test
+    FILE, so the canary or any other collected file can never count."""
+    from harness.leaf import _own_test_partition
+
+    gate = _own_gate(passed=("t/test_x.py::test_symptom",),
+                     failed=("t/test_x.py::test_goal",))
+    disc, symptom = _own_test_partition(gate, "t/test_x.py")
+    assert disc == ("t/test_x.py::test_goal",)
+    assert symptom == ("t/test_x.py::test_symptom",)
+    # a node id from another file (the canary) is never counted.
+    other = _own_gate(passed=("tests/test_gate_canary_x.py::test_canary",))
+    assert _own_test_partition(other, "t/test_x.py") == ((), ())
+    # an unobserved report yields no split at all.
+    assert _own_test_partition(None, "t/test_x.py") == ((), ())
+
+
+def test_drop_test_functions_removes_only_named_top_level_cases():
+    """FIX 1: a surviving symptom case is DROPPED from the target by excising its
+    top-level definition and nothing else."""
+    from harness.leaf import _drop_test_functions
+
+    src = ("import pytest\n\n\n"
+           "def test_goal():\n    assert 1\n\n\n"
+           "def test_symptom():\n    assert 2\n\n\n"
+           "class TestGroup:\n    def test_method(self):\n        assert 3\n")
+    dropped = _drop_test_functions(src, ["f.py::test_symptom"])
+    assert "def test_symptom" not in dropped
+    assert "def test_goal" in dropped and "import pytest" in dropped
+    assert "def test_method" in dropped          # a class method is not top-level
+    # an unknown name / a class method leaves the source unchanged.
+    assert _drop_test_functions(src, ["f.py::nope"]) == src
+    assert _drop_test_functions(src, ["f.py::test_method"]) == src
+
+
+def test_own_test_symptom_case_is_rewritten_then_dropped_from_the_target(tmp_path):
+    """FIX 1 (T-12/T-16): an own test file with one DISCRIMINATING case (red on pristine)
+    and one symptom-asserting case (green there) gets ONE bounded rewrite of the symptom
+    case; when the rewrite leaves it green it is DROPPED from the target and recorded, so
+    the loop never iterates to satisfy a case that asserts the reported symptom."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    own_content = ("def test_goal():\n    assert result() == 42\n\n\n"
+                   "def test_symptom():\n    assert result() == 0\n")
+    own = write_env("tests/test_leaf_self.py", own_content)
+    same = write_env("tests/test_leaf_self.py", own_content)   # the rewrite changes nothing
+    goal = "tests/test_leaf_self.py::test_goal"
+    symptom = "tests/test_leaf_self.py::test_symptom"
+    mixed = _own_result(passed=(symptom,), failed=(goal,))
+    after_drop = _own_result(failed=(goal,))
+    model = FakeModelRunner({"write_test": [own, same, impl(), impl(), impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=10, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([mixed, mixed, after_drop, after_drop,
+                                                 after_drop]))
+
+    assert out.own_test_discriminating == [goal]
+    assert out.own_test_symptom_ids == [symptom]
+    assert "own_test_partition" in ledger_kinds()
+    assert "own_test_symptom_dropped" in ledger_kinds()
+    text = (tmp_path / "tests/test_leaf_self.py").read_text()
+    assert "def test_symptom" not in text         # dropped from the target
+    assert "def test_goal" in text                # the discriminating target survives
+
+
+def test_own_test_symptom_rewrite_to_the_desired_state_keeps_the_case(tmp_path):
+    """FIX 1: when the bounded rewrite turns the symptom case into a discriminator
+    (green-on-pristine -> red), it is KEPT and nothing is dropped."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    own = write_env("tests/test_leaf_self.py",
+                    "def test_goal():\n    assert result() == 42\n\n\n"
+                    "def test_symptom():\n    assert result() == 0\n")
+    rewritten = write_env("tests/test_leaf_self.py",
+                          "def test_goal():\n    assert result() == 42\n\n\n"
+                          "def test_symptom():\n    assert result() == 42\n")
+    goal = "tests/test_leaf_self.py::test_goal"
+    symptom = "tests/test_leaf_self.py::test_symptom"
+    mixed = _own_result(passed=(symptom,), failed=(goal,))
+    both_red = _own_result(failed=(goal, symptom))
+    model = FakeModelRunner({"write_test": [own, rewritten, impl(), impl(), impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=10, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([mixed, both_red, both_red, both_red]))
+
+    assert out.own_test_symptom_ids == []
+    assert set(out.own_test_discriminating) == {goal, symptom}
+    assert "own_test_symptom_dropped" not in ledger_kinds()
+    assert "def test_symptom" in (tmp_path / "tests/test_leaf_self.py").read_text()
+
+
+def test_run_record_carries_the_own_test_partition():
+    """FIX 1: the own-test split rides the persisted run record (survives json.dumps)."""
+    from bench.external_score import ExternalScore
+    from bench.v2_leaf import build_record
+
+    outcome = LeafOutcome(
+        claimed=False, signal="honest-failure", attempts=[], calls=3, wall_s=1.0,
+        self_test="tests/test_leaf_self.py", questions=[], exhausted=False,
+        exhaustion_reason="attempts", layers_used=["sampling"], stop_reason="attempts",
+        own_test_discriminating=["tests/test_leaf_self.py::test_goal"],
+        own_test_symptom_ids=["tests/test_leaf_self.py::test_symptom"])
+    score = ExternalScore(passed=False, exit=1, notes=[], work_root="", applied=[],
+                          skipped=[])
+    record = build_record("T-x", "goal", outcome, withheld=[], produced={}, score=score,
+                          quad="honest-failure", run_wall_s=1.0)
+
+    assert record["own_test_discriminating"] == ["tests/test_leaf_self.py::test_goal"]
+    assert record["own_test_symptom_ids"] == ["tests/test_leaf_self.py::test_symptom"]
+    json.dumps(record)
+
+
+def test_credited_test_wrong_that_cannot_change_the_test_is_visible_and_advances(tmp_path):
+    """FIX 2 (T-05): a credited ``test_wrong`` whose bounded repair emits the SAME test is
+    visible as ``test_repair_unavailable`` (never a silent implementation retry against the
+    unchanged test) and ADVANCES the ladder."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    same = write_env("tests/test_leaf_self.py", SELF_TEST["content"])
+
+    seen: list[int] = []
+
+    def judge(request: JudgeRequest) -> JudgeVerdict:
+        # credit ``test_wrong`` for the FIRST (volunteered) claim; a later proactive
+        # consultation is a plain implementation attribution so only the unchanged repair
+        # is exercised here.
+        seen.append(1)
+        if len(seen) == 1:
+            return judge_blames_test(request)
+        return JudgeVerdict(attribution="implementation", raw="implementation",
+                            defect="the implementation returns the wrong value")
+
+    model = FakeModelRunner({"write_test": [SELF_TEST, blocked(), same, impl(), impl(),
+                                              impl(), impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
+                        judge=judge, run_tests=ScriptedTests([1] * 10))
+
+    assert "test_repair_unavailable" in ledger_kinds()
+    assert out.test_rewrites == 0 and out.own_test_mutated is False
+    # the repair is a recorded attempt (not silently skipped) and the ladder advanced.
+    assert out.attempts and out.attempts[0].layer == "tests"
+    assert "implementation" in out.layers_used
+    assert (tmp_path / "tests/test_leaf_self.py").read_text() == SELF_TEST["content"]
+
+
+def test_credited_test_wrong_rewrite_replaces_the_test_before_the_next_attempt(tmp_path):
+    """FIX 2: a credited ``test_wrong`` whose bounded repair DOES change the test leads to
+    a ``test_rewritten`` event and the next attempt runs against the NEW test (the repair
+    is the target, never the old one)."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    repaired = write_env("tests/test_leaf_self.py",
+                         "def test_goal():\n    assert result() == 7\n")
+    model = FakeModelRunner({"write_test": [SELF_TEST, blocked(), repaired, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=10, deadline_ts=_FAR_FUTURE),
+                        judge=judge_blames_test, run_tests=ScriptedTests([1, 1, 0]))
+
+    assert "test_rewritten" in ledger_kinds()
+    assert out.test_rewrites == 1
+    assert out.attempts[0].layer == "tests"
+    # the next implementation attempt (the one AFTER the repair) carried the REWRITTEN
+    # test as the target — never the old test.
+    implement_calls = model.calls("implement_write")
+    assert len(implement_calls) >= 2
+    assert implement_calls[-1].artifacts["self_test"] == repaired["content"]
+
+
+def test_no_change_delivery_is_recorded_and_never_a_claim(tmp_path):
+    """FIX 3 (T-05): a delivered revision that changes nothing is a first-class outcome —
+    ``stop_reason="no-change-delivery"``, state ``fail``, never a claim, and not presented
+    as best evidence."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    same = impl("def result():\n    return 0\n", comment="no change")
+    model = FakeModelRunner({"write_test": [SELF_TEST, same, same, same]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1] * 6))
+
+    assert out.claimed is False
+    assert out.stop_reason == "no-change-delivery"
+    assert out.state == "fail"
+    assert out.signal == "honest-failure"
+    assert "no_change_delivery" in ledger_kinds()
+    assert out.delivered_revision.get("no_change_delivery") is True
+    assert out.failure_report is not None
+    assert out.failure_report.stop_reason == "no-change-delivery"
+
+
+def test_a_real_change_is_not_a_no_change_delivery(tmp_path):
+    """FIX 3: a revision that really changes a source file is never mislabelled."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl("def result():\n    return 42\n"),
+                                            impl("def result():\n    return 42\n")]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 0, 0]))
+
+    assert out.stop_reason != "no-change-delivery"
+    assert "no_change_delivery" not in ledger_kinds()
+    assert out.claimed is True

@@ -228,10 +228,36 @@ Fixed contract points, each deliberate:
   ``delivered_revision`` carries ``restore_refused``/``restore_refused_reason`` naming the
   untouched artifact. The record also names the best tier/rank/attempt/reason, the
   delivered file list, and whether a restoration happened over the last-written tree.
+- **THE RUN'S OWN TEST IS SPLIT PER CASE ON THE PRISTINE SOURCE (P3c/FIX 1).** FLOW §4
+  W3 says every DECLARED case must be red on the pristine source, but the gate only
+  required the FILE to be red: a file with one discriminating case plus one case that
+  PASSES on the pristine source (it asserts the reported symptom) passed the gate, and
+  the symptom case then blocked the correct fix (a correct fix makes it red, so the loop
+  reverted the fix). :func:`_own_test_partition` splits the own test's node ids into
+  DISCRIMINATING (failed on pristine) and symptom (passed there); only the former may be
+  the target/evidence. The symptom cases get ONE bounded rewrite that asks for the
+  DESIRED end state; a case that survives is DROPPED from the file and target
+  (:func:`_drop_test_functions`) and recorded. The split rides
+  ``own_test_discriminating``/``own_test_symptom_ids`` on the outcome, the failure report,
+  and the run record (T-05/T-12/T-16).
+- **A CREDITED ``test_wrong`` THAT CANNOT CHANGE THE TEST ADVANCES THE LADDER (P3c/FIX
+  2).** T-05 showed three credited ``test_wrong`` verdicts with no visible effect: the
+  next attempt went back to implementing against the unchanged test. The credited path
+  now records a ``test_repair_unavailable`` event (malformed output, the unchanged bytes,
+  or no usable envelope), REPLACES the target only when the repair really changed it
+  (``test_rewritten``), and otherwise returns ``"advance"`` so the ladder moves on
+  instead of silently retrying the same implementation.
+- **A DELIVERY THAT CHANGES NOTHING IS A FIRST-CLASS OUTCOME (P3c/FIX 3).** After any
+  best-evidence restore, a delivered revision whose non-test source files are all
+  byte-identical to the pristine source (no file changed, created or removed) is
+  recorded as ``stop_reason="no-change-delivery"`` with state ``fail``: it can never be a
+  claim, and it is never presented as the best-evidence delivery (T-05 delivered an
+  unchanged tree while stopping as ``attempts``).
 """
 
 from __future__ import annotations
 
+import ast
 import inspect
 import json
 import posixpath
@@ -372,6 +398,7 @@ STOP_REASONS: tuple[str, ...] = (
     "no-acceptance-criteria",  # an empty criteria list cannot claim on any basis
     "verifier-conflict",  # own test red + independent green on the final code (no claim)
     "no-red-target",    # the run's own test could not be made to fail on arrival
+    "no-change-delivery",  # the delivered revision is byte-identical to the pristine source
     "self-test",        # the run's own test could not be written at a safe path / could not run
     "green",            # the run's own tests exited 0 and the claim held
     "green-after-test-rewrite",  # a replaced test went green: unverified, never claimed
@@ -418,6 +445,13 @@ LEDGER_ROUTES: tuple[str, ...] = ("claim", "confirmed", "rework", "review",
 #: as an EVIDENCE GAP — a distinct, visible state, never a normal honest failure.
 EVIDENCE_GAP_STOPS: tuple[str, ...] = ("attempts", "ladder", "calls", "attempt-cap",
                                        "deadline")
+
+#: P3c/FIX 3: the terminal stops that actually TRIED to deliver a revision. A delivery
+#: whose tree is byte-identical to the pristine source is recorded as
+#: ``no-change-delivery``; an explicit early honest stop (write-shape, self-test,
+#: no-red-target) or a budget/deadline PARK keeps its more specific reason.
+NO_CHANGE_DELIVERY_STOPS: tuple[str, ...] = ("", "green", "green-after-test-rewrite",
+                                             "attempts", "ladder", "attempt-cap")
 
 #: The ORDERED verification TTIERS a claim can rest on: a discriminating test is the
 #: strongest, a graded review next, ``none`` (a written reason) weakest (ticket 20/22).
@@ -494,7 +528,8 @@ def propagate_node_state(children: Sequence[str], *, integration_passed: bool = 
 
 def leaf_terminal_state(*, claimed: bool, needs_user: bool, stop_reason: str,
                         signal: str, own_test_failed: bool,
-                        review_verdicts: Sequence[ReviewVerdict] = ()) -> str:
+                        review_verdicts: Sequence[ReviewVerdict] = (),
+                        no_change_delivery: bool = False) -> str:
     """FLOW §4.1/§4.2/§1.5 S5 (P1c): a leaf run's terminal state.
 
     ``pass`` when a claim held; ``needs-user`` for a park the environment alone can fix;
@@ -502,8 +537,11 @@ def leaf_terminal_state(*, claimed: bool, needs_user: bool, stop_reason: str,
     on the final revision (a confirmed red own test, or a graded review that rejected);
     ``uncertain`` otherwise --- a check that could not be evaluated, or a give-up with no
     confirmed failure. A red test is ALWAYS ``fail`` (never ``uncertain``); ``uncertain``
-    is reserved for a test/judge the run could not evaluate.
+    is reserved for a test/judge the run could not evaluate. P3c/FIX 3: a delivery that
+    changed nothing is ALWAYS ``fail`` (never ``pass``), whatever else the run recorded.
     """
+    if no_change_delivery:
+        return "fail"
     if claimed:
         return "pass"
     if needs_user:
@@ -887,6 +925,19 @@ _RETRY_SELF_TEST_QUESTION = (
     + _SELF_TEST_DESIRED_STATE_RULE
 )
 
+#: FIX 1 (T-05/T-12/T-16): the ONE bounded rewrite of a NON-DISCRIMINATING
+#: (green-on-pristine) own-test case. Such a case asserts the behaviour the request calls
+#: broken, so after a correct fix it stays red and drives the run to revert the fix. It is
+#: rewritten to assert the DESIRED end state or removed; only the cases that already FAIL
+#: on the unfixed source may remain as the target/evidence.
+_SYMPTOM_REWRITE_QUESTION = (
+    "Your test file contains case(s) that PASS on the UNFIXED source. This case passes on "
+    "the unfixed source, so it asserts the behaviour the request calls broken; rewrite it "
+    "to assert the DESIRED end state or remove it. Keep the case(s) that already FAIL on "
+    "the unfixed source exactly as they are, and reply with the complete new test file. "
+    + _SELF_TEST_DESIRED_STATE_RULE
+)
+
 #: Ticket 19 D: the bounded repair for a green run whose test does not expose the DECLARED
 #: test cases (missing file/function names). The declared contract is the harness's, so
 #: the missing names are handed back as evidence.
@@ -1172,6 +1223,11 @@ class FailureReport:
     iv_inverted: bool = False
     iv_inverted_tests: tuple[str, ...] = ()
     iv_unmet_tests: tuple[str, ...] = ()
+    #: FIX 1: the run's own test cases that PASSED on the pristine source (they assert
+    #: the reported symptom) and were therefore DROPPED from the target/evidence. Recorded
+    #: on the failure report so a reader can see exactly which cases could not carry the
+    #: run and why.
+    own_test_symptom_ids: tuple[str, ...] = ()
 
     @property
     def violated(self) -> tuple[CriterionLedgerEntry, ...]:
@@ -1334,6 +1390,12 @@ class LeafOutcome:
     # them the candidate collected + passed) instead of the tests the candidate invented.
     # ``None`` when the run never produced a report (e.g. it entered review mode).
     own_test_gate: GateReport | None = None
+    #: FIX 1: the per-test split of the run's OWN test against the pristine source.
+    #: ``own_test_discriminating`` are the node ids that FAILED there (the only valid
+    #: target/evidence); ``own_test_symptom_ids`` are the ids that PASSED there (they
+    #: assert the reported symptom and were rewritten or DROPPED from the target).
+    own_test_discriminating: list[str] = field(default_factory=list)
+    own_test_symptom_ids: list[str] = field(default_factory=list)
     # Ticket 20: the explicit verification record EVERY node that wrote code carries, with
     # an ORDERED strength tier (test > review > none+reason), the plan's declaration, and
     # any recorded best-effort downgrade. ``None`` when the node wrote no code.
@@ -2802,6 +2864,86 @@ def _own_test_collectible(gate: GateReport | None, self_test: str | None) -> boo
     return False
 
 
+def _own_test_partition(
+    gate: GateReport | None, test_path: str | None
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """FIX 1: split the run's OWN test cases by their verdict on the PRISTINE source.
+
+    ``discriminating`` are the node ids from the run's own test file that FAILED on the
+    pristine source --- they pin the goal and are the only valid target/evidence.
+    ``symptom`` are the ids that PASSED there: they assert the behaviour the request
+    calls broken (the reported symptom), so they can never be a failure to iterate
+    against. Both are scoped to ``test_path`` so the per-run canary or any other
+    collected file can never be counted.
+    """
+    if gate is None or not gate.observed or not test_path:
+        return (), ()
+    prefix = test_path.rstrip("/") + "::"
+    discriminating = tuple(nid for nid in gate.failed_ids if nid.startswith(prefix))
+    symptom = tuple(nid for nid in gate.passed_ids if nid.startswith(prefix))
+    return discriminating, symptom
+
+
+def _drop_test_functions(source: str, node_ids: Sequence[str]) -> str:
+    """FIX 1: DROP the named top-level test functions from a test file's source.
+
+    The surviving symptom-asserting cases are excised from the target when the bounded
+    rewrite cannot make them discriminate. Only top-level ``def``/``async def`` nodes
+    whose names match are removed (decorators included); imports, helpers, and the
+    remaining cases are preserved byte-for-byte. A name that is not a top-level function
+    (a class method, or absent) leaves the source unchanged.
+    """
+    names = {nid.split("::")[-1] for nid in node_ids}
+    if not names:
+        return source
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return source
+    spans: list[tuple[int, int]] = []
+    for node in tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if node.name not in names:
+            continue
+        start = min([node.lineno, *(d.lineno for d in node.decorator_list)]) - 1
+        end = node.end_lineno or node.lineno
+        spans.append((start, end))
+    if not spans:
+        return source
+    drop: set[int] = set()
+    for start, end in spans:
+        drop.update(range(start, end))
+    lines = source.splitlines(keepends=True)
+    return "".join(line for i, line in enumerate(lines) if i not in drop)
+
+
+def _delivered_source_view(workdir: Path) -> dict[str, str]:
+    """FIX 3: the non-test deliverable files of the work tree (the blind source view).
+
+    Everything the run could deliver EXCEPT its own test tooling (the self-test file,
+    a conftest, the generated canary), keyed by repo-relative posix path. This is the
+    view the no-change-delivery check compares against the pristine source.
+    """
+    return {rel: text for rel, text in _snapshot_deliverable_files(workdir).items()
+            if not is_test_path(rel)}
+
+
+def _pristine_source_view(spec: LeafSpec) -> dict[str, str]:
+    """The pristine blind-source projection (``LeafSpec.files``), minus test paths."""
+    return {rel: text for rel, text in spec.files.items() if not is_test_path(rel)}
+
+
+def _delivery_is_unchanged(spec: LeafSpec, workdir: Path) -> bool:
+    """FIX 3: True when the delivered revision changes NOTHING.
+
+    Every pristine source file is byte-identical on disk and no source file was created
+    or removed: the run delivered the pristine source. Used to record
+    ``no-change-delivery`` and to refuse a claim on it.
+    """
+    return _delivered_source_view(workdir) == _pristine_source_view(spec)
+
+
 def _history_text(attempts: Sequence[Attempt]) -> str:
     lines = [
         f"- [{a.strategy}/{a.layer}] claim={a.claimed_delta!r} "
@@ -4256,6 +4398,29 @@ def _retry_self_test_artifacts(
     return artifacts
 
 
+def _symptom_rewrite_artifacts(
+    spec: LeafSpec, workdir: Path, self_test: str,
+    discriminating: Sequence[str], symptom: Sequence[str],
+) -> dict[str, str]:
+    """FIX 1: the bounded rewrite artifacts for the green-on-pristine own-test cases.
+
+    The discriminating cases are handed over as GROUND TRUTH to keep; each symptom case
+    carries the explicit excerpt saying why it is wrong (it passes on the unfixed
+    source, so it asserts the reported symptom).
+    """
+    artifacts = _self_test_artifacts(spec)
+    artifacts.update({
+        "current_test_path": self_test,
+        "current_test": _read(workdir, self_test),
+        "discriminating_cases": "\n".join(f"- {nid}" for nid in discriminating),
+        "symptom_cases": "\n".join(
+            f"- {nid}: this case PASSES on the unfixed source, so it asserts the "
+            "behaviour the request calls broken; rewrite it to assert the DESIRED end "
+            "state or remove it" for nid in symptom),
+    })
+    return artifacts
+
+
 def _source_view(spec: LeafSpec) -> dict[str, str]:
     return {rel: text for rel, text in spec.files.items()}
 
@@ -4491,6 +4656,12 @@ async def run_leaf(
     # ledger can name the failing node/test for a non-claiming run (the claim-path
     # ``own_test_report`` is only set on a passing candidate).
     last_gate: GateReport | None = None
+    # FIX 1: the per-test split of the run's own test against the pristine source. Only
+    # the ``own_test_discriminating`` node ids may be the target/evidence; the
+    # ``own_test_symptom_ids`` (green on pristine) are rewritten once and then DROPPED.
+    own_test_discriminating: list[str] = []
+    own_test_symptom_ids: list[str] = []
+    symptom_rewrites = 0
     # Ticket 21 item 3: the route each criterion took (ac_id -> LEDGER_ROUTES value),
     # updated at every routing decision so the failure report records what the loop did.
     ledger_routes: dict[str, str] = {}
@@ -5100,11 +5271,29 @@ async def run_leaf(
             return None, "unavailable"
         return apply_judge_filter(raw, jr), ""
 
+    def _repair_attempt_record(esc: Escalation, verdict: JudgeVerdict,
+                               delta: str) -> Attempt:
+        """P3c/FIX 2: the recorded attempt for a credited ``test_wrong`` whose bounded
+        repair could NOT produce a changed test (malformed output, the unchanged bytes,
+        or no usable envelope). It is a REAL recorded attempt with no test rewrite, so the
+        ladder, the failure history, and the attempt cap account for it."""
+        attempt = Attempt(
+            node_id="leaf", layer="tests", strategy=esc.strategy,
+            claimed_delta=delta, failure_signature="", touched_files=[],
+            outcome="fail", judge=verdict)
+        attempt.verdict = prefilter(attempts, attempt)
+        return attempt
+
     async def handle_verdict(verdict: JudgeVerdict, esc: Escalation, env: Any) -> str:
         """Apply the judge's MULTI-LABEL decision (ticket 19 A). Returns the action:
 
         - ``"stop"`` — a stop was set (always required for spec_wrong / environment_broken)
-        - ``"repair"`` — the own test was rewritten (a bounded replacement); continue the loop
+        - ``"repair"`` — the own test was actually REWRITTEN (a bounded replacement that
+          changed the target); continue the loop
+        - ``"advance"`` — a credited ``test_wrong`` whose bounded repair could not produce
+          a changed test (malformed output, or the unchanged bytes). It is recorded and
+          the ladder ADVANCES, never a silent implementation retry against the unchanged
+          test (P3c/FIX 2).
         - ``"implementation"`` — implementation_wrong alone (or an uncredited verdict): keep
           implementing with the failure as context.
 
@@ -5113,6 +5302,7 @@ async def run_leaf(
         → test_wrong (repair/replace the own test, bounded) → implementation_wrong.
         """
         nonlocal test_rewrites, self_test, last_excerpts, verification_basis, review_reason
+        nonlocal own_test_discriminating, own_test_symptom_ids
         judge_verdicts.append(verdict)
         emit("judge_verdict", implementation_wrong=verdict.implementation_wrong,
              test_wrong=verdict.test_wrong, spec_wrong=verdict.spec_wrong,
@@ -5147,6 +5337,7 @@ async def run_leaf(
         if verdict.test_wrong and self_test:
             defect = (verdict.defect or verdict.reason or verdict.evidence or
                       "the judge confirmed the own test wrong")
+            previous_test = _read(workdir, self_test)
             repaired, failure = await request_bounded(
                 partial(_repair_test, model, spec, workdir, self_test,
                         last_excerpts, env),
@@ -5155,13 +5346,29 @@ async def run_leaf(
                 stop("honest-failure", "call-budget", "calls")
                 return "stop"
             if failure:
-                # Ticket 19 round 2 (F5): a malformed rewrite consumes its calls and is
-                # recorded; the node keeps implementing against the existing test rather
-                # than ending on malformed output.
+                # Ticket 19 round 2 (F5) + P3c/FIX 2 (T-05): a malformed rewrite consumes
+                # its calls and is VISIBLE (``test_repair_unavailable``); the next attempt
+                # is NOT a silent implementation retry against the test the judge just
+                # called wrong — the repair attempt is recorded and the ladder ADVANCES.
                 emit("test_repair_unavailable", reason="malformed-output")
-                return "implementation"
+                attempts.append(_repair_attempt_record(
+                    esc, verdict, "the judge confirmed the own test wrong but the "
+                    "bounded repair stayed malformed"))
+                return "advance"
             if (getattr(repaired, "status", "unable") == "ok"
                     and getattr(repaired, "content", "")):
+                if repaired.content == previous_test:
+                    # P3c/FIX 2 (T-05): the credited ``test_wrong`` produced the SAME test
+                    # it called wrong, so nothing was repaired. The same implementation
+                    # must not be retried silently against the unchanged test: record the
+                    # unavailable repair and ADVANCE the ladder.
+                    emit("test_repair_unavailable", reason="unchanged-rewrite",
+                         path=self_test,
+                         detail="the rewrite emitted the same test the judge called wrong")
+                    attempts.append(_repair_attempt_record(
+                        esc, verdict, "the judge confirmed the own test wrong but the "
+                        "bounded repair emitted the unchanged test"))
+                    return "advance"
                 try:
                     _write(workdir, self_test, repaired.content)
                 except WriteShapeRefused as exc:
@@ -5174,6 +5381,14 @@ async def run_leaf(
                 rres = await _maybe_await(tests, workdir)
                 _record_test_run("own-test-repair", rres)
                 record_gate(rres)
+                # FIX 1: re-split the repaired test's cases (the suite was just re-run) so
+                # only its DISCRIMINATING cases remain the target/evidence.
+                disc, symptom = _own_test_partition(getattr(rres, "gate", None), self_test)
+                own_test_discriminating = list(disc)
+                own_test_symptom_ids = list(symptom)
+                if symptom:
+                    emit("own_test_partition", path=self_test, after_rewrite=True,
+                         discriminating=list(disc), symptom=list(symptom))
                 if not _own_test_collectible(getattr(rres, "gate", None), self_test):
                     # Ticket 23 item 4: a REPAIRED test that still cannot be collected is
                     # the same defect — record it, drop the target, and take the review
@@ -5231,8 +5446,15 @@ async def run_leaf(
                 attempts.append(repair_attempt)
                 emit("test_rewritten", path=self_test, verdict=repair_attempt.verdict)
                 return "repair"
+            # P3c/FIX 2: an unusable repair envelope (status != ok / no content) is
+            # recorded and ADVANCES the ladder, never silently continuing to implement
+            # against the test the judge called wrong.
             emit("test_repair_unavailable",
                  status=getattr(repaired, "status", "unknown"))
+            attempts.append(_repair_attempt_record(
+                esc, verdict, "the judge confirmed the own test wrong but the bounded "
+                "repair returned no usable test"))
+            return "advance"
         # implementation_wrong alone (or an uncredited/ambiguous verdict): keep implementing
         # Ticket 26: the judge's own words are the most specific diagnosis the run has —
         # T-01's judge named the exact defect ("SESSION_TTL_SECONDS is 60") and the old code
@@ -5767,7 +5989,7 @@ async def run_leaf(
                         emit("leaf_green_at_exhaustion", basis=decision.basis)
 
     def finish() -> LeafOutcome:
-        nonlocal self_test
+        nonlocal self_test, claimed, signal, stop_reason, exhaustion_reason
         # ---- ticket 23 item 1: BEST-EVIDENCE DELIVERY. Before the produced files are
         # collected, restore the strongest-evidenced revision when the last-written tree is
         # weaker. A GRANTED CLAIM is itself the strongest evidence, so it is never replaced
@@ -5846,6 +6068,36 @@ async def run_leaf(
                         f"evidence ({best_revision.tier}, rank {best_revision.rank}); "
                         f"nothing was restored"),
                 }
+        # ---- P3c/FIX 3: a delivery that changed NOTHING is a first-class outcome. After
+        # any best-evidence restore, a delivered revision still byte-identical to the
+        # pristine source (no source file changed, created or removed) means the run
+        # delivered nothing: it can never be a claim and must not be presented as best
+        # evidence. Record ``no-change-delivery`` and force the terminal state to fail.
+        # Scoped to the terminal stops that ACTUALLY tried to deliver (a claim, green, or
+        # the exhausted ladder): an explicit early honest stop (write-shape, self-test,
+        # no-red-target) and a budget/deadline PARK keep their more specific reason.
+        no_change_delivery = (
+            stop_reason in NO_CHANGE_DELIVERY_STOPS
+            and _delivery_is_unchanged(spec, workdir))
+        if no_change_delivery:
+            claimed = False
+            signal = "honest-failure"
+            stop_reason = "no-change-delivery"
+            exhaustion_reason = (
+                "the delivered revision is byte-identical to the pristine source: nothing "
+                "was changed or created"
+                + (f" ({exhaustion_reason})" if exhaustion_reason else ""))
+            delivered = {
+                "restored": False, "restore_refused": False,
+                "restored_over_last_written": False, "no_change_delivery": True,
+                "best_rank": (best_revision.rank if best_revision else 0),
+                "best_tier": (best_revision.tier if best_revision else ""),
+                "best_attempt": (best_revision.attempt if best_revision else 0),
+                "terminal_rank": current_rank, "terminal_tier": current_tier or "none",
+                "reason": ("the delivered revision is byte-identical to the pristine "
+                           "source: nothing was delivered (no-change-delivery)"),
+            }
+            emit("no_change_delivery", stop_reason=stop_reason, reason=exhaustion_reason)
         reason = exhaustion_reason
         if last_iv_reason and not claimed:
             reason = f"{reason}; independent-test {last_iv_reason}" if reason else f"independent-test {last_iv_reason}"
@@ -5972,7 +6224,8 @@ async def run_leaf(
                                    regression_detail=regression_detail,
                                    iv_inverted=iv_inverted,
                                    iv_inverted_tests=iv_inverted_tests,
-                                   iv_unmet_tests=iv_unmet_tests)
+                                   iv_unmet_tests=iv_unmet_tests,
+                                   own_test_symptom_ids=tuple(own_test_symptom_ids))
         emit("criterion_ledger", claimed=claimed,
              criteria=[asdict(e) for e in ledger], evidence_gap=evidence_gap,
              regressions=list(regression_ids), regression_observable=regression_observable,
@@ -5988,13 +6241,15 @@ async def run_leaf(
                  regression_detail=report.regression_detail,
                  iv_inverted=report.iv_inverted,
                  iv_inverted_tests=list(report.iv_inverted_tests),
-                 iv_unmet_tests=list(report.iv_unmet_tests))
+                 iv_unmet_tests=list(report.iv_unmet_tests),
+                 own_test_symptom_ids=list(report.own_test_symptom_ids))
         # FLOW §1.5 S5 / §4 (P1c): the explicit terminal state, from the terminal
         # test/review evidence (a confirmed red test is FAIL, never UNCERTAIN).
         terminal_state = leaf_terminal_state(
             claimed=claimed, needs_user=needs_user, stop_reason=stop_reason,
             signal=signal, own_test_failed=own_test_fail(self_test, last_gate),
-            review_verdicts=tuple(review_verdicts))
+            review_verdicts=tuple(review_verdicts),
+            no_change_delivery=no_change_delivery)
         return LeafOutcome(
             claimed=claimed,
             signal=signal,
@@ -6045,6 +6300,8 @@ async def run_leaf(
             request_coverage_missing=list(request_coverage_missing),
             test_case_problems=list(test_case_problems),
             own_test_gate=own_test_report,
+            own_test_discriminating=list(own_test_discriminating),
+            own_test_symptom_ids=list(own_test_symptom_ids),
             malformed_steps=list(malformed_steps),
             judge_unavailable=judge_unavailable,
             needs_user=needs_user,
@@ -6108,6 +6365,86 @@ async def run_leaf(
         verification_basis = "review"
         review_reason = why
         emit("review_verification", reason=why)
+        return True
+
+    async def settle_own_test_partition() -> bool:
+        """FIX 1: split the run's own test cases on the pristine gate and settle them.
+
+        Only the DISCRIMINATING cases (red on the pristine source) may be the target or
+        evidence. The green-on-pristine cases get ONE bounded rewrite that asks for the
+        DESIRED end state; a case that survives the budget is DROPPED physically from the
+        target and recorded. Returns False when a stop was set (the caller finishes).
+        """
+        nonlocal self_test, last_gate, last_excerpts, symptom_rewrites
+        nonlocal own_test_discriminating, own_test_symptom_ids
+        disc, symptom = _own_test_partition(last_gate, self_test)
+        own_test_discriminating = list(disc)
+        own_test_symptom_ids = list(symptom)
+        if not symptom:
+            return True
+        emit("own_test_partition", path=self_test, discriminating=list(disc),
+             symptom=list(symptom))
+        if disc and symptom_rewrites < 1 and can_afford(1):
+            # The ONE bounded rewrite: ask for the DESIRED end state, not the symptom.
+            symptom_rewrites += 1
+            env, failure = await request_bounded(
+                partial(_request_write, model,
+                        _symptom_rewrite_artifacts(spec, workdir, self_test, disc, symptom),
+                        _SYMPTOM_REWRITE_QUESTION),
+                "symptom-rewrite")
+            if failure == "calls":
+                stop("honest-failure", "call-budget", "calls")
+                return False
+            if (env is not None and getattr(env, "status", "") == "ok"
+                    and getattr(env, "content", "")):
+                if not write_self_test(self_test, env.content):
+                    rres = await _maybe_await(tests, workdir)
+                    _record_test_run("own-test-symptom-rewrite", rres)
+                    last_gate = record_gate(rres)
+                    disc, symptom = _own_test_partition(last_gate, self_test)
+                    own_test_discriminating = list(disc)
+                    own_test_symptom_ids = list(symptom)
+                    emit("own_test_partition", path=self_test, after_rewrite=True,
+                         discriminating=list(disc), symptom=list(symptom))
+                    if _is_green(rres):
+                        # The rewrite no longer discriminates: no red target remains.
+                        emit("self_test_green_on_arrival", path=self_test)
+                        (workdir / self_test).unlink(missing_ok=True)
+                        self_test = None
+                        if not enter_review(
+                                "the run's own test could not be made to fail on arrival"):
+                            stop("honest-failure", "no-red-target", "no-red-target")
+                            return False
+                        return True
+                    if not symptom:
+                        last_excerpts = excerpts_of(rres)
+                        return True
+        # DROP the surviving symptom cases from the target.
+        content = _read(workdir, self_test)
+        dropped = _drop_test_functions(content, symptom)
+        emit("own_test_symptom_dropped", path=self_test, ids=list(symptom),
+             removed=dropped != content)
+        own_test_symptom_ids = list(symptom)
+        if dropped == content:
+            return True
+        write_self_test(self_test, dropped)
+        rres = await _maybe_await(tests, workdir)
+        _record_test_run("own-test-after-symptom-drop", rres)
+        last_gate = record_gate(rres)
+        disc2, symptom2 = _own_test_partition(last_gate, self_test)
+        own_test_discriminating = list(disc2)
+        own_test_symptom_ids = sorted(set(symptom) | set(symptom2))
+        if _is_green(rres):
+            # Dropping the symptom cases removed every discriminating case too: the file
+            # no longer pins the goal, so there is no red target.
+            emit("self_test_green_on_arrival", path=self_test)
+            (workdir / self_test).unlink(missing_ok=True)
+            self_test = None
+            if not enter_review("the run's own test could not be made to fail on arrival"):
+                stop("honest-failure", "no-red-target", "no-red-target")
+                return False
+            return True
+        last_excerpts = excerpts_of(rres)
         return True
 
     # ---- deadline before the first call (an already-expired budget writes nothing)
@@ -6282,6 +6619,11 @@ async def run_leaf(
                 # `handle_verdict`; the stale green `res` must not overwrite them.
                 last_excerpts = excerpts_of(res)
                 emit("self_test_written", path=self_test, red=True)
+                # FIX 1: split the own test's cases on the pristine gate; only the
+                # discriminating cases may be the target/evidence (symptom cases are
+                # rewritten once, then dropped).
+                if not await settle_own_test_partition():
+                    return finish()
 
     # ---- step 2: attempt loop (bounded by Budget and 3 × files, cap 9) ----
     while True:
@@ -6373,6 +6715,11 @@ async def run_leaf(
                     if action == "stop":
                         break
                     if action == "repair":
+                        continue
+                    if action == "advance":
+                        # P3c/FIX 2: the credited test_wrong could not change the test;
+                        # the repair attempt is recorded and the ladder advances.
+                        rung += 1
                         continue
                 # A malformed judge (FIX 2) leaves the model's own test-blaming word
                 # uncredited and the run keeps implementing.
@@ -6496,6 +6843,12 @@ async def run_leaf(
                         break
                     if action == "repair":
                         red_code_changes = 0
+                        continue
+                    if action == "advance":
+                        # P3c/FIX 2: the credited test_wrong could not change the test;
+                        # the repair attempt is recorded and the ladder advances.
+                        red_code_changes = 0
+                        rung += 1
                         continue
                 # FIX 2: a malformed judge leaves the attempt on the existing red path
                 # (no credited verdict, no repeat consultation this attempt).

@@ -464,6 +464,12 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         "self_test": outcome.self_test,
         "own_test_mutated": outcome.own_test_mutated,
         "test_rewrites": outcome.test_rewrites,
+        # P3c/FIX 1: the per-test split of the run's OWN test against the pristine source.
+        # ``own_test_discriminating`` are the node ids that FAILED there (the only valid
+        # target/evidence); ``own_test_symptom_ids`` are the ones that PASSED there (they
+        # assert the reported symptom and were rewritten or DROPPED from the target).
+        "own_test_discriminating": outcome.own_test_discriminating,
+        "own_test_symptom_ids": outcome.own_test_symptom_ids,
         "needs_parent": outcome.needs_parent,
         "calls": outcome.calls,
         "wall_s": outcome.wall_s,
