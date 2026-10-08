@@ -10,6 +10,30 @@ OUTSIDE the run): the harness fixes roughly two thirds of the tasks, claims only
 back with evidence, and records exactly what evidence every claim — or refusal to claim —
 rested on. Numbers, method and known limits: [`docs/STATUS.md`](docs/STATUS.md).
 
+## Objective — the 2026-10-06 mandate (owner, full delegation)
+
+The flow this project follows is specified in [`docs/FLOW.md`](docs/FLOW.md). The goal of the
+current phase is:
+
+1. **Coding parity or better, then efficiency.** The development ("pure coding") capability must
+   be **at least as good as a mature agent CLI (pi) on the SAME model with every knob maxed**
+   (reasoning max, big context), and it should be **better in wall-clock and tokens**. Whether our
+   side enables thinking is our choice; the comparison must be same-condition and stated.
+2. **Verification must carry information.** Every test and every review must be *meaningful*: if
+   one cannot distinguish a correct fix from a wrong one, it is a defect to fix, not evidence to
+   count. Where a failure was not caught, the trajectory is read to find the **exact point of
+   deviation**, and the fix goes into the code, the prompt, or the injected context.
+3. **No unexplained failures.** Every task that cannot be solved must carry a specific, evidenced
+   reason for why *this model* cannot solve it. Everything else must pass: **the target is 100%**.
+4. **Structural superiority, proven.** pi's prompt may be improved too — it is the same model,
+   fairly configured. What must be demonstrated is the class of work that **prompting alone cannot
+   get out of pi but the harness's structure can**, on the same tasks and model.
+5. **Efficiency is measured, not assumed**: tokens and wall-clock per task, ours versus pi's
+   (baseline AND prompt-improved).
+
+The standing rules do not change: the grader never enters a run (blind protocol), one claim gate,
+evidence in both directions, one writer per work tree, and every run's full trajectory on disk.
+
 ## The idea in one page
 
 - **The grader's tests never enter the run.** Each corpus task's own suite is the scoring
