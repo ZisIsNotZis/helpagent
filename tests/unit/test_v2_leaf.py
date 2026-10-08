@@ -54,11 +54,15 @@ from harness.leaf import (
     _criterion_unresolved,
     _declared_test_case_problems,
     _evidence_is_grant_calibre,
+    _gate_blocks_as_red,
+    _judge_incoherence,
     _own_test_collectible,
     _requirement_coverage,
     _restore_deliverable_files,
     _review_request,
     _snapshot_deliverable_files,
+    _source_revision_fingerprint,
+    _unparseable_source,
     apply_judge_filter,
     apply_review_filter,
     claim_decision,
@@ -7026,3 +7030,257 @@ def test_own_test_contradictions_ignore_stateful_tests():
     assert _own_test_contradictions(
         source, ["t.py::test_not_empty_after_push"],
         ["t.py::test_empty_again_after_pop"]) == ((), set())
+
+
+# --------------------------------------------------------------------------- P4a
+# Four mechanisms, each traced to a quoted trajectory record from the 2026-10-08
+# 40-task run. M1 an incoherent judge label; M2 a review claim over a contradicting
+# verdict; M3 an unparseable delivered source; M4 a false RED that must not block.
+
+#: The T-05 blind view: the source defines ``add_tag``; the own test asserts through the
+#: literal ``'tags'`` so the LOOSE anchor set admits the judge reason that names the
+#: source symbol ``add_tag`` (the seq294 inversion).
+_T05_SOURCE = {
+    "tagger/notes.py": (
+        "def add_tag(note, tag, tags=None):\n"
+        "    if tags is None:\n"
+        "        tags = []\n"
+        "    tags.append(tag)\n"
+        "    note['tags'] = tags\n"
+        "    return tags\n"),
+}
+_T05_TEST = (
+    "def test_add_tag_returns_updated_tags():\n"
+    "    note = {'id': 1}\n"
+    "    assert note['tags'] == ['errand']\n")
+
+
+def _t05_request() -> JudgeRequest:
+    return JudgeRequest(goal="fix the tagger", failure="FAILED test_tag_isolation.py",
+                        test_path="test_tag_isolation.py", test_content=_T05_TEST,
+                        files=_T05_SOURCE)
+
+
+def test_m1_incoherent_test_wrong_that_names_the_source_is_uncredited():
+    """M1 (T-05 pass 2, seq294): the judge said ``test_wrong`` but its reason named the
+    IMPLEMENTATION defect ("The add_tag function mutates the shared tags list ..."). The
+    loose anchor set admits the bare word ``tags``, so the verdict used to be credited.
+    It must now be UNCREDITED (``judge_incoherent``) and kept on the implementation path."""
+    request = _t05_request()
+    verdict = JudgeVerdict(
+        attribution="tests",
+        reason="The add_tag function mutates the shared tags list, causing tags to bleed.",
+        defect="The add_tag function mutates the shared tags list, causing tags to bleed.")
+    filtered = apply_judge_filter(verdict, request)
+    assert filtered.test_wrong is False
+    assert filtered.implementation_wrong is True
+    assert filtered.coerced is True
+    assert filtered.coercion_reason.startswith("judge_incoherent")
+    assert _judge_incoherence(verdict, request).startswith("judge_incoherent")
+
+
+def test_m1_incoherent_implementation_wrong_that_names_only_a_test_is_recorded():
+    """M1's mirror: a credited ``implementation_wrong`` whose reason names only a
+    test/assertion is recorded ``judge_incoherent`` and kept on the implementation path."""
+    request = _t05_request()
+    verdict = JudgeVerdict(
+        attribution="implementation",
+        reason="test_add_tag_returns_updated_tags asserts the wrong expectation",
+        defect="test_add_tag_returns_updated_tags asserts the wrong expectation")
+    filtered = apply_judge_filter(verdict, request)
+    assert filtered.coerced is True
+    assert filtered.coercion_reason.startswith("judge_incoherent")
+    assert filtered.implementation_wrong is True
+
+
+def test_m1_coherent_test_wrong_naming_the_test_stays_credited():
+    """M1 does not over-coerce: a ``test_wrong`` that names the failing test FUNCTION is
+    coherent and still credited."""
+    request = _t05_request()
+    verdict = JudgeVerdict(
+        attribution="tests",
+        reason=("test_add_tag_returns_updated_tags expects ['errand'] but the shared "
+                "list behaviour it asserts is wrong"),
+        defect=("test_add_tag_returns_updated_tags expects ['errand'] but the shared "
+                "list behaviour it asserts is wrong"))
+    filtered = apply_judge_filter(verdict, request)
+    assert filtered.test_wrong is True and filtered.coerced is False
+
+
+def test_m1_incoherent_verdict_is_recorded_and_the_source_fix_is_credited(tmp_path):
+    """M1 end-to-end: the incoherent verdict does not take the test-repair path; the
+    failure stays on the implementation path and the source fix can still green, with
+    ``judge_incoherent`` recorded on the outcome."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST,
+                                            impl("def result():\n    return 1\n"),
+                                            impl("def result():\n    return 42\n")]})
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=10, deadline_ts=_FAR_FUTURE),
+        judge=lambda request: JudgeVerdict(
+            attribution="tests",
+            defect="the result function returns 1, so `result() == 42` fails"),
+        run_tests=ScriptedTests([1, 1, 0]))
+    assert out.judge_incoherent == 1
+    assert "judge_incoherent" in ledger_kinds()
+    assert out.claimed is True and out.signal == "green"
+    assert out.judge_verdicts[0].test_wrong is False
+    assert out.judge_verdicts[0].coercion_reason.startswith("judge_incoherent")
+
+
+def _m2_review_base() -> dict:
+    return {
+        "route": "review", "criteria_count": 1, "ledger": _gate_ledger(),
+        "own_test": None, "own_test_green": False, "test_rewrites": 0,
+        "iv_approved": False, "review_approved": True,
+        "review_verdicts": (_grounded_review(),), "verification_basis": "review",
+        "tier_allowed": True,
+    }
+
+
+def test_m2_review_claim_refused_when_a_judge_flagged_the_same_revision():
+    """M2 (T-12 false success): the judge named the ``is``-comparison defect, the review
+    approved the opposite, and the run still claimed green. A review-route claim now
+    additionally requires that no judge consultation on the SAME revision recorded
+    ``implementation_wrong``; the conflict is recorded and the claim refused."""
+    base = _m2_review_base()
+    assert claim_decision(**base).claimed is True
+    blocked = claim_decision(
+        **base, judge_implementation_wrong=True,
+        judge_implementation_wrong_detail="can_publish uses identity comparison (is)")
+    assert blocked.claimed is False
+    assert blocked.blocker == "judge-implementation-wrong"
+    assert "implementation_wrong" in blocked.disagreement
+    assert "identity comparison" in blocked.disagreement
+
+
+def test_m2_review_claim_refused_on_a_non_discriminating_independent_verdict():
+    """M2 (T-12, seq695 ``independent-test-not-red``): a non-discriminating independent
+    verdict cannot corroborate an approving review, so the review-route claim is refused
+    and the state is recorded in the disagreement."""
+    base = _m2_review_base()
+    blocked = claim_decision(
+        **base, iv_non_discriminating=True,
+        iv_non_discriminating_detail="independent-test-not-red: it PASSED on the pre-run source")
+    assert blocked.claimed is False
+    assert blocked.blocker == "independent-test-non-discriminating"
+    assert "NON-DISCRIMINATING" in blocked.disagreement
+    assert "pre-run source" in blocked.disagreement
+
+
+def test_m2_a_clean_review_claim_still_grants():
+    """M2 must not weaken the honest review route: with no judge conflict and no
+    non-discriminating independent verdict the review still carries the claim."""
+    assert claim_decision(**_m2_review_base()).claimed is True
+
+
+def test_m3_unparseable_source_is_found_and_the_test_path_is_ignored(tmp_path):
+    """M3: the deterministic compile check answers on the produced SOURCE; a broken test
+    path (grader-owned) is not part of it."""
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "calc.py").write_text("def result(:\n    return 42\n")
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_x.py").write_text("def test_(")
+    path, detail = _unparseable_source(tmp_path)
+    assert path == "pkg/calc.py"
+    assert detail.startswith("pkg/calc.py:")
+
+
+def test_m3_parseable_source_is_clean(tmp_path):
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "calc.py").write_text("def result():\n    return 42\n")
+    assert _unparseable_source(tmp_path) == ("", "")
+
+
+def test_m3_unparseable_delivery_is_recorded_and_blocks_the_claim(tmp_path):
+    """M3 (T-13 pass 2): a delivered module that does not compile blocks the claim
+    (``source_unparseable``) and drives another iteration; only the later parseable
+    revision may claim."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    broken = impl("def result(:\n    return 42\n")
+    model = FakeModelRunner({"write_test": [SELF_TEST, broken, impl()]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 0, 0]))
+    assert "source_unparseable" in ledger_kinds()
+    assert out.claimed is True
+    # the delivered (claimed) revision is parseable, so the run-level record is clean at
+    # delivery while the earlier block is still visible in the ledger
+    assert out.source_unparseable == ""
+
+
+def test_m4_gate_blocks_only_on_an_observed_real_failure():
+    """M4: only an observed report with a real test FAILURE may block a claim; an
+    errors/collection-only red and an unobserved report do not."""
+    real = GateReport(report_path="(scripted)", process_exit=1, canary="c",
+                      expected_files=(), n_tests=3, n_failed=2, n_errors=1, passed_ids=(),
+                      failed_ids=("t.py::a", "t.py::b"), missing=(), observed=True,
+                      anomaly="tests-failed", detail="2 failure(s), 1 error(s)")
+    errors_only = dataclasses.replace(real, n_failed=0, n_errors=3,
+                                      detail="0 failure(s), 3 error(s)")
+    unobserved = dataclasses.replace(real, observed=False, anomaly="no-tests",
+                                     n_failed=0, n_errors=0, failed_ids=())
+    assert _gate_blocks_as_red(real) is True
+    assert _gate_blocks_as_red(errors_only) is False
+    assert _gate_blocks_as_red(unobserved) is False
+    assert _gate_blocks_as_red(scripted_gate()) is False
+
+
+def test_m4_a_false_own_red_does_not_block_a_non_review_claim():
+    """M4 (the false-red class): the run's own red blocks only when it is real evidence.
+    A non-evidence own red with a passing independent test must NOT become a
+    verifier-conflict; the independent route still claims."""
+    base = {
+        "route": "independent-test", "criteria_count": 1, "ledger": _gate_ledger(),
+        "own_test": "tests/t.py", "own_test_green": False, "test_rewrites": 0,
+        "iv_approved": True, "iv_red_on_final": False, "review_approved": False,
+        "review_verdicts": (), "coverage_missing": (), "test_case_problems": (),
+        "verification_basis": "reason", "tier_allowed": True,
+        "conflict_detail": "own red vs iv green",
+    }
+    conflict = claim_decision(**base, own_test_red_is_evidence=True)
+    assert conflict.claimed is False and conflict.conflict is True
+    defused = claim_decision(**base, own_test_red_is_evidence=False)
+    assert defused.claimed is True and defused.basis == "independent-test"
+
+
+def test_m4_an_honest_own_red_still_blocks():
+    """M4 does not weaken the honest block: an observed, discriminating real failure
+    still refuses the claim."""
+    blocked = claim_decision(
+        route="own-test", criteria_count=1, ledger=_gate_ledger(),
+        own_test="tests/t.py", own_test_green=False, test_rewrites=0,
+        iv_approved=False, iv_red_on_final=False, review_approved=False,
+        review_verdicts=(), coverage_missing=(), test_case_problems=(),
+        verification_basis="test", tier_allowed=True, own_test_red_is_evidence=True)
+    assert blocked.claimed is False and blocked.blocker == "own-test-red"
+
+
+def test_m2_review_claim_blocked_end_to_end_on_the_t12_shape(tmp_path):
+    """M2 end-to-end (the T-12 false success): the run cannot make its own test red, so
+    it enters REVIEW mode; the judge records ``implementation_wrong`` on the delivered
+    revision, the review approves, and the independent verdict is NON-DISCRIMINATING.
+    The review-route claim must be REFUSED (recorded in ``verification_disagreement`` and
+    the ``review_agreement_blocked`` event) instead of claiming green."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    # self-test green on arrival, re-ask green -> review mode; then a written revision.
+    model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT] + [impl()] * 12})
+    out = run_leaf_sync(
+        model, spec, tmp_path, Budget(calls=30, deadline_ts=_FAR_FUTURE),
+        judge=lambda request: JudgeVerdict(
+            attribution="implementation",
+            defect="the result function compares by identity instead of by value"),
+        review=_approving_review,
+        iv=lambda request: iv_candidate(),
+        # self-test green, re-ask green, attempt red (judge), then every IV original gate
+        # is GREEN (independent-test-not-red -> non-discriminating)
+        run_tests=ScriptedTests([0, 0, 1] + [0] * 40))
+
+    assert out.claimed is False
+    assert "review_agreement_blocked" in ledger_kinds()
+    assert "NON-DISCRIMINATING" in out.verification_disagreement
+    assert "implementation_wrong" in out.verification_disagreement
+    # the review itself was well-formed and approved; the block is the agreement rule
+    assert any(v.approved for v in out.review_verdicts)

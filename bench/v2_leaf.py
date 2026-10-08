@@ -474,6 +474,13 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         # names the repository-documented call-form names a class swallowed (the T-28
         # false success); it is a HARD claim block.
         "documented_api_missing": outcome.documented_api_missing,
+        # M3 (P4a): the delivered revision's first produced .py that does not compile
+        # ("" when all parse). A non-empty value is a hard claim/stop-as-success block.
+        "source_unparseable": outcome.source_unparseable,
+        # M1 (P4a): how many judge verdicts were recorded judge_incoherent (the cited
+        # label disagreed with the judge's own reason); such a verdict is uncredited and
+        # the failure stays on the implementation path.
+        "judge_incoherent": outcome.judge_incoherent,
         "needs_parent": outcome.needs_parent,
         "calls": outcome.calls,
         "wall_s": outcome.wall_s,

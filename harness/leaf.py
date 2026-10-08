@@ -491,11 +491,25 @@ def own_test_fail(own_test: str | None, gate: GateReport | None) -> bool:
     FLOW §4.1 (P1c): ``fail`` is a declared test that RAN and is RED. A missing,
     anomalous, or unobserved report (a collection/import error, a transport fault) is
     UNCERTAIN, never a fail --- only a real observed red ends the How as FAIL and closes
-    the review seam.
+    the review seam. M4 (P4a): a report whose red is only errors/collection failures is
+    likewise not a confirmed FAIL --- the false-red class the measurement isolated.
     """
     if own_test is None or gate is None:
         return False
-    return bool(gate.observed and not gate.green)
+    return _gate_blocks_as_red(gate)
+
+
+def _gate_blocks_as_red(gate: GateReport | None) -> bool:
+    """M4: True only for an OBSERVED red backed by a real test FAILURE.
+
+    A red is a trustworthy BLOCKER only when a report was actually produced and at least
+    one testcase FAILED (``n_failed`` > 0). An unobserved report (a transport fault, a
+    missing/anomalous report) and a report whose red is only errors/collection failures
+    (``n_failed`` == 0) do NOT block a claim --- the false-red source the P4a measurement
+    isolated (T-14's independent gate reported "0 failure(s), 3 error(s)"). A genuinely
+    red, observed test failure still blocks.
+    """
+    return bool(gate is not None and gate.observed and not gate.green and gate.n_failed > 0)
 
 
 def best_of_how_states(states: Sequence[str]) -> str:
@@ -1425,6 +1439,16 @@ class LeafOutcome:
     #: OWN documentation documents a call-form name the delivered module exposes ONLY as a
     #: class method, nowhere module level). A non-empty list is a HARD claim block.
     documented_api_missing: list[str] = field(default_factory=list)
+    #: M3 (P4a): the delivered revision's first produced ``.py`` that does not COMPILE
+    #: (``ast.parse``), recorded as ``path:line:col: msg`` — or "". A non-empty value is a
+    #: HARD claim/stop-as-success block: the run keeps iterating instead of delivering a
+    #: module that cannot be parsed.
+    source_unparseable: str = ""
+    #: M1 (P4a): how many judge verdicts were recorded as ``judge_incoherent`` — the
+    #: credited label disagreed with the judge's own reason (a ``test_wrong`` naming the
+    #: source, or an ``implementation_wrong`` naming only a test/assertion). Such a verdict
+    #: is UNCREDITED and the failure stays on the implementation path.
+    judge_incoherent: int = 0
     # Ticket 20: the explicit verification record EVERY node that wrote code carries, with
     # an ORDERED strength tier (test > review > none+reason), the plan's declaration, and
     # any recorded best-effort downgrade. ``None`` when the node wrote no code.
@@ -1813,6 +1837,11 @@ def claim_decision(
     own_test_advisory: bool = False,
     integration_passed: bool = False,
     all_children_closed: bool = False,
+    own_test_red_is_evidence: bool = True,
+    judge_implementation_wrong: bool = False,
+    judge_implementation_wrong_detail: str = "",
+    iv_non_discriminating: bool = False,
+    iv_non_discriminating_detail: str = "",
 ) -> ClaimDecision:
     """THE single claim gate (ticket 21 round 6): the only place a claim is granted.
 
@@ -1855,6 +1884,21 @@ def claim_decision(
     8. a red-on-final independent verdict never carries a NON-review claim (an own-test
        claim with a green unrewritten own test is unaffected — the independent red is a
        label there; on the review route rule 4 now also blocks it).
+
+    P4a adds the false-success and false-red guards:
+
+    * **M2 (review-route agreement):** a review-route claim additionally requires that no
+      judge consultation on the SAME revision recorded ``implementation_wrong``
+      (``judge_implementation_wrong``) and that no independent verdict is in the
+      NON-DISCRIMINATING state (``iv_non_discriminating`` — the ``_IV_REPAIRABLE`` test
+      defects: passed on the pristine source, unobserved, no/shared node per criterion).
+      The conflict is recorded in ``disagreement`` and the claim is refused (the T-12
+      false success: the judge named the ``is``-comparison defect, the review approved,
+      the IV was ``independent-test-not-red``, and the run still claimed green).
+    * **M4 (a false red does not block):** the run's own final red blocks only when
+      ``own_test_red_is_evidence`` (observed + discriminating + a real test failure, not
+      only errors/collection failures); ``iv_red_on_final`` is already M4-filtered by the
+      caller. A genuinely red, observed, discriminating check still blocks.
 
     plus the declared-case result (a declared case the own/independent route cannot carry
     blocks those routes) and the verification covenant (``tier_allowed``, resolved by the
@@ -1934,6 +1978,22 @@ def claim_decision(
             elif own_test is not None and own_test_green and not review_approved:
                 disagreement = ("the run's own test is GREEN on the final revision while "
                                 "the graded review rejected it")
+        # M2: the review route additionally needs AGREEMENT from the independent evidence.
+        # A judge that recorded implementation_wrong on the SAME revision contradicts the
+        # approving review; a non-discriminating independent verdict (it passed on the
+        # pristine source / could not be observed / did not cover a criterion) cannot
+        # corroborate it. Both are recorded and block the claim (the T-12 false success).
+        if judge_implementation_wrong and review_approved:
+            extra = ("an independent attribution judge recorded implementation_wrong on "
+                     "the SAME revision the graded review approved"
+                     + (f" ({judge_implementation_wrong_detail})"
+                        if judge_implementation_wrong_detail else ""))
+            disagreement = f"{disagreement}; {extra}" if disagreement else extra
+        if iv_non_discriminating:
+            extra = ("the independent verification is in a NON-DISCRIMINATING state"
+                     + (f" ({iv_non_discriminating_detail})"
+                        if iv_non_discriminating_detail else ""))
+            disagreement = f"{disagreement}; {extra}" if disagreement else extra
         if iv_red_on_final and review_approved:
             extra = ("the graded review APPROVED the final revision while the independent "
                      "per-criterion verification REJECTED the same revision "
@@ -1948,6 +2008,15 @@ def claim_decision(
         if iv_red_on_final:
             return _blocked_claim("independent-test-red-on-final",
                                   detail=iv_red_detail, disagreement=disagreement)
+        # M2: the two review-route agreement blockers (recorded in the disagreement above).
+        if judge_implementation_wrong:
+            return _blocked_claim("judge-implementation-wrong",
+                                  detail=judge_implementation_wrong_detail,
+                                  disagreement=disagreement)
+        if iv_non_discriminating:
+            return _blocked_claim("independent-test-non-discriminating",
+                                  detail=iv_non_discriminating_detail,
+                                  disagreement=disagreement)
         # rule 6: absent means NEVER written; a rewritten-and-removed test is not absent.
         # Ticket 22 item 2: after a recorded PLAN UPDATE (test -> review) the test was
         # deliberately GIVEN UP, so the review is the plan's verification and the old
@@ -1971,7 +2040,10 @@ def claim_decision(
         return _granted_claim(basis, disagreement=disagreement, basis_risk=risk)
 
     # ---- rule 5: the FINAL-revision own-test agreement on the non-review routes
-    if own_test_red:
+    # M4: a RED own test only blocks when it is real EVIDENCE (observed + discriminating +
+    # a genuine failure). A red that is only errors/collection failures, or a
+    # non-discriminating test, is RECORDED and does not block a claim.
+    if own_test_red and own_test_red_is_evidence:
         # Two weak TESTS disagreeing with NO review to outrank them is a CONFLICT.
         if iv_approved:
             return _conflict_claim(conflict_detail)
@@ -2982,6 +3054,35 @@ def _delivery_is_unchanged(spec: LeafSpec, workdir: Path) -> bool:
     return _delivered_source_view(workdir) == _pristine_source_view(spec)
 
 
+def _unparseable_source(workdir: Path) -> tuple[str, str]:
+    """M3: the first produced ``.py`` that does not COMPILE (``ast.parse``).
+
+    Returns ``(path, detail)`` naming the syntax error, or ``("", "")`` when every
+    produced non-test Python file parses. Deterministic, side-effect free: never refuses
+    a write, only blocks the claim (recorded ``source_unparseable``).
+    """
+    for rel, text in sorted(_delivered_source_view(workdir).items()):
+        if not rel.endswith(".py"):
+            continue
+        try:
+            ast.parse(text, filename=rel)
+        except SyntaxError as exc:
+            return rel, f"{rel}:{exc.lineno}:{exc.offset}: {exc.msg}"
+    return "", ""
+
+
+def _source_revision_fingerprint(workdir: Path) -> str:
+    """M2: a deterministic hash of the SOURCE revision currently on disk.
+
+    The non-test deliverable files (the blind source view), so a TEST repair never
+    changes it. Two judge/review/IV verdicts are about the SAME revision when their
+    fingerprints match; a judge's ``implementation_wrong`` may only block a review-backed
+    claim on the SAME revision the review approved.
+    """
+    files = _delivered_source_view(workdir)
+    return _sha("\0".join(f"{rel}\0{files[rel]}" for rel in sorted(files)))
+
+
 def _inline_bindings(node: ast.AST, bind: Mapping[str, ast.AST],
                      depth: int = 0) -> ast.AST:
     """A copy of ``node`` with local names in ``bind`` replaced by their assigned value.
@@ -3349,6 +3450,71 @@ def _defect_names_the_test(defect: str, request: JudgeRequest) -> bool:
     return any(anchor in normalized for anchor in _test_anchors(request))
 
 
+def _names_a_test_function(text: str, request: JudgeRequest) -> bool:
+    """M1: the text names one of the run's own test FUNCTIONS by name.
+
+    Distinct from :func:`_defect_names_the_test`, whose anchor set also admits loose
+    string literals (T-05's judge reason matched the bare word ``tags`` inside an
+    assertion) so a reason naming only the SOURCE could still pass it.
+    """
+    normalized = _norm(text)
+    return any(_norm(name) in normalized
+               for name in _TEST_FN.findall(request.test_content or ""))
+
+
+def _source_symbol_names(files: Mapping[str, str]) -> set[str]:
+    """M1: the function/class/module-level names the judge's SOURCE view defines."""
+    names: set[str] = set()
+    for text in files.values():
+        for match in re.finditer(r"\b(?:async\s+def|def|class)\s+([A-Za-z_][A-Za-z0-9_]*)",
+                                 text or ""):
+            names.add(match.group(1))
+        names |= module_level_names(text or "")
+    return {name for name in names if len(name) >= 4}
+
+
+def _reason_names_source(text: str, request: JudgeRequest) -> bool:
+    """M1: the text names a source FILE or a symbol the source files define.
+
+    Boundary-aware so a coincidental substring never counts; a name shorter than four
+    characters is ignored (``tags``/``get`` would make almost any sentence match).
+    """
+    normalized = _norm(text)
+    if not normalized:
+        return False
+    for rel in request.files:
+        stem = rel.rsplit("/", 1)[-1]
+        if stem.endswith(".py"):
+            stem = stem[:-3]
+        if len(stem) >= 4 and _word_present(stem, normalized):
+            return True
+    return any(_word_present(symbol, normalized)
+               for symbol in _source_symbol_names(request.files))
+
+
+def _judge_incoherence(verdict: JudgeVerdict, request: JudgeRequest) -> str:
+    """M1: the cited label DISAGREES with the reason; "" when it is coherent.
+
+    Two inversions (the T-05/seq294 shape and its mirror): a credited ``test_wrong``
+    whose reason names the SOURCE (a file/symbol) and not the failing test FUNCTION has
+    described the implementation, so the label is not credited; a credited
+    ``implementation_wrong`` whose reason names only a test/assertion and no source is
+    likewise incoherent. Returns the ``judge_incoherent: ...`` record text.
+    """
+    text = (verdict.defect or verdict.reason or "").strip()
+    if not text:
+        return ""
+    names_source = _reason_names_source(text, request)
+    if verdict.test_wrong and names_source and not _names_a_test_function(text, request):
+        return ("judge_incoherent: test_wrong whose reason names the source, not the "
+                f"failing test: {text[:200]}")
+    if (verdict.implementation_wrong and not names_source
+            and _defect_names_the_test(text, request)):
+        return ("judge_incoherent: implementation_wrong whose reason names only a "
+                f"test/assertion: {text[:200]}")
+    return ""
+
+
 def apply_judge_filter(verdict: JudgeVerdict, request: JudgeRequest) -> JudgeVerdict:
     """The DETERMINISTIC FILTER — never trust the model's word alone (ticket 19 A).
 
@@ -3373,6 +3539,16 @@ def apply_judge_filter(verdict: JudgeVerdict, request: JudgeRequest) -> JudgeVer
         updates.update(test_wrong=False, coerced=True,
                        coercion_reason=("test_wrong without a defect naming the failing "
                                         "test or one of its assertions (deterministic filter)"))
+    else:
+        # M1: a label that PASSED the anchor filter may still contradict its own reason.
+        # The anchor set admits loose string literals, so T-05's target "the add_tag
+        # function mutates the shared tags list ..." was credited as test_wrong while it
+        # actually named the SOURCE. Uncredit the incoherent verdict, keep the failure on
+        # the implementation path, and record judge_incoherent (never let a contradicting
+        # verdict drive the test-repair/drop path).
+        incoherent = _judge_incoherence(verdict, request)
+        if incoherent:
+            updates.update(test_wrong=False, coerced=True, coercion_reason=incoherent)
     if updates:
         merged = verdict.model_copy(update=updates)
         remaining = judge_labels(merged)
@@ -5059,6 +5235,15 @@ async def run_leaf(
     wasted_escalations: list[Escalation] = []
     test_rewrites = 0
     judge_verdicts: list[JudgeVerdict] = []
+    #: M1 (P4a): count of verdicts recorded as ``judge_incoherent`` (label vs reason).
+    judge_incoherent = 0
+    #: M2 (P4a): the SOURCE-revision fingerprint of the last judge consultation that
+    #: recorded ``implementation_wrong``, and its defect text. A review-route claim is
+    #: refused when the fingerprint matches the delivered revision.
+    judge_impl_wrong_revision: str | None = None
+    judge_impl_wrong_detail = ""
+    #: M3 (P4a): the first produced ``.py`` that does not compile ("" when all parse).
+    source_unparseable = ""
     iv_verdicts: list[IndependentTestVerdict] = []
     last_iv_reason = ""
     iv_attempts = 0
@@ -5790,6 +5975,7 @@ async def run_leaf(
         """
         nonlocal test_rewrites, self_test, last_excerpts, verification_basis, review_reason
         nonlocal own_test_discriminating, own_test_symptom_ids
+        nonlocal judge_incoherent, judge_impl_wrong_revision, judge_impl_wrong_detail
         judge_verdicts.append(verdict)
         emit("judge_verdict", implementation_wrong=verdict.implementation_wrong,
              test_wrong=verdict.test_wrong, spec_wrong=verdict.spec_wrong,
@@ -5798,6 +5984,18 @@ async def run_leaf(
              evidence=verdict.evidence, coerced=verdict.coerced, raw=verdict.raw)
         if verdict.coerced:
             emit("judge_coerced", reason=verdict.coercion_reason)
+        if verdict.coercion_reason.startswith("judge_incoherent"):
+            # M1 (P4a): the credited label disagreed with the judge's own reason. The
+            # verdict is UNCREDITED and the failure stays on the implementation path.
+            judge_incoherent += 1
+            emit("judge_incoherent", reason=verdict.coercion_reason,
+                 attribution=verdict.attribution)
+        if verdict.implementation_wrong:
+            # M2 (P4a): remember WHICH source revision the judge called wrong, so a later
+            # review-backed claim on the SAME revision is refused.
+            judge_impl_wrong_revision = _source_revision_fingerprint(workdir)
+            judge_impl_wrong_detail = (verdict.defect or verdict.reason
+                                       or verdict.evidence)[:200]
         if verdict.spec_wrong:
             attempts.append(Attempt(
                 node_id="leaf", layer="spec", strategy=esc.strategy,
@@ -6192,11 +6390,52 @@ async def run_leaf(
         id PASSED on the pristine pre-run source is an INVERTED test (it asserts the
         pre-fix behaviour) — evidence the TEST is wrong, not the fix — so it does NOT
         block; the inversion is recorded separately by :func:`iv_all_inverted` and the
-        run record.
+        run record. M4 (P4a): only an OBSERVED red backed by a real test FAILURE blocks;
+        an unobserved report or an errors/collection-only red (T-14's "0 failure(s),
+        3 error(s)") is recorded and does not block.
         """
         last = iv_verdicts[-1] if iv_verdicts else None
-        return bool(last is not None and last.reason == "independent-test-red-on-final"
-                    and not iv_all_inverted(last))
+        if last is None or last.reason != "independent-test-red-on-final":
+            return False
+        if not _gate_blocks_as_red(last.final_gate):
+            return False
+        return not iv_all_inverted(last)
+
+    def iv_non_discriminating() -> bool:
+        """M2 (P4a): the last independent verdict is in the NON-DISCRIMINATING state.
+
+        The state is exactly the ``_IV_REPAIRABLE`` test-defect set — the test passed on
+        the pristine source (``independent-test-not-red``), could not be observed, has no
+        node for a criterion, or reused/shared one. It cannot corroborate a review-backed
+        claim. An approval, a genuine red, and an inverted red are NOT non-discriminating.
+        """
+        last = iv_verdicts[-1] if iv_verdicts else None
+        return bool(last is not None and not last.approved
+                    and last.reason in _IV_REPAIRABLE)
+
+    def iv_non_discriminating_detail() -> str:
+        """M2: the evidence text of the last non-discriminating independent verdict."""
+        last = iv_verdicts[-1] if iv_verdicts else None
+        if last is None or last.approved or last.reason not in _IV_REPAIRABLE:
+            return ""
+        return f"{last.reason}: {last.detail}" if last.reason else last.detail
+
+    def judge_impl_wrong_on_revision() -> bool:
+        """M2 (P4a): a judge consultation recorded ``implementation_wrong`` on the SAME
+        source revision currently on disk. A stale verdict from an earlier revision does
+        NOT count (the loop may have fixed the defect since)."""
+        return (judge_impl_wrong_revision is not None
+                and judge_impl_wrong_revision == _source_revision_fingerprint(workdir))
+
+    def own_test_red_is_blocking() -> bool:
+        """M4 (P4a): the run's own RED on the final revision is real evidence.
+
+        It blocks only when it is observed AND discriminating (at least one own-test case
+        failed on the pristine source) AND backed by a real test FAILURE (``n_failed`` >
+        0), never an errors/collection-only report."""
+        if self_test is None or not own_test_discriminating:
+            return False
+        return _gate_blocks_as_red(last_gate)
 
     def iv_red_detail() -> str:
         """The evidence text of the LAST red-on-final independent verdict (or "").
@@ -6296,6 +6535,16 @@ async def run_leaf(
             stop("honest-failure", "independent-test-red-on-final",
                  "independent-test-red-on-final")
             return False
+        if decision.blocker in ("judge-implementation-wrong",
+                                "independent-test-non-discriminating"):
+            # M2 (P4a): the review-route claim was refused because an independent judge
+            # named the SAME revision wrong, or the independent verification could not
+            # discriminate. The disagreement is already recorded above; return False so a
+            # caller on the main path RE-ITERATES instead of claiming (the exhaustion
+            # caller simply ends unclaimed). Never a stop here, so the loop keeps working.
+            emit("review_agreement_blocked", blocker=decision.blocker,
+                 detail=decision.detail, disagreement=decision.disagreement)
+            return False
         if decision.blocker == "verification-required":
             emit("verification_claim_blocked", tier=verification_tier,
                  required=_required_tier(), reason=verification_reason_problem_text)
@@ -6333,11 +6582,20 @@ async def run_leaf(
         nonlocal coverage_unresolved, last_iv_reason, iv_repairs, review_approved
         nonlocal own_test_conflict, own_test_conflict_reason
         nonlocal node_exhausted, request_coverage, request_coverage_missing
+        nonlocal source_unparseable
         if claimed or (iv is None and review is None):
             return
         # Fix B: no claim with zero criteria on ANY path (mirror the normal claim gate).
         if not spec.acs:
             emit("no_acceptance_criteria_claim_blocked")
+            return
+        # M3 (P4a): the delivered source must COMPILE. A produced ``.py`` that does not
+        # parse blocks the claim (recorded ``source_unparseable``) so the run keeps
+        # iterating instead of stopping as a success on an unusable module.
+        unparseable_rel, unparseable_detail = _unparseable_source(workdir)
+        source_unparseable = unparseable_detail
+        if unparseable_rel:
+            emit("source_unparseable", path=unparseable_rel, detail=unparseable_detail)
             return
         # Fix 3: coverage is a HARD block before any exhaustion claim. Ticket 23 round 3
         # adds the REQUEST-LEVEL artifacts on the SAME hard block (the T-31 fix).
@@ -6436,7 +6694,8 @@ async def run_leaf(
                         test_case_problems=test_case_problems,
                         verification_basis=verification_basis,
                         conflict_detail=verifier_conflict_reason(), tier_allowed=allowed,
-                        own_test_advisory=own_test_advisory)
+                        own_test_advisory=own_test_advisory,
+                        own_test_red_is_evidence=own_test_red_is_blocking())
                     if apply_claim(decision, tier="test"):
                         emit("leaf_green_at_exhaustion", basis=decision.basis)
                     return
@@ -6473,7 +6732,12 @@ async def run_leaf(
                         test_case_problems=test_case_problems,
                         verification_basis=verification_basis,
                         conflict_detail=review_conflict_reason(), tier_allowed=allowed,
-                        plan_updated=plan_updated, own_test_advisory=own_test_advisory)
+                        plan_updated=plan_updated, own_test_advisory=own_test_advisory,
+                        own_test_red_is_evidence=own_test_red_is_blocking(),
+                        judge_implementation_wrong=judge_impl_wrong_on_revision(),
+                        judge_implementation_wrong_detail=judge_impl_wrong_detail,
+                        iv_non_discriminating=iv_non_discriminating(),
+                        iv_non_discriminating_detail=iv_non_discriminating_detail())
                     if apply_claim(decision, tier="review"):
                         emit("leaf_green_at_exhaustion", basis=decision.basis)
 
@@ -6800,6 +7064,8 @@ async def run_leaf(
             own_test_discriminating=list(own_test_discriminating),
             own_test_symptom_ids=list(own_test_symptom_ids),
             documented_api_missing=list(doc_api_missing),
+            source_unparseable=source_unparseable,
+            judge_incoherent=judge_incoherent,
             malformed_steps=list(malformed_steps),
             judge_unavailable=judge_unavailable,
             needs_user=needs_user,
@@ -7457,6 +7723,20 @@ async def run_leaf(
         else:
             candidate.verdict = prefilter(attempts, candidate)
 
+        # M3 (P4a): the delivered source must COMPILE. A produced ``.py`` that does not
+        # parse (``ast.parse``) is recorded (``source_unparseable``), forces the candidate
+        # to FAIL, and drives another iteration — the write is never refused, but the
+        # claim/stop-as-success path is blocked. A genuinely red test would likely have
+        # caught it, but a newly-created module the test never imports would not.
+        unparseable_rel, unparseable_detail = _unparseable_source(workdir)
+        source_unparseable = unparseable_detail
+        if unparseable_rel:
+            emit("source_unparseable", path=unparseable_rel, detail=unparseable_detail)
+            if candidate.outcome == "pass":
+                candidate.outcome = "fail"
+                candidate.verdict = prefilter(attempts, candidate)
+                last_excerpts = [f"the delivered source does not compile: {unparseable_detail}"]
+
         if candidate.outcome == "pass":
             if verification_basis == "test" and _is_green(res):
                 # Ticket 23 item 1 / round 2: the run's own discriminating test green.
@@ -7797,7 +8077,12 @@ async def run_leaf(
                 test_case_problems=test_case_problems,
                 verification_basis=verification_basis,
                 conflict_detail=claim_conflict_detail(), tier_allowed=allowed,
-                plan_updated=plan_updated, own_test_advisory=own_test_advisory)
+                plan_updated=plan_updated, own_test_advisory=own_test_advisory,
+                own_test_red_is_evidence=own_test_red_is_blocking(),
+                judge_implementation_wrong=judge_impl_wrong_on_revision(),
+                judge_implementation_wrong_detail=judge_impl_wrong_detail,
+                iv_non_discriminating=iv_non_discriminating(),
+                iv_non_discriminating_detail=iv_non_discriminating_detail())
             if apply_claim(decision, tier=tier):
                 if tier == "none":
                     emit("leaf_unverified_claim", tier=tier, required=_required_tier(),
@@ -7805,16 +8090,28 @@ async def run_leaf(
                 else:
                     emit("leaf_green", strategy=esc.strategy, after_test_rewrite=False)
                 break
-            if decision.blocker == "regression":
+            if decision.blocker in ("regression", "judge-implementation-wrong",
+                                    "independent-test-non-discriminating"):
                 # A regression blocks the claim (above) and DRIVES ANOTHER ITERATION:
                 # record the failed candidate and let the loop rework with the failing ids
-                # as context (FLOW §6.2 item 6).
+                # as context (FLOW §6.2 item 6). M2 (P4a) adds the review-route agreement
+                # blockers to the same re-iteration path: the run keeps working instead of
+                # claiming a revision a judge or a non-discriminating verifier disputes.
                 candidate.outcome = "fail"
                 candidate.verdict = prefilter(attempts, candidate)
                 attempts.append(candidate)
-                last_excerpts = [
-                    f"REGRESSION against the visible suite: {decision.detail}",
-                    *list(regression.output)]
+                if decision.blocker == "regression":
+                    last_excerpts = [
+                        f"REGRESSION against the visible suite: {decision.detail}",
+                        *list(regression.output)]
+                elif decision.blocker == "judge-implementation-wrong":
+                    last_excerpts = [
+                        "the independent judge recorded implementation_wrong on this "
+                        f"revision: {judge_impl_wrong_detail}"]
+                else:
+                    last_excerpts = [
+                        "the independent verification is NON-DISCRIMINATING: "
+                        f"{iv_non_discriminating_detail()}"]
                 route_failed_candidate()
                 emit("attempt_recorded", strategy=esc.strategy, layer=esc.layer,
                      verdict=candidate.verdict, signature=signature)
