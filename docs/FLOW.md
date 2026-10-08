@@ -17,8 +17,8 @@ user text
  └─(A) triage: ONE step → one or more ISSUES (each issue = a root node)
      └─(B) per node: ONE recursive step
            · explores the repository freely (read), then
-           · emits ONE structure (§2): description, ONE reason, the four lists,
-             and the ordered approaches (each declaring whether it splits and into what)
+           · emits ONE structure (§2): what + reason, and the ordered Hows, each How
+             carrying what + reason + the four lists + its children
            └─(C) children recurse (B); siblings are independent
                  └─(D) work unit: implement ∥ author tests → run → review
                        └─(E) verdict: requirement satisfied AND no regression
