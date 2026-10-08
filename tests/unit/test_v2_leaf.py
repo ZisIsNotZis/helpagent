@@ -326,6 +326,46 @@ def test_red_self_test_is_kept_as_the_target(tmp_path):
     assert "self_test_written" in ledger_kinds()
 
 
+def test_self_test_prompt_forbids_asserting_the_reported_symptom(tmp_path):
+    """P3a/FIX 1 (T-01): the goal/acceptance lines may DESCRIBE the current broken
+    behaviour, so the self-test prompt must tell the model to assert the DESIRED end
+    state — the reported symptom is not the requirement. The rule rides BOTH the
+    artifacts and the question, survives the green-on-arrival re-ask, and does not remove
+    any existing artifact."""
+    from harness.leaf import (
+        _RETRY_SELF_TEST_QUESTION,
+        _SELF_TEST_DESIRED_STATE_RULE,
+        _SELF_TEST_QUESTION,
+        _retry_self_test_artifacts,
+        _self_test_artifacts,
+    )
+
+    spec = make_spec()
+    arts = _self_test_artifacts(spec)
+    assert arts["test_target_rule"] == _SELF_TEST_DESIRED_STATE_RULE
+    # the existing artifacts are not removed
+    assert {"goal", "acceptance_criteria", "interfaces", "repo_files"} <= set(arts)
+    # the rule states both halves: the lines may describe the broken behaviour, and the
+    # test must assert the DESIRED end state (never the reported symptom)
+    assert "DESCRIBE THE CURRENT BROKEN" in _SELF_TEST_DESIRED_STATE_RULE
+    assert "DESIRED end state" in _SELF_TEST_DESIRED_STATE_RULE
+    assert "never the reported symptom" in _SELF_TEST_DESIRED_STATE_RULE
+    assert _SELF_TEST_DESIRED_STATE_RULE in _SELF_TEST_QUESTION
+    assert _SELF_TEST_DESIRED_STATE_RULE in _RETRY_SELF_TEST_QUESTION
+    retry = _retry_self_test_artifacts(spec, "tests/test_leaf_self.py",
+                                       "def test_goal():\n    assert True\n")
+    assert retry["test_target_rule"] == _SELF_TEST_DESIRED_STATE_RULE
+    assert "previous_test_content" in retry
+    # the rule actually reaches the model call (not merely the helper's return value)
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl("def result():\n    return 1\n")]})
+    run_leaf_sync(model, spec, tmp_path, Budget(calls=2, deadline_ts=_FAR_FUTURE),
+                  run_tests=ScriptedTests([1]))
+    call = model.calls("write_test")[0]
+    assert call.artifacts["test_target_rule"] == _SELF_TEST_DESIRED_STATE_RULE
+    assert _SELF_TEST_DESIRED_STATE_RULE in call.question
+
+
 def test_green_on_arrival_reasks_once_then_stops_no_red_target(tmp_path):
     """A test that passes on arrival does not exercise the failure: re-ask ONCE, and
     if the replacement is green too, stop honestly — never claim a green from it."""
@@ -2730,7 +2770,7 @@ def test_off_plan_write_lands_is_recorded_and_restores_before_grading(tmp_path):
     baseline: dict[str, str | None] = {}
     deviations: list[WriteDeviation] = []
 
-    wrote, rel, reason, shape = _write_one(
+    wrote, rel, reason, shape, _noop = _write_one(
         "frozen/keep.py", "KEEP = 2\n", spec, tmp_path, None, baseline, deviations)
 
     assert wrote and rel == "frozen/keep.py" and not shape
@@ -2745,9 +2785,59 @@ def test_off_plan_write_lands_is_recorded_and_restores_before_grading(tmp_path):
 
     # PROBE (c): the mechanical shape refusal still refuses — a directory at the target.
     (tmp_path / "adir").mkdir()
-    wrote2, _rel2, _reason2, shape2 = _write_one("adir", "X = 1\n", spec, tmp_path,
-                                                 None, {}, [])
+    wrote2, _rel2, _reason2, shape2, _noop2 = _write_one("adir", "X = 1\n", spec, tmp_path,
+                                                       None, {}, [])
     assert not wrote2 and shape2
+
+
+def test_no_op_write_is_flagged_and_gives_the_next_attempt_the_excerpt(tmp_path):
+    """P3a/FIX 3 (T-01): emitting bytes that are already on disk changes nothing. The
+    write still lands (never refused), is recorded as ``noop_write``, flagged on the
+    Attempt, and the next attempt is told plainly that it emitted the bytes already on
+    disk (the failure output it also carries says what the test expects)."""
+    from harness.leaf import _NOOP_WRITE_EXCERPT
+
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    same = impl("def result():\n    return 1\n")
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST,
+        same,                       # attempt 1: a real change (baseline is ``return 0``)
+        same,                       # attempt 2 (M2 keeps the draft): identical bytes on disk
+        impl("def result():\n    return 2\n"),
+    ]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=8, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 1, 1, 1]))
+
+    assert out.attempts[0].noop is False          # attempt 1 changed the revision
+    assert out.attempts[1].noop is True           # attempt 2 re-emitted the same bytes
+    assert out.attempts[1].verdict == "same"      # a no-op is not material progress
+    assert "noop_write" in ledger_kinds()
+    # the NEXT attempt (index 3 in the write queue: self-test, attempt1, attempt2, attempt3)
+    # carries the explicit no-op excerpt, and it lands ABOVE the test failure output
+    next_attempt = model.calls("write_test")[3]
+    failure_output = next_attempt.artifacts["failure_output"]
+    assert _NOOP_WRITE_EXCERPT in failure_output
+    assert failure_output.index(_NOOP_WRITE_EXCERPT) == 0
+
+
+def test_a_real_write_is_not_flagged_as_a_no_op(tmp_path):
+    """P3a/FIX 3: only a byte-identical re-emission is a no-op. A real change carries no
+    flag and none of the no-op telemetry or excerpt."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    model = FakeModelRunner({"write_test": [
+        SELF_TEST,
+        impl("def result():\n    return 1\n"),
+        impl("def result():\n    return 2\n"),
+    ]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=6, deadline_ts=_FAR_FUTURE),
+                        run_tests=ScriptedTests([1, 1, 1]))
+
+    assert out.attempts and all(a.noop is False for a in out.attempts)
+    assert "noop_write" not in ledger_kinds()
+    for call in model.calls("implement_write"):
+        assert "already on disk" not in call.artifacts.get("failure_output", "")
 
 
 def test_declared_boundary_violation_lands_and_is_recorded_not_refused(tmp_path):
@@ -3007,10 +3097,10 @@ def test_judge_verdict_is_multilabel_with_a_dominant_summary():
     assert env.environment_broken is True and env.attribution == "environment"
 
 
-def test_proactive_judge_fires_once_on_the_kth_red_code_changing_attempt(tmp_path):
-    """Ticket 19 A: the judge is consulted when the run's own test REPORTS RED — after K=2
-    consecutive red attempts that materially changed the code — not only when the model
-    volunteers a blame."""
+def test_proactive_judge_fires_on_the_first_red_code_changing_attempt(tmp_path):
+    """Ticket 19 A, tightened P3a/FIX 2: the judge is consulted when the run's own test
+    REPORTS RED on the FIRST red attempt that materially changed the code (K=1) — not only
+    when the model volunteers a blame, and no longer after waiting for K=2 reds."""
     spec = make_spec()
     stage(tmp_path, spec.files)
     model = FakeModelRunner({"write_test": [
@@ -3028,7 +3118,7 @@ def test_proactive_judge_fires_once_on_the_kth_red_code_changing_attempt(tmp_pat
     out = run_leaf_sync(model, spec, tmp_path, Budget(calls=12, deadline_ts=_FAR_FUTURE),
                         judge=judge, run_tests=ScriptedTests([1, 1, 1, 1]))
 
-    assert len(seen) == 1                       # exactly once, at the K-th red
+    assert len(seen) == 1                       # exactly once, on the FIRST red
     request = seen[0]
     # the judge carries the evidence the owner direction names: goal, ACs, the run's own
     # test source, the failing output, and the current diff of the changed files.
@@ -3037,7 +3127,8 @@ def test_proactive_judge_fires_once_on_the_kth_red_code_changing_attempt(tmp_pat
     assert "def test_goal" in request.test_content
     assert request.test_path == "tests/test_leaf_self.py"
     assert "FAILED" in request.failure or "AssertionError" in request.failure
-    assert request.files["pkg/calc.py"] == "def result():\n    return 2\n"
+    # K=1: the judge sees the FIRST changed revision (return 1), not the second.
+    assert request.files["pkg/calc.py"] == "def result():\n    return 1\n"
     assert "judge_triggered" in ledger_kinds()
     assert out.judge_verdicts and out.judge_verdicts[0].implementation_wrong
     assert out.claimed is False
@@ -3410,6 +3501,35 @@ def test_no_red_target_environment_verdict_parks_needs_user(tmp_path):
         run_tests=ScriptedTests([0, 0]))
 
     assert out.stop_reason == "environment" and out.needs_user is True
+
+
+def test_green_on_arrival_judge_test_wrong_rewrites_instead_of_dropping(tmp_path):
+    """P3a/FIX 4: a test that is GREEN on the pristine source is the suspect. When the
+    judge says the TEST is wrong, the existing bounded repair REWRITES it against the
+    desired end state (instead of the test being dropped and the run switching to
+    review). The rewritten test is re-proved RED on arrival and kept as the target."""
+    spec = make_spec()
+    stage(tmp_path, spec.files)
+    repaired = write_env("tests/test_leaf_alt.py",
+                         "def test_goal():\n    assert result() == 42\n")
+    model = FakeModelRunner({"write_test": [SELF_TEST, SELF_TEST_ALT, repaired, impl()]})
+
+    def judge(request: JudgeRequest) -> JudgeVerdict:
+        # the defect names the retry test's failing assertion, so the deterministic filter
+        # credits ``test_wrong`` (a bare blame would be coerced).
+        return JudgeVerdict(test_wrong=True,
+                            defect="test_goal asserts result() == 0, which pins the wrong value",
+                            reason="the test asserts a value the goal does not ask for")
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=10, deadline_ts=_FAR_FUTURE),
+                        judge=judge, run_tests=ScriptedTests([0, 0, 1, 0]))
+
+    assert out.test_rewrites == 1 and out.own_test_mutated is True
+    assert "test_rewritten" in ledger_kinds()
+    # the test was REWRITTEN, not dropped: the green-on-arrival drop path did not run
+    assert out.stop_reason != "no-red-target"
+    assert (tmp_path / "tests/test_leaf_alt.py").read_text() == repaired["content"]
+    assert out.judge_verdicts and out.judge_verdicts[0].test_wrong
 
 
 def test_declared_case_repair_must_still_discriminate(tmp_path):

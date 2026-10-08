@@ -55,10 +55,11 @@ Fixed contract points, each deliberate:
   A test that cannot be produced, afforded, or evaluated no longer blocks a claim
   authorised by the run's own discriminating test; ``claimed_basis`` is ``own-test`` or
   ``own-test+independent-test`` (or ``review`` in review mode).
-- **PROACTIVE MULTI-LABEL ATTRIBUTION (ticket 19 A).** The judge is consulted when the
-  run's own test REPORTS RED — after K=2 consecutive red attempts that materially changed
-  the code, or immediately when the own test cannot be made red on arrival — not only when
-  the model volunteers a blame. Its verdict is MULTI-LABEL
+- **PROACTIVE MULTI-LABEL ATTRIBUTION (ticket 19 A, tightened P3a/FIX 2).** The judge is
+  consulted when the run's own test REPORTS RED — on the FIRST red attempt that materially
+  changed the code (K=1; it used to wait for K=2, which burned a whole ladder against one
+  wrong own test), or immediately when the own test cannot be made red on arrival — not
+  only when the model volunteers a blame. Its verdict is MULTI-LABEL
   (``implementation_wrong``/``test_wrong``/``spec_wrong``/``environment_broken`` + reason +
   evidence), and dominance decides the move: ``spec_wrong`` bubbles to the parent
   (``spec-bubble``), ``environment_broken`` parks the node ``needs-user``
@@ -858,17 +859,29 @@ ENVELOPE_RETRIES = 2
 #: fallback instead of retrying forever.
 JUDGE_RETRIES = 1
 
+#: P3a/FIX 1 (T-01): the goal/acceptance lines can DESCRIBE THE CURRENT BROKEN behaviour
+#: (a bug report), so a self-test that asserts the reported symptom is wrong — it stays
+#: RED after a correct fix and drives the run to revert the fix. One short, deterministic
+#: rule is injected into the self-test artifacts AND its question (a 4B model needs it
+#: stated plainly).
+_SELF_TEST_DESIRED_STATE_RULE = (
+    "Goal/acceptance lines may DESCRIBE THE CURRENT BROKEN behaviour; assert the "
+    "DESIRED end state a correct fix produces, never the reported symptom."
+)
+
 _SELF_TEST_QUESTION = (
     "Write the run's OWN test file that pins the goal. Reply with a NEW file path "
     "(one that does not exist yet) and its complete content. This test is your target: "
     "a failing red run is expected now and the file is KEPT — never deleted. "
-    "Do not name or touch any path outside the injected repository view."
+    "Do not name or touch any path outside the injected repository view. "
+    + _SELF_TEST_DESIRED_STATE_RULE
 )
 
 _RETRY_SELF_TEST_QUESTION = (
     "Your previous test PASSED on arrival (exit 0), so it does not pin the goal — a "
     "valid target must FAIL now. Write a NEW test at a NEW path that fails against the "
-    "current source. Reply with the file path and its complete content."
+    "current source. Reply with the file path and its complete content. "
+    + _SELF_TEST_DESIRED_STATE_RULE
 )
 
 #: Ticket 19 D: the bounded repair for a green run whose test does not expose the DECLARED
@@ -2742,9 +2755,12 @@ def _claims_test_wrong(env: Any) -> bool:
     return any(phrase in comment for phrase in _TEST_BLAME_PHRASES)
 
 
-#: Ticket 19 A: consecutive RED attempts in which the run materially changed the code
-#: before the judge is consulted proactively (owner direction: K=2).
-ATTRIBUTION_RED_K = 2
+#: Ticket 19 A, tightened P3a/FIX 2: consecutive RED attempts in which the run materially
+#: changed the code before the judge is consulted proactively. K=1: the judge is asked on
+#: the FIRST red attempt that materially changed the code (T-01/T-31 burned their whole
+#: ladders against one wrong own test; one judge call at the first red would have stopped
+#: them). The credited ``test_wrong`` path still repairs the test and re-proves it.
+ATTRIBUTION_RED_K = 1
 
 
 def _file_materially_changed(workdir: Path, baseline: Mapping[str, str | None], rel: str) -> bool:
@@ -4106,6 +4122,10 @@ def _self_test_artifacts(spec: LeafSpec) -> dict[str, str]:
         "acceptance_criteria": "\n".join(f"- {a}" for a in spec.acs),
         "interfaces": "\n".join(f"- {i}" for i in spec.interfaces),
         "repo_files": json.dumps(_source_view(spec), ensure_ascii=False),
+        # P3a/FIX 1: the injected rule that keeps a self-test from reading the reported
+        # symptom as the requirement. Present on the retry artifacts too because
+        # ``_retry_self_test_artifacts`` extends this dict.
+        "test_target_rule": _SELF_TEST_DESIRED_STATE_RULE,
     }
     if spec.planned_tests:
         # Ticket 19 D: the plan DECLARES the test cases; the self-test must expose them.
@@ -6053,16 +6073,17 @@ async def run_leaf(
                 self_test = None
                 stop("honest-failure", "self-test-unverified", "self-test")
                 return finish()
+            green_rewritten = False
             if verification_basis == "test" and _is_green(res):
                 # The one re-ask was green too: no red target. Ticket 19 A: consult the
-                # judge IMMEDIATELY (spec / environment are actionable here); ticket 19 B:
-                # otherwise switch to mandatory review verification when a reviewer is
-                # injected.
+                # judge IMMEDIATELY (spec / environment are actionable here). P3a/FIX 4:
+                # when the judge says the TEST is wrong, the existing bounded repair
+                # REWRITES it against the desired end state instead of the test being
+                # dropped; otherwise (judge unavailable, or another attribution) ticket
+                # 19 B stands: drop the test and switch to mandatory review.
                 emit("self_test_green_on_arrival", path=self_test)
                 previous_path = self_test
                 previous_content = _read(workdir, self_test)
-                (workdir / self_test).unlink(missing_ok=True)
-                self_test = None
                 if attribution is not None and can_afford(2):
                     jr = _no_red_judge_request(spec, workdir, previous_path, previous_content,
                                                baseline)
@@ -6077,9 +6098,19 @@ async def run_leaf(
                             None)
                         if action == "stop":
                             return finish()
-                if not enter_review("the run's own test could not be made to fail on arrival"):
-                    stop("honest-failure", "no-red-target", "no-red-target")
-                    return finish()
+                        if action == "repair":
+                            # The judge confirmed the test wrong and the bounded repair
+                            # replaced it (test_rewrites / last_excerpts are updated inside
+                            # handle_verdict); the rewritten test is the kept target, so
+                            # the drop-and-switch path below must NOT run.
+                            green_rewritten = True
+                if not green_rewritten:
+                    (workdir / previous_path).unlink(missing_ok=True)
+                    self_test = None
+                    if not enter_review(
+                            "the run's own test could not be made to fail on arrival"):
+                        stop("honest-failure", "no-red-target", "no-red-target")
+                        return finish()
             if (verification_basis == "test" and self_test is not None
                     and not _own_test_collectible(last_gate, self_test)):
                 # Ticket 23 item 4: the run's own test cannot even be COLLECTED (a syntax
@@ -6100,7 +6131,9 @@ async def run_leaf(
                     stop("honest-failure", "self-test-invalid", "self-test-invalid")
                     return finish()
                 last_excerpts = [f"the run's own test cannot be collected: {evidence}"]
-            elif verification_basis == "test":
+            elif verification_basis == "test" and not green_rewritten:
+                # FIX 4: after a judge-ordered REWRITE the excerpts/last_gate come from
+                # `handle_verdict`; the stale green `res` must not overwrite them.
                 last_excerpts = excerpts_of(res)
                 emit("self_test_written", path=self_test, red=True)
 
@@ -6209,19 +6242,22 @@ async def run_leaf(
             if write_status == "ok" else []
         )
         written: list[str] = []
+        noop_paths: list[str] = []
         refused_pairs: list[tuple[str, str]] = []
         shape_problem: tuple[str, str] | None = None
         deviations_before = len(deviations)
         if write_status != "ok":
             refused_pairs.append(("", f"status={write_status}"))
         for rel_i, content_i in pairs:
-            ok_i, rel_out, problem_i, shape_i = _write_one(rel_i, content_i, spec, workdir,
-                                                           self_test, baseline, deviations)
+            ok_i, rel_out, problem_i, shape_i, noop_i = _write_one(
+                rel_i, content_i, spec, workdir, self_test, baseline, deviations)
             if shape_i:
                 shape_problem = (rel_out, problem_i)
                 break
             if ok_i:
                 written.append(rel_out)
+                if noop_i:
+                    noop_paths.append(rel_out)
                 if problem_i:
                     # A recorded deviation: tell the model WHICH path was off-plan so the
                     # next attempt can move onto a declared file (the T-01 fix: the model
@@ -6234,6 +6270,13 @@ async def run_leaf(
         source_rel = written[0] if written else (refused_pairs[0][0] if refused_pairs else "")
         refusal = "; ".join(f"{r}: {p}" for r, p in refused_pairs)
         write_refused_now = bool(refused_pairs)
+        # P3a/FIX 3: an attempt whose every landed source write was byte-identical to disk
+        # is a NO-OP — it did not change the revision. `_write_one` recorded the telemetry
+        # (`noop_write`); here the attempt is flagged and the next attempt gets an explicit
+        # failure excerpt (the test output below still says what the test expects).
+        attempt_noop = bool(written) and len(noop_paths) == len(written)
+        if attempt_noop:
+            emit("noop_write", paths=list(noop_paths), attempt=len(attempts) + 1)
         if shape_problem is not None:
             # A bad target SHAPE on a source write has no safe normalization (we cannot
             # guess which file the model meant), so stop honestly instead of raising.
@@ -6277,11 +6320,17 @@ async def run_leaf(
             _record_test_run("attempt", res)
             record_gate(res)
             last_excerpts = excerpts_of(res)
+        if attempt_noop:
+            # P3a/FIX 3: tell the next attempt plainly that it emitted the bytes already on
+            # disk, then let the failure output it also carries say what the test expects.
+            last_excerpts = [_NOOP_WRITE_EXCERPT, *last_excerpts]
 
-        # Ticket 19 A: PROACTIVE attribution. After K consecutive RED attempts in which
-        # the run materially changed the code, consult the judge even though the model
+        # Ticket 19 A: PROACTIVE attribution. On the FIRST red attempt that materially
+        # changed the code (K=1, P3a/FIX 2), consult the judge even though the model
         # volunteered nothing. The judge sees the goal, the ACs, the run's own test, the
-        # failing output, and the current diff; its labels decide the next move.
+        # failing output, and the current diff; its labels decide the next move. A NO-OP
+        # write (P3a/FIX 3) is recorded as ``same`` on the attempt, so it adds no material
+        # progress.
         if res is not None and not _is_green(res) and wrote and source_rel:
             red_code_changes = (red_code_changes + 1
                                 if _file_materially_changed(workdir, baseline, source_rel)
@@ -6362,8 +6411,12 @@ async def run_leaf(
             judge=pending_verdict,
             refused=write_refused_now,
             deviations=list(attempt_deviations),
+            noop=attempt_noop,
         )
-        if not wrote:
+        if not wrote or attempt_noop:
+            # P3a/FIX 3: a no-op write changed no bytes on disk, so it adds no information —
+            # it is recorded as ``same`` (no material progress), never as a changed
+            # revision the best-evidence/coverage stages may credit.
             candidate.verdict = "same"
         else:
             candidate.verdict = prefilter(attempts, candidate)
@@ -6783,6 +6836,15 @@ def _record_test_run(label: str, res: Any) -> None:
     )
 
 
+#: P3a/FIX 3: the explicit failure excerpt given to the next attempt after a NO-OP write
+#: (the emitted bytes were already on disk). The test output the attempt also carries still
+#: says what the test expects instead.
+_NOOP_WRITE_EXCERPT = (
+    "you emitted exactly the bytes already on disk; that is not a change - the failure "
+    "output below says what the test expects instead"
+)
+
+
 def _refusal_feedback(pairs: Sequence[tuple[str, str]], spec: LeafSpec) -> str:
     """What the model is told after a refused write (ticket 26, the T-01 defect).
 
@@ -6825,15 +6887,20 @@ def _write_one(
     rel: str, content: str, spec: LeafSpec, workdir: Path, self_test: str | None,
     baseline: dict[str, str | None],
     deviations: list[WriteDeviation] | None = None,
-) -> tuple[bool, str, str, bool]:
+) -> tuple[bool, str, str, bool, bool]:
     """Apply ONE file through the blind write seam (FLOW §6, P1a).
 
-    Returns ``(wrote, rel, reason, shape)``. A write to a path the run is not allowed to
-    change (a grader-owned/frozen path, a test path, test infrastructure, a
+    Returns ``(wrote, rel, reason, shape, noop)``. A write to a path the run is not
+    allowed to change (a grader-owned/frozen path, a test path, test infrastructure, a
     module-shadow path, or a path outside the declared boundary) is ALLOWED: it lands and
     ``reason`` is the recorded DEVIATION, with the pre-run bytes snapshotted into
     ``baseline`` and a :class:`WriteDeviation` appended to ``deviations``. A CLEAN in-plan
     write returns ``reason=""``.
+
+    ``noop`` (P3a/FIX 3) is True when the emitted ``content`` is byte-identical to what is
+    ALREADY ON DISK: the write still lands (writes are never refused), but it changed
+    nothing, so it is recorded as ``noop_write`` telemetry and must not count as a changed
+    revision.
 
     The ONE mechanical exception still refuses (``wrote=False``): a path that cannot be
     written at all — a directory at the target, a path under an existing file, an
@@ -6842,30 +6909,40 @@ def _write_one(
     ``IsADirectoryError``/``FileExistsError``.
     """
     if not rel:
-        return False, "", "no file_path", False
+        return False, "", "no file_path", False, False
     if _escapes_repo(rel):
-        return False, rel, "escapes the repository", True
+        return False, rel, "escapes the repository", True, False
     shape = _write_shape_problem(rel, workdir)
     if shape:
-        return False, rel, shape, True
+        return False, rel, shape, True, False
     deviation = _source_write_deviation(rel, spec, self_test)
     if rel not in baseline:
         target = workdir / rel
         baseline[rel] = target.read_text() if target.exists() else None
+    target = workdir / rel
+    try:
+        on_disk: str | None = target.read_text() if target.is_file() else None
+    except (OSError, UnicodeDecodeError):
+        on_disk = None
+    noop = on_disk is not None and on_disk == content
     try:
         _write(workdir, rel, content)
     except WriteShapeRefused as exc:
         # The shape probe above did not anticipate this one; it is still a write-shape
         # refusal (F3), never a crash.
         record("source_write_refused", path=rel, reason=exc.detail, shape=True)
-        return False, rel, exc.detail, True
+        return False, rel, exc.detail, True, False
     except (ValueError, OSError) as exc:      # embedded NUL / ENAMETOOLONG on the probe-free path
         record("source_write_refused", path=rel,
                reason=f"unwritable path ({type(exc).__name__}: {exc})", shape=True)
-        return False, rel, f"unwritable path ({type(exc).__name__}: {exc})", True
+        return False, rel, f"unwritable path ({type(exc).__name__}: {exc})", True, False
+    if noop:
+        # P3a/FIX 3 telemetry: the emitted bytes are exactly what was already on disk.
+        record("noop_write", path=rel, sha256=_sha(content),
+               bytes=len(content.encode("utf-8")), baseline_was=baseline.get(rel))
     record("source_write", path=rel, sha256=_sha(content),
            bytes=len(content.encode("utf-8")), baseline_was=baseline.get(rel),
-           changed=(baseline.get(rel) != content))
+           changed=(baseline.get(rel) != content), noop=noop)
     if deviation:
         # The write LANDED: record the deviation (telemetry event + the caller's list), with
         # the pre-run bytes snapshotted so the driver can restore it before grading.
@@ -6874,7 +6951,7 @@ def _write_one(
             deviations.append(entry)
         record("write_deviation", path=rel, reason=deviation,
                created=entry.created, bytes=len(content.encode("utf-8")))
-    return True, rel, deviation, False
+    return True, rel, deviation, False, noop
 
 
 def _write_candidate(
@@ -6885,8 +6962,10 @@ def _write_candidate(
     """Single-file wrapper kept for the self-test path and the unit tests."""
     if getattr(env, "status", "unable") != "ok":
         return False, "", f"status={getattr(env, 'status', 'unknown')}", False
-    return _write_one(_env_path(env), getattr(env, "content", ""), spec, workdir,
-                      self_test, baseline, deviations)
+    wrote, rel, reason, shape, _noop = _write_one(
+        _env_path(env), getattr(env, "content", ""), spec, workdir,
+        self_test, baseline, deviations)
+    return wrote, rel, reason, shape
 
 
 def _no_red_judge_request(

@@ -198,6 +198,12 @@ class Attempt(BaseModel):
     #: node's declared write boundary. The write LANDED (never refused), is snapshotted
     #: for restore before grading, and is recorded here and on the leaf outcome.
     deviations: list[str] = Field(default_factory=list)
+    #: P3a/FIX 3: every source file this attempt emitted was byte-identical to what was
+    #: already ON DISK, so the attempt changed nothing. The write still landed (writes are
+    #: never refused) and is recorded as ``noop_write`` telemetry; the attempt is recorded
+    #: with verdict ``same`` so it counts as no material progress for best-evidence,
+    #: coverage, or exhaustion.
+    noop: bool = False
     at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
