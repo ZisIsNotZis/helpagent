@@ -3509,6 +3509,60 @@ def documented_api_names(spec: LeafSpec) -> tuple[str, ...]:
     return tuple(sorted(names))
 
 
+def _decorator_name(node: ast.expr) -> str:
+    """The bare name a decorator resolves to (``staticmethod``, ``pkg.classmethod``,
+    ``f()``); "" for anything else."""
+    while isinstance(node, ast.Call):
+        node = node.func
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return ""
+
+
+def _staticmethod_names(cls: ast.ClassDef) -> set[str]:
+    """The methods of ``cls`` callable WITHOUT an instance (``@staticmethod``/
+    ``@classmethod``).
+
+    Only these can be re-exported as ``X = Class.method`` and still answer the documented
+    module-level call form; a plain instance method keeps its ``self`` and cannot.
+    """
+    return {
+        item.name for item in cls.body
+        if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and any(_decorator_name(d) in ("staticmethod", "classmethod")
+                for d in item.decorator_list)}
+
+
+def _local_class_binding(value: ast.expr, classes: Mapping[str, ast.ClassDef]) -> bool:
+    """True when ``value`` binds a name to a class defined in THIS module — the class
+    itself, an instance of it, or one of its members — none of which is the module-level
+    FUNCTION the repository documents.
+
+    The T-28 evasions, all of which answer the documented call form with a runtime
+    failure (or a throwaway instance) exactly as the class-only shape does:
+
+    * ``register = Registry.register`` — the UNBOUND method (needs ``self``);
+    * ``register = Registry()`` — an instance, not a function;
+    * ``get = Registry().get`` — a member of a fresh throwaway instance.
+
+    A ``@staticmethod``/``@classmethod`` accessed directly on the class
+    (``register = Registry.register``) IS callable without an instance and still counts.
+    """
+    if isinstance(value, ast.Name):
+        return value.id in classes
+    if isinstance(value, ast.Attribute):
+        base = value.value
+        if isinstance(base, ast.Name) and base.id in classes:
+            return value.attr not in _staticmethod_names(classes[base.id])
+        return (isinstance(base, ast.Call) and isinstance(base.func, ast.Name)
+                and base.func.id in classes)
+    if isinstance(value, ast.Call):
+        return isinstance(value.func, ast.Name) and value.func.id in classes
+    return False
+
+
 def module_level_names(source: str) -> set[str]:
     """The names a module binds at MODULE level (P3d).
 
@@ -3516,19 +3570,28 @@ def module_level_names(source: str) -> set[str]:
     an import binding (``import a`` / ``from a import b as c``). A ``def`` nested inside a
     class or a function is NOT module level — the T-28 shape (a documented ``register``
     exposed only as a ``Registry`` method) is exactly the miss this exists to catch.
+    An assignment whose value is rooted in a class defined in the same module is NOT a
+    module-level API binding either: ``register = Registry.register`` binds the unbound
+    method, ``register = Registry()`` an instance, and ``get = Registry().get`` a member
+    of a fresh throwaway instance — none is the documented module-level function, so all
+    are excluded (see :func:`_local_class_binding`).
     """
     try:
         tree = ast.parse(source)
     except SyntaxError:
         return set()
+    classes = {node.name: node for node in tree.body if isinstance(node, ast.ClassDef)}
     names: set[str] = set()
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             names.add(node.name)
         elif isinstance(node, ast.Assign):
+            if _local_class_binding(node.value, classes):
+                continue
             names.update(t.id for t in node.targets if isinstance(t, ast.Name))
         elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-            names.add(node.target.id)
+            if node.value is None or not _local_class_binding(node.value, classes):
+                names.add(node.target.id)
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
             for alias in node.names:
                 names.add(alias.asname or alias.name.split(".")[0])
@@ -3595,10 +3658,13 @@ def documented_api_problem(
     The repository's own documentation is a mechanically checkable contract. A name the
     docs present in call form must exist at MODULE level in the delivered target module
     (a function, an assignment, or an import); a name exposed ONLY as a class method is
-    NOT module level and blocks the claim. One message per (module, class) names the
-    documented names, the module, and the class that swallowed them, so the next attempt
-    has a targeted excerpt. Empty when every documented name is module level, when no
-    documentation states a call form, or when no target module was delivered.
+    NOT module level and blocks the claim, and neither is an assignment rooted in a class
+    defined in the module (``register = Registry.register`` binds the unbound method,
+    ``register = Registry()`` an instance, ``get = Registry().get`` a throwaway's member).
+    One message per (module, class) names the documented names, the module, and the class
+    that swallowed them, so the next attempt has a targeted excerpt. Empty when every
+    documented name is module level, when no documentation states a call form, or when no
+    target module was delivered.
     """
     names = documented_api_names(spec)
     if not names:

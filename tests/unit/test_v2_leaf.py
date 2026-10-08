@@ -6802,6 +6802,70 @@ def test_documented_api_a_module_level_import_satisfies_the_contract(tmp_path):
     assert documented_api_problem(spec, tmp_path, {}) == []
 
 
+def test_documented_api_class_member_bindings_are_not_module_level(tmp_path):
+    """P3e/T-28: the fixes the model reaches for when the class-only module is blocked are
+    NOT the documented module-level API, so the contract still blocks with the targeted
+    message. Three measured evasions, each answering the documented call form with a
+    runtime failure (or a throwaway instance) exactly as the class-only shape does:
+
+    * ``register = Registry.register`` — the UNBOUND method (needs ``self``);
+    * ``register = Registry()`` — an instance, not a function;
+    * ``get = Registry().get`` — a member of a fresh throwaway instance.
+
+    ``module_level_names`` counted all three as module-level bindings, which is how the
+    measured T-28 false-success survived."""
+    from harness.leaf import documented_api_problem, module_level_names
+
+    spec = _doc_spec(tmp_path, "# plugins\n\nPlugin registry: register(name, fn) / "
+                     "get(name) / run(name, *args).\n",
+                     "Create plugins/registry.py: register/get/run.")
+    (tmp_path / "plugins").mkdir(exist_ok=True)
+    cls = ("class Registry:\n"
+           "    def register(self, name, fn): pass\n"
+           "    def get(self, name): pass\n"
+           "    def run(self, name, *args): pass\n")
+    unbound = cls + ("register = Registry.register\n"
+                     "get = Registry.get\n"
+                     "run = Registry.run\n")
+    instance = cls + ("register = Registry()\n"
+                      "get = Registry()\n"
+                      "run = Registry()\n")
+    bound = cls + ("register = Registry().register\n"
+                   "get = Registry().get\n"
+                   "run = Registry().run\n")
+    for source in (unbound, instance, bound):
+        (tmp_path / "plugins/registry.py").write_text(source)
+        assert module_level_names(source) == set(), source
+        problem = documented_api_problem(spec, tmp_path, {})
+        assert len(problem) == 1, source
+        assert "register" in problem[0] and "get" in problem[0] and "run" in problem[0]
+        assert "plugins/registry.py" in problem[0] and "Registry" in problem[0]
+
+
+def test_documented_api_static_method_alias_counts_as_module_level(tmp_path):
+    """P3e: an alias to a STATIC method (callable without an instance) IS the documented
+    call form, so it counts — the alias rule targets only plain instance methods."""
+    from harness.leaf import documented_api_problem, module_level_names
+
+    spec = _doc_spec(tmp_path, "# plugins\n\nPlugin registry: register(name, fn) / "
+                     "get(name) / run(name, *args).\n",
+                     "Create plugins/registry.py: register/get/run.")
+    (tmp_path / "plugins").mkdir(exist_ok=True)
+    source = ("class Registry:\n"
+              "    @staticmethod\n"
+              "    def register(name, fn): pass\n"
+              "    @staticmethod\n"
+              "    def get(name): pass\n"
+              "    @staticmethod\n"
+              "    def run(name, *args): pass\n"
+              "register = Registry.register\n"
+              "get = Registry.get\n"
+              "run = Registry.run\n")
+    (tmp_path / "plugins/registry.py").write_text(source)
+    assert module_level_names(source) == {"register", "get", "run"}
+    assert documented_api_problem(spec, tmp_path, {}) == []
+
+
 def test_documented_api_missing_blocks_every_claim_route():
     """P3d: the documented-API miss is a HARD block in the ONE claim gate on every route."""
     base = {
