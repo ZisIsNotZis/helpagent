@@ -1,4 +1,4 @@
-"""FakeModelRunner contract — TEST_PLAN §2: FIFO per step_type, exhaustion ⇒
+"""FakeModelRunner contract —: FIFO per step_type, exhaustion ⇒
 AssertionError, call records, misbehavior helpers."""
 
 import asyncio

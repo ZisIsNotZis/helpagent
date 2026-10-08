@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Golden bugfix script v1 — M2 milestone core (DESIGN §8 milestone 2: "Kernel
-primitives + artifact store + golden bugfix script + session runner"; ENGINE_SCRIPT.md
+primitives + artifact store + golden bugfix script + session runner";
 understand_and_plan → leaf pipeline, collapsed to the single-leaf path this corpus
 exercises: task_card → expand → write_spec → draft_acs+gate_decide → write_test →
 implement (bounded loop) → gate → run_summary).
@@ -112,7 +112,7 @@ def load_task(task_dir: Path) -> dict:
             conventions = (repo / cand).read_text()
             break
     # DECISION: the mini_repo fixture ships no request.md — its report is derived
-    # from TEST_PLAN §4 (seeded ZeroDivisionError-vs-MinirepoError bug).
+    # from (seeded ZeroDivisionError-vs-MinirepoError bug).
     request_path = task_dir / "request.md"
     request = request_path.read_text() if request_path.exists() else (
         "minirepo.calc.divide raises ZeroDivisionError on the denominator-0 path; "

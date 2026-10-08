@@ -1,4 +1,4 @@
-"""Integration tier (TEST_PLAN §1): real llama.cpp server on :8833 with the design's
+"""Integration tier: real llama.cpp server on :8833 with the design's
 reference model Spark-X2.5-4B-Q4_K_M. Marked slow — outside the unit gate
 (pyproject testpaths stays unit+contract); run explicitly with
 `uv run pytest tests/integration -m slow -q`. Skips cleanly when the server is down."""

@@ -1,4 +1,4 @@
-"""Contract test — the happy-path bugfix scenario (TEST_PLAN §4.1) executed against
+"""Contract test — the happy-path bugfix scenario executed against
 FakeModelRunner over a stubbed task tree. This is KERNEL_API.md's executable form for
 the golden flow: understand → plan (clean trial split) → DAG validated → spec → AC map
 authored+decided → parallel code+tests → gate → run summary."""

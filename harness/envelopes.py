@@ -659,7 +659,7 @@ class NewIssue(NestedModel):
 
 class FixAttempt(Envelope):
     # DECISION: §17 lists Literal["fixed","failed","blocked"], but DESIGN §4.7 and
-    # TEST_PLAN §3.1 require the grammar-enforced `unable: reason` alternative in
+    # require the grammar-enforced `unable: reason` alternative in
     # EVERY envelope schema — so "unable" stays legal here (the §17 "ok"-equivalent
     # is spelled "fixed"); blocked_kind/blocked_reason remain iff status=="blocked".
     status: Literal["fixed", "failed", "blocked", "unable"] = req()

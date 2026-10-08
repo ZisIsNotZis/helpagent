@@ -1,4 +1,4 @@
-"""Check pipeline (TEST_PLAN §3.3, DESIGN §4.5, KERNEL_API §3.4 — M3).
+"""Check pipeline.
 
 Pin the ladder contract: survivor rule (≤2 fix passes), tool-fight FAIL_PATTERN,
 rollback on parse survivors, finding-level type-check filtering, config rejection

@@ -1,4 +1,4 @@
-"""Workdir conflict rule (TEST_PLAN §3.8, DESIGN §4.8): an external edit to the
+"""Workdir conflict rule: an external edit to the
 running work tree pauses the leaf (needs-user) — never a silent overwrite —
 while the harness's own writes proceed normally."""
 

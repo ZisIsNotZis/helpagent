@@ -247,16 +247,41 @@ the author's conversation. Its verdict selects the next move:
 7. **Budget/deadline exhausted** → handover: the node stops with state `uncertain`, delivering its
    best-evidence revision.
 
-## 7. Thinking, and parallelism
+## 7. Thinking, parallelism, and who judges what
 
 - **Thinking is optional and never a decision input.** The model behind any step may think or not;
   if it thinks, the thinking is recorded in the trajectory and used for nothing else — every
   decision is computed from the parsed structure's fields.
+- **Every judge inside a run is the SAME small model that writes the code** — the attribution
+  judge, the review, the independent test. There is no stronger in-run judge. Their verdicts are
+  what the run has to work with, and the run knows they are correlated with the author (that is why
+  a non-discriminating test counts for nothing).
 - **Parallelism**: every place that can run in parallel, should — siblings, implementation ∥ tests,
-  review angles. **Different nodes are different git worktrees/branches**, merged afterwards (this
-  is how two nodes can write without stepping on each other). **Deferred**: accuracy first; the
-  flow does not depend on it, but the answer to "two writers, one file" is worktree isolation, not
-  serialization.
+  review angles. **Different nodes are different git worktrees/branches**, merged afterwards.
+  **Deferred**: accuracy first; the flow does not depend on it.
+
+### 7.1 The one place a STRONGER model is used: the out-of-band regression review (manual)
+
+Inside a run, no stronger model exists. The single case that needs one is this:
+
+> the run wrote files it did NOT declare, and our tests are not sufficient to decide whether that
+> introduced a regression.
+
+Then the decision is made **outside the run, by hand, by the operator's agent** (a strong model
+reading the actual diff), because a benchmark-level judgement about "did this break something" is
+not something the small model or the visible test suite can settle. Its output is a plain verdict
+with evidence:
+
+| field | meaning |
+| --- | --- |
+| `verdict` | `regression` \| `no-regression` \| `cannot-tell` |
+| `files_reviewed` | the undeclared files that were touched, with their diffs |
+| `tests_considered` | which tests could have caught a regression here, and why they could not |
+| `evidence` | what in the diff supports the verdict |
+| `residual_risk` | what remains unchecked |
+
+It never runs inside the harness and its verdict is never fed back into a run; it is recorded with
+the run's evidence so a reader can see how the undeclared change was adjudicated.
 
 ## 8. Evidence
 
@@ -277,7 +302,7 @@ delivery and the grader's verdict. Complete, always on.
 | 6 | file list from the plan (tree) or regex over the requirement (leaf) | from exploration; the requirement-text regex is judge input, never a gate |
 | 7 | writes outside the boundary / into a frozen path are REFUSED | allowed, recorded, decided by the outcome |
 | 8 | no regression stage | regression = visible suite green before, red after |
-| 9 | judge/review/independent test = the same small model | configurable; expected to be a stronger model |
+| 9 | judge/review/independent test = the same small model | UNCHANGED (they stay the small model); the only stronger-model role is the manual out-of-band regression review (§7.1) |
 | 10 | non-pass states collapse into "not claimed" | explicit three-state test/review, and the node update is a recorded act |
 
 ## 11. Holes in this flow (found while walking it; none is decided)
@@ -298,7 +323,8 @@ delivery and the grader's verdict. Complete, always on.
 
 ## 10. Open decisions for the owner
 
-1. **Which model/endpoint serves the judge/review/independent-test role** (§9 row 9).
+1. RESOLVED: every in-run judge stays the small model; the strong model appears only as the manual
+   out-of-band regression review (§7.1).
 2. §4.4's last line: when no approach passes, confirm the exact output — current spec: deliver the
    best-evidence revision, claim nothing, report `uncertain` with the reasons.
 3. The parallelism granularity when it is picked up (§7): siblings from the start, or gated by

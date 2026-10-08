@@ -1,6 +1,6 @@
 # ENVELOPE SCHEMAS — Grammar-Target Output Contracts for Every `llm_step`
 
-Companion to DESIGN §4.2/§4.7 and ENGINE_SCRIPT. One schema per `llm_step` type in `scripts/v1/`.
+Companion to DESIGN §4.2/§4.7. One schema per `llm_step` type.
 These are the structured envelopes a ≤4B model returns via grammar-constrained decoding
 (llama.cpp GBNF / `json_schema`). Kernel-side validation duties live in **KERNEL_API.md** —
 this doc names *what* must be validated; KERNEL_API.md owns *how*.
@@ -129,8 +129,7 @@ boundary = its seam's file scope; `write_spec.files_touched` narrows it; writes 
 are policy-blocked. The engine never has to guess which files a task touches — the index
 told it before the model was ever asked.
 
-<!-- DECISION: propose_cuts has two modes, chosen by task class (TASK_TAXONOMY pipeline
-routing): structural (module-map seams) when the location is known or irrelevant —
+<!-- DECISION: propose_cuts has two modes, chosen by task class: structural (module-map seams) when the location is known or irrelevant —
 feature/port/refactor/scaffold; evidence-seeded (failing symbol, stack frames, covering tests
 from the locate/reproduce artifact) when the location IS the unknown — bugfix/perf/crash.
 The single-mode version made the model invent the file to change from filenames alone, and
@@ -362,11 +361,11 @@ class DebugJudge(Envelope):
 ```
 
 **Kernel validates:** ranks unique/contiguous; problem non-empty (feeds fix attempts as
-advice-not-orders — fixer is an agent, ENGINE_SCRIPT). Budget: ~350 tok.
+advice-not-orders — the fixer is an agent). Budget: ~350 tok.
 
 ## 17. `fix_attempt` — D8: one hypothesis, implemented, with discovered issues
 
-Fixed shape from ENGINE_SCRIPT (`status`/`new_issues`/`comment`), plus the file changes the
+Fixed shape (`status`/`new_issues`/`comment`), plus the file changes the
 harness will execute:
 
 ```python

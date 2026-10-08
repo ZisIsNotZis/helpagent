@@ -1,4 +1,4 @@
-"""Task-tree rules — TEST_PLAN §3.8 (all pure, plus two fake-model tests for the
+"""Task-tree rules — (all pure, plus two fake-model tests for the
 propose≠decide and grounding rules)."""
 
 import asyncio
@@ -236,7 +236,7 @@ def test_file_overlap_serializes_writers():
 
 
 # ---------------------------------------------------------------------------
-# Propose ≠ decide + grounding (fake-model tests; TEST_PLAN §3.8)
+# Propose ≠ decide + grounding (fake-model tests;)
 # ---------------------------------------------------------------------------
 
 

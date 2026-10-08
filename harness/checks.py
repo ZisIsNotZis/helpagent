@@ -27,7 +27,7 @@ Slice boundaries (ticket 03, none silent):
 - Rollback is exact byte-restore (per-file restore is precise for whole-file v1);
   harness-git reset stays kernel-internal per KERNEL_API §4.5 DECISION.
 
-Type-check scoping (TEST_PLAN §3.3 ``type_check_filters_at_finding_level``): the
+Type-check scoping: the
 baseline is computed pre-write and findings are diffed at FINDING level — a caller
 broken in an untouched file survives, pre-existing untouched-file noise never
 blocks. The cheaper touched-files-only scoping is unsound (DESIGN §4.5) and the
@@ -62,7 +62,7 @@ __all__ = [
 #: One auto-fix invocation: (workdir, repo-relative path, pass number) ->
 #: (file changed, findings collected after the pass). The default is the ruff
 #: pair; tests inject scripted fixers to pin the survivor/oscillation rules
-#: deterministically (TEST_PLAN §3.3 tool-fight case).
+#: deterministically.
 AutofixFn = Callable[[Path, str, int], Awaitable[tuple[bool, list["CheckFinding"]]]]
 
 

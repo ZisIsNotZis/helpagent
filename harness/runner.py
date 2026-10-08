@@ -78,7 +78,7 @@ class SchemaViolation(Exception):
 # Minimal ledger stand-in — append-only; entries are stats/evidence, never injected
 # into model context (DESIGN §2.4b, KERNEL_API §4.5). Full ledger is a later milestone.
 # DECISION: module-level append-only list with note/entries only — no delete/edit API
-# exists, which is the invariant TEST_PLAN §3.4 pins ("Ledger exposes append/query only").
+# exists, which is the invariant pins ("Ledger exposes append/query only").
 # ---------------------------------------------------------------------------
 
 _LEDGER: list[dict[str, Any]] = []

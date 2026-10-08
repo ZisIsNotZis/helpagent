@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [tool.pytest.ini_options]
-# Unit gate = unit + contract, <10s, CPU-only (TEST_PLAN §3); tests/fixtures/ holds
+# Unit gate = unit + contract, <10s, CPU-only; tests/fixtures/ holds
 # shared fixture repos consumed by scenarios, not gate tests themselves.
 testpaths = ["tests/unit", "tests/contract"]
 pythonpath = ["."]

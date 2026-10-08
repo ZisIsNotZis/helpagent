@@ -1,5 +1,4 @@
-"""Workdir lifecycle: single-instance lock + boot-time recovery (KERNEL_API §6,
-TEST_PLAN §3.5). "Sudden death means the trajectory may not reflect the last
+"""Workdir lifecycle: single-instance lock + boot-time recovery (KERNEL_API §6,). "Sudden death means the trajectory may not reflect the last
 mutations ... on program boot (single-instance lock per workdir — never two
 harness processes in one workdir): reset everything we don't know and that is
 not ignored in the workdir." """

@@ -80,7 +80,7 @@ One owner per subject; if two files disagree, the one listed here wins.
 | architecture: subsystems, data flow, repository layout, design principles | `docs/DESIGN.md` |
 | the measured position: what works, what was retracted, what is not built, how to reproduce | `docs/STATUS.md` |
 | the kernel's envelope/step API and its invariants | `docs/KERNEL_API.md` (index), `docs/ENVELOPE_SCHEMAS.md` (per-schema detail) |
-| the test plan the suite is built from | `docs/TEST_PLAN.md` |
+| the tests themselves (the suite IS the test plan) | `tests/unit/`, `tests/contract/` |
 | known model failure patterns and the rule that fixes each | `bench/FAIL_PATTERNS.md` |
 | the corpus (tasks, anchors, checks contract) | `bench/corpus/README.md` |
 | active work and handover | `.scratch/active-work.md`, `.scratch/<ticket>/` |

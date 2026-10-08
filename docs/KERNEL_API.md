@@ -1,7 +1,7 @@
 # KERNEL API — helpagent runtime kernel
 
 Specification of the script-facing surface of the runtime kernel that executes versioned
-SE-methodology scripts (`scripts/v1/`, per ENGINE_SCRIPT.md). Implementable as-is; schemas
+SE-methodology scripts (`scripts/v1/`,.md). Implementable as-is; schemas
 referenced but not defined here live in **ENVELOPE_SCHEMAS.md**.
 
 ---
@@ -28,7 +28,7 @@ referenced but not defined here live in **ENVELOPE_SCHEMAS.md**.
 
 ---
 
-## 2. Reconciliation of every `k.*` call in ENGINE_SCRIPT.md
+## 2. Reconciliation of every `k.*` call in
 
 | Script call | Disposition | Where |
 | --- | --- | --- |
@@ -143,7 +143,7 @@ async def compose(node: NodeHandle, spec: ArtifactRef, files: list[Path],
 ```
 
 - DESIGN §4.1 names this primitive `inject(...)`; the script-facing name is `compose`.
-  `<!-- DECISION: ENGINE_SCRIPT calls k.compose; DESIGN's inject describes the same budgeted-injection capability — one primitive, script-facing name compose. -->`
+  `compose` is the one budgeted-injection primitive (DESIGN describes the same capability).
 - Builds `byte-stable prefix + step suffix`: conventions, related code excerpts, covering
   tests, AC, negative guidance, rule-library hits, memory matches, gotchas, help answers
   — per-category sub-budgets, no universal token cap; the info-miss counter is the
@@ -213,7 +213,7 @@ next tree commit point and emits an event per mutation.
 
 ### 4.1 `TaskTree`
 
-The one plan artifact (DESIGN §4.8, TASK_TAXONOMY §B). Node schema:
+The one plan artifact (DESIGN §4.8,). Node schema:
 `{id, what, why, input, output, ac_test_map, risk, produced_artifact_id, status, children}`;
 `input`/`output` are typed artifact references with explicit producer ids. Status ∈
 `{pending, in-progress, done, blocked, stale, needs-user}`. Methods:
@@ -243,7 +243,7 @@ first; re-validates `done` parents whose subtree was touched. A node with no map
 ### 4.2 `NodeHandle`
 
 - `node.status` — script may assign; kernel validates the transition table
-  (`<!-- DECISION: script writes statuses directly in ENGINE_SCRIPT; kernel re-validates at refresh/commit rather than gating every assignment — minimal change to the script. -->`). Illegal transition ⇒ `StatusTransitionInvalid` at commit.
+  (callers assign statuses directly; the kernel re-validates at refresh/commit rather than gating every assignment). Illegal transition ⇒ `StatusTransitionInvalid` at commit.
 - `node.set_ac_test_map(raw)` — kernel validates every `ac_id → ≥1 executable check`
   (`{check_id, command}` or `subjective`); invalid ⇒ findings returned (A2: uncheckable
   ⇒ needs-human path). Replaces `k.validate_ac_map`. The map is held in the node schema
@@ -281,7 +281,7 @@ first; re-validates `done` parents whose subtree was touched. A node with no map
   `<!-- DECISION: k.index.build performs kernel-internal infra compute over kernel-owned state (no model call, no work-tree mutation, no budget); under §1 it is a handle constructor accessor, not a primitive. -->`
 - `index.files_in_scope(leaf)`, `index.conventions`, `index.test_patterns`,
   `index.propose_cuts(node, evidence=None)` — candidate cuts for B1, in two modes selected by
-  task class (TASK_TAXONOMY pipeline routing): **structural** (`evidence=None`) = module-map
+  task class: **structural** (`evidence=None`) = module-map
   seams, for tasks whose location is known or irrelevant; **evidence-seeded** (`evidence` =
   the locate/reproduce artifact) = cuts around the failing symbol, stack frames and covering
   tests, for tasks where the location is the unknown. All read-only.
@@ -349,7 +349,7 @@ records; the UI adds zero new state.
 ## 6. Boot sequence
 
 `async def k.boot_recover(workdir) -> BootReport` — the single sanctioned startup call;
-its internals are kernel-internal. `<!-- DECISION: ENGINE_SCRIPT implements boot_recover as script code calling k.lock/k.git.*; hand-resetting the work tree and taking the instance lock are kernel invariants (work-tree exclusivity), so the machinery moves inside the kernel and the script gets one auditable entry point. -->`
+its internals are kernel-internal. Work-tree reset and instance locking are kernel invariants (work-tree exclusivity), so `boot_recover` is one auditable kernel entry point.
 
 1. **Single-instance lock** per workdir (file lock; a second harness process fails fast,
    `InstanceLocked`).
@@ -378,7 +378,7 @@ the global cap is what stops 3,000-leaf trees.
   (from `run_config`) exposes read-only `exceeded()` and remaining counters so the script
   can route early (e.g. `expand_subtree` marks `needs-user` instead of recursing).
 - **Overflow semantics:** the primitive durably records the calling node as `needs-user`
-  and emits `budget.exceeded`, **then** raises `BudgetExceeded`. `<!-- DECISION: DESIGN says overflow → needs-user status; ENGINE_SCRIPT says throws BudgetExceeded → pilot UI. Both: park first (durable, resumable), then throw so the script's run-level handler exits to the pilot UI. -->`
+  and emits `budget.exceeded`, **then** raises `BudgetExceeded`. (the two readings are reconciled: park first — durable and resumable — then raise, so a run-level handler exits to the pilot UI).
 - **What the script sees:** `BudgetExceeded` at any primitive call site; parked node and
   event already recorded, so resumption after a user budget raise continues from the last
   committed step. No shaped-error soft variant — budget is a hard invariant.
@@ -392,7 +392,7 @@ the global cap is what stops 3,000-leaf trees.
 
 **G1. `k.triage_rules(failures)` (D1 mechanical failure triage).** Not one of the six
 primitives; not a method on any handle the script otherwise holds; yet it is real kernel
-logic (deterministic rule-library application, H job per TASK_TAXONOMY). **Raised.**
+logic (deterministic rule-library application, H job). **Raised.**
 Recommendation: reclassify as a read-only query surface on the Knowledge Service, exposed
 as `index.rules.triage(failures)` — same status as the Index handle: deterministic,
 consumes/produces data only, no model invocation, no budget. This respects §1's criterion
@@ -415,12 +415,12 @@ file-overlap groups), a general script-facing lock would be a new capability out
 six primitives. Keep it kernel-internal until a concrete script needs it.
 
 **G4. Direct `node.status` assignment vs handle-enforced transitions.** The script
-assigns statuses directly (ENGINE_SCRIPT). Kernel re-validation at commit is the minimal
+assigns statuses directly. Kernel re-validation at commit is the minimal
 reconciliation, but it means invalid states are observable between assignment and commit.
 If that proves bug-prone, switch to `node.set_status()` with an eager transition table —
 a handle-method change, not a primitive change.
 
-No seventh primitive is introduced by this spec. Every script call in ENGINE_SCRIPT.md is
+No seventh primitive is introduced by this spec. Every script call in is
 accounted for in §2.
 
 ---

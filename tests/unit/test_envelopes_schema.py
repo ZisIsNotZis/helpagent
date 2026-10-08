@@ -1,4 +1,4 @@
-"""Envelope schema invariants — TEST_PLAN §3.1 + the grammar pairs from
+"""Envelope schema invariants — + the grammar pairs from
 ENVELOPE_SCHEMAS §0–§23."""
 
 import asyncio

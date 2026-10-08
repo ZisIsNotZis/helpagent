@@ -2,7 +2,7 @@
 
 - :mod:`harness.envelopes` — every envelope schema from ENVELOPE_SCHEMAS §0–§23 + registry
 - :mod:`harness.tree` — TaskTree / NodeHandle (KERNEL_API §4.1–4.2)
-- :mod:`harness.fake_model` — FakeModelRunner + misbehavior helpers (TEST_PLAN §2)
+- :mod:`harness.fake_model` — FakeModelRunner + misbehavior helpers
 - :mod:`harness.runner` — llm_step glue, prompt composer, minimal ledger
 """
 

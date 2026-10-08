@@ -1,4 +1,4 @@
-"""Workdir boot-reset & single-instance lock (TEST_PLAN §3.5, KERNEL_API §6).
+"""Workdir boot-reset & single-instance lock.
 Pure + tmp git repos — no GPU, part of the unit gate."""
 
 import subprocess

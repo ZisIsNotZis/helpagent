@@ -1,4 +1,4 @@
-"""Tool wrapper registry (TEST_PLAN §3.2 shaping spirit, KERNEL_API §3.2 — M4).
+"""Tool wrapper registry.
 
 Pin the registry contract: dispatch by argv shape (``python -m pytest`` form),
 per-tool structured summaries (n_failures, excerpts, suggested_next_action),

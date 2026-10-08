@@ -451,7 +451,7 @@ class TaskTree:
         return any(n.status in ("pending", "in-progress", "stale") for n in self._nodes.values())
 
     def expansion_findings(self) -> ValidationFindings:
-        """Read-only view for the plan-stabilization loop (ENGINE_SCRIPT understand_and_plan)."""
+        """Read-only view for the plan-stabilization loop."""
         return self.validate_dag()
 
     # -- status closure propagation -------------------------------------------

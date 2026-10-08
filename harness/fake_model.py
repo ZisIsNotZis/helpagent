@@ -1,10 +1,9 @@
-"""FakeModelRunner — the deterministic scripted model runner (TEST_PLAN §2).
+"""FakeModelRunner — the deterministic scripted model runner.
 
 Stands in for ``harness/model/runner.py`` and implements the same protocol:
 ``async complete(request) -> envelope-output``. The kernel's ``llm()`` primitive calls
 it identically; scripts cannot tell the difference. Canned responses are keyed FIFO
-per step_type (TEST_PLAN §2 DECISION: matching on question text would be brittle;
-FIFO + call-count assertions pin sequencing).
+per step_type.
 """
 
 from __future__ import annotations
@@ -20,7 +19,7 @@ EnvelopeSpecStep = str | None
 
 @dataclass
 class EnvelopeSpec:
-    """One canned response, or a built-in misbehavior (TEST_PLAN §2)."""
+    """One canned response, or a built-in misbehavior."""
 
     step_type: EnvelopeSpecStep = None
     body: Any = None  # valid envelope payload dict OR raw_text when kind=="raw"
@@ -29,9 +28,7 @@ class EnvelopeSpec:
 
 @dataclass
 class CallRecord:
-    """What the kernel asked for, per call (TEST_PLAN §2: artifacts, question, tools,
-    fresh). ``prompt`` carries the composed prompt — erasure assertions inspect it
-    (TEST_PLAN §2 example: ``render_prompt(k, call=1)``)."""
+    """What the kernel asked for, per call. ``prompt`` carries the composed prompt — erasure assertions inspect it``)."""
 
     step_type: str
     artifacts: dict
@@ -87,7 +84,7 @@ class FakeModelRunner:
         """Same protocol as the real model runner. Returns the raw decoded output —
         a payload dict (kind="ok") or raw text (kind="raw") — deliberately WITHOUT
         schema validation: the kernel's schema-validation invariant is what is under
-        test (TEST_PLAN §2)."""
+        test."""
         record = CallRecord(
             step_type=request.step_type,
             artifacts=dict(request.artifacts),
@@ -124,7 +121,7 @@ class FakeModelRunner:
 
 
 # ---------------------------------------------------------------------------
-# Built-in misbehavior helpers (TEST_PLAN §2)
+# Built-in misbehavior helpers
 # ---------------------------------------------------------------------------
 
 
@@ -132,7 +129,7 @@ def ok_edit(path: str, content: str) -> EnvelopeSpec:
     """``implement`` envelope: whole-file edit + self-summary. DECISION: the Implement
     schema (ENVELOPE_SCHEMAS §11) carries no file contents — changes travel via the
     trajectory git snapshots — so ``content`` is deliberately not represented in the
-    envelope body; the helper keeps the TEST_PLAN §2 signature."""
+    envelope body; the helper keeps the signature."""
     return EnvelopeSpec(body={
         "status": "ok",
         "comment": f"Edited {path}; tests run green (self-summary).",

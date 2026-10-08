@@ -1,4 +1,4 @@
-"""Minimal sandboxed exec (TEST_PLAN §3.2 spirit, DESIGN §4.6): allowlist +
+"""Minimal sandboxed exec: allowlist +
 policy-blocked shaped results (never exceptions), ANSI-stripped byte-capped
 output, kernel-provenance runs. Container/network policy is M4 — these tests
 pin the M2 contract only."""
@@ -63,7 +63,7 @@ def test_strip_ansi_direct():
 
 
 def test_path_scoping_blocks_by_path_not_argv0(tmp_path: Path):
-    """TEST_PLAN §3.2: the sandbox denies by PATH, not by argv[0] — /etc is hidden
+    """: the sandbox denies by PATH, not by argv[0] — /etc is hidden
     (tmpfs over the ro base), so an allowlisted python cannot read host secrets,
     and the failure is a shaped result, never an exception."""
     res = _run(["python3", "-c", "open('/etc/passwd').read()"], tmp_path, provenance="model")

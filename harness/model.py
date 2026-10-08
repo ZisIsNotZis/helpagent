@@ -1,9 +1,9 @@
 """LlamaServerRunner — the real model runner (DESIGN §4.7 Model Interface, §8 M1).
 
-Protocol parity with FakeModelRunner (TEST_PLAN §2): ``async complete(request)``
+Protocol parity with FakeModelRunner: ``async complete(request)``
 returns the *raw decoded output* — here, the envelope JSON string exactly as the
 server produced it — and deliberately does NOT schema-validate: validation is the
-kernel's invariant, enforced by ``harness.runner.llm_step`` (TEST_PLAN §2 DECISION).
+kernel's invariant, enforced by ``harness.runner.llm_step``.
 Scripts cannot tell fake and real apart.
 
 §0 grammar → json_schema alignment: the kernel's ``Envelope._grammar_branch`` has
