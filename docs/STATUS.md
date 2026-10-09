@@ -549,3 +549,39 @@ so the harness's contribution is not "it fixes more easy tasks" - it is the blin
 protocol, the deterministic gates, the evidence trail, and the fact that its claims can be
 audited. The harness also covers nine tasks and the structural work (trees, budgets,
 escalation) that a one-shot CLI run does not do at all.
+
+## 8e. Campaign measurement — final numbers (2026-10-09, revision `6b224f5`)
+
+Same model for every arm (Spark-X2.5-4B Q4_K_M, 32k context, port 8834), external grader = the
+corpus's own withheld tests, blind staging, one writer. The corpus is T-01..T-35 + A-01..A-05.
+
+| arm | actual | claimed | false successes |
+|---|---|---|---|
+| ours | **24/40** | 11 | **3** (T-27, T-30, T-35) |
+| pi, params maxed (A1) | **27/40** | 29 | 2 (A-02, T-35) |
+| pi + improved prompt (A2) | *being re-run* (the first attempt was invalidated by a model-server connection error under 4-way concurrency; all 40 runs died in ~15 s) | | |
+
+Head to head: both pass **23**, we win **1**, pi wins **4** (T-07, T-14, T-28, T-30), both fail **12**
+(A-01..A-05, T-13, T-24, T-26, T-27, T-32, T-34, T-35).
+
+Cost: ours 18,401 tokens/task mean (736,070 over 40) vs pi's 9,045; wall ours 190.5 s mean but
+measured under 4-way concurrency against pi's sequential 131 s - **not comparable**, a clean
+single-lane wall run is outstanding. Both the token gap and the wall comparison therefore stay open.
+
+Variance is large: the same 40 tasks measured 26/40 and 22/40 on the pre-P2 revision, so +-3 tasks.
+
+**Straight reading of the mandate so far:** (1) coding parity with maxed pi is NOT yet met (24 vs
+27, four direct losses); (2) the no-lie rule is NOT yet met (3 false successes); (3) every failing
+case does not yet carry its own evidence (the 12 shared failures still need per-task trajectory
+verdicts); (4) the "structure beats a better prompt" claim still rests on the A2 arm; (5) the token
+cost is still worse than the baseline's.
+
+Residual mechanisms to open next, each with the stop_reason that names it:
+* the three false successes all stop with `green`, i.e. they do NOT go through the review route that
+  P8 closed - the plain green path still needs the same "non-discriminating check cannot carry a
+  claim" rule;
+* the four losses: T-07 `ladder`, T-14 `spec-bubble`, T-28 `documented-api-missing`, T-30 `green`;
+* the 12 shared failures are the model-ceiling candidates and each needs a quoted trajectory
+  deviation point before it may be reported as "this 4B cannot do it";
+* P2's `-31.3%` token headline is RETRACTED (see the commit `25dafaf`); only C1 + full source
+  injection survive.
