@@ -356,6 +356,8 @@ def run_once(task_dir: Path, out_dir: Path, args: argparse.Namespace,
     prompt = PI_PROMPT.format(request=task["request"].strip())
     if getattr(args, "ask_tests", False):
         prompt += PI_ASK_TESTS_SUFFIX
+    if getattr(args, "append_prompt", ""):
+        prompt += "\n" + Path(args.append_prompt).read_text()
     cmd, env, cwd = _command(pi_bin, workdir, prompt, args.base_url, args.model,
                              args.provider, args.thinking, run_root, agent_dir, home,
                              sandbox)
@@ -434,6 +436,9 @@ def main() -> int:
                     help="run root (ABSOLUTE /tmp path; default /tmp/pi-baseline-<ts>)")
     ap.add_argument("--no-sandbox", action="store_true",
                     help="do not wrap in bwrap; rely on cwd + prompt confinement only")
+    ap.add_argument("--append-prompt", default="",
+                    help="a FILE whose text is appended to the base prompt; the A2 arm "
+                         "'pi with an improved prompt' from the 2026-10-06 mandate")
     ap.add_argument("--ask-tests", action="store_true",
                     help="append an explicit 'write and run your own tests' instruction to "
                          "the prompt, for the with/without-testing-instruction comparison")
