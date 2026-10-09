@@ -223,7 +223,7 @@ loop, deterministic diagnosis rules, the report gate, coverage and discriminatio
 - Curated evidence kept in the repository: `bench/runs/evidence/`.
 - Work records: `.scratch/NN-*/issues/*.md` (ticket 21 covers the claim model; ticket 20 the
   How axis and its measured verdict; tickets 17–19 the leaf, the tree and the covenant).
-- Design: `docs/DESIGN.md` §10 (flow) and §10.10 (implemented vs not built).
+- Design: `docs/DESIGN.md` §10 (flow) and §10.10 (which delegates the implemented-vs-not-built list to section 2a here).
 
 ## 6. Recommended next steps (ordered)
 

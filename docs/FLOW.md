@@ -292,6 +292,11 @@ delivery and the grader's verdict. Complete, always on.
 
 ## 9. What this changes relative to the current code
 
+**Snapshot taken 2026-10-06; the "today" column describes the code at that commit.** State now
+(2026-10-09): rows 5, 7, 8 and 10 have landed (`8cb22be`, `827d8dd`, `01d9bee`); row 3 landed for
+the tree's Hows while the leaf driver still uses its fixed questions; rows 1, 2 and 6 are still
+open and are the node-structure work in `.scratch/27-campaign/`.
+
 | # | today | this spec |
 | --- | --- | --- |
 | 1 | two drivers (`v2_leaf` direct leaf, `v2_tree` tree) | ONE runner; a single leaf is a tree of one node |
@@ -315,7 +320,9 @@ delivery and the grader's verdict. Complete, always on.
 | **H4** | RESOLVED: all Hows exhausted → best-of (uncertain beats fail) → that state propagates upward; a judge's `spec` verdict is still the path that asks the parent to re-plan | — | — |
 | **H5** | RESOLVED: parallel nodes get **separate git worktrees/branches**, merged afterwards | — | — |
 | **H6** | The regression check's coverage | it can only run the VISIBLE test suite; the grader's own suite is withheld by the blind protocol, so a run can be regression-free by our check and still fail the grader | state it plainly in every report: our regression verdict is partial; the external grader is the final word |
+| | *measured 2026-10-08: on this corpus the staged view usually has no visible test at all, so the stage is skipped (`observable=False`) - see `STATUS.md` limit 7* | | |
 | **H7** | When is the judge consulted? | every red (one extra call per attempt) versus after K consecutive reds (today: K=2, plus a volunteer trigger) | every red: T-01/T-05 both burned 4-6 attempts churning against a wrong test, which one judge call would have stopped |
+| | *decided 2026-10-08: K=1 — every red goes to the judge (commit `8cb22be`, `ATTRIBUTION_RED_K`), at most once per attempt* | | |
 | **H8** | The judge is unavailable or malformed | the attribution is missing, and "keep implementing" is a guess | keep implementing for at most one attempt, then treat the test as UNCERTAIN and repair it (a wrong test is the likelier defect in that state) |
 | **H9** | The work unit's stop conditions are not enumerated | "iterate (bounded)" hides: what is the cap, what happens at the cap, does the cap reset when the judge changes the diagnosis | one cap per How (attempts), renewed only by a node update; at the cap the How is confirmed failed and the next How starts |
 | **H10** | Exploration bookkeeping | "every step may explore" says nothing about what the exploration found, who pays for it, or whether the later steps can see it | an exploration result is a first-class artifact: reads are recorded in the trajectory, their excerpts ride into the steps of the SAME node, and the reads are charged to that node's budget |
@@ -326,6 +333,8 @@ delivery and the grader's verdict. Complete, always on.
 1. RESOLVED: every in-run judge stays the small model; the strong model appears only as the manual
    out-of-band regression review (§7.1).
 2. §4.4's last line: when no approach passes, confirm the exact output — current spec: deliver the
-   best-evidence revision, claim nothing, report `uncertain` with the reasons.
+   best-evidence revision, claim nothing, report `uncertain` with the reasons. **Implemented and
+   kept** (`best_of_how_states` / `propagate_node_state`, `01d9bee`; the empty-delivery case is a
+   first-class outcome, `d10e172`).
 3. The parallelism granularity when it is picked up (§7): siblings from the start, or gated by
    budget/clock; parallel writers need confined work trees.
