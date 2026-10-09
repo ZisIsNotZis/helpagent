@@ -310,6 +310,17 @@ open and are the node-structure work in `.scratch/27-campaign/`.
 | 9 | judge/review/independent test = the same small model | UNCHANGED (they stay the small model); the only stronger-model role is the manual out-of-band regression review (§7.1) |
 | 10 | non-pass states collapse into "not claimed" | explicit three-state test/review, and the node update is a recorded act |
 
+## 10. Open decisions for the owner
+
+1. RESOLVED: every in-run judge stays the small model; the strong model appears only as the manual
+   out-of-band regression review (§7.1).
+2. §4.4's last line: when no approach passes, confirm the exact output — current spec: deliver the
+   best-evidence revision, claim nothing, report `uncertain` with the reasons. **Implemented and
+   kept** (`best_of_how_states` / `propagate_node_state`, `01d9bee`; the empty-delivery case is a
+   first-class outcome, `d10e172`).
+3. The parallelism granularity when it is picked up (§7): siblings from the start, or gated by
+   budget/clock; parallel writers need confined work trees.
+
 ## 11. Holes in this flow (found while walking it; none is decided)
 
 | # | hole | why it matters | proposal |
@@ -327,14 +338,3 @@ open and are the node-structure work in `.scratch/27-campaign/`.
 | **H9** | The work unit's stop conditions are not enumerated | "iterate (bounded)" hides: what is the cap, what happens at the cap, does the cap reset when the judge changes the diagnosis | one cap per How (attempts), renewed only by a node update; at the cap the How is confirmed failed and the next How starts |
 | **H10** | Exploration bookkeeping | "every step may explore" says nothing about what the exploration found, who pays for it, or whether the later steps can see it | an exploration result is a first-class artifact: reads are recorded in the trajectory, their excerpts ride into the steps of the SAME node, and the reads are charged to that node's budget |
 | **H11** | The top level with several issues | the flow says "one or more issues" but not whether they are sequential, parallel, or what the run claims when one passes and another does not | execute issues in order (or in parallel only when their `files` do not overlap — H5); the run's report is per issue and the run claims nothing that failed |
-
-## 10. Open decisions for the owner
-
-1. RESOLVED: every in-run judge stays the small model; the strong model appears only as the manual
-   out-of-band regression review (§7.1).
-2. §4.4's last line: when no approach passes, confirm the exact output — current spec: deliver the
-   best-evidence revision, claim nothing, report `uncertain` with the reasons. **Implemented and
-   kept** (`best_of_how_states` / `propagate_node_state`, `01d9bee`; the empty-delivery case is a
-   first-class outcome, `d10e172`).
-3. The parallelism granularity when it is picked up (§7): siblings from the start, or gated by
-   budget/clock; parallel writers need confined work trees.
