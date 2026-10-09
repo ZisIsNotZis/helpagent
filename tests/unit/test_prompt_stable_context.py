@@ -15,6 +15,8 @@ from harness.leaf import (
     LeafSpec,
     _declared_source_files,
     _implement_artifacts,
+    _implement_question,
+    _implement_targets,
     _self_test_artifacts,
     Escalation,
 )
@@ -93,3 +95,54 @@ def test_no_declared_file_falls_back_to_the_full_view(tmp_path: Path):
     stable = arts[STABLE_ARTIFACT_KEY]
     assert "=== inventory/pick.py (full) ===" in stable
     assert "=== inventory/audit.py (full) ===" in stable
+
+
+def test_f2_the_runs_own_test_imports_always_inject_the_module_in_full(tmp_path: Path):
+    """F2: the run's own test NAMES the modules under test through its imports, so an
+    imported source file is injected in full even when neither the goal nor a criterion
+    spells the path out (the T-05 shape: a test that cannot see the module it exercises)."""
+    spec = _spec()
+    for rel, text in spec.files.items():
+        path = tmp_path / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+    (tmp_path / "test_pick.py").write_text(
+        "from inventory.audit import Audit\n\n\ndef test_ac1_audit():\n    assert Audit\n")
+    named = LeafSpec(goal="fix the picker", files=spec.files,
+                     acs=["inventory.pick.pick must return the sentinel"],
+                     interfaces=[], grader_paths=("README.md",))
+    declared = _declared_source_files(named, spec.files, workdir=tmp_path,
+                                      baseline={}, self_test="test_pick.py")
+    assert "inventory/audit.py" in declared          # named by the test's import
+    assert "inventory/pick.py" in declared           # named by the criterion
+    arts = _implement_artifacts(named, tmp_path,
+                                Escalation("L1-resample", "sampling", False, "x"),
+                                [], [], "test_pick.py", "M2", {})
+    stable = arts[STABLE_ARTIFACT_KEY]
+    assert "=== inventory/audit.py (full) ===" in stable
+
+
+def test_f2_the_implement_question_names_the_file_to_change(tmp_path: Path):
+    """F2: the run names the file(s) to change in the implement question whenever it knows
+    them (the request text, the previous attempt's changed paths, or the run's own test
+    imports). Asking only for "the file(s) you are changing" let a run re-emit the
+    unchanged file and stop as no-change-delivery."""
+    spec = _spec()
+    for rel, text in spec.files.items():
+        path = tmp_path / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+    named = LeafSpec(goal="fix the picker", files=spec.files,
+                     acs=["inventory.pick.pick must return the sentinel"],
+                     interfaces=[], grader_paths=("README.md",))
+    targets = _implement_targets(named, tmp_path, {}, None)
+    assert "inventory/pick.py" in targets
+    assert "README.md" not in targets          # a frozen/grader path is never a target
+    question = _implement_question("M2", Escalation("L1-resample", "sampling", False, "x"),
+                                   False, targets)
+    assert "inventory/pick.py" in question
+    # the previous attempt's changed paths count too, without any request-text naming
+    baseline = {rel: text for rel, text in spec.files.items()}
+    (tmp_path / "inventory" / "audit.py").write_text("changed\n")
+    changed = _implement_targets(_spec(), tmp_path, baseline, None)
+    assert "inventory/audit.py" in changed

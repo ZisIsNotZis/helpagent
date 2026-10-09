@@ -67,6 +67,8 @@ from harness.leaf import (
     apply_review_filter,
     claim_decision,
     deterministic_greens,
+    pristine_red_is_discriminating,
+    reconciled_check_may_be_dropped,
     reconciliation_ruling,
     escalate,
     evaluate_independent_test,
@@ -7327,6 +7329,80 @@ def test_p5a_only_an_observed_regression_supplies_the_regression_green():
                                 documented_api_missing=("pkg/x.py: load() documented",
                                                         ),
                                 regression_clean=True) == ("no-regression",)
+
+
+def test_f1_a_judge_ruling_may_not_drop_a_discriminating_red():
+    """F1 (P5(c) soundness): a check that produced a REAL observed failure on the PRISTINE
+    source is DISCRIMINATING. No judge ruling against the check may drop it: the guard
+    refuses, the honest block stands, and only a check whose every final failure was GREEN
+    on the pristine source (an inversion) or a corroborating observed discriminating green
+    may be dropped.
+
+    This test fails if a judge ruling can clear a discriminating red."""
+    discriminating = GateReport(report_path="(pristine)", process_exit=1, canary="c",
+                                expected_files=(), n_tests=2, n_failed=1, n_errors=0,
+                                passed_ids=("t.py::ac2",), failed_ids=("t.py::ac1",),
+                                missing=(), observed=True, anomaly="tests-failed",
+                                detail="1 failure(s)")
+    # the check failed on the pristine source AND on the final revision: discriminating
+    assert pristine_red_is_discriminating(discriminating) is True
+    assert reconciled_check_may_be_dropped(
+        ruling="check", independent_approved=False, own_red_blocks=False,
+        iv_red_blocks=True, iv_final_failed_ids=("t.py::ac1",),
+        iv_inverted_ids=()) is False
+    # ... even when the SAME id also passed on the pristine source is impossible, but an
+    # UNKNOWN final failure (present in neither report) is not excused either
+    assert reconciled_check_may_be_dropped(
+        ruling="check", independent_approved=False, own_red_blocks=False,
+        iv_red_blocks=True, iv_final_failed_ids=("t.py::ac1", "t.py::ac9"),
+        iv_inverted_ids=("t.py::ac1",)) is False
+    # a ruling against the REVISION (or an unreadable ruling) never drops anything
+    assert reconciled_check_may_be_dropped(
+        ruling="revision", independent_approved=True, own_red_blocks=False,
+        iv_red_blocks=True) is False
+    assert reconciled_check_may_be_dropped(
+        ruling="unclear", independent_approved=True, own_red_blocks=False,
+        iv_red_blocks=True) is False
+
+
+def test_f1_only_a_pure_inversion_or_a_corroborating_green_can_drop_a_check():
+    """F1: the two sound drops survive — every final failure was GREEN on the pristine
+    source (the delivery broke a check the pre-fix source passed), or an OBSERVED
+    discriminating green about the same revision contradicts the red."""
+    green_on_pristine = GateReport(report_path="(pristine)", process_exit=0, canary="c",
+                                   expected_files=(), n_tests=2, n_failed=0, n_errors=0,
+                                   passed_ids=("t.py::ac1", "t.py::ac2"), failed_ids=(),
+                                   missing=(), observed=True)
+    assert pristine_red_is_discriminating(green_on_pristine) is False
+    assert reconciled_check_may_be_dropped(
+        ruling="check", independent_approved=False, own_red_blocks=False,
+        iv_red_blocks=True, iv_final_failed_ids=("t.py::ac1",),
+        iv_inverted_ids=("t.py::ac1",)) is True
+    assert reconciled_check_may_be_dropped(
+        ruling="check", independent_approved=True, own_red_blocks=False,
+        iv_red_blocks=True, iv_final_failed_ids=("t.py::ac1",),
+        iv_inverted_ids=()) is True
+    # an errors/collection-only pristine run never discriminated anything
+    errors_only = dataclasses.replace(green_on_pristine, n_failed=0, n_errors=2,
+                                      passed_ids=(), anomaly="tests-failed")
+    assert pristine_red_is_discriminating(errors_only) is False
+    assert pristine_red_is_discriminating(None) is False
+
+
+def test_f1_the_runs_own_green_test_cannot_corroborate_dropping_a_discriminating_red():
+    """F1 (the T-13 false success): a run can always write its own test that passes on its
+    own (wrong) fix. When a judge rules the FRESH independent verification wrong, the run's
+    own green test is not corroboration — only an approving independent verification is —
+    so the discriminating independent red keeps blocking."""
+    assert reconciled_check_may_be_dropped(
+        ruling="check", independent_approved=False, own_red_blocks=False,
+        iv_red_blocks=True,
+        iv_final_failed_ids=("tests/test_independent.py::test_ac1",),
+        iv_inverted_ids=()) is False
+    # ... whereas the same ruling IS sound when the independent verification approved
+    assert reconciled_check_may_be_dropped(
+        ruling="check", independent_approved=True, own_red_blocks=True,
+        iv_red_blocks=False) is True
 
 
 def test_p5c_reconciliation_ruling_reads_the_judges_own_blame():

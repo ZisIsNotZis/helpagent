@@ -1813,6 +1813,53 @@ def iv_all_inverted(verdict: IndependentTestVerdict | None) -> bool:
     return set(final.failed_ids) <= set(inverted)
 
 
+def pristine_red_is_discriminating(original_gate: "GateReport | None") -> bool:
+    """F1 (P5(c)): True when a check produced a REAL observed failure on the PRISTINE
+    pre-run source.
+
+    ``n_failed > 0`` there is the only proof that a check DISTINGUISHED the buggy
+    revision from a fix — it is the discriminating evidence the goal was actually pinned.
+    Such a check may NOT be dropped: not by a reconciliation judge ruling against it, and
+    not by a review approving the revision it rejects. A check that was GREEN on the
+    pristine source, or whose pristine run only errored/collected (``n_failed == 0``),
+    never discriminated anything and may be dropped.
+    """
+    return bool(original_gate is not None and original_gate.n_failed > 0)
+
+
+def reconciled_check_may_be_dropped(
+    *,
+    ruling: str,
+    independent_approved: bool,
+    own_red_blocks: bool,
+    iv_red_blocks: bool,
+    iv_final_failed_ids: Sequence[str] = (),
+    iv_inverted_ids: Sequence[str] = (),
+) -> bool:
+    """F1 (P5(c)): whether a reconciliation ruling against a check may actually DROP it.
+
+    The ONE decision the P5(c) soundness guard makes. A ruling may drop a blocking check
+    only when the drop is corroborated:
+
+    * ``independent_approved`` — an approving INDEPENDENT verification of the same revision
+      (a fresh, independently authored green) contradicts the red; or
+    * every id the check failed on the final revision also PASSED on the pristine source
+      (``iv_final_failed_ids <= iv_inverted_ids``): the check never discriminated the fix
+      from the bug, so it is provably non-discriminating.
+
+    A check that FAILED on the pristine source (an id in the final failures that is not in
+    the inverted set) is DISCRIMINATING — the failure is the delivery's, not the check's —
+    so NOTHING, no judge ruling, may clear it.
+    """
+    if ruling != "check":
+        return False
+    if independent_approved:
+        return True
+    return bool(
+        iv_red_blocks and not own_red_blocks and iv_final_failed_ids
+        and set(iv_final_failed_ids) <= set(iv_inverted_ids))
+
+
 def deterministic_greens(
     *,
     source_unparseable: str = "",
@@ -5068,7 +5115,36 @@ def _implement_artifacts(
     }
 
 
-def _implement_question(mode: str, esc: Escalation, last_refused: bool = False) -> str:
+def _implement_targets(
+    spec: LeafSpec,
+    workdir: Path,
+    baseline: Mapping[str, str | None],
+    self_test: str | None,
+) -> tuple[str, ...]:
+    """F2: the writable file(s) the run already knows it must change.
+
+    The request text, the previous attempt's changed paths, and the run's own test imports
+    all name the file(s) to change (see :func:`_declared_source_files`). The named file(s)
+    ride the implement question, so a model that cannot see the defect cannot respond by
+    re-emitting the unchanged file.
+    """
+    declared = _declared_source_files(
+        spec, _repo_view(spec, workdir, tuple(baseline)),
+        workdir=workdir, baseline=baseline, self_test=self_test)
+    forbidden = set(spec.grader_paths)
+    return tuple(rel for rel in sorted(declared)
+                 if rel in spec.files and rel not in forbidden)
+
+
+def _implement_question(mode: str, esc: Escalation, last_refused: bool = False,
+                        targets: Sequence[str] = ()) -> str:
+    """The implement question (ticket 26 + F2).
+
+    F2: the question NAMES the file(s) to change whenever the run knows them (the request
+    text, the previous attempt's changed paths, or the run's own test imports). Asking for
+    "the file(s) you are changing" left a model that could not see the defect free to
+    re-emit the unchanged file (the T-05 no-change-delivery shape).
+    """
     if last_refused:
         lead = ("Your previous write was REFUSED before it reached disk, so you did not "
                 "change anything and you learned nothing about the code. Do NOT repeat "
@@ -5092,8 +5168,13 @@ def _implement_question(mode: str, esc: Escalation, last_refused: bool = False) 
         lead += f"Apply this deterministic diagnosis: {esc.detail}. "
     elif esc.strategy == "L5-review-judge":
         lead += "An independent review is watching; justify the change against the goal. "
+    named = ""
+    if targets:
+        named = ("The file(s) to change here: " + ", ".join(f"``{rel}``" for rel in targets)
+                 + ". Return the complete new content of each. ")
     return (
         lead
+        + named
         + "Emit the complete new content of the file(s) you are changing, as "
         "{\"status\": \"ok\", \"comment\": \"...\", \"files\": [{\"file_path\": ..., "
         "\"content\": ...}]}. A task may need more than one file: change every file that "
@@ -5228,6 +5309,26 @@ def _source_index(view: Mapping[str, str]) -> str:
     return "\n".join(rows)
 
 
+def _test_imported_modules(source: str) -> tuple[str, ...]:
+    """The modules a Python source imports (F2): ``import a.b`` / ``from a.b import x``.
+
+    The run's own test NAMES the modules it exercises through its imports, so those
+    modules must always be injected in full — a test that imports a module it cannot see
+    is the shape that produced a NameError and an unclaimed run (T-05).
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return ()
+    found: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            found.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            found.append(node.module)
+    return tuple(found)
+
+
 def _declared_source_files(
     spec: LeafSpec,
     view: Mapping[str, str],
@@ -5236,24 +5337,31 @@ def _declared_source_files(
     baseline: Mapping[str, str | None] | None = None,
     self_test: str | None = None,
 ) -> set[str]:
-    """The files injected IN FULL (C2(a)).
+    """The files injected IN FULL (C2(a), F2).
 
     A file is declared when the plan's own text names it — the goal, an acceptance
-    criterion, the run's own test (its imports name the modules under test), or a file the
-    run has already changed. The rest of the source view is injected as the compact index
-    only; the model reaches a file by naming it, and it is injected in full on the next
-    call. When NOTHING is declared the whole view is injected in full, so a plan that
-    names no file keeps today's behaviour (never a blank-slate break).
+    criterion, or a file the run has already changed — AND, since F2, when the run's own
+    test IMPORTS it (its imports name the modules under test, even when neither the goal
+    nor a criterion spells the path out). The rest of the source view is injected as the
+    compact index only; the model reaches a file by naming it, and it is injected in full
+    on the next call. When NOTHING is declared the whole view is injected in full, so a
+    plan that names no file keeps today's behaviour (never a blank-slate break).
     """
     text_parts = [spec.goal or "", " ".join(spec.acs or [])]
+    test_source = ""
     if self_test and workdir is not None:
-        text_parts.append(_read(workdir, self_test))
+        test_source = _read(workdir, self_test)
+        text_parts.append(test_source)
     text = "\n".join(text_parts)
+    imported = _test_imported_modules(test_source) if test_source else ()
     declared: set[str] = set()
     for rel in view:
         stem = Path(rel).stem
         module = rel[:-3].replace("/", ".") if rel.endswith(".py") else rel
         if rel in text or module in text or _word_present(stem, text) or _word_present(module, text):
+            declared.add(rel)
+        elif module and any(imp == module or imp.startswith(module + ".")
+                            for imp in imported):
             declared.add(rel)
     if workdir is not None and baseline:
         for rel in baseline:
@@ -6668,9 +6776,14 @@ async def run_leaf(
         last = iv_verdicts[-1] if iv_verdicts else None
         if last is None or last.reason != "independent-test-red-on-final":
             return False
-        if not _gate_blocks_as_red(last.final_gate):
-            return False
-        return not iv_all_inverted(last)
+        if _gate_blocks_as_red(last.final_gate):
+            return not iv_all_inverted(last)
+        # F1 (P5): an unobserved or errors/collection-only final red is not a blocker BY
+        # ITSELF (M4), but when the SAME check produced a REAL observed failure on the
+        # PRISTINE source it is DISCRIMINATING — the final error is then evidence the
+        # delivery broke the check (a removed symbol, a broken import), never a reason to
+        # drop it. No judge ruling and no review may clear a discriminating red.
+        return pristine_red_is_discriminating(last.original_gate)
 
     def iv_non_discriminating() -> bool:
         """M2 (P4a): the last independent verdict is in the NON-DISCRIMINATING state.
@@ -7044,31 +7157,39 @@ async def run_leaf(
             if ruling == "check":
                 # P5(c) soundness guard: a judge's ruling against a check may only DROP a
                 # red the remaining evidence already contradicts. The drop is sound when
-                #  (a) another OBSERVED, DISCRIMINATING green about this revision stands
-                #      (the independent per-criterion test approved it, or the run's own
-                #      discriminating test is green on it), or
+                #  (a) an approving INDEPENDENT verification of the same revision stands (a
+                #      fresh, independently authored green contradicts the red), or
                 #  (b) the dropped INDEPENDENT check never discriminated anything: every
-                #      failing id also failed on the pristine source (an expectation the
-                #      pre-fix source failed too, not a pinned behaviour the delivery
-                #      broke) AND no other OBSERVED, DISCRIMINATING red (the run's own
-                #      test) is left standing.
+                #      failing id also PASSED on the pristine source (an expectation the
+                #      pre-fix source passed, so the delivery broke the check rather than
+                #      failing to meet it) AND no other OBSERVED, DISCRIMINATING red (the
+                #      run's own test) is left standing. A failing id that ALSO FAILED on
+                #      the pristine source is a discriminating red (F1) and is never
+                #      droppable.
                 # Otherwise the ruling would override an observed, discriminating,
                 # non-error red on a model's word alone — the one thing a claim may
                 # never rest on. The refusal is recorded, and the honest block stands.
-                inverted_ids, unmet_ids = iv_inversion_evidence(
+                inverted_ids, _unmet_ids = iv_inversion_evidence(
                     last.original_gate if last is not None else None,
                     last.final_gate if last is not None else None)
-                iv_never_discriminated = bool(
-                    iv_red_blocks and last is not None and last.final_gate is not None
-                    and last.final_gate.failed_ids
-                    and set(last.final_gate.failed_ids)
-                    <= (set(inverted_ids) | set(unmet_ids)))
-                corroborating_green = bool(
-                    iv_approved
-                    or (self_test is not None and own_test_discriminating
-                        and _final_own_test_state(self_test, last_gate) == "green"
-                        and test_rewrites == 0))
-                sound = corroborating_green or (iv_never_discriminated and not own_red_blocks)
+                # F1: only the INDEPENDENT verification's approval corroborates a ruling
+                # against the red. The run's OWN model-written test must never corroborate
+                # it: a run can always write a test that passes on its own (wrong) fix, and
+                # that is exactly the false-success loop (T-13: a judge ruled the fresh
+                # independent red wrong because the run's own test was green). An
+                # approving independent verification is a fresh, independently authored
+                # green and does contradict a red elsewhere.
+                corroborating_green = bool(iv_approved)
+                # F1: only an id that PASSED on the pristine source counts as
+                # non-discriminating; an id that failed there too is a discriminating red
+                # the ruling may not clear.
+                sound = reconciled_check_may_be_dropped(
+                    ruling=ruling, independent_approved=corroborating_green,
+                    own_red_blocks=own_red_blocks, iv_red_blocks=iv_red_blocks,
+                    iv_final_failed_ids=(last.final_gate.failed_ids
+                                         if last is not None and last.final_gate is not None
+                                         else ()),
+                    iv_inverted_ids=inverted_ids)
                 if not sound:
                     emit("claim_reconciliation_refused", checks=checks, ruling=ruling,
                          detail=("the ruling against the check is not corroborated: no "
@@ -7085,7 +7206,7 @@ async def run_leaf(
                         f"({why}); dropped {'; '.join(checks)} and re-ran the claim gate "
                         f"once, on the deterministic greens "
                         f"({', '.join(deterministic)}); the drop is corroborated by "
-                        + ("an observed discriminating green about this revision"
+                        + ("an approving independent verification of this revision"
                            if corroborating_green else
                            "a check whose failure never discriminated the fix"))
                     emit("claim_reconciliation_check_dropped", checks=checks, detail=why)
@@ -7896,6 +8017,9 @@ async def run_leaf(
         review_approved = False   # ticket 20: recomputed each attempt (review angles)
         emit("leaf_attempt", n=len(attempts) + 1, strategy=esc.strategy, layer=esc.layer,
              mode=mode)
+        # F2: the file(s) to change are named from the state BEFORE an M1 erase discards
+        # the previous draft (the previous attempt's changed paths are evidence of intent).
+        implement_targets = _implement_targets(spec, workdir, baseline, self_test)
         if mode == "M1":
             # Ticket 23 item 1: checkpoint the revision the M1 erase is about to discard,
             # so an erase can never destroy the best-evidence revision. If the draft has
@@ -7910,7 +8034,8 @@ async def run_leaf(
             partial(_request_implement, model,
                     _implement_artifacts(spec, workdir, esc, attempts, last_excerpts,
                                          self_test, mode, baseline),
-                    _implement_question(mode, esc, _last_refused(attempts))),
+                    _implement_question(mode, esc, _last_refused(attempts),
+                                        implement_targets)),
             "implement")
         if failure == "calls":
             stop("honest-failure", "call-budget", "calls")
