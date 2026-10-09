@@ -1,10 +1,10 @@
-"""C1/C2 — the run-invariant stable context block and the bounded source view.
+"""C1/C2 — the run-invariant stable context block and the source view.
 
 C1: the artifacts that are byte-identical across the calls of one run (goal, constraints,
 file listings, the source view) are emitted ONCE, as a byte-stable prefix, and are NOT
-re-rendered a second time from the per-step artifacts. C2: only the files the plan declares
-are injected in full; every other source file is injected as a compact index (path, line
-count, docstring first line, top-level def/class names with line numbers).
+re-rendered a second time from the per-step artifacts. C2's bounded index is DISABLED
+(V2): every visible source file is injected IN FULL, so no source file is ever hidden
+from the model. The declared-file computation still names the implement target(s).
 """
 
 from __future__ import annotations
@@ -61,7 +61,9 @@ def test_stable_block_forms_a_byte_stable_prefix_across_steps():
     assert first.index(stable) == second.index(stable)
 
 
-def test_undeclared_source_files_are_indexed_not_injected_in_full(tmp_path: Path):
+def test_every_source_file_is_injected_in_full_no_index(tmp_path: Path):
+    """V2: C2's compact index is disabled - a file that is not named by the plan or the
+    run's own test is still injected IN FULL, so no source file is hidden from the model."""
     spec = _spec()
     for rel, text in spec.files.items():
         path = tmp_path / rel
@@ -79,9 +81,10 @@ def test_undeclared_source_files_are_indexed_not_injected_in_full(tmp_path: Path
                                 [], [], None, "M2", {})
     stable = arts[STABLE_ARTIFACT_KEY]
     assert "=== inventory/pick.py (full) ===" in stable
-    # the undeclared file is a compact index row: path, line count, docstring, symbols
-    assert "inventory/audit.py (5 lines) doc: Audit log." in stable
-    assert "Audit@4" in stable
+    # V2: the undeclared file is ALSO injected in full, never replaced by an index row
+    assert "=== inventory/audit.py (full) ===" in stable
+    assert "inventory/audit.py (5 lines)" not in stable
+    assert "Audit@4" not in stable
 
 
 def test_no_declared_file_falls_back_to_the_full_view(tmp_path: Path):

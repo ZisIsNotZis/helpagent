@@ -5267,46 +5267,23 @@ def _source_view(spec: LeafSpec) -> dict[str, str]:
     return {rel: text for rel, text in spec.files.items()}
 
 
+# V2 (2026-10-06): P2's C2 bounded the source view (declared files in full, every other
+# file as a compact index). The bounded index hid source files from the model and came
+# under measured suspicion of costing real fixes (FLOW 9.10: a token win that costs
+# correctness is not a win), so C2 is DISABLED here: every visible source file is always
+# injected IN FULL. C1 (the byte-stable STABLE CONTEXT block, the de-duplication and the
+# prompt cache) is unchanged. The declared-file machinery still names implement targets.
+SOURCE_VIEW_MODE = "full"
+
+
+def source_view_mode() -> str:
+    """The source-view mode injected into the stable block, for the run telemetry."""
+    return SOURCE_VIEW_MODE
+
+
 # ---------------------------------------------------------------------------
-# C1/C2: the run-invariant stable context block and the bounded source view
+# C1: the run-invariant stable context block and the (now full) source view
 # ---------------------------------------------------------------------------
-
-def _docstring_first_line(source: str) -> str:
-    """The first line of a module docstring, or "" (C2 index)."""
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        return ""
-    if (tree.body and isinstance(tree.body[0], ast.Expr)
-            and isinstance(tree.body[0].value, ast.Constant)
-            and isinstance(tree.body[0].value.value, str)):
-        text = tree.body[0].value.value.strip()
-        return text.splitlines()[0].strip() if text else ""
-    return ""
-
-
-def _top_level_names(source: str) -> tuple[tuple[str, int], ...]:
-    """Top-level def/class names with their line numbers (C2 index)."""
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        return ()
-    return tuple(
-        (node.name, node.lineno) for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)))
-
-
-def _source_index(view: Mapping[str, str]) -> str:
-    """The compact per-file index: relative path, line count, module-docstring first line,
-    and the top-level def/class names with their line numbers (C2)."""
-    rows: list[str] = []
-    for rel, text in sorted(view.items()):
-        names = ", ".join(f"{name}@{line}" for name, line in _top_level_names(text))
-        rows.append(
-            f"- {rel} ({len(text.splitlines())} lines) "
-            f"doc: {_docstring_first_line(text) or '(none)'} "
-            f"| {names or '(no top-level defs/classes)'}")
-    return "\n".join(rows)
 
 
 def _test_imported_modules(source: str) -> tuple[str, ...]:
@@ -5378,19 +5355,15 @@ def _source_view_bounded(
     baseline: Mapping[str, str | None] | None = None,
     self_test: str | None = None,
 ) -> str:
-    """C2: declared files in full, the rest as the compact index."""
-    declared = _declared_source_files(spec, view, workdir=workdir, baseline=baseline,
-                                      self_test=self_test)
-    parts: list[str] = []
-    for rel, text in sorted(view.items()):
-        if rel in declared:
-            parts.append(f"=== {rel} (full) ===\n{text}")
-    indexed = {rel: text for rel, text in view.items() if rel not in declared}
-    if indexed:
-        parts.append(
-            "=== other source files (compact index; name one to receive it in full on "
-            "the next step) ===\n" + _source_index(indexed))
-    return "\n".join(parts)
+    """V2: EVERY source file is injected IN FULL; C2's compact index is disabled.
+
+    ``workdir``/``baseline``/``self_test`` are kept in the signature because the callers
+    pass them, but no file is bounded out: the declared-file computation that used to
+    decide full-versus-index still runs behind :func:`_implement_targets`, which names the
+    file(s) to change in the implement question.
+    """
+    return "\n".join(f"=== {rel} (full) ===\n{text}"
+                     for rel, text in sorted(view.items()))
 
 
 def _acs_restate_goal(goal: str, acs: Sequence[str]) -> bool:
@@ -5418,8 +5391,8 @@ def _stable_context(
     self_test: str | None = None,
 ) -> str:
     """The run-invariant prompt block (C1): goal, constraints, file listings, the repo's
-    own documentation, and the bounded source view. Composed once per run and emitted as
-    the byte-stable prefix of every step."""
+    own documentation, and the full source view. Composed once per run and emitted as the
+    byte-stable prefix of every step."""
     forbidden = set(spec.grader_paths)
     writable = [rel for rel in sorted(spec.files) if rel not in forbidden]
     frozen = [rel for rel in sorted(forbidden) if rel in spec.files]

@@ -74,6 +74,7 @@ from harness.leaf import (  # noqa: E402
     ReviewVerdict,
     _coerce_review_grade,
     run_leaf,
+    source_view_mode,
 )
 from harness.model import LlamaServerRunner  # noqa: E402
 from harness.runner import SchemaViolation, llm_step  # noqa: E402
@@ -841,6 +842,7 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
     set_sink(jsonl_sink(traj))
     try:
         trace("run_start", task=task["task_id"], verify_mode=mode,
+               source_view_mode=source_view_mode(),
                visible_source=sorted(spec.files), withheld_grader_paths=list(withheld),
                write_forbidden=sorted(spec.grader_paths), acceptance_criteria=list(spec.acs),
                planned_tests=[c.file for c in spec.planned_tests],
