@@ -559,7 +559,16 @@ corpus's own withheld tests, blind staging, one writer. The corpus is T-01..T-35
 |---|---|---|---|
 | ours | **24/40** | 11 | **3** (T-27, T-30, T-35) |
 | pi, params maxed (A1) | **27/40** | 29 | 2 (A-02, T-35) |
-| pi + improved prompt (A2) | *being re-run* (the first attempt was invalidated by a model-server connection error under 4-way concurrency; all 40 runs died in ~15 s) | | |
+| pi + improved prompt (A2) | **NOT MEASURED - environment blocker** | | |
+
+The A2 arm could not be measured: every pi run dies in ~15 s with `no assistant message` /
+`Connection error` (events.jsonl `stopReason:"error"`, `durationMs:3`), including a single
+sequential one-task smoke test, while the same model server answers our own harness normally
+(health ok, sweeps pass). The distinguishing factor is that the pi client pins a 32768-token
+context (`--reasoning`), and an unrelated GPU job (`lmeval_run.py`, not this project) is holding
+VRAM at the same time. This is an environment blocker, not a harness defect; it needs the other
+job to finish (or explicit authority to stop it), then the 40 A2 runs can be redone as 8
+sequential 5-task lanes.
 
 Head to head: both pass **23**, we win **1**, pi wins **4** (T-07, T-14, T-28, T-30), both fail **12**
 (A-01..A-05, T-13, T-24, T-26, T-27, T-32, T-34, T-35).
