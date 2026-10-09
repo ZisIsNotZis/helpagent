@@ -66,6 +66,8 @@ from harness.leaf import (
     apply_judge_filter,
     apply_review_filter,
     claim_decision,
+    deterministic_greens,
+    reconciliation_ruling,
     escalate,
     evaluate_independent_test,
     run_leaf,
@@ -7156,17 +7158,18 @@ def test_m2_review_claim_refused_when_a_judge_flagged_the_same_revision():
 
 
 def test_m2_review_claim_refused_on_a_non_discriminating_independent_verdict():
-    """M2 (T-12, seq695 ``independent-test-not-red``): a non-discriminating independent
-    verdict cannot corroborate an approving review, so the review-route claim is refused
-    and the state is recorded in the disagreement."""
+    """M2 + P5(b) (T-12 seq695 ``independent-test-not-red``, T-16's final blocker): a
+    NON-DISCRIMINATING independent verdict is not the OBSERVED, DISCRIMINATING, non-error
+    red the review may not override, so it is RECORDED in the disagreement and does NOT
+    block the review-backed claim; the grant carries the ``basis_risk`` label."""
     base = _m2_review_base()
-    blocked = claim_decision(
+    granted = claim_decision(
         **base, iv_non_discriminating=True,
         iv_non_discriminating_detail="independent-test-not-red: it PASSED on the pre-run source")
-    assert blocked.claimed is False
-    assert blocked.blocker == "independent-test-non-discriminating"
-    assert "NON-DISCRIMINATING" in blocked.disagreement
-    assert "pre-run source" in blocked.disagreement
+    assert granted.claimed is True
+    assert "NON-DISCRIMINATING" in granted.disagreement
+    assert "pre-run source" in granted.disagreement
+    assert granted.basis_risk == "review-only-no-observable-check"
 
 
 def test_m2_a_clean_review_claim_still_grants():
@@ -7284,3 +7287,78 @@ def test_m2_review_claim_blocked_end_to_end_on_the_t12_shape(tmp_path):
     assert "implementation_wrong" in out.verification_disagreement
     # the review itself was well-formed and approved; the block is the agreement rule
     assert any(v.approved for v in out.review_verdicts)
+
+
+# ---------------------------------------------------------------------------
+# P5: the claim must follow the evidence
+# ---------------------------------------------------------------------------
+
+
+def _p5_own_test_base() -> dict:
+    """The smallest green own-test claim, in the shape the main path supplies."""
+    return dict(route="own-test", criteria_count=1, ledger=_gate_ledger(),
+                own_test="tests/t.py", own_test_green=True, test_rewrites=0,
+                verification_basis="test", tier_allowed=True)
+
+
+def test_p5a_a_claim_requires_a_deterministic_green_and_a_real_delivery():
+    """P5(a): a claim is about a REAL revision with at least one mechanically checked
+    green. A model's approval over a delivery that changed nothing, or over a revision no
+    deterministic signal could confirm, is not a claim."""
+    base = _p5_own_test_base()
+    granted = claim_decision(**base, deterministic_greens=("source-compiles",),
+                             delivery_changed=True)
+    assert granted.claimed is True
+    unchanged = claim_decision(**base, deterministic_greens=("source-compiles",),
+                               delivery_changed=False)
+    assert unchanged.claimed is False
+    assert unchanged.blocker == "no-change-delivery"
+    silent = claim_decision(**base, deterministic_greens=(), delivery_changed=True)
+    assert silent.claimed is False
+    assert silent.blocker == "no-deterministic-green"
+
+
+def test_p5a_only_an_observed_regression_supplies_the_regression_green():
+    """An UNOBSERVABLE regression check is silence, never a green signal."""
+    assert deterministic_greens(source_unparseable="", documented_api_missing=(),
+                                regression_clean=False) == ("source-compiles",
+                                                            "documented-api")
+    assert deterministic_greens(source_unparseable="pkg/x.py: syntax error",
+                                documented_api_missing=("pkg/x.py: load() documented",
+                                                        ),
+                                regression_clean=True) == ("no-regression",)
+
+
+def test_p5c_reconciliation_ruling_reads_the_judges_own_blame():
+    """P5(c): the ruling is the judge's OWN attribution word from the raw envelope, even
+    when the loop's filter coerced the credited label to implementation."""
+    coerced = JudgeVerdict(
+        implementation_wrong=True, coerced=True,
+        coercion_reason=("test_wrong without a defect naming the failing test or one of "
+                         "its assertions (deterministic filter)"),
+        raw='{"status": "failed", "blame": "test", "problem": "the test asserts the '
+            'pre-fix behaviour"}')
+    assert reconciliation_ruling(coerced)[0] == "check"
+    revision = JudgeVerdict(implementation_wrong=True,
+                            raw='{"status": "failed", "blame": "implementation", '
+                                '"problem": "the function still mutates the shared list"}')
+    assert reconciliation_ruling(revision)[0] == "revision"
+    assert reconciliation_ruling(None) == ("unclear", "no verdict was returned")
+    unclear = JudgeVerdict(environment_broken=True, attribution="environment")
+    assert reconciliation_ruling(unclear)[0] == "unclear"
+
+
+def test_p5c_a_reconciled_claim_records_its_basis_risk():
+    """P5(c): a claim allowed after the reconciliation judge ruled a blocking check wrong
+    carries the recorded basis risk; a non-discriminating check that did NOT block is
+    labelled so the basis is never presented as stronger than it is."""
+    granted = claim_decision(**_m2_review_base(), basis_risk="reconciled-check-dropped:x")
+    assert granted.claimed is True
+    assert granted.basis_risk == "reconciled-check-dropped:x"
+    labelled = claim_decision(
+        **{**_m2_review_base(), "own_test": "tests/t.py", "own_test_green": True},
+        iv_non_discriminating=True,
+        iv_non_discriminating_detail="independent-test-not-discriminating: AC3 passes "
+                                     "on the pre-run source")
+    assert labelled.claimed is True
+    assert labelled.basis_risk == "review-over-non-discriminating-check"

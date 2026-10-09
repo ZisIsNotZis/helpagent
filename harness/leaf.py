@@ -260,6 +260,7 @@ from __future__ import annotations
 import ast
 import builtins
 import copy
+import difflib
 import inspect
 import json
 import keyword
@@ -1812,6 +1813,71 @@ def iv_all_inverted(verdict: IndependentTestVerdict | None) -> bool:
     return set(final.failed_ids) <= set(inverted)
 
 
+def deterministic_greens(
+    *,
+    source_unparseable: str = "",
+    documented_api_missing: Sequence[str] = (),
+    regression_clean: bool = False,
+) -> tuple[str, ...]:
+    """P5(a): the DETERMINISTIC green signals about the DELIVERED revision.
+
+    Each entry is a mechanically checked fact about the revision on disk, never a
+    model's opinion: ``source-compiles`` (every produced ``.py`` parses),
+    ``documented-api`` (no name the repository's own documentation presents in call form
+    is swallowed by a class), ``no-regression`` (the visible suite was OBSERVED on both
+    the pristine baseline and this revision and nothing that passed before fails now).
+    An UNOBSERVABLE regression check (no visible suite) is NOT a green signal — it is
+    silence, and silence is never evidence. A claim requires at least one of these AND a
+    delivery that differs from the baseline (:func:`_delivery_is_unchanged`).
+    """
+    greens: list[str] = []
+    if not source_unparseable:
+        greens.append("source-compiles")
+    if not documented_api_missing:
+        greens.append("documented-api")
+    if regression_clean:
+        greens.append("no-regression")
+    return tuple(greens)
+
+
+def reconciliation_ruling(verdict: "JudgeVerdict | None") -> tuple[str, str]:
+    """P5(c): the judge's OWN ruling on which side of a claim disagreement is wrong.
+
+    Returns ``("check", why)`` when the judge attributes the trouble to the test/check,
+    ``("revision", why)`` when it attributes it to the implementation, and
+    ``("unclear", why)`` when the ruling cannot be read (an unavailable verdict, or a
+    spec/environment attribution that decides neither side).
+
+    The judge's own ``blame``/``attribution`` word is read from the RAW envelope FIRST: the
+    loop's deterministic filter coerces an unnamed ``test_wrong`` into
+    ``implementation_wrong`` (:func:`apply_judge_filter`) so the automatic repair path
+    cannot be driven by a vague label — a coercion that must not silence the judge when it
+    is explicitly asked to rule which side is wrong.
+    """
+    if verdict is None:
+        return "unclear", "no verdict was returned"
+    if verdict.spec_wrong or verdict.environment_broken:
+        return "unclear", (
+            f"the judge attributed the trouble to {verdict.attribution or 'neither side'}")
+    blame = ""
+    try:
+        payload = json.loads(verdict.raw or "{}")
+        if isinstance(payload, Mapping):
+            blame = str(payload.get("blame") or payload.get("attribution") or "")
+    except (ValueError, TypeError):
+        blame = ""
+    canonical = ATTRIBUTION_ALIASES.get(_norm(blame), "")
+    if canonical == "tests":
+        return "check", f"the judge named the CHECK wrong (its own blame={blame!r})"
+    if canonical == "implementation":
+        return "revision", f"the judge named the REVISION wrong (its own blame={blame!r})"
+    if verdict.test_wrong:
+        return "check", "the judge's credited label named the test wrong"
+    if verdict.implementation_wrong:
+        return "revision", "the judge's credited label named the implementation wrong"
+    return "unclear", (verdict.defect or verdict.reason or "no attribution")[:200]
+
+
 def claim_decision(
     *,
     route: str,
@@ -1842,6 +1908,9 @@ def claim_decision(
     judge_implementation_wrong_detail: str = "",
     iv_non_discriminating: bool = False,
     iv_non_discriminating_detail: str = "",
+    deterministic_greens: Sequence[str] | None = None,
+    delivery_changed: bool = True,
+    basis_risk: str = "",
 ) -> ClaimDecision:
     """THE single claim gate (ticket 21 round 6): the only place a claim is granted.
 
@@ -1889,12 +1958,12 @@ def claim_decision(
 
     * **M2 (review-route agreement):** a review-route claim additionally requires that no
       judge consultation on the SAME revision recorded ``implementation_wrong``
-      (``judge_implementation_wrong``) and that no independent verdict is in the
-      NON-DISCRIMINATING state (``iv_non_discriminating`` — the ``_IV_REPAIRABLE`` test
-      defects: passed on the pristine source, unobserved, no/shared node per criterion).
-      The conflict is recorded in ``disagreement`` and the claim is refused (the T-12
-      false success: the judge named the ``is``-comparison defect, the review approved,
-      the IV was ``independent-test-not-red``, and the run still claimed green).
+      (``judge_implementation_wrong``). A NON-DISCRIMINATING independent verdict is
+      recorded in ``disagreement`` but (P5b) does NOT block: it is neither the observed,
+      discriminating, non-error red the review may not override nor a corroboration.
+      The caller supplies only an OBSERVED judge attribution: a verdict the deterministic
+      filter manufactured from a dropped ``test_wrong`` label is a fallback, not a
+      finding, and never blocks (P5b).
     * **M4 (a false red does not block):** the run's own final red blocks only when
       ``own_test_red_is_evidence`` (observed + discriminating + a real test failure, not
       only errors/collection failures); ``iv_red_on_final`` is already M4-filtered by the
@@ -1903,6 +1972,15 @@ def claim_decision(
     plus the declared-case result (a declared case the own/independent route cannot carry
     blocks those routes) and the verification covenant (``tier_allowed``, resolved by the
     caller's :func:`enforce_verification`), without which no route claims.
+
+    P5(a) adds the requirement that a claim be about a REAL, mechanically confirmed
+    revision: ``delivery_changed`` (the delivered revision differs from the baseline) and
+    a non-empty ``deterministic_greens`` (:func:`deterministic_greens`) — "it compiles",
+    "the documented interface is there", "the visible suite did not regress". A caller
+    passes ``deterministic_greens=None`` only when it has no deterministic view to offer
+    (legacy/unit callers); every real leaf claim site supplies it. ``basis_risk`` records
+    WHY a weaker basis carried the claim (P5(c) reconciliation, or a review over a
+    non-discriminating check) — a label only, it never changes the grant.
 
     ``own_test_advisory`` (ticket 23 item 2) is True when the plan declared NO tests: the
     run's own test (if it wrote one anyway) is then advisory and its rewrite cannot block
@@ -1930,6 +2008,25 @@ def claim_decision(
         return _blocked_claim("integration-not-passing")
     if route not in CLAIM_ROUTES:
         return _blocked_claim("unknown-route")
+
+    # ---- P5(a): a claim REQUIRES a real delivery AND at least one DETERMINISTIC green.
+    # A model's approval on a delivery that changed nothing, or on a revision no
+    # mechanical check could confirm, is not a claim. The caller supplies the
+    # deterministic view; ``None`` means a legacy/unit caller did not (every real leaf
+    # claim site supplies it — see the three ``claim_decision`` calls in this module).
+    if deterministic_greens is not None:
+        if not delivery_changed:
+            return _blocked_claim(
+                "no-change-delivery",
+                detail="the delivered revision is byte-identical to the pristine source: "
+                       "there is no change for a check to be about")
+        if not deterministic_greens:
+            return _blocked_claim(
+                "no-deterministic-green",
+                detail="no deterministic signal about the delivered revision is green "
+                       "(it does not compile, a documented interface is missing, or a "
+                       "visible-suite regression was observed): a claim may not rest on "
+                       "model-written checks alone")
 
     # ---- rules 1-3 (shared hard blocks)
     if criteria_count < 1:
@@ -2013,10 +2110,10 @@ def claim_decision(
             return _blocked_claim("judge-implementation-wrong",
                                   detail=judge_implementation_wrong_detail,
                                   disagreement=disagreement)
-        if iv_non_discriminating:
-            return _blocked_claim("independent-test-non-discriminating",
-                                  detail=iv_non_discriminating_detail,
-                                  disagreement=disagreement)
+        # P5(b): a NON-DISCRIMINATING independent verdict (it passed on the pristine
+        # source, could not be observed, or covered no criterion) is not the OBSERVED,
+        # DISCRIMINATING, non-error red the review may not override, so it is RECORDED
+        # above and does NOT block. Only a discriminating red does (rule 4 below).
         # rule 6: absent means NEVER written; a rewritten-and-removed test is not absent.
         # Ticket 22 item 2: after a recorded PLAN UPDATE (test -> review) the test was
         # deliberately GIVEN UP, so the review is the plan's verification and the old
@@ -2034,9 +2131,12 @@ def claim_decision(
         basis = "review+independent-test" if iv_approved else "review"
         # P3b (FIX B): an honest label for a claim that rests on a review while NO
         # observable check existed — no own test AND no usable independent verification.
-        # It is a LABEL only: the grant itself is unchanged.
-        risk = ("review-only-no-observable-check"
-                if own_test is None and not iv_approved else "")
+        # P5(c): a claim granted after the reconciliation judge ruled a blocking check
+        # wrong carries its own label instead. A LABEL only: the grant is unchanged.
+        risk = basis_risk or ("review-only-no-observable-check"
+                              if own_test is None and not iv_approved else "")
+        if not risk and iv_non_discriminating:
+            risk = "review-over-non-discriminating-check"
         return _granted_claim(basis, disagreement=disagreement, basis_risk=risk)
 
     # ---- rule 5: the FINAL-revision own-test agreement on the non-review routes
@@ -2076,7 +2176,7 @@ def claim_decision(
         basis = "reason"
     if not tier_allowed:
         return _blocked_claim("verification-required")
-    return _granted_claim(basis)
+    return _granted_claim(basis, basis_risk=basis_risk)
 
 
 @dataclass(frozen=True)
@@ -5261,6 +5361,16 @@ async def run_leaf(
     # malformed fallback is counted here so the cost is auditable.
     judge_attempted = False
     judge_unavailable = 0
+    # P5(c): the ONE claim reconciliation of this run — its own one-shot flag, kept apart
+    # from ``judge_attempted`` because the reconciliation is its own bounded step with the
+    # request, the repository documentation and the blocking evidence as its subject.
+    # ``own_check_dropped`` records that the reconciliation judge ruled the run's OWN test
+    # (or the independent check) wrong, so the dropped check no longer blocks the claim or
+    # the review that follows it.
+    reconcile_attempted = False
+    own_check_dropped = False
+    iv_check_dropped = False
+    reconcile_record = ""
     # Ticket 19 A: consecutive RED attempts in which the run materially changed the code.
     # At K=2 the judge is consulted proactively (with the run's own test, the failing
     # output, and the diff as evidence).
@@ -5990,9 +6100,13 @@ async def run_leaf(
             judge_incoherent += 1
             emit("judge_incoherent", reason=verdict.coercion_reason,
                  attribution=verdict.attribution)
-        if verdict.implementation_wrong:
+        if verdict.implementation_wrong and not verdict.coerced:
             # M2 (P4a): remember WHICH source revision the judge called wrong, so a later
-            # review-backed claim on the SAME revision is refused.
+            # review-backed claim on the SAME revision is refused. P5(b): only an
+            # OBSERVED attribution counts — a coerced verdict is the deterministic
+            # filter's fallback for a label the judge did not earn (it said the TEST was
+            # wrong, or named no failing test), and that fallback must never block a
+            # claim about a revision no other signal faults.
             judge_impl_wrong_revision = _source_revision_fingerprint(workdir)
             judge_impl_wrong_detail = (verdict.defect or verdict.reason
                                        or verdict.evidence)[:200]
@@ -6582,7 +6696,8 @@ async def run_leaf(
         nonlocal coverage_unresolved, last_iv_reason, iv_repairs, review_approved
         nonlocal own_test_conflict, own_test_conflict_reason
         nonlocal node_exhausted, request_coverage, request_coverage_missing
-        nonlocal source_unparseable
+        nonlocal source_unparseable, reconcile_attempted, own_check_dropped
+        nonlocal iv_check_dropped, reconcile_record
         if claimed or (iv is None and review is None):
             return
         # Fix B: no claim with zero criteria on ANY path (mirror the normal claim gate).
@@ -6667,6 +6782,157 @@ async def run_leaf(
                                              "independent-test-red-on-final"))
                 if not label.approved:
                     last_iv_reason = f"{label.reason}: {label.detail}"
+
+        # ---- P5(c): THE BOUNDED CLAIM RECONCILIATION ---------------------------------
+        # P4a made the run honest but SILENT: a MODEL-WRITTEN check (the run's own test,
+        # the independent test, the review) could refuse the claim on a revision every
+        # DETERMINISTIC signal calls good, and the run ended unclaimed with a CORRECT
+        # revision. So before giving up: record the disagreement (each blocking check's id
+        # and output, the deterministic greens) and ask the judge ONCE which side is wrong,
+        # with the request, the repository's own documentation and the blocking evidence in
+        # front of it. A judge that rules the CHECK wrong drops that check, the gate is
+        # re-run once, and the claim carries a recorded ``basis_risk``. A judge that rules
+        # the REVISION wrong (or says nothing readable) keeps the honest block: an
+        # observed, discriminating, non-error red is never overridden by anything but a
+        # ruling against the check itself. Bounded to ONE reconciliation per run.
+        deterministic = deterministic_greens(
+            source_unparseable=source_unparseable,
+            documented_api_missing=documented_api_missing_now(),
+            regression_clean=bool(regression_result is not None
+                                  and regression_result.observable
+                                  and not regression_result.regressions))
+        delivery_changed = not _delivery_is_unchanged(spec, workdir)
+        own_red_blocks = own_test_red_is_blocking() and not own_check_dropped
+        iv_red_blocks = iv_red_on_final() and not iv_check_dropped
+        if (not claimed and not reconcile_attempted and delivery_changed and deterministic
+                and (own_red_blocks or iv_red_blocks) and can_afford(1)):
+            reconcile_attempted = True
+            last = iv_verdicts[-1] if iv_verdicts else None
+            iv_failed_ids = (list(last.final_gate.failed_ids)
+                             if last is not None and last.final_gate is not None else [])
+            own_failed = _failed_assertion_lines(_read(workdir, self_test), last_gate)
+            checks: list[str] = []
+            if own_red_blocks:
+                checks.append(f"own-test:{self_test}")
+            if iv_red_blocks and last is not None:
+                checks.append(f"independent-test:{last.path}:{','.join(iv_failed_ids)}")
+            evidence = [
+                "a MODEL-WRITTEN check refuses a claim about the delivered revision while "
+                "every DETERMINISTIC signal about that revision is green ("
+                f"{', '.join(deterministic)}) and the delivery differs from the baseline",
+                "THE BLOCKING CHECK(S): " + "; ".join(checks),
+            ]
+            if own_red_blocks:
+                evidence.append("the run's own test failed assertion(s) on the final "
+                                f"revision: {'; '.join(own_failed) or 'not extractable'}")
+            if iv_red_blocks and last is not None:
+                evidence.append("the independent test's failure on the final revision: "
+                                f"{last.detail} (failed ids: "
+                                f"{', '.join(iv_failed_ids) or 'not recorded'})")
+            evidence.append("DETERMINISTIC GREENS: " + ", ".join(deterministic))
+            # The DELIVERED DIFF (pristine baseline -> final revision), non-test source
+            # only: the judge must see the change the check disagrees with, not just the
+            # final text, or it cannot tell a revised module from the bug it was asked to
+            # fix.
+            changed_diffs: list[str] = []
+            for rel in sorted(baseline):
+                if is_test_path(rel):
+                    continue
+                before = baseline.get(rel) or ""
+                after = _read(workdir, rel)
+                if after == before:
+                    continue
+                changed_diffs.append("".join(difflib.unified_diff(
+                    before.splitlines(keepends=True), after.splitlines(keepends=True),
+                    fromfile=f"a/{rel}", tofile=f"b/{rel}")))
+            if changed_diffs:
+                evidence.append("THE DELIVERED DIFF (pristine -> final):")
+                evidence.append("\n".join(changed_diffs)[:6000])
+            docs = repo_documentation(spec)
+            if docs:
+                evidence.append("REPOSITORY DOCUMENTATION (ground truth):")
+                evidence.extend(f"--- {rel} ---\n{text}" for rel, text in docs)
+            evidence.append("THE REQUEST: " + spec.goal.strip())
+            evidence.append("ACCEPTANCE CRITERIA: " + "; ".join(spec.acs))
+            blocked_path = (self_test if own_red_blocks else
+                            (last.path if last is not None else ""))
+            blocked_content = _read(workdir, blocked_path)
+            jr = JudgeRequest(
+                goal=spec.goal, acs=list(spec.acs),
+                failure="\n".join(evidence),
+                test_path=blocked_path or "", test_content=blocked_content,
+                files=_repo_view(spec, workdir, tuple(baseline)),
+                failing_assertions=_failing_assertion_lines(blocked_content,
+                                                            "\n".join(evidence)))
+            raw, failure = await request_bounded(
+                partial(_call_judge, attribution, jr), "judge-reconcile",
+                retries=JUDGE_RETRIES)
+            ruling, why = "unclear", "the reconciliation judge was unavailable"
+            if failure == "calls":
+                ruling, why = "unclear", "the call budget ran out"
+            elif not failure and raw is not None:
+                verdict = apply_judge_filter(raw, jr)
+                judge_verdicts.append(verdict)
+                emit("judge_reconciliation_verdict",
+                     implementation_wrong=verdict.implementation_wrong,
+                     test_wrong=verdict.test_wrong, spec_wrong=verdict.spec_wrong,
+                     environment_broken=verdict.environment_broken,
+                     attribution=verdict.attribution, reason=verdict.reason,
+                     coerced=verdict.coerced, raw=verdict.raw)
+                ruling, why = reconciliation_ruling(verdict)
+            emit("claim_reconciliation", checks=checks,
+                 outputs=[extra for extra in evidence if extra.startswith("the ")],
+                 deterministic_greens=list(deterministic),
+                 delivery_changed=True, ruling=ruling, detail=why)
+            if ruling == "check":
+                # P5(c) soundness guard: a judge's ruling against a check may only DROP a
+                # red the remaining evidence already contradicts. The drop is sound when
+                #  (a) another OBSERVED, DISCRIMINATING green about this revision stands
+                #      (the independent per-criterion test approved it, or the run's own
+                #      discriminating test is green on it), or
+                #  (b) the dropped INDEPENDENT check never discriminated anything: every
+                #      failing id also failed on the pristine source (an expectation the
+                #      pre-fix source failed too, not a pinned behaviour the delivery
+                #      broke) AND no other OBSERVED, DISCRIMINATING red (the run's own
+                #      test) is left standing.
+                # Otherwise the ruling would override an observed, discriminating,
+                # non-error red on a model's word alone — the one thing a claim may
+                # never rest on. The refusal is recorded, and the honest block stands.
+                inverted_ids, unmet_ids = iv_inversion_evidence(
+                    last.original_gate if last is not None else None,
+                    last.final_gate if last is not None else None)
+                iv_never_discriminated = bool(
+                    iv_red_blocks and last is not None and last.final_gate is not None
+                    and last.final_gate.failed_ids
+                    and set(last.final_gate.failed_ids)
+                    <= (set(inverted_ids) | set(unmet_ids)))
+                corroborating_green = bool(
+                    iv_approved
+                    or (self_test is not None and own_test_discriminating
+                        and _final_own_test_state(self_test, last_gate) == "green"
+                        and test_rewrites == 0))
+                sound = corroborating_green or (iv_never_discriminated and not own_red_blocks)
+                if not sound:
+                    emit("claim_reconciliation_refused", checks=checks, ruling=ruling,
+                         detail=("the ruling against the check is not corroborated: no "
+                                 "observed discriminating green contradicts the red, and "
+                                 "the red is a discriminating failure the delivery "
+                                 "broke" if not corroborating_green else ""))
+                else:
+                    own_check_dropped = own_check_dropped or own_red_blocks
+                    iv_check_dropped = iv_check_dropped or iv_red_blocks
+                    own_red_blocks = False
+                    iv_red_blocks = False
+                    reconcile_record = (
+                        f"the reconciliation judge ruled the model-written check(s) wrong "
+                        f"({why}); dropped {'; '.join(checks)} and re-ran the claim gate "
+                        f"once, on the deterministic greens "
+                        f"({', '.join(deterministic)}); the drop is corroborated by "
+                        + ("an observed discriminating green about this revision"
+                           if corroborating_green else
+                           "a check whose failure never discriminated the fix"))
+                    emit("claim_reconciliation_check_dropped", checks=checks, detail=why)
+
         if iv_approved:
             allowed, tier_failure = await enforce_verification("test")
             if allowed:
@@ -6684,7 +6950,7 @@ async def run_leaf(
                         route="independent-test", criteria_count=len(spec.acs),
                         ledger=ledger_now(), own_test=self_test,
                         own_test_green=(state == "green"), test_rewrites=test_rewrites,
-                        iv_approved=iv_approved, iv_red_on_final=iv_red_on_final(),
+                        iv_approved=iv_approved, iv_red_on_final=iv_red_blocks,
                         iv_red_detail=iv_red_detail(),
                         review_approved=False, review_verdicts=tuple(review_verdicts),
                         coverage_missing=coverage_missing,
@@ -6695,7 +6961,10 @@ async def run_leaf(
                         verification_basis=verification_basis,
                         conflict_detail=verifier_conflict_reason(), tier_allowed=allowed,
                         own_test_advisory=own_test_advisory,
-                        own_test_red_is_evidence=own_test_red_is_blocking())
+                        own_test_red_is_evidence=own_red_blocks,
+                        deterministic_greens=deterministic,
+                        delivery_changed=delivery_changed,
+                        basis_risk=reconcile_record)
                     if apply_claim(decision, tier="test"):
                         emit("leaf_green_at_exhaustion", basis=decision.basis)
                     return
@@ -6722,7 +6991,7 @@ async def run_leaf(
                         route="review", criteria_count=len(spec.acs),
                         ledger=ledger_now(), own_test=self_test,
                         own_test_green=(state == "green"), test_rewrites=test_rewrites,
-                        iv_approved=iv_approved, iv_red_on_final=iv_red_on_final(),
+                        iv_approved=iv_approved, iv_red_on_final=iv_red_blocks,
                         iv_red_detail=iv_red_detail(),
                         review_approved=True, review_verdicts=tuple(review_verdicts),
                         coverage_missing=coverage_missing,
@@ -6733,11 +7002,14 @@ async def run_leaf(
                         verification_basis=verification_basis,
                         conflict_detail=review_conflict_reason(), tier_allowed=allowed,
                         plan_updated=plan_updated, own_test_advisory=own_test_advisory,
-                        own_test_red_is_evidence=own_test_red_is_blocking(),
+                        own_test_red_is_evidence=own_red_blocks,
                         judge_implementation_wrong=judge_impl_wrong_on_revision(),
                         judge_implementation_wrong_detail=judge_impl_wrong_detail,
                         iv_non_discriminating=iv_non_discriminating(),
-                        iv_non_discriminating_detail=iv_non_discriminating_detail())
+                        iv_non_discriminating_detail=iv_non_discriminating_detail(),
+                        deterministic_greens=deterministic,
+                        delivery_changed=delivery_changed,
+                        basis_risk=reconcile_record)
                     if apply_claim(decision, tier="review"):
                         emit("leaf_green_at_exhaustion", basis=decision.basis)
 
@@ -7106,8 +7378,10 @@ async def run_leaf(
         # UNCERTAIN may proceed to the review; a test that RAN and FAILED ends this How
         # as FAIL and the review does NOT run. (A test that was never written, or was
         # deliberately dropped after a rewrite, is ABSENT, not a fail, so review-only and
-        # repaired-test Hows still reach review.)
-        if own_test_fail(self_test, last_gate):
+        # repaired-test Hows still reach review.) P5(c): a test the reconciliation judge
+        # RULED WRONG was deliberately dropped by a recorded node update, so it is ABSENT
+        # here too — the review may then run on the same revision.
+        if own_test_fail(self_test, last_gate) and not own_check_dropped:
             emit("review_blocked_by_failed_test", path=self_test,
                  reason="the run's own test FAILED on the final revision; a FAIL test "
                         "ends the How as FAIL and the review does not run")
@@ -8082,7 +8356,16 @@ async def run_leaf(
                 judge_implementation_wrong=judge_impl_wrong_on_revision(),
                 judge_implementation_wrong_detail=judge_impl_wrong_detail,
                 iv_non_discriminating=iv_non_discriminating(),
-                iv_non_discriminating_detail=iv_non_discriminating_detail())
+                iv_non_discriminating_detail=iv_non_discriminating_detail(),
+                # P5(a): the main path supplies the same deterministic view every other
+                # leaf claim site supplies, so no route can claim on model-written
+                # evidence alone or on a delivery that changed nothing.
+                deterministic_greens=deterministic_greens(
+                    source_unparseable=_unparseable_source(workdir)[1],
+                    documented_api_missing=documented_api_missing_now(),
+                    regression_clean=bool(regression.observable
+                                          and not regression.regressions)),
+                delivery_changed=not _delivery_is_unchanged(spec, workdir))
             if apply_claim(decision, tier=tier):
                 if tier == "none":
                     emit("leaf_unverified_claim", tier=tier, required=_required_tier(),
@@ -8131,7 +8414,14 @@ async def run_leaf(
     # When the ladder exhausts (or attempts/attempt-cap is hit) and the tree changed, the
     # run consults the independent per-criterion verification (and, where the test cannot
     # carry a criterion, the review path) ON THE FINAL CODE. Its verdict decides the claim.
-    if (not claimed and stop_reason in ("attempts", "ladder", "attempt-cap")
+    if (not claimed and stop_reason in ("attempts", "ladder", "attempt-cap",
+                                        # P5(c): a MODEL-WRITTEN check that refused the
+                                        # claim (a red own test, a red independent test,
+                                        # or the two disagreeing) is exactly the case the
+                                        # reconciliation must adjudicate before the run
+                                        # ends silent with a correct revision.
+                                        "independent-test-red-on-final",
+                                        "verifier-conflict", "own-test-red")
             and _changed_files(workdir, baseline)):
         emit("final_verification", stop_reason=stop_reason)
         await final_verification()
