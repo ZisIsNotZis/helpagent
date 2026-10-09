@@ -5044,6 +5044,11 @@ def _implement_artifacts(
     frozen = [rel for rel in sorted(forbidden) if rel in spec.files]
     untouched = _request_artifact_messages(_request_coverage(spec, workdir, baseline))
     return {
+        # C1: the run-invariant context (goal, criteria, files, docs, bounded source view)
+        # rides the stable block; the per-step payload below carries only what changes.
+        "stable_context": _stable_context(spec, _repo_view(spec, workdir, tuple(baseline)),
+                                          workdir=workdir, baseline=baseline,
+                                          self_test=self_test),
         "goal": spec.goal,
         "acceptance_criteria": "\n".join(f"- {a}" for a in spec.acs),
         "interfaces": "\n".join(f"- {i}" for i in spec.interfaces),
@@ -5080,9 +5085,9 @@ def _implement_question(mode: str, esc: Escalation, last_refused: bool = False) 
     if esc.strategy == "L2-guided":
         lead += "First enumerate the ordered fix steps, then emit the complete file. "
     elif esc.strategy == "L3-deeper-explore":
-        lead += ("Check every file in current_files against the acceptance criteria before "
-                 "writing; a defect often sits in the file that DEFINES a value, not the "
-                 "one that uses it. ")
+        lead += ("Check every source file in the stable context against the acceptance "
+                 "criteria before writing; a defect often sits in the file that DEFINES "
+                 "a value, not the one that uses it. ")
     elif esc.strategy == "L4-rule-diagnosis":
         lead += f"Apply this deterministic diagnosis: {esc.detail}. "
     elif esc.strategy == "L5-review-judge":
@@ -5098,11 +5103,15 @@ def _implement_question(mode: str, esc: Escalation, last_refused: bool = False) 
 
 
 def _self_test_artifacts(spec: LeafSpec) -> dict[str, str]:
+    view = _source_view(spec)
     artifacts = {
+        # C1: the run-invariant context rides the stable block; the per-step payload below
+        # carries only what changes.
+        "stable_context": _stable_context(spec, view),
         "goal": spec.goal,
         "acceptance_criteria": "\n".join(f"- {a}" for a in spec.acs),
         "interfaces": "\n".join(f"- {i}" for i in spec.interfaces),
-        "repo_files": json.dumps(_source_view(spec), ensure_ascii=False),
+        "repo_files": json.dumps(view, ensure_ascii=False),
         # P3a/FIX 1: the injected rule that keeps a self-test from reading the reported
         # symptom as the requirement. Present on the retry artifacts too because
         # ``_retry_self_test_artifacts`` extends this dict.
@@ -5175,6 +5184,154 @@ def _contradiction_rewrite_artifacts(
 
 def _source_view(spec: LeafSpec) -> dict[str, str]:
     return {rel: text for rel, text in spec.files.items()}
+
+
+# ---------------------------------------------------------------------------
+# C1/C2: the run-invariant stable context block and the bounded source view
+# ---------------------------------------------------------------------------
+
+def _docstring_first_line(source: str) -> str:
+    """The first line of a module docstring, or "" (C2 index)."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return ""
+    if (tree.body and isinstance(tree.body[0], ast.Expr)
+            and isinstance(tree.body[0].value, ast.Constant)
+            and isinstance(tree.body[0].value.value, str)):
+        text = tree.body[0].value.value.strip()
+        return text.splitlines()[0].strip() if text else ""
+    return ""
+
+
+def _top_level_names(source: str) -> tuple[tuple[str, int], ...]:
+    """Top-level def/class names with their line numbers (C2 index)."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return ()
+    return tuple(
+        (node.name, node.lineno) for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)))
+
+
+def _source_index(view: Mapping[str, str]) -> str:
+    """The compact per-file index: relative path, line count, module-docstring first line,
+    and the top-level def/class names with their line numbers (C2)."""
+    rows: list[str] = []
+    for rel, text in sorted(view.items()):
+        names = ", ".join(f"{name}@{line}" for name, line in _top_level_names(text))
+        rows.append(
+            f"- {rel} ({len(text.splitlines())} lines) "
+            f"doc: {_docstring_first_line(text) or '(none)'} "
+            f"| {names or '(no top-level defs/classes)'}")
+    return "\n".join(rows)
+
+
+def _declared_source_files(
+    spec: LeafSpec,
+    view: Mapping[str, str],
+    *,
+    workdir: Path | None = None,
+    baseline: Mapping[str, str | None] | None = None,
+    self_test: str | None = None,
+) -> set[str]:
+    """The files injected IN FULL (C2(a)).
+
+    A file is declared when the plan's own text names it — the goal, an acceptance
+    criterion, the run's own test (its imports name the modules under test), or a file the
+    run has already changed. The rest of the source view is injected as the compact index
+    only; the model reaches a file by naming it, and it is injected in full on the next
+    call. When NOTHING is declared the whole view is injected in full, so a plan that
+    names no file keeps today's behaviour (never a blank-slate break).
+    """
+    text_parts = [spec.goal or "", " ".join(spec.acs or [])]
+    if self_test and workdir is not None:
+        text_parts.append(_read(workdir, self_test))
+    text = "\n".join(text_parts)
+    declared: set[str] = set()
+    for rel in view:
+        stem = Path(rel).stem
+        module = rel[:-3].replace("/", ".") if rel.endswith(".py") else rel
+        if rel in text or module in text or _word_present(stem, text) or _word_present(module, text):
+            declared.add(rel)
+    if workdir is not None and baseline:
+        for rel in baseline:
+            if rel in view and _file_materially_changed(workdir, baseline, rel):
+                declared.add(rel)
+    return declared or set(view)
+
+
+def _source_view_bounded(
+    spec: LeafSpec,
+    view: Mapping[str, str],
+    *,
+    workdir: Path | None = None,
+    baseline: Mapping[str, str | None] | None = None,
+    self_test: str | None = None,
+) -> str:
+    """C2: declared files in full, the rest as the compact index."""
+    declared = _declared_source_files(spec, view, workdir=workdir, baseline=baseline,
+                                      self_test=self_test)
+    parts: list[str] = []
+    for rel, text in sorted(view.items()):
+        if rel in declared:
+            parts.append(f"=== {rel} (full) ===\n{text}")
+    indexed = {rel: text for rel, text in view.items() if rel not in declared}
+    if indexed:
+        parts.append(
+            "=== other source files (compact index; name one to receive it in full on "
+            "the next step) ===\n" + _source_index(indexed))
+    return "\n".join(parts)
+
+
+def _acs_restate_goal(goal: str, acs: Sequence[str]) -> bool:
+    """True when the acceptance criteria are only the goal re-stated (C1 de-duplication).
+
+    The single-leaf driver derives its ACs from the request, so their concatenation is the
+    goal text modulo whitespace and terminal punctuation. Re-emitting them verbatim is
+    pure cost; they are kept only when they carry text the goal does not.
+    """
+    if not acs or not goal:
+        return not acs
+    goal_norm = " ".join(goal.lower().split())
+    joined = " ".join(" ".join(a.lower().split()) for a in acs)
+    if joined == goal_norm:
+        return True
+    return all(" ".join(a.lower().split()).rstrip(".") in goal_norm for a in acs)
+
+
+def _stable_context(
+    spec: LeafSpec,
+    view: Mapping[str, str],
+    *,
+    workdir: Path | None = None,
+    baseline: Mapping[str, str | None] | None = None,
+    self_test: str | None = None,
+) -> str:
+    """The run-invariant prompt block (C1): goal, constraints, file listings, the repo's
+    own documentation, and the bounded source view. Composed once per run and emitted as
+    the byte-stable prefix of every step."""
+    forbidden = set(spec.grader_paths)
+    writable = [rel for rel in sorted(spec.files) if rel not in forbidden]
+    frozen = [rel for rel in sorted(forbidden) if rel in spec.files]
+    source = _source_view_bounded(spec, view, workdir=workdir, baseline=baseline,
+                                  self_test=self_test)
+    docs = "\n".join(f"--- {rel} ---\n{text}" for rel, text in repo_documentation(spec))
+    goal = spec.goal or ""
+    acs = "\n".join(f"AC{i}: {a}" for i, a in enumerate(spec.acs or [], 1))
+    acs_restates_goal = _acs_restate_goal(goal, spec.acs or [])
+    acs_block = acs if (acs and not acs_restates_goal) else ""
+    return "\n".join(part for part in [
+        f"goal: {goal}",
+        ("acceptance criteria:\n" + acs_block) if acs_block else "",
+        ("interfaces:\n" + "\n".join(f"- {i}" for i in spec.interfaces)) if spec.interfaces else "",
+        "writable files:\n" + ("\n".join(f"- {rel}" for rel in writable) or "(none)"),
+        "frozen files (must stay byte-identical):\n" + (
+            "\n".join(f"- {rel}" for rel in frozen) or "(none)"),
+        ("repository documentation:\n" + docs) if docs else "",
+        "source files:\n" + source,
+    ] if part)
 
 
 async def _request_write(model: Any, artifacts: dict[str, str], question: str) -> Any:

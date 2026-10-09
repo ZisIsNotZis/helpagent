@@ -36,6 +36,20 @@ CONTENT_STEPS = frozenset({"write_test", "implement_write"})
 #: (ticket 26: it used to read "STEP: write_test" while asking for a source fix).
 STEP_DISPLAY = {"implement_write": "implement"}
 
+#: The one reserved artifact key that holds the run-invariant context block (goal,
+#: constraints, file listings, repo documentation, the bounded source view). It is emitted
+#: ONCE, as a byte-stable prefix right after :data:`PREFIX`, so every call of a run shares
+#: the same cacheable prefix and only the per-step payload varies (C1 de-duplication).
+STABLE_ARTIFACT_KEY = "stable_context"
+
+#: Artifact keys whose content already lives in the stable block (C3): they are kept in the
+#: dict for telemetry and for tests, but are NOT rendered a second time when the stable
+#: block is present.
+STABLE_COVERED_KEYS = frozenset({
+    "goal", "acceptance_criteria", "interfaces", "repo_files", "current_files",
+    "test_target_rule",
+})
+
 # ---------------------------------------------------------------------------
 # Byte-stable prefix — scaffold + static standing knowledge only (DESIGN §2.7).
 # ---------------------------------------------------------------------------
@@ -125,6 +139,14 @@ def compose_prompt(
     attempt's text (DESIGN §2.4a; KERNEL_API §3.3 compose(failure=...)).
     """
     parts: list[str] = [PREFIX]
+    stable = (artifacts or {}).get(STABLE_ARTIFACT_KEY) or ""
+    if stable:
+        # C1: the run-invariant block is emitted once, byte-identically, as a STABLE prefix
+        # shared by every step of the run (goal, constraints, file listings, the source
+        # view). Only the per-step payload below changes, so the server's KV cache reuses
+        # the whole stable prefix (see harness/model.py cache_prompt).
+        parts.append("STABLE CONTEXT (identical for every step of this run; provided once):")
+        parts.append(stable)
     if step_type in CONTENT_STEPS:
         # FAIL_PATTERN (ticket 02): the 4B strips docstring quotes / wraps files in fences
         # when re-emitting a file seen in the artifacts. Weak phrasing does not survive
@@ -151,6 +173,10 @@ def compose_prompt(
     elif artifacts:
         parts.append("GROUND TRUTH (injected artifacts):")
         for key in sorted(artifacts):
+            if key == STABLE_ARTIFACT_KEY:
+                continue                      # already emitted in the stable prefix
+            if stable and key in STABLE_COVERED_KEYS:
+                continue                      # C3: content already in the stable block
             parts.append(f"  {key}: {artifacts[key]}")
     parts.append(f"QUESTION: {question}")
     if failure is not None:
@@ -213,6 +239,18 @@ async def llm_step(
     if step_type in CONTEXT_SENSITIVE_STEPS and context is None:
         note("validation_context_missing", step_type=step_type)
     prompt = compose_prompt(step_type, artifacts, question, fresh=fresh, failure=failure, role=role)
+    # C1/C3 cost audit: the byte size of each prompt section, so the effect of the stable
+    # block is visible in the trajectory alongside the token counters.
+    stable = (artifacts or {}).get(STABLE_ARTIFACT_KEY) or ""
+    prompt_sections = {
+        "prefix": len(PREFIX),
+        "stable": len(stable),
+        "ground_truth": sum(
+            len(str(v)) for k, v in (artifacts or {}).items()
+            if k != STABLE_ARTIFACT_KEY and not (stable and k in STABLE_COVERED_KEYS)),
+        "question": len(question),
+        "total": len(prompt),
+    }
     request = LLMRequest(
         step_type=step_type,
         artifacts={k: str(v) for k, v in (artifacts or {}).items()},
@@ -269,7 +307,7 @@ async def llm_step(
                        best_of_n=best_of_n, prompt=prompt, question=question,
                        artifacts=dict(artifacts or {}), raw=out, envelope=None,
                        status="malformed-json", error=f"offset {exc.pos}",
-                       metrics=metrics, wall_s=wall_model_s)
+                       metrics=metrics, wall_s=wall_model_s, prompt_sections=prompt_sections)
                 continue
         else:
             payload = out
@@ -315,7 +353,7 @@ async def llm_step(
                    artifacts=dict(artifacts or {}), raw=out,
                    envelope=jsonable_envelope(envelope), status="ok",
                    tolerances=list(tolerance_notes), metrics=metrics,
-                   wall_s=wall_model_s)
+                   wall_s=wall_model_s, prompt_sections=prompt_sections)
             break
         except ValidationError as exc:
             # the full pydantic detail (incl. offending values) is ledger evidence —
@@ -330,7 +368,7 @@ async def llm_step(
                    artifacts=dict(artifacts or {}), raw=out, envelope=None,
                    status="schema-violation", error=str(exc),
                    tolerances=list(tolerance_notes), metrics=metrics,
-                   wall_s=wall_model_s)
+                   wall_s=wall_model_s, prompt_sections=prompt_sections)
     if envelope is None:
         if fallback is not None:
             envelope = fallback   # nothing parsed — the repair path still gets its one respawn

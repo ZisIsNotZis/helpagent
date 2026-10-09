@@ -155,6 +155,10 @@ class LlamaServerRunner:
             "max_tokens": self.max_tokens,
             # thinking preambles burn the budget and empty the content (ticket 01)
             "chat_template_kwargs": {"enable_thinking": False},
+            # C1: reuse the server's KV cache for the byte-stable prefix (PREFIX + the
+            # run's stable context block), so a repeated prefix costs only the new
+            # per-step delta (timings.prompt_n), not the whole prompt.
+            "cache_prompt": True,
             "response_format": {
                 "type": "json_schema",
                 "json_schema": {"name": request.step_type, "schema": self.schema_json(request.step_type)},
