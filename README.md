@@ -5,10 +5,12 @@ model is weak, so the harness supplies what it cannot supply for itself: a fixed
 deterministic checks it cannot talk its way past, and an honest record of what was and was
 not verified.
 
-Measured position (same reference model, nine corpus tasks, two runs each, grader run
-OUTSIDE the run): the harness fixes roughly two thirds of the tasks, claims only what it can
-back with evidence, and records exactly what evidence every claim — or refusal to claim —
-rested on. Numbers, method and known limits: [`docs/STATUS.md`](docs/STATUS.md).
+Measured position (same reference model, 40 tasks, blind, grader run OUTSIDE the run): the
+harness fixes **24/40** and the mature CLI with every knob maxed fixes **27/40**; the harness
+claims 11 of its fixes and produced 3 false successes, the CLI claimed 29 and produced 2. The
+harness is not yet at parity, and it says so itself: numbers, method, retractions and known
+limits are in [`docs/STATUS.md`](docs/STATUS.md) §8e. What you can see at each step, and the
+acceptance criteria, are in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Objective — the 2026-10-06 mandate (owner, full delegation)
 
@@ -33,6 +35,9 @@ current phase is:
 
 The standing rules do not change: the grader never enters a run (blind protocol), one claim gate,
 evidence in both directions, one writer per work tree, and every run's full trajectory on disk.
+
+The checkable version of the five - each mapped to a slice you can run and look at - is in
+[`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## The idea in one page
 
@@ -89,7 +94,7 @@ PyPI-visible dependencies only; Python 3.12+.
 | `bench/corpus/`, `bench/anchor/` | task corpora (`request.md`, `repo/`, `checks.py`, `solution.md` — exactly four entries) |
 | `bench/v2_*.py` | the drivers: leaf, tree, blind sweep, external grader, plus the baselines used to measure the harness against |
 | `tests/unit/` | the gate: kernel invariants, the flow rules, corpus integrity, and the repository's own tamper guard |
-| `docs/` | design and contracts; start with [`docs/STATUS.md`](docs/STATUS.md) and [`docs/DESIGN.md`](docs/DESIGN.md) §10 |
+| `docs/` | design and contracts; start with [`docs/ROADMAP.md`](docs/ROADMAP.md) for what you can see at each step, then [`docs/STATUS.md`](docs/STATUS.md) §8e for the numbers and [`docs/DESIGN.md`](docs/DESIGN.md) §10 |
 
 `docs/DESIGN.md` is the long-form design and records which parts are implemented, which
 are designed but not built, and the residual risks that are accepted rather than fixed.
@@ -100,6 +105,7 @@ One owner per subject; if two files disagree, the one listed here wins.
 
 | subject | file |
 | --- | --- |
+| what the owner can see at each step (vertical slices), and the acceptance criteria | `docs/ROADMAP.md` |
 | the flow: how a task is processed, node structure, execution, states, judge, verdict | `docs/FLOW.md` |
 | architecture: subsystems, data flow, repository layout, design principles | `docs/DESIGN.md` |
 | the measured position: what works, what was retracted, what is not built, how to reproduce | `docs/STATUS.md` |

@@ -1,71 +1,55 @@
 # Active work — start here
 
-As of 2026-10-01 (handover while the owner was away).
+As of 2026-10-09 (campaign handover).
 
-**Read first:** [`../docs/STATUS.md`](../docs/STATUS.md) — what works, what was measured,
-what is known not to work, and the recommended next steps.
+**What the owner can see at each step:** [`../docs/ROADMAP.md`](../docs/ROADMAP.md) — the
+vertical slices V1–V6, each with the command you run to see it, plus the acceptance criteria
+C1–C5. Read this first; it is the SSOT for the roadmap. (The internal implementation phases are
+tracked in `.scratch/27-campaign/`, not there.)
+
+**The numbers:** [`../docs/STATUS.md`](../docs/STATUS.md) §8e — the campaign's 40-task
+measurement, the retractions (the P2 token headline; the throttled pi baseline) and the known
+limits. `§1` and `§8b` are the earlier measurements and say so.
 
 **The flow itself:** [`../docs/FLOW.md`](../docs/FLOW.md) — the owner spec for how a task is
-processed (one flow, exploration in every step, node structure, execution, verdict). Where the
-older `docs/DESIGN.md` §10 describes a different layering, FLOW.md wins.
+processed. Where `docs/DESIGN.md` §10 describes a different layering, FLOW.md wins.
 
-**Then, if you are changing code:** [`../docs/DESIGN.md`](../docs/DESIGN.md) §10 (the v2 flow)
-and §10.10 (implemented vs designed-but-not-built).
+**If you are changing code:** [`../docs/DESIGN.md`](../docs/DESIGN.md) §10 (the flow) and §10.10
+(implemented vs designed-but-not-built).
 
-## State
+## State (2026-10-09, revision `6b224f5`)
 
-**Current measured position (2026-10-06, clean, all 40 tasks, N=1):** development-only
-(harness `--verify raw`) fixes **21/40 (52%)**; the full default reaches 20/33 (61%) on the
-tasks it completed, all measured against an 8192-token server. **The mature-agent comparison
-was corrected on 2026-10-06: the recorded pi arm was throttled by our own configuration**
-(`--thinking` was clamped to `off` because the temp model entry declared no reasoning support,
-and the server window was 8k). Re-measured with reasoning max and a 32768-token window, pi fixes
-**27/40 (68%)** with 2 false successes — so the earlier "development capability is a TIE" and
-"the hard tail is a capability boundary" readings are **retracted**; T-31 (four-file parameter
-threading) is fixed by the same 4B given room to iterate. What survives: the anchor band
-(writing a whole correct implementation from a text spec) is 0/5 both ways, and our claim gates
-keep false successes at 0-2 where pi has no gate. Full tables and caveats: `docs/STATUS.md`
-sections 1, 1a, 8 and **8b** (section 1's review-tier numbers were measured under the retracted
-cache leak; the "asking for tests makes pi worse" finding is an 8k-only measurement and has not
-been re-measured at 32k). Working record: `.scratch/26-pi-maxed/issues/26-pi-maxed.md`.
+Our harness fixes **24/40** of the corpus (claims 11, three false successes: T-27, T-30, T-35).
+pi with every knob maxed fixes **27/40** (2 false successes). Both pass 23; we win 1, pi wins 4
+(T-07, T-14, T-28, T-30), 12 fail for both. Tokens: ours 18,401/task vs pi 9,045; wall-clock is
+not comparable yet (ours was measured under four-way concurrency). **None of the five acceptance
+criteria is met yet** — the straight reading and the per-item evidence are in ROADMAP.md and
+STATUS.md §8e.
 
-**The largest known loss channel is now our own independent verification.** In the 32k `full`
-run, several tasks reached a revision the grader accepts and the harness still refused to claim
-it, because the independently authored test **asserts the pre-fix behaviour** (T-10's IV test
-demands `pytest.raises(IndexError)` for the crash the request asks to fix) and therefore turns
-red when the bug is fixed. The per-test outcomes on the original and final revisions are already
-recorded, so this is deterministically separable into `iv_inverted_tests` (final-red,
-original-green) and `iv_unmet_tests` (red on both). An owner decision is open on whether the
-inverted case may go to the judge; see the ticket.
+The A2 arm (pi + improved prompt) is **unmeasured**: an unrelated GPU job holds VRAM and the pi
+client needs the 32768-token window, so every pi run dies in ~15 s with `Connection error` while
+our own harness runs fine against the same server.
 
-- The test gate is the authority: `uv run pytest` (includes the repository's own tamper guard
-  and the 107-case corpus-integrity suite). It must be green before and after any change.
-- A change to the flow is not done until it has been exercised once against the REAL model
-  (`bench/v2_leaf.py` / `bench/v2_tree.py` on a single corpus task) — unit tests alone have
-  let dead paths ship repeatedly here (the How axis was "complete" three times while never
-  executing).
-- Every claim (success or failure) must be traceable in `run.json` to evidence; never add a
-  path that sets `claimed=True` outside `harness/leaf.py::claim_decision` (a structural test
-  enforces this).
+## Standing rules for whoever picks this up
 
-## A finding to keep in mind before changing anything
+- **The test gate is the authority:** `uv run pytest -q -p no:warnings` (includes the repository's
+  own tamper guard and the corpus-integrity suite). Never pipe it; check the exit code.
+- **A flow change is not done until it has been exercised once against the REAL model**
+  (`bench/v2_leaf.py` / `bench/v2_sweep.py` on corpus tasks). Unit tests alone have let dead paths
+  ship repeatedly here.
+- **One claim gate:** never add a path that sets `claimed=True` outside
+  `harness/leaf.py::claim_decision`; a structural test enforces this.
+- **One writer per work tree.** Never edit code while a measurement lane is running.
+- **Retract and re-measure.** A headline that a later measurement contradicts gets retracted in
+  the same commit that contradicts it (see `25dafaf`).
+- **Check the server before any measurement:** `curl -fsS --max-time 3
+  http://127.0.0.1:8834/health`.
 
-A mature agent CLI (`pi` itself) driving the SAME 4B model scored 4/6 actual on three tasks
-(our harness: 3/6 on the same three), and it claims far more because it has no claim gate.
-Its loop is real (read/bash/edit/write, shell commands every run). So do not assume the
-harness's value is raw pass rate on easy tasks: its value is the blind scoring protocol, the
-deterministic gates, the auditable evidence trail, and the structural layers. A controlled
-follow-up (much larger budget, or the red-independent-test gate relaxed to a label) would
-separate "the gate costs fixes" from "the gate costs only claims". Details:
-`.scratch/24-mature-agent-baseline/issues/24-mature-agent-baseline.md`.
+## Where the evidence is
 
-## Open items (nothing blocking; ordered)
-
-1. **Re-measure after the claim-gate rounds** and refresh `docs/STATUS.md` numbers.
-2. The known false-success rate is now bounded by the documented fundamental limit; the
-   remaining quality work is on the MISSED-SUCCESS side (runs that fix the task and cannot
-   verify it) — the ledger now says why for each case.
-3. Designed but not built: requirement triage, model-side context curation, the knowledge
-   service, worktrees/parallel trees, a human-facing piloting surface (see DESIGN §10.10).
-4. `bench/golden_bugfix.py` is the legacy v1 pipeline, kept as a reference only; its numbers
-   predate the blind protocol and are not citable.
+- `bench/runs/v2sweep-*` — every sweep, with `trajectory.jsonl` per task (rendered prompts, raw
+  answers, writes, test runs, verdicts, deliveries). The campaign's final runs are the directories
+  dated 2026-10-09.
+- `bench/runs/evidence/` — the curated, tamper-guarded baseline (`pi-maxed-20261006/`).
+- `.scratch/27-campaign/issues/27-campaign.md` — this ticket's commits and findings.
+- Work records for the earlier tickets: `.scratch/17-*` … `.scratch/26-*`.

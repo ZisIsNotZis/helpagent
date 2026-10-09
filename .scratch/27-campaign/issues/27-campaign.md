@@ -1,54 +1,61 @@
 # 27 — the campaign (owner mandate 2026-10-06, full delegation)
 
+**What the owner can see at each step is [`docs/ROADMAP.md`](../../../docs/ROADMAP.md)** (the
+vertical slices V1–V6 and the acceptance criteria C1–C5). This work record tracks the **internal
+implementation phases** below - means, not milestones - plus the ticket's transient contracts,
+evidence and handoffs.
+
 Owner: "you are fully delegated; manage and orchestrate; let the workers do the concrete work;
 don't stop until the research is finished; I only want the final result."
 
-## Success criteria (from README "Objective")
+## Internal implementation track (means, not a roadmap)
 
-1. pure coding >= pi with maxed knobs (same model), and better in wall/tokens;
-2. tests/reviews carry information (fix the mechanism, the prompt or the injection — trajectory
-   first, find the exact deviation point);
-3. every unsolved task has a specific evidenced reason; everything else passes (target 100%);
-4. structural superiority proven: work that prompting alone cannot get out of pi;
-5. efficiency measured (ours vs pi baseline AND prompt-improved).
+| # | phase | state |
+| --- | --- | --- |
+| P1 | flow v3 core (writes recorded+restored, regression stage, three states, best-of) | P1a/P1b/P1c-1 done; P1c-2 open (sweep still drives the leaf loop) |
+| P2 | node structure v3 + exploration + triage | open; the bounded source view was tried and reverted |
+| P3 | meaningful verification, per-failure forensics | mostly done; per-task verdicts missing for the 12 shared failures |
+| P4 | pi parity (baseline, prompt-improved) + efficiency | open; A2 blocked by GPU contention |
+| P5 | drive the residual to zero | open |
 
-## Phases
+## Discipline for this ticket
 
-| # | phase | deliverable | state |
-| --- | --- | --- | --- |
-| P1 | flow v3 core: one runner, no write refusals (allow + record + restore), regression stage, three-state/How terminal semantics, best-of propagation | code + tests + T-01/T-28/T-31 re-runs | TODO |
-| P2 | node structure v3 (what/reason/hows + four lists per How + children) + exploration (read) + triage into issues | code + tests + 40-task re-run | TODO |
-| P3 | make verification meaningful: trajectory forensics per failure, fix tests/reviews/prompts/injection | per-task deviation reports + fixes | TODO |
-| P4 | pi parity: baseline, prompt-improved, thinking on/off for ours; tokens + wall; structural-superiority cases | comparison table + evidence | TODO |
-| P5 | drive the residual to zero: every remaining failure carries an evidenced "impossible for this model" | STATUS.md final position | TODO |
+One writer per work tree; every phase re-measures against the REAL model; numbers are retracted
+and re-measured after any flow change; every phase leaves its evidence in this directory.
 
-Discipline: one writer per work tree; every phase re-measures against the REAL model; numbers are
-retracted and re-measured after any flow change; each phase leaves its evidence in this directory.
+## Landed in this ticket (each re-measured by the orchestrator)
 
-## P1a + P1b landed (verified by the orchestrator)
+| commit | what | measured effect |
+| --- | --- | --- |
+| `827d8dd` | P1a off-plan writes land, are recorded and are restored before grading; P1b the regression stage | grader sees the same bytes; the suite is green |
+| `01d9bee` | P1c-1 three states + How terminal semantics + best-of propagation | red own tests no longer reach review |
+| `8cb22be` | P3a: self-tests may not assert the symptom; K=1 red attribution; no-op writes recorded | T-05, T-16 flipped |
+| `f5d88e9` | P3b: inverted independent verification unblocks; reviews anchor on the repo's own docs | fewer wrong blocks |
+| `d10e172` | P3c: per-case discriminating power; `test_wrong` must really change the test; empty delivery is a first-class outcome | true successes up |
+| `2f057bd` | P3e: the documented-API check catches class-rooted bindings (a real bypass case) | T-28 honest |
+| `d8e136a` | P4a: judge incoherence; a review may not override a contradicting verdict; compile check; false reds do not block | **0 false successes on the probe** |
+| `e190a4f` | P5: a claim follows the evidence, one bounded reconciliation | claims rose from 1/6 to 2/6 with 0 lies |
+| `1af450d` | P2: prompt de-duplication + bounded source view (later partly reverted) | see the retraction |
+| `076302e` | P6: closed the two false successes (two different causes) and restored full injection | 0 lies on the probe |
+| `25dafaf` | V2: C2 (bounded index) disabled after the A/B proved it costs 5 tasks; **the P2 token headline retracted** | 13/24 → 18/24 |
+| `6b224f5` | P8: a non-discriminating independent check can no longer carry a pass claim | 6/6 actual, 0 lies on the probe |
+| `8eedab9` | `STATUS.md` §8e: the campaign's final numbers, the losses, the lies, what stays open | — |
 
-- P1a write policy: off-plan writes LAND, are recorded as deviations (`WriteDeviation`,
-  `write_deviation` telemetry, `Attempt.deviations`, `LeafOutcome.deviations`), and are restored on
-  the produced repo before grading (`bench/blind_run.restore_deviations`, called before
-  `external_score`). Only the mechanical shape refusal remains. Verified: the test suite is green
-  (exit 0) and the restore call precedes the grader.
-- P1b regression stage: `harness/regression.py` captures the visible suite before the first write
-  and re-runs it on the final revision; `regressions` blocks the claim on every leaf route and
-  drives another iteration. Unobservable is never treated as clean.
+## Findings that moved into the docs (keep the pointer, not the copy)
 
-### Finding F1 (for P2/P3): on THIS corpus the regression stage is mostly unobservable
+- **F1 — the regression stage is unobservable on this corpus.** Each task's `repo/tests/` IS the
+  grader's suite and the blind protocol withholds it, so the staged view usually has no visible
+  test file. Now `STATUS.md` limit 7.
+- **F2 — the bounded source view costs real fixes.** 13/24 vs 18/24 on the same 12 tasks x2; the
+  P2 token win did not reproduce (16,006 / 16,132 / 16,872). Now `STATUS.md` §3, and the retraction
+  is in commit `25dafaf`.
+- **P1c was re-cut**: P1c-1 landed; P1c-2 (the sweep driving the unified tree runner) is folded
+  into P2 and is still open.
 
-Each task's `repo/tests/` IS the grader's suite, and the blind protocol withholds it, so the staged
-view usually contains NO visible test file: `capture_baseline` returns `observable=False` and the
-regression check is skipped. So on these 40 tasks "no regression" still rests on the external
-grader's own suite (which is the real regression oracle) plus our tests/reviews. The regression
-stage becomes load-bearing only for a repo that ships its OWN visible tests alongside a hidden
-grader suite — i.e. a realism gap in the corpus, to be closed when the corpus grows (a visible
-smoke suite per task, plus the hidden grading suite).
+## Handoff (2026-10-09, HEAD `6b224f5`)
 
-### P1c was re-cut
-
-The one-runner lane timed out with NO tracked file changed (it read only). It is split:
-- P1c-1 (now): three states + How terminal semantics + best-of propagation, inside the outcomes.
-- P1c-2 (into P2): the sweep drives the unified tree runner, because P2 changes the node structure
-  the runner consumes anyway.
+Our 40-task measurement: **24/40 actual, 11 claimed, 3 false successes** (T-27, T-30, T-35) against
+pi's 27/40. The A2 arm (pi + improved prompt) could not be measured — an unrelated GPU job holds
+VRAM and the pi client needs the 32768-token context. One row per open item is in
+`docs/ROADMAP.md` → V3/V4 (the open slices); the numbers and their evidence are in
+`docs/STATUS.md` §8e and `bench/runs/v2sweep-*`.

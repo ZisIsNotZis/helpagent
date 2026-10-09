@@ -7,6 +7,10 @@ records win.
 
 ## 1. The measured position
 
+> **Read section 8e first.** The headline below is the 2026-10-03 nine-task measurement on the
+> 8192-token server. The campaign's 40-task numbers against the real CLI, on the 32768-token
+> server, are in **section 8e**; where the two disagree, 8e wins.
+
 Reference model: Spark-X2.5-4B (Q4_K_M) on llama.cpp, one local server. Method: **blind** —
 the corpus's own test suite is the grader and never enters the run; the run's produced files
 are applied to a pristine copy afterwards and scored there. Nine corpus tasks, two runs
@@ -143,6 +147,19 @@ approaches (Hows), takes the top one, and spends its budget there; failed approa
 abandoned and a new one may be appended (bounded), or the node re-plans into children when
 its own boundary is genuinely multi-part. Wall-clock deadline is the primary budget.
 
+### 2a. Designed but not built (this is the list `DESIGN.md` §10.10 delegates to)
+
+- **The exploration step** (an explicit read/inspect action before a write that lets the model
+  choose what to look at) - not implemented. The bounded source view that was tried instead is
+  measured harmful and reverted (section 3).
+- **Requirement triage** (one request into several issues/children before planning) - not
+  implemented; nodes are only created by the budgeted re-plan.
+- **The knowledge service** (signature/caller/constant packs) - implemented and measured to add
+  nothing on this corpus (section 3), so it is off by default.
+- **Worktrees / parallel trees** and a **human-facing piloting surface** - designed only.
+- **P1c-2**: `bench/v2_sweep.py` still drives the leaf loop directly instead of the unified tree
+  runner. It is folded into the node-structure work.
+
 ## 3. What was tried and did NOT help (measured, not guessed)
 
 | Mechanism | Result |
@@ -153,6 +170,8 @@ its own boundary is genuinely multi-part. Wall-clock deadline is the primary bud
 | extending the write boundary on rule evidence | no gain (1/5 vs 1/5) |
 | competitive How exploration (tournament of candidates) | works, but ~5× the calls and wall time for fewer fixes; greedy is now the default |
 | a "bare" agent loop as a baseline | 0/6 — it wrote no test and ran no command; the harness's forced verification is what makes the model move at all |
+| the bounded source index (P2's C2: declared files in full, the rest as a compact index) | **harmful**: 13/24 vs 18/24 on the same 12 tasks x2, and 13/24 vs 19/24 against the pre-P2 revision (commit `25dafaf`). Source is never hidden from the model now. |
+| the byte-stable context block / artifact de-duplication alone (P2's C1) | **no measured win**: mean tokens per run 16,006 (pre-P2) / 16,132 (C1+C2) / 16,872 (C1 only). The `-31.3%` token headline is retracted. |
 
 The pattern across all of them: structure that costs calls without adding **information**
 loses. What moved the numbers was giving the model more signal (the forced red-then-green
@@ -186,6 +205,16 @@ loop, deterministic diagnosis rules, the report gate, coverage and discriminatio
    tolerate that filters on `claimed_basis` (accept `own-test`, `own-test+independent-test`,
    `independent-test`, `review+independent-test`; treat `review` alone as reviewed-but-weak).
    `verification.tier` is NOT the filter to use - it can read `test` on a review-decided claim.
+7. **The regression stage is unobservable on this corpus.** Each task's `repo/tests/` IS the
+   grader's suite and the blind protocol withholds it, so the staged view usually contains no
+   visible test file: `capture_baseline` reports `observable=False` and the check is skipped. On
+   these 40 tasks "no regression" still rests on the external grader's own suite. The stage
+   becomes load-bearing only for a repo that ships visible tests beside a hidden grading suite -
+   a realism gap in the corpus, not a defect in the stage.
+8. **The remaining false successes are on the plain `green` path.** The review-route hole was
+   closed (P8: a non-discriminating independent check can no longer carry a pass claim), but the
+   three false successes in section 8e (T-27, T-30, T-35) all stop `green`, i.e. they never enter
+   that route. The same rule has not yet been applied to the green route.
 
 ## 5. Where the evidence lives
 
@@ -198,26 +227,20 @@ loop, deterministic diagnosis rules, the report gate, coverage and discriminatio
 
 ## 6. Recommended next steps (ordered)
 
-1. **The claim rule is settled by measurement; do not re-open it without new numbers.**
-   Three rules were measured on the same tasks and model (section 1): the owner's
-   review-outranks-tests rule, once requiring grant-calibre evidence, claims twice as many
-   true successes as the conservative rule at the same measured false-success count (0), and
-   the two false successes the unhardened rule produced are refused by the evidence rule.
+What the owner can see at each step (the vertical slices) and the acceptance criteria live in
+[`docs/ROADMAP.md`](ROADMAP.md) - read that first. Only the standing rule is kept here.
 
-2. **Attack the remaining missed-success bucket (4 of 18).** Every case's ledger says which
-   criterion was unverifiable and which check was attempted; two of the four are T-33, whose
-   criteria name a file the task freezes (a criterion/corpus mismatch worth fixing in the
-   task, not the harness).
+1. **The claim rule is settled by measurement; do not re-open it without new numbers.** Three
+   rules were measured on the same tasks and model (section 1): the owner's review-outranks-tests
+   rule, once requiring grant-calibre evidence, claims twice as many true successes as the
+   conservative rule at the same measured false-success count (0), and the two false successes the
+   unhardened rule produced are refused by the evidence rule. Every later hardening (P4a, P5, P6,
+   P8) is listed with its measurement in section 8e and its commit.
 
-3. **The independent test is still the weakest link** (14 attempts, 3 repairs, and it was the
-   blocker in the earlier conservative sweep). A stronger verifier model - even a modest
-   remote one - for the test-authoring and review roles is the single change most likely to
-   raise true successes; every run records whether its verification was independent or
-   reviewed, so the effect would show in the very next sweep.
-
-4. Build the designed-but-unbuilt layers only if a task needs them: requirement triage,
-   model-side context curation, worktrees/parallel trees, a human-facing piloting surface
-   (DESIGN §10.10).
+2. **The order from here** is: close the three `green`-path false successes (limit 8); fix the
+   tasks pi fixes and we do not; give every shared failure a quoted trajectory verdict; cut tokens
+   without hiding source; re-measure wall-clock on one lane; finish the pi + improved-prompt arm
+   once the GPU is free. Details and owners: ROADMAP.md.
 
 ## 7. Reproducing the numbers
 
@@ -241,6 +264,24 @@ llama-server \
 ```
 
 `curl -fsS http://127.0.0.1:8833/health` must answer `{"status":"ok"}` before a sweep.
+
+Every campaign number (sections 8b-8e) uses the **32768-token** server instead, because the pi
+baseline needs the context window for its reasoning budget:
+
+```sh
+llama-server \
+  -m /home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf \
+  --port 8834 --host 127.0.0.1 -ngl 99 -c 32768 --cache-type-k q8_0 --cache-type-v q8_0
+```
+
+```sh
+# the harness arm, 40 tasks, blind, external grader (section 8e)
+uv run python bench/v2_sweep.py --tasks T-01-ttl-seconds-ms,... --n 1 --calls 24 --verify full --server http://127.0.0.1:8834
+
+# the pi arms: A1 maxed, A2 with the improved prompt appended (bench/pi_baseline.py --append-prompt)
+uv run python bench/pi_baseline.py --thinking max --reasoning --out /tmp/pi-a1
+uv run python bench/pi_baseline.py --thinking max --reasoning --append-prompt /tmp/a2-prompt.txt --out /tmp/pi-a2
+```
 
 ## 8. Mature agent CLI baseline (the same model, all 40 tasks, clean)
 
@@ -460,95 +501,6 @@ weaknesses are that the 4B cannot emit a whole test file as a tool argument (the
 output-token limit and is re-issued or lost), and that pi ends the run the moment the model
 answers without a tool call - a one-shot headless run has no user turn to say "continue", so an
 unfinished task simply ends (this is where its run-to-run variance comes from).
-
-## 5. Where the evidence lives
-
-- Run records: `bench/runs/**/run.json` (per node: stop reason, ledger rows, verification
-  basis, coverage, manager decisions, budget accounting) and `results.jsonl` for sweeps.
-- Curated evidence kept in the repository: `bench/runs/evidence/`.
-- Work records: `.scratch/NN-*/issues/*.md` (ticket 21 covers the claim model; ticket 20 the
-  How axis and its measured verdict; tickets 17–19 the leaf, the tree and the covenant).
-- Design: `docs/DESIGN.md` §10 (flow) and §10.10 (implemented vs not built).
-
-## 6. Recommended next steps (ordered)
-
-1. **The claim rule is settled by measurement; do not re-open it without new numbers.**
-   Three rules were measured on the same tasks and model (section 1): the owner's
-   review-outranks-tests rule, once requiring grant-calibre evidence, claims twice as many
-   true successes as the conservative rule at the same measured false-success count (0), and
-   the two false successes the unhardened rule produced are refused by the evidence rule.
-
-2. **Attack the remaining missed-success bucket (4 of 18).** Every case's ledger says which
-   criterion was unverifiable and which check was attempted; two of the four are T-33, whose
-   criteria name a file the task freezes (a criterion/corpus mismatch worth fixing in the
-   task, not the harness).
-
-3. **The independent test is still the weakest link** (14 attempts, 3 repairs, and it was the
-   blocker in the earlier conservative sweep). A stronger verifier model - even a modest
-   remote one - for the test-authoring and review roles is the single change most likely to
-   raise true successes; every run records whether its verification was independent or
-   reviewed, so the effect would show in the very next sweep.
-
-4. Build the designed-but-unbuilt layers only if a task needs them: requirement triage,
-   model-side context curation, worktrees/parallel trees, a human-facing piloting surface
-   (DESIGN §10.10).
-
-## 7. Reproducing the numbers
-
-```sh
-# unit gate (no model required) — includes the repo tamper guard and corpus integrity
-uv run pytest
-
-# one task, leaf flow, with the ledger and claim record
-uv run python bench/v2_leaf.py --task bench/corpus/T-02-off-by-one --calls 24 --deadline-hours 0.25
-
-# the headline sweep (claimed vs grader), nine tasks, two runs each
-uv run python bench/v2_sweep.py --tasks T-02-off-by-one,T-03-wrong-comparison,T-05-mutable-default,T-08-add-cache-invalidation,T-14-add-export-sorting,T-20-average-truncation,T-25-chunked-helper,T-31-parameter-threading,T-33-serializer-contract --n 2 --calls 24
-```
-
-The reference model server used for every number above:
-
-```sh
-llama-server \
-  -m /home/z/hf/models--XHToken--Spark-X2.5-4B-GGUF/snapshots/d313463f1ff7dc29db20193fddc4ad8386d16261/Spark-X2.5-4B-Q4_K_M.gguf \
-  --port 8833 --host 127.0.0.1 -ngl 99 -c 8192
-```
-
-`curl -fsS http://127.0.0.1:8833/health` must answer `{"status":"ok"}` before a sweep.
-
-## 8. Mature agent CLI baseline (the same model, the same tasks)
-
-`bench/pi_baseline.py` runs the real **`pi` CLI headless** against a corpus task with the same
-blind staging (source-only; the grader never enters the run) and scores it with the same
-external grader. Same 4B reference model, same llama-server, temp pi agent dir (the owner's
-real config is never read or written).
-
-| agent | T-02 | T-05 | T-31 | actual | claimed |
-| --- | --- | --- | --- | --- | --- |
-| our harness (newest sweep, N=2) | 2/2 | 1/2 | 0/2 | 3/6 | 0/6 |
-| **pi CLI** (2 passes, 1 run each) | 1/2 | 1/2 | **2/2** | **4/6** | 4/6 |
-| our own minimal agent loop (`bench/v2_agent.py`) | - | - | - | 0/6 | n/a |
-
-**Behavioural evidence (the important part).** pi drives a real tool loop - `read`, `bash`,
-`edit`, `write` - and **ran shell commands in every run**, iterating on their results; that is
-exactly what our minimal loop could not do. It wrote **no tests**: the 4B could not emit a
-whole test file as a tool argument (it hit the output-token limit and the write failed), so
-its verification was ad-hoc `python3 -c` assertions. Its dominant failure mode is structural:
-pi **ends the run when the model returns an assistant message with no tool call**, and the 4B
-does that prematurely (turn 4, turn 8) - in one-shot headless mode there is no user turn to
-say "continue", so an unfinished task simply ends. That is where most of the run-to-run
-variance (3/3 vs 1/3) comes from.
-
-**What this shows, and what it does not.** On three tasks the mature CLI is at least as good
-as the harness on the grader's verdict, and it claimed far more (it has no claim gate at
-all - its "claims" are our reading of its prose). It does **not** establish a general rate
-(three tasks, one or two passes each), and the comparison is not apples-to-apples: pi has no
-call budget, no honesty gates, no evidence ledger, while the harness caps calls and refuses
-unverified claims. The honest reading: on a small model a mature CLI's loop is competitive,
-so the harness's contribution is not "it fixes more easy tasks" - it is the blind scoring
-protocol, the deterministic gates, the evidence trail, and the fact that its claims can be
-audited. The harness also covers nine tasks and the structural work (trees, budgets,
-escalation) that a one-shot CLI run does not do at all.
 
 ## 8e. Campaign measurement — final numbers (2026-10-09, revision `6b224f5`)
 
