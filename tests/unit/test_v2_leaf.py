@@ -7160,18 +7160,48 @@ def test_m2_review_claim_refused_when_a_judge_flagged_the_same_revision():
 
 
 def test_m2_review_claim_refused_on_a_non_discriminating_independent_verdict():
-    """M2 + P5(b) (T-12 seq695 ``independent-test-not-red``, T-16's final blocker): a
-    NON-DISCRIMINATING independent verdict is not the OBSERVED, DISCRIMINATING, non-error
-    red the review may not override, so it is RECORDED in the disagreement and does NOT
-    block the review-backed claim; the grant carries the ``basis_risk`` label."""
+    """M2 + P5(b) FIX (the T-13 #2 false success): a NON-DISCRIMINATING independent
+    verdict cannot corroborate the review, so it BLOCKS the review-backed claim instead of
+    being labelled and granted. The run is UNCERTAIN; the check is named in the
+    disagreement/detail and the ``basis_risk`` says why."""
     base = _m2_review_base()
-    granted = claim_decision(
+    blocked = claim_decision(
         **base, iv_non_discriminating=True,
         iv_non_discriminating_detail="independent-test-not-red: it PASSED on the pre-run source")
-    assert granted.claimed is True
-    assert "NON-DISCRIMINATING" in granted.disagreement
-    assert "pre-run source" in granted.disagreement
-    assert granted.basis_risk == "review-only-no-observable-check"
+    assert blocked.claimed is False
+    assert blocked.blocker == "independent-test-non-discriminating"
+    assert "NON-DISCRIMINATING" in blocked.disagreement
+    assert "pre-run source" in blocked.disagreement
+    assert blocked.detail == "independent-test-not-red: it PASSED on the pre-run source"
+    assert blocked.basis_risk == "review-over-non-discriminating-check"
+
+
+def test_p5b_a_non_discriminating_independent_check_can_never_carry_a_review_claim():
+    """P5(b) FIX (the T-13 #2 residual lie): a review-route claim may NOT be granted on a
+    non-discriminating independent check in ANY of its states --- it passed on the pristine
+    source, the report was ABSENT/could not be observed or was errors-only, it covered no
+    criterion, or it reused one. Only a genuinely discriminating APPROVING independent
+    check corroborates the review, and that path still grants.
+
+    This test fails if a non-discriminating independent check can again carry a pass
+    claim."""
+    base = _m2_review_base()
+    # The two paths that MUST keep granting: no independent check at all (review-only),
+    # and an APPROVING (discriminating) independent check.
+    assert claim_decision(**base).claimed is True
+    assert claim_decision(**{**base, "iv_approved": True}).claimed is True
+    for detail in (
+        "independent-test-not-red: it PASSED on the pre-run source",
+        "independent-test-unobserved: the report is absent (0 failure(s), 3 error(s))",
+        "independent-test-not-discriminating: AC1 still PASSES on the pre-run source",
+        "independent-test-incomplete-coverage: no node for AC2",
+        "independent-test-shared-coverage: one node serves AC1 and AC2",
+    ):
+        blocked = claim_decision(
+            **base, iv_non_discriminating=True, iv_non_discriminating_detail=detail)
+        assert blocked.claimed is False, detail
+        assert blocked.blocker == "independent-test-non-discriminating", detail
+        assert blocked.basis_risk == "review-over-non-discriminating-check", detail
 
 
 def test_m2_a_clean_review_claim_still_grants():
@@ -7426,15 +7456,16 @@ def test_p5c_reconciliation_ruling_reads_the_judges_own_blame():
 
 def test_p5c_a_reconciled_claim_records_its_basis_risk():
     """P5(c): a claim allowed after the reconciliation judge ruled a blocking check wrong
-    carries the recorded basis risk; a non-discriminating check that did NOT block is
-    labelled so the basis is never presented as stronger than it is."""
+    carries the recorded basis risk; a non-discriminating check, by contrast, BLOCKS the
+    review route (never a labelled grant)."""
     granted = claim_decision(**_m2_review_base(), basis_risk="reconciled-check-dropped:x")
     assert granted.claimed is True
     assert granted.basis_risk == "reconciled-check-dropped:x"
-    labelled = claim_decision(
+    blocked = claim_decision(
         **{**_m2_review_base(), "own_test": "tests/t.py", "own_test_green": True},
         iv_non_discriminating=True,
         iv_non_discriminating_detail="independent-test-not-discriminating: AC3 passes "
                                      "on the pre-run source")
-    assert labelled.claimed is True
-    assert labelled.basis_risk == "review-over-non-discriminating-check"
+    assert blocked.claimed is False
+    assert blocked.blocker == "independent-test-non-discriminating"
+    assert blocked.basis_risk == "review-over-non-discriminating-check"

@@ -1737,8 +1737,10 @@ class ClaimDecision:
     does a review-rejected one. ``basis_risk`` (P3b FIX B) is the honest label for a
     ``review``-basis claim that rests on a review while NO observable check existed (no
     own test and no usable independent verification):
-    ``"review-only-no-observable-check"``. It is a LABEL only — it never changes whether
-    the claim is granted.
+    ``"review-only-no-observable-check"``. P5(b) FIX also records
+    ``"review-over-non-discriminating-check"`` on a REFUSED review-route claim whose
+    independent check could not corroborate it (a non-discriminating / absent / errors-only
+    check never carries a pass claim).
     """
 
     claimed: bool
@@ -1758,9 +1760,10 @@ def _granted_claim(basis: str, disagreement: str = "",
 
 
 def _blocked_claim(blocker: str, detail: str = "",
-                   disagreement: str = "") -> ClaimDecision:
+                   disagreement: str = "",
+                   basis_risk: str = "") -> ClaimDecision:
     return ClaimDecision(claimed=False, blocker=blocker, detail=detail,
-                         disagreement=disagreement)
+                         disagreement=disagreement, basis_risk=basis_risk)
 
 
 def _conflict_claim(detail: str) -> ClaimDecision:
@@ -1990,7 +1993,8 @@ def claim_decision(
        approved / independent verification rejected, with both evidences) is recorded.
        A VACUOUS or non-discriminating independent test (``independent-test-not-red`` /
        ``-not-discriminating`` / ``-incomplete-coverage`` / ``-unobserved``) is NOT a red
-       verdict and does not block;
+       verdict; it does not block AS A RED, but it also cannot CORROBORATE the review and
+       so it blocks the review grant through the agreement rule below (P5b FIX);
     5. on every other route, no claim when the run's own test exists and is RED on the
        final revision; when an independent TEST passed it, that is the two-imperfect-
        tests CONFLICT (there is no review to outrank it);
@@ -2005,9 +2009,13 @@ def claim_decision(
 
     * **M2 (review-route agreement):** a review-route claim additionally requires that no
       judge consultation on the SAME revision recorded ``implementation_wrong``
-      (``judge_implementation_wrong``). A NON-DISCRIMINATING independent verdict is
-      recorded in ``disagreement`` but (P5b) does NOT block: it is neither the observed,
-      discriminating, non-error red the review may not override nor a corroboration.
+      (``judge_implementation_wrong``). A NON-DISCRIMINATING independent verdict (it
+      passed on the pristine source, was unobserved/errors-only, or covered no criterion)
+      is recorded in ``disagreement`` and (P5b FIX) BLOCKS: it is not the observed,
+      discriminating, non-error red the review may not override, and it is NOT a
+      corroboration either, so the review may not carry a pass claim on it. A genuinely
+      discriminating, APPROVING independent verification (``iv_approved``) is the
+      corroboration that still carries the review route.
       The caller supplies only an OBSERVED judge attribution: a verdict the deterministic
       filter manufactured from a dropped ``test_wrong`` label is a fallback, not a
       finding, and never blocks (P5b).
@@ -2157,10 +2165,27 @@ def claim_decision(
             return _blocked_claim("judge-implementation-wrong",
                                   detail=judge_implementation_wrong_detail,
                                   disagreement=disagreement)
-        # P5(b): a NON-DISCRIMINATING independent verdict (it passed on the pristine
-        # source, could not be observed, or covered no criterion) is not the OBSERVED,
-        # DISCRIMINATING, non-error red the review may not override, so it is RECORDED
-        # above and does NOT block. Only a discriminating red does (rule 4 below).
+        # P5(b) FIX (the T-13 #2 residual false success): a NON-DISCRIMINATING independent
+        # check CANNOT corroborate the review, so it must NOT carry a pass claim. Before
+        # this fix the fall-through below GRANTED on it (basis_risk
+        # ``review-over-non-discriminating-check``), and the run claimed ``green`` while an
+        # external grader failed. The three non-discriminating states — the test passed on
+        # the pristine source (``independent-test-not-red``/``-not-discriminating``), the
+        # report was ABSENT/could not be observed or was errors-only
+        # (``independent-test-unobserved``), or a criterion had no node / shared one
+        # (``-incomplete-coverage``/``-shared-coverage``) — are exactly
+        # ``iv_non_discriminating``. It is RECORDED above and now BLOCKS: the run is
+        # UNCERTAIN (the main path re-iterates, the exhaustion path ends unclaimed) until a
+        # genuinely discriminating independent check APPROVES the same revision
+        # (``iv_approved``), which keeps every true success claimable. The reason is
+        # recorded on the decision AND in the ``review_agreement_blocked`` telemetry event
+        # (which names the offending check).
+        if iv_non_discriminating:
+            return _blocked_claim(
+                "independent-test-non-discriminating",
+                detail=iv_non_discriminating_detail,
+                disagreement=disagreement,
+                basis_risk="review-over-non-discriminating-check")
         # rule 6: absent means NEVER written; a rewritten-and-removed test is not absent.
         # Ticket 22 item 2: after a recorded PLAN UPDATE (test -> review) the test was
         # deliberately GIVEN UP, so the review is the plan's verification and the old
@@ -2182,8 +2207,6 @@ def claim_decision(
         # wrong carries its own label instead. A LABEL only: the grant is unchanged.
         risk = basis_risk or ("review-only-no-observable-check"
                               if own_test is None and not iv_approved else "")
-        if not risk and iv_non_discriminating:
-            risk = "review-over-non-discriminating-check"
         return _granted_claim(basis, disagreement=disagreement, basis_risk=risk)
 
     # ---- rule 5: the FINAL-revision own-test agreement on the non-review routes
@@ -6899,8 +6922,11 @@ async def run_leaf(
             # discriminate. The disagreement is already recorded above; return False so a
             # caller on the main path RE-ITERATES instead of claiming (the exhaustion
             # caller simply ends unclaimed). Never a stop here, so the loop keeps working.
+            # P5(b) FIX: ``basis_risk`` labels a refused claim too, so the record says WHY
+            # the non-discriminating check could not carry it.
             emit("review_agreement_blocked", blocker=decision.blocker,
-                 detail=decision.detail, disagreement=decision.disagreement)
+                 detail=decision.detail, disagreement=decision.disagreement,
+                 basis_risk=decision.basis_risk)
             return False
         if decision.blocker == "verification-required":
             emit("verification_claim_blocked", tier=verification_tier,
