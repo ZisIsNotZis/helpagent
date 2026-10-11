@@ -1830,6 +1830,25 @@ def pristine_red_is_discriminating(original_gate: "GateReport | None") -> bool:
     return bool(original_gate is not None and original_gate.n_failed > 0)
 
 
+def iv_verdict_is_non_discriminating(last: "IndependentTestVerdict | None") -> bool:
+    """P8b: True when the last independent verdict is NOT discriminating evidence.
+
+    Two states qualify. (1) The M2/P4a set: the test passed on the pristine source, could
+    not be observed, had no node for a criterion, or reused/shared one. (2) A final red
+    whose report was UNOBSERVED or only errors/collection failures (``n_failed == 0``) -
+    an errored run proves nothing about the revision, so it must not corroborate a claim
+    any more than an absent check can. State (2) is the T-30 false success: the review
+    route granted a claim while the independent run had errored on BOTH revisions, because
+    ``iv_red_on_final`` filtered it out (M4) and this predicate did not cover it.
+    """
+    if last is None or last.approved:
+        return False
+    if last.reason in _IV_REPAIRABLE:
+        return True
+    return (last.reason == "independent-test-red-on-final"
+            and not _gate_blocks_as_red(last.final_gate))
+
+
 def reconciled_check_may_be_dropped(
     *,
     ruling: str,
@@ -6788,16 +6807,22 @@ async def run_leaf(
         the pristine source (``independent-test-not-red``), could not be observed, has no
         node for a criterion, or reused/shared one. It cannot corroborate a review-backed
         claim. An approval, a genuine red, and an inverted red are NOT non-discriminating.
+
+        P8b: a final red whose report is UNOBSERVED or only errors/collection failures is
+        not evidence either (``n_failed == 0``), so it blocks exactly like an absent check.
+        Without this, T-30's claim was granted on the review route while the independent
+        run had errored on BOTH revisions (0 failures, 3 errors): ``iv_red_on_final``
+        filtered it out (M4) and this predicate did not cover it.
         """
         last = iv_verdicts[-1] if iv_verdicts else None
-        return bool(last is not None and not last.approved
-                    and last.reason in _IV_REPAIRABLE)
+        return iv_verdict_is_non_discriminating(last)
 
     def iv_non_discriminating_detail() -> str:
         """M2: the evidence text of the last non-discriminating independent verdict."""
         last = iv_verdicts[-1] if iv_verdicts else None
-        if last is None or last.approved or last.reason not in _IV_REPAIRABLE:
+        if not iv_verdict_is_non_discriminating(last):
             return ""
+        assert last is not None
         return f"{last.reason}: {last.detail}" if last.reason else last.detail
 
     def judge_impl_wrong_on_revision() -> bool:

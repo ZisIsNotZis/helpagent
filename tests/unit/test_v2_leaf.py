@@ -67,6 +67,7 @@ from harness.leaf import (
     apply_review_filter,
     claim_decision,
     deterministic_greens,
+    iv_verdict_is_non_discriminating,
     pristine_red_is_discriminating,
     reconciled_check_may_be_dropped,
     reconciliation_ruling,
@@ -75,6 +76,7 @@ from harness.leaf import (
     run_leaf,
     verification_reason_problem,
 )
+from harness.leaf import IndependentTestVerdict
 from harness.runner import SchemaViolation, ledger_entries, reset_ledger_for_tests
 
 _FAR_FUTURE = 2_000_000_000.0
@@ -7393,6 +7395,36 @@ def test_f1_a_judge_ruling_may_not_drop_a_discriminating_red():
     assert reconciled_check_may_be_dropped(
         ruling="unclear", independent_approved=True, own_red_blocks=False,
         iv_red_blocks=True) is False
+
+
+def test_p8b_an_errored_independent_run_is_not_discriminating_evidence():
+    """P8b (the T-30 false success): a final red whose report was UNOBSERVED or only
+    errors/collection failures proves nothing about the revision, so it must NOT
+    corroborate a claim - exactly like an absent check. This test fails if an
+    errors-only independent red can carry a pass claim again."""
+    def gate(n_failed, anomaly="tests-failed"):
+        return GateReport(report_path="(iv)", process_exit=1, canary="c", expected_files=(),
+                          n_tests=3, n_failed=n_failed, n_errors=3 - n_failed, passed_ids=(),
+                          failed_ids=tuple(f"t.py::ac{i}" for i in range(n_failed)),
+                          missing=(), observed=True, anomaly=anomaly, detail="")
+    errored = IndependentTestVerdict(approved=False, reason="independent-test-red-on-final",
+                                     detail="0 failure(s), 3 error(s)", content="",
+                                     original_gate=gate(0), final_gate=gate(0))
+    assert iv_verdict_is_non_discriminating(errored) is True
+    # a REAL final failure is evidence, not a non-discriminating state
+    real_red = IndependentTestVerdict(approved=False, reason="independent-test-red-on-final",
+                                      detail="1 failure(s)", content="",
+                                      original_gate=gate(1), final_gate=gate(1))
+    assert iv_verdict_is_non_discriminating(real_red) is False
+    # approving is never non-discriminating, and the M2 set still qualifies
+    approved = IndependentTestVerdict(approved=True, reason="", detail="", content="",
+                                      original_gate=gate(1), final_gate=gate(0))
+    assert iv_verdict_is_non_discriminating(approved) is False
+    vacuous = IndependentTestVerdict(approved=False, reason="independent-test-not-red",
+                                     detail="passed on the pristine source", content="",
+                                     original_gate=gate(0), final_gate=gate(0))
+    assert iv_verdict_is_non_discriminating(vacuous) is True
+    assert iv_verdict_is_non_discriminating(None) is False
 
 
 def test_f1_only_a_pure_inversion_or_a_corroborating_green_can_drop_a_check():
