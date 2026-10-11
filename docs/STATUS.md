@@ -588,3 +588,25 @@ remaining twelve are the model's own failures.
 **Counts.** 24/40 actual. 16 failures: 2 open harness defects (T-28, T-14), 2 claim-side
 mis-claims now understood (T-27, T-35 - a rule that would remove them is still open), 12
 model-ceiling. Zero false successes after P8b.
+
+## 8g. The confirming 40-task run after P8b (2026-10-11, revision `d24410a`)
+
+Runs `bench/runs/v2sweep-20261011T065821Z` (T-01..T-20) and `...T070710Z` (T-21..A-05), same
+model, same blind protocol, one writer.
+
+| metric | before P8b (8e, `6b224f5`) | after P8b (`d24410a`) |
+| --- | --- | --- |
+| actual | 24/40 | **26/40** |
+| claimed | 11 | 10 |
+| false successes | 3 (T-27, T-30, T-35) | **1 (A-02)** |
+
+The three false successes of 8e are gone: T-30 was an errors-only independent red (P8b closed it
+structurally) and T-27/T-35 stopped failing the grader in this run, so their latent class did not
+fire. **One lie remains, on a different path:** `A-02-protein-translation` claimed `green` while the
+grader failed it. It is an anchor task (a whole implementation from a text spec) and it was also one
+of pi's two false successes in 8b, so the same "the model's own test agrees with a wrong
+implementation" shape is at work; its claim route has not been read yet, and until it is, V3 is not
+met.
+
+Of the 16 failures in 8f, this run changed which tasks fail (T-14 and T-30 now pass; T-17, T-26 and
+T-34 fail here), which is the corpus's run-to-run variance, not a regression of the rule.
