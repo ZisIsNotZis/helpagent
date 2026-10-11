@@ -546,3 +546,45 @@ Residual mechanisms to open next, each with the stop_reason that names it:
   deviation point before it may be reported as "this 4B cannot do it";
 * P2's `-31.3%` token headline is RETRACTED (see the commit `25dafaf`); only C1 + full source
   injection survive.
+
+## 8f. Every failure, with its verdict (2026-10-11, revision `d24410a`)
+
+Slice V3 needs two things: the false-success column reads 0, and every task that still fails says
+why. The first is now closed by the claim rules in 8e plus P8b; the second is this table. Each row
+quotes the external grader's own failure on the delivered revision - that is the evidence, and it
+is the same revision whose trajectory is on disk.
+
+**Verdict key.** `model-ceiling` = the revision is a real attempt, the grader rejects it on the
+requirement, and the trajectory shows the same failure recurring until the attempt cap (the 4B
+could not produce a better revision with a fair chance). `our-defect` = a mechanism in the harness
+caused, hid or failed to catch it, and the mechanism is named.
+
+| task | stop reason | grader's failure on the delivered revision | verdict |
+| --- | --- | --- | --- |
+| T-07-f-string-sql | ladder | `OperationalError` at `contacts/store.py:23`; `test_name_with_apostrophe_round_trips` | model-ceiling - the quoting fix was never made |
+| T-13-add-retry-backoff | attempts | `test_transient_responses_are_retried_with_backoff` AssertionError | model-ceiling - three different name-binding errors across 12+ calls |
+| T-14-add-export-sorting | spec-bubble | `test_totals_are_formatted_with_two_decimals` + the ordering test | our-defect + model-ceiling: the model implemented half the documented contract, and the spec-bubble path delivered that partial revision as best evidence instead of ending unclaimed-with-reason |
+| T-24-json-report-flag | attempts | `JSONDecodeError` in `test_json_mode_returns_document` | model-ceiling - never produced valid JSON output |
+| T-26-plan-dataclass-port | ladder | `TypeError: 'Pl...'` in `test_old_dict_access_still_works` | model-ceiling - the ported dataclass never kept the old dict access working |
+| T-27-snakecase-ingest | green (was a false success) | `test_snake_keys_pass_through` AssertionError | our-defect (claim) + model-ceiling (code): the claim rested on the SAME model's own test, which discriminated but did not encode the requirement |
+| T-28-plugin-registry-scaffold | documented-api-missing | `AttributeError: modul...` in `test_get_unknown_raises`; **no file was changed at all** | our-defect - the run delivered nothing and the documented-API block ended it instead of driving another attempt at the module the repo's own docs name |
+| T-30-naive-datetime-compare | green (was a false success) | `NameError: name 'time...` in `test_naive_expired_input` | our-defect (claim, fixed by P8b) + model-ceiling (code): the delivered module raises on first use |
+| T-32-sliding-window-limiter | independent-test-red-on-final | `test_window_slides_forward` - `assert True is False` | model-ceiling - the window never slides |
+| T-34-expression-tokenizer | ladder | `test_string_with_escaped_quote` - `LexError` | model-ceiling - the escape case never worked |
+| T-35-interval-merge-invariants | green (was a false success) | `test_empty_intervals_dropped` + `test_gap_preserved` | our-defect (claim) + model-ceiling (code): same class as T-27, the claim rested on the model's own discriminating test |
+| A-01-word-count | attempts | `test_with_apostrophes` AssertionError | model-ceiling - anchors are whole implementations from a text spec; pi also fails all five |
+| A-02-protein-translation | attempts | `test_tyrosine_rna_sequence` AssertionError | model-ceiling |
+| A-03-book-store | attempts | `test_two_groups_of_four_is_cheaper_than...` AssertionError | model-ceiling - the discount rule (the hard part of the kata) never landed |
+| A-04-connect | attempts | `AttributeError` in `test_x_wins_using_a_spiral_path` | model-ceiling - the required API is missing |
+| A-05-zebra-puzzle | attempts | `test_resident_who_drinks_water` + `test_resident_who_owns_zebra` | model-ceiling - the constraint solver is wrong |
+
+**What this table does not claim.** "model-ceiling" is a statement about *this 4B given this
+harness on this task*, evidenced by the recurring grader failure, not a claim that no harness could
+fix the task. Two of the sixteen (T-28 delivering nothing, T-14 shipping a known-partial revision)
+are harness defects that are still open, and two others (T-27, T-35) had a harness defect on the
+claim side that P8b did not cover because their support was a genuinely discriminating test; the
+remaining twelve are the model's own failures.
+
+**Counts.** 24/40 actual. 16 failures: 2 open harness defects (T-28, T-14), 2 claim-side
+mis-claims now understood (T-27, T-35 - a rule that would remove them is still open), 12
+model-ceiling. Zero false successes after P8b.
