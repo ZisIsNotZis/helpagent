@@ -15,7 +15,7 @@ disagree about *what you can see*, this file wins.
 | --- | --- | --- | --- |
 | **V1** | *One task, fixed, with its evidence.* You hand the harness a request; it edits the repo, runs its own verification, and prints what it changed, what it verified, and what it could not. | `uv run python bench/v2_leaf.py --task bench/corpus/T-01-ttl-seconds-ms --calls 24 --out /tmp/slice1` then read `work/` and the printed claim basis | **done** |
 | **V2** | *The honest scoreboard.* You run the whole corpus and get a table: what the harness claimed, what an independent grader actually found, and the trajectory behind every one of them. | `uv run python bench/v2_sweep.py --tasks T-01..T-20 --n 1 --calls 24 --verify full --server http://127.0.0.1:8834` then `bench/runs/v2sweep-*/results.jsonl` | **done** |
-| **V3** | *It does not lie, and it explains itself.* The scoreboard's false-success column reads **0**, and every task that still fails prints a one-line reason you can check against its trajectory. | the same sweep: count `claimed && !actual` (must be 0) and read each failed task's `stop_reason`; the per-task verdicts exist for all 40 | **open** — today: 3 false successes (T-27, T-30, T-35) and 12 failures with no verdict yet |
+| **V3** | *It does not lie, and it explains itself.* The scoreboard's false-success column reads **0**, and every task that still fails prints a one-line reason you can check against its trajectory. | the same sweep: count `claimed && !actual` (must be 0) and read each failed task's `stop_reason`; the per-task verdicts exist for all 40 | **partly** — all 16 failures now carry a verdict (`STATUS.md` §8f), and P8b closed the errors-only hole (0 false successes on the 6-task probe). Not yet confirmed on a full 40-task run, and the T-27/T-35 class (a discriminating but mis-aimed same-model test) is still open |
 | **V4** | *It beats the mature CLI on the same model, and costs less.* You run both arms on the same 40 tasks and see one side-by-side table: actual, claimed, tokens, wall-clock. | our sweep + `bench/pi_baseline.py --thinking max --reasoning` (and the same with `--append-prompt`), one revision each | **open** — 24/40 vs pi's 27/40, tokens 18.4k vs 9.0k; the prompt-improved arm is blocked by an unrelated GPU job |
 | **V5** | *It works on a repository it has not seen before.* You point it at a repo that ships its own visible tests (so "no regression" is actually observable) plus a hidden grading suite, and it behaves the same as on the corpus. | a new corpus task with a visible smoke suite; the regression stage must report `observable=True` | **open** — on today's corpus the regression stage is unobservable (STATUS limit 7) |
 | **V6** | *The product.* One command you can point at your own repository: `helpagent "<request>"` → it edits, verifies, and prints what it verified and what it could not, with the evidence trail on disk. Installable, with a short usage page. | run it on a repo outside this one, from a clean install | **open** — this is the thing all of the above is for; it does not exist yet |
@@ -38,6 +38,12 @@ All six slices are visible at once, on one frozen revision, with the numbers in
 | C5 | efficiency measured, not assumed | V4 |
 
 ## What you can see today
+
+**V3's two halves are now on disk**: `STATUS.md` §8f gives every one of the 16 failures a verdict
+that quotes the grader's own failure on the delivered revision, and the claim rules that produced
+the three false successes have been tightened (P8 closed the review route, P8b closed the
+errors-only hole). A full 40-task run on the tightened revision is the next thing to do - that is
+what turns "0 false successes on a probe" into "0 on the scoreboard".
 
 ```sh
 # V1 — one task, end to end
