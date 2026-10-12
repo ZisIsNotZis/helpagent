@@ -7340,16 +7340,22 @@ def test_p5a_a_claim_requires_a_deterministic_green_and_a_real_delivery():
     green. A model's approval over a delivery that changed nothing, or over a revision no
     deterministic signal could confirm, is not a claim."""
     base = _p5_own_test_base()
-    granted = claim_decision(**base, deterministic_greens=("source-compiles",),
+    granted = claim_decision(**base, deterministic_greens=("documented-api",),
                              delivery_changed=True)
     assert granted.claimed is True
-    unchanged = claim_decision(**base, deterministic_greens=("source-compiles",),
+    unchanged = claim_decision(**base, deterministic_greens=("documented-api",),
                                delivery_changed=False)
     assert unchanged.claimed is False
     assert unchanged.blocker == "no-change-delivery"
     silent = claim_decision(**base, deterministic_greens=(), delivery_changed=True)
     assert silent.claimed is False
     assert silent.blocker == "no-deterministic-green"
+    # P8c: parsing alone is not a behavioural fact, so it cannot CARRY a claim (the A-02
+    # false success: the same model's test and review both approved a wrong codon table).
+    parses_only = claim_decision(**base, deterministic_greens=("source-compiles",),
+                                 delivery_changed=True)
+    assert parses_only.claimed is False
+    assert parses_only.blocker == "no-deterministic-anchor"
 
 
 def test_p5a_only_an_observed_regression_supplies_the_regression_green():

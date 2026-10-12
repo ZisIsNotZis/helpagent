@@ -1882,6 +1882,14 @@ def reconciled_check_may_be_dropped(
         and set(iv_final_failed_ids) <= set(iv_inverted_ids))
 
 
+#: P8c: the deterministic greens that may CARRY a pass claim. Everything else (notably
+#: ``source-compiles``) is a necessary condition, not a sufficient one: a module that parses
+#: proves nothing about behaviour. The A-02 false success is the case in point - the same
+#: model's own independent test AND its own graded review both approved a wrong codon table,
+#: so no amount of model-written evidence may carry a claim on its own.
+_CARRYING_ANCHORS = ("documented-api", "no-regression")
+
+
 def deterministic_greens(
     *,
     source_unparseable: str = "",
@@ -2101,6 +2109,19 @@ def claim_decision(
                        "(it does not compile, a documented interface is missing, or a "
                        "visible-suite regression was observed): a claim may not rest on "
                        "model-written checks alone")
+        # P8c (owner decision, 2026-10-11): a CARRIING anchor is a behaviour-level
+        # mechanical fact. ``source-compiles`` is necessary but NOT sufficient -- a module
+        # that parses proves nothing about behaviour, and a claim carried by it alone is
+        # exactly the A-02 false success, where the same model's own test AND its own
+        # review both approved a wrong codon table. Model-written tests and reviews may
+        # corroborate; they may not carry.
+        if not any(g in _CARRYING_ANCHORS for g in deterministic_greens):
+            return _blocked_claim(
+                "no-deterministic-anchor",
+                detail="the only deterministic green(s) are "
+                       + (", ".join(deterministic_greens) or "none")
+                       + "; parsing is not a behavioural fact, so a claim carried by "
+                         "model-written tests or reviews alone is refused")
 
     # ---- rules 1-3 (shared hard blocks)
     if criteria_count < 1:
