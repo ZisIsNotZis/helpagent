@@ -75,6 +75,7 @@ from harness.leaf import (  # noqa: E402
     _coerce_review_grade,
     run_leaf,
     source_view_mode,
+    _SELF_TEST_DESIRED_STATE_RULE,
 )
 from harness.model import LlamaServerRunner  # noqa: E402
 from harness.runner import SchemaViolation, llm_step  # noqa: E402
@@ -765,7 +766,10 @@ def _independent_test_question(request: IndependentTestRequest) -> str:
         "criterion maps to its own distinct test node.\n"
         "Write a test that FAILS against the ORIGINAL source and PASSES against the FINAL "
         "source. Return a NEW test file path under tests/ and its complete content. Do not "
-        "reference any file other than the source shown above."
+        "reference any file other than the source shown above.\n"
+        + _SELF_TEST_DESIRED_STATE_RULE
+        + " An acceptance-criterion line may describe the BROKEN symptom; assert the "
+        "DESIRED end state a correct fix produces, never the reported symptom."
     )
 
 

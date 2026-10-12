@@ -7507,3 +7507,396 @@ def test_p5c_a_reconciled_claim_records_its_basis_risk():
     assert blocked.claimed is False
     assert blocked.blocker == "independent-test-non-discriminating"
     assert blocked.basis_risk == "review-over-non-discriminating-check"
+
+
+# ===========================================================================
+# FIX WAVE 1 (ticket 28): make the model-written verification/review stages carry
+# information and make best-evidence delivery coverage-aware.
+# ===========================================================================
+
+def test_fix1_independent_test_prompt_carries_the_desired_state_rule():
+    """FIX 1: the independent-test question must carry the SAME desired-state rule the
+    run's own test gets, plus the explicit line: the AC text may describe the BROKEN
+    symptom, so assert the desired end state, never the reported symptom (the T-06/T-10
+    inversion class at its source)."""
+    from bench.v2_leaf import _independent_test_question
+
+    request = IndependentTestRequest(
+        goal="the scheduler crashes on a naive clock",
+        acs=["is_due(job) raises TypeError with a naive clock"],
+        original={"pkg/calc.py": "def result():\n    return 0\n"},
+        final={"pkg/calc.py": "def result():\n    return 42\n"})
+    question = _independent_test_question(request)
+    assert "DESCRIBE THE CURRENT BROKEN behaviour" in question
+    assert "never the reported symptom" in question
+    assert "may describe the BROKEN symptom" in question
+
+
+def test_fix2_iv_blocking_final_ids_excuses_inverted_and_blocks_the_unmet():
+    """FIX 2: the per-id generalisation of ``iv_all_inverted``. A final-revision failure
+    that PASSED on the pristine source is inverted and never blocks; only a failure that
+    also FAILED there (a genuine unmet criterion) blocks a mixed file."""
+    from harness.leaf import iv_all_inverted, iv_blocking_final_ids
+
+    iv = "tests/test_independent.py"
+    inverted = f"{iv}::test_ac1_inverted"
+    unmet = f"{iv}::test_ac2_unmet"
+    original = _gate_report(iv, passed=(inverted,), failed=(unmet,), green=False)
+    final = _gate_report(iv, passed=(), failed=(inverted, unmet), green=False)
+    mixed = IndependentTestVerdict(approved=False, reason="independent-test-red-on-final",
+                                   original_gate=original, final_gate=final)
+    assert iv_blocking_final_ids(mixed) == (unmet,)
+    assert iv_all_inverted(mixed) is False
+
+    all_inverted = IndependentTestVerdict(
+        approved=False, reason="independent-test-red-on-final", original_gate=original,
+        final_gate=_gate_report(iv, passed=(unmet,), failed=(inverted,), green=False))
+    assert iv_blocking_final_ids(all_inverted) == ()
+    assert iv_all_inverted(all_inverted) is True
+
+
+def test_fix2_evaluate_independent_test_classifies_inversion_before_the_early_return():
+    """FIX 2: the whole-file red-on-final early return must still classify per criterion,
+    so a mixed file records WHICH ids were inverted (never evidence against the fix) and
+    which are genuinely unmet (blocking)."""
+    import harness.leaf as leaf_mod
+
+    original = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 0\n"}
+    final = {"pkg/__init__.py": "", "pkg/calc.py": "def result():\n    return 42\n"}
+    content = ("from pkg.calc import result\n\n\n"
+               "def test_ac1_symptom():\n    assert result() == 0\n\n\n"
+               "def test_ac2_desired():\n    assert result() == 42\n\n\n"
+               "def test_ac3_broken():\n    assert result() == 999\n")
+    verdict = asyncio.run(evaluate_independent_test(
+        IndependentTestCandidate(path="tests/test_independent.py", content=content),
+        original, final, leaf_mod._default_run_tests, criteria_count=3))
+
+    assert verdict.approved is False
+    assert verdict.reason == "independent-test-red-on-final"
+    assert verdict.inverted_indices == (1,)
+    assert verdict.offending_indices == (3,)
+    assert sorted(c.index for c in verdict.criteria) == [1, 2, 3]
+
+
+def test_fix5_review_round_cannot_reapprove_bytes_it_rejected():
+    """FIX 5: a review round must not approve the SAME source revision an earlier round of
+    the same angle rejected (the T-26/T-28 flip-flop); on CHANGED bytes the approval is a
+    new verdict and stands."""
+    from harness.leaf import combine_review_verdicts
+
+    angles = ("ac-correctness", "contract-compat")
+    rejected = ReviewVerdict(angle="ac-correctness", grade="definitely-problematic",
+                             evidence="pkg/calc.py:1 returns the wrong value",
+                             source_revision="f1")
+    old_companion = ReviewVerdict(angle="contract-compat", grade="uncertain",
+                                  source_revision="f1")
+    approval = ReviewVerdict(angle="ac-correctness", grade="definitely-ok",
+                             evidence="pkg/calc.py:1 returns 42", source_revision="f1")
+    new_companion = ReviewVerdict(angle="contract-compat", grade="definitely-ok",
+                                  evidence="pkg/calc.py:1 keeps the contract",
+                                  source_revision="f1")
+    ok, _score, why = combine_review_verdicts(
+        [rejected, old_companion, approval, new_companion], angles, "implementation")
+    assert ok is False and "already rejected" in why
+
+    changed = dataclasses.replace(approval, source_revision="f2")
+    ok2, _score2, _why2 = combine_review_verdicts(
+        [rejected, old_companion, changed, new_companion], angles, "implementation")
+    assert ok2 is True
+
+
+def test_fix6_best_evidence_prefers_more_complete_request_coverage():
+    """FIX 6: best evidence ranks by (request-coverage of the revision, then evidence), so
+    a complete revision is preferred over a partial one with stronger model evidence."""
+    from harness.leaf import BestEvidenceRevision, _best_evidence_preference
+
+    complete = BestEvidenceRevision(rank=1, tier="review", attempt=1, reason="",
+                                    request_coverage_missing=())
+    partial = BestEvidenceRevision(rank=4, tier="agreement", attempt=1, reason="",
+                                   request_coverage_missing=("api/service.py",))
+    unknown = BestEvidenceRevision(rank=4, tier="agreement", attempt=1, reason="")
+    assert _best_evidence_preference(complete) > _best_evidence_preference(partial)
+    assert _best_evidence_preference(complete) > _best_evidence_preference(unknown)
+    assert _best_evidence_preference(partial) > _best_evidence_preference(unknown)
+
+
+def test_d1_contract_clear_revision_displaces_a_failing_snapshot(tmp_path):
+    """D1: a later revision that CLEARS the deterministic documented-API check is captured
+    as ``contract-clear`` and displaces the earlier failing best-evidence snapshot (T-28:
+    the delivered review snapshot failed the check while a later revision cleared it and
+    passed the withheld suite). The check is never treated as a grader pass."""
+    from harness.leaf import documented_api_problem
+
+    files = {
+        "README.md": "Use result() to read the value.\n",
+        "pkg/calc.py": "class Calc:\n    def result(self):\n        return 0\n",
+    }
+    spec = dataclasses.replace(make_spec(files), acs=["pkg/calc.py must expose result()"])
+    stage(tmp_path, files)
+    # the class-only baseline IS the documented-API failure the later revision clears
+    assert documented_api_problem(spec, tmp_path, {rel: None for rel in files})
+    class_only = write_env("pkg/calc.py", "class Calc:\n    def result(self):\n        return 0\n")
+    clear = write_env("pkg/calc.py", "def result():\n    return 42\n")
+    # attempt 1: the class-only revision (the review snapshot fails documented-api)
+    # attempt 2: the module-level API (clears it, no model evidence)
+    model = FakeModelRunner({"write_test": [SELF_TEST, class_only, clear]})
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=14, deadline_ts=_FAR_FUTURE),
+                        review=ScriptedReview([_passing_review, _passing_review]),
+                        run_tests=ScriptedTests([1, 0, 1, 0, 1, 0, 1, 0]))
+    delivered = out.delivered_revision
+    assert delivered["best_tier"] == "contract-clear"
+    assert "def result(" in (tmp_path / "pkg" / "calc.py").read_text()
+
+
+def test_d2_test_attributed_traceback_credits_test_wrong():
+    """D2: the recorded traceback proves the run's own test is at fault (a frame in the
+    own test, none in a changed source), so ``test_wrong`` is credited deterministically
+    even though the judge's prose blamed the implementation."""
+    request = JudgeRequest(
+        goal="fix the source", acs=["result() returns 42"],
+        failure=("FAILED tests/test_leaf_self.py::test_goal\n"
+                 "tests/test_leaf_self.py:3: AssertionError"),
+        test_path="tests/test_leaf_self.py",
+        test_content="def test_goal():\n    assert result() == 42\n",
+        files={"pkg/calc.py": "def result():\n    return 0\n"})
+    verdict = JudgeVerdict(attribution="implementation", reason="the source is wrong",
+                           defect="the source is wrong")
+    filtered = apply_judge_filter(verdict, request)
+    assert filtered.test_wrong is True
+    assert filtered.implementation_wrong is False
+    assert filtered.coercion_reason == "test_attributed_from_traceback"
+
+    # a failure that DOES name a changed-source frame stays on the implementation path
+    source_request = dataclasses.replace(
+        request, failure="pkg/calc.py:1: AssertionError")
+    source_filtered = apply_judge_filter(verdict, source_request)
+    assert source_filtered.test_wrong is False
+    assert source_filtered.implementation_wrong is True
+
+
+def test_d3_spec_wrong_naming_a_source_defect_is_not_credited():
+    """D3: a ``spec_wrong`` whose own reason names a source defect contradicts itself and
+    is coerced to implementation (the T-35 3-call spec bubble)."""
+    request = JudgeRequest(
+        goal="fix merge()", acs=["merge() merges overlaps"],
+        failure="FAILED test_merge.py::test_merge",
+        test_path="test_merge.py",
+        test_content="def test_merge():\n    assert merge([[1, 3], [2, 4]]) == [[1, 4]]\n",
+        files={"spans/merge.py": "def merge(intervals):\n    return intervals\n"})
+    verdict = JudgeVerdict(
+        spec_wrong=True, attribution="spec",
+        reason="The merge function uses 'start <= current_end' incorrectly",
+        defect="The merge function uses 'start <= current_end' incorrectly")
+    filtered = apply_judge_filter(verdict, request)
+    assert filtered.spec_wrong is False
+    assert filtered.implementation_wrong is True
+    assert filtered.coerced is True
+
+
+def test_fix3_resampled_independent_test_does_not_upgrade_the_claim(tmp_path):
+    """FIX 3: when the run's last independent verdict is RED on the final revision, a fresh
+    approving draw authored at exhaustion is a RE-SAMPLE of the same model. It is labelled
+    ``independent-test-resampled`` and cannot by itself carry the claim above the review
+    (T-35's false success)."""
+    files = {"pkg/calc.py": "def result():\n    return 0\n"}
+    spec = dataclasses.replace(make_spec(files),
+                               acs=["pkg/calc.py must return 42",
+                                    "the widget must wobble"])
+    stage(tmp_path, files)
+    impl_env = write_env(
+        "pkg/calc.py",
+        "def result():\n    return 42\n\n\ndef helper():\n    return 7\n")
+    model = FakeModelRunner({"write_test": [SELF_TEST, impl_env]})
+    authored = {"n": 0}
+
+    def iv(request: IndependentTestRequest) -> IndependentTestCandidate:
+        authored["n"] += 1
+        content = ("from pkg.calc import helper, result\n\n\n"
+                   "def test_ac1_bad():\n    assert result() == 100\n\n\n"
+                   "def test_ac2_bad():\n    assert helper() == 100\n"
+                   if authored["n"] == 1 else
+                   "from pkg.calc import helper, result\n\n\n"
+                   "def test_ac1_goal():\n    assert result() == 42\n\n\n"
+                   "def test_ac2_goal():\n    assert helper() == 7\n")
+        return IndependentTestCandidate(path="tests/test_independent.py", content=content)
+
+    iv_path = "tests/test_independent.py"
+
+    def run(workdir, node_ids=None):
+        root = Path(workdir)
+        ivp = root / iv_path
+        source = (root / "pkg/calc.py").read_text()
+        if not ivp.exists():
+            green = "return 42" in source and "def helper" in source
+            nid = "tests/test_leaf_self.py::test_goal"
+            gate = _gate_report("tests/test_leaf_self.py",
+                                passed=(nid,) if green else (),
+                                failed=() if green else (nid,), green=green)
+            return ShapedResult(command=["python3", "-m", "pytest", "-q"],
+                                exit=0 if green else 1, verdict="ok" if green else "failed",
+                                excerpts=[] if green else ["FAILED " + nid], gate=gate)
+        if node_ids is not None:
+            final = "return 42" in source and "def helper" in source
+            if final:
+                return ShapedResult(command=["python3", "-m", "pytest", "-q"], exit=0,
+                                    verdict="ok", excerpts=[],
+                                    gate=_gate_report(iv_path, passed=tuple(node_ids)))
+            return ShapedResult(command=["python3", "-m", "pytest", "-q"], exit=1,
+                                verdict="failed", excerpts=[],
+                                gate=_gate_report(iv_path, passed=(),
+                                                  failed=tuple(node_ids), green=False))
+        bad = "test_ac1_bad" in ivp.read_text()
+        final = "return 42" in source and "def helper" in source
+        ac1 = f"{iv_path}::{'test_ac1_bad' if bad else 'test_ac1_goal'}"
+        ac2 = f"{iv_path}::{'test_ac2_bad' if bad else 'test_ac2_goal'}"
+        if bad or not final:
+            gate = _gate_report(iv_path, passed=(), failed=(ac1, ac2), green=False)
+        else:
+            gate = _gate_report(iv_path, passed=(ac1, ac2))
+        return ShapedResult(command=["python3", "-m", "pytest", "-q"],
+                            exit=0 if gate.green else 1,
+                            verdict="ok" if gate.green else "failed", excerpts=[], gate=gate)
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=20, deadline_ts=_FAR_FUTURE),
+                        iv=iv, review=ScriptedReview([_passing_review, _passing_review]),
+                        run_tests=run)
+
+    assert out.claimed is True
+    assert authored["n"] == 2                       # main-path IV + the exhaustion re-sample
+    assert out.claimed_basis == "review"           # the re-sample did NOT carry a test claim
+    assert "independent_test_resampled" in ledger_kinds()
+
+
+# ===========================================================================
+# FIX WAVE 1 CLOSURE (ticket 28): the T-35 false-success class and the
+# canary-missing independent-test evidence.
+# ===========================================================================
+
+def test_fix7_a_collection_error_still_runs_and_authenticates_the_gate(tmp_path):
+    """FIX 7 (wave 1): a test file that fails to IMPORT must not hide this run's own
+    report. Without ``--continue-on-collection-errors`` pytest aborts the session before
+    the canary is collected, the gate reports ``canary-missing`` ("the report cannot be
+    this run's evidence" — FALSE: it is this run's report), and a real observed failure of
+    the run's own check is downgraded to ``independent-test-unobserved``. With the flag the
+    canary runs, the report is authenticated, and the collection error is the observed
+    ``tests-failed`` red it is."""
+    import harness.leaf as leaf_mod
+
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "__init__.py").write_text("")
+    (tmp_path / "pkg" / "calc.py").write_text("def result():\n    return 42\n")
+    (tmp_path / "tests").mkdir()
+    # the model-authored test imports a name the delivered module does not define
+    (tmp_path / "tests" / "test_independent.py").write_text(
+        "from pkg.calc import result, missing_name\n\n\n"
+        "def test_ac1_goal():\n    assert result() == 42\n")
+
+    res = asyncio.run(leaf_mod._default_run_tests(tmp_path))
+    gate = res.gate
+
+    assert gate.observed is True
+    assert gate.anomaly == "tests-failed"          # not "canary-missing"
+    assert any(nid.startswith("tests/test_gate_canary_") for nid in gate.passed_ids)
+    assert any("test_independent" in nid for nid in gate.failed_ids)
+
+
+def test_d3b_reconciliation_ruling_refuses_a_self_contradicting_check_blame():
+    """D3b (wave 1): the raw ``blame`` word may not overrule the judge's own reason. The
+    T-35 reconciliation verdict said ``blame="test"`` while its problem named the source
+    defect; crediting the word dropped the run's red own test and granted a false success.
+    The same coherence rule the filter applies to ``test_wrong``
+    (:func:`_judge_incoherence`) decides: a reason naming the SOURCE and no failing test
+    function is not a ruling against the check."""
+    request = JudgeRequest(
+        goal="fix merge()", acs=["merge() merges overlaps"],
+        failure="FAILED tests/test_leaf_self.py::test_goal",
+        test_path="tests/test_leaf_self.py",
+        test_content="def test_goal():\n    assert result() == 42\n",
+        files={"pkg/calc.py": "def result():\n    return 1\n"})
+    t35 = JudgeVerdict(
+        implementation_wrong=True, coerced=True,
+        coercion_reason=("test_wrong without a defect naming the failing test or one of "
+                         "its assertions (deterministic filter)"),
+        defect="the code fails to satisfy the contract because result() is wrong",
+        raw='{"status": "failed", "comment": "the tests are correct; the code is wrong", '
+            '"blame": "test", "problem": "the code fails because result() is still '
+            'wrong"}')
+    ruling, why = reconciliation_ruling(t35, request)
+    assert ruling != "check"
+    assert "self-contradicting" in why
+
+    # a REASON that names the failing test function keeps the check ruling readable
+    coherent = t35.model_copy(update={
+        "defect": "test_goal asserts the wrong expected value",
+        "raw": '{"status": "failed", "blame": "test", '
+               '"problem": "test_goal asserts the wrong expected value"}'})
+    assert reconciliation_ruling(coherent, request)[0] == "check"
+    # ... and with no request (the legacy call shape) the raw blame is still honoured
+    assert reconciliation_ruling(t35)[0] == "check"
+
+
+def test_d3b_incoherent_check_ruling_cannot_carry_a_false_success(tmp_path):
+    """D3b (wave 1, the T-35 false success end to end): the run's own test is RED on the
+    final revision, the exhaustion independent test APPROVES it, and the reconciliation
+    judge answers ``blame="test"`` while its own reason names the SOURCE defect. Before
+    the fix the ruling dropped the own red and the gate granted ``basis=independent-test``
+    on a delivery its own test rejected; now the ruling is refused, the two imperfect
+    tests CONFLICT, and the run does not claim."""
+    files = {"pkg/calc.py": "def result():\n    return 0\n"}
+    spec = make_spec(files)
+    stage(tmp_path, files)
+    # the run's own test asserts a value its source never returns: RED on every revision
+    own_test = write_env("tests/test_leaf_self.py",
+                         "def test_goal():\n    assert result() == 7\n")
+    impl_env = write_env("pkg/calc.py", "def result():\n    return 42\n")
+    model = FakeModelRunner({"write_test": [own_test, *([impl_env] * 8)]})
+
+    def judge(request: JudgeRequest) -> JudgeVerdict:
+        return JudgeVerdict(
+            attribution="test",
+            defect="the code fails to satisfy the contract because result() is wrong",
+            raw='{"status": "failed", "comment": "the test expectations are correct", '
+                '"blame": "test", "problem": "the code fails to satisfy the contract '
+                'because result() is wrong"}')
+
+    def iv(request: IndependentTestRequest) -> IndependentTestCandidate:
+        return iv_candidate()
+
+    iv_path = "tests/test_independent.py"
+
+    def run(workdir, node_ids=None):
+        root = Path(workdir)
+        ivp = root / iv_path
+        if not ivp.exists():
+            # the run's OWN test: RED on the pristine and every written revision
+            nid = "tests/test_leaf_self.py::test_goal"
+            return ShapedResult(command=["python3", "-m", "pytest", "-q"], exit=1,
+                                verdict="failed", excerpts=["FAILED " + nid],
+                                gate=_gate_report("tests/test_leaf_self.py",
+                                                  failed=(nid,), green=False))
+        final = "return 42" in (root / "pkg/calc.py").read_text()
+        if node_ids is not None:
+            nodes = tuple(node_ids)
+            gate = _gate_report(iv_path, passed=nodes if final else (),
+                                failed=() if final else nodes, green=final)
+            return ShapedResult(command=["python3", "-m", "pytest", "-q"],
+                                exit=0 if gate.green else 1,
+                                verdict="ok" if gate.green else "failed",
+                                excerpts=[], gate=gate)
+        nid = f"{iv_path}::test_ac1_goal"
+        gate = _gate_report(iv_path, passed=(nid,) if final else (),
+                            failed=() if final else (nid,), green=final)
+        return ShapedResult(command=["python3", "-m", "pytest", "-q"],
+                            exit=0 if gate.green else 1,
+                            verdict="ok" if gate.green else "failed", excerpts=[], gate=gate)
+
+    out = run_leaf_sync(model, spec, tmp_path, Budget(calls=20, deadline_ts=_FAR_FUTURE),
+                        judge=judge, iv=iv,
+                        review=ScriptedReview([_passing_review, _passing_review]),
+                        run_tests=run)
+
+    assert out.claimed is False
+    assert out.stop_reason == "verifier-conflict"
+    assert "claim_reconciliation_check_dropped" not in ledger_kinds()
+    reconciliations = [e for e in ledger_entries() if e["kind"] == "claim_reconciliation"]
+    assert reconciliations and reconciliations[0]["ruling"] != "check"

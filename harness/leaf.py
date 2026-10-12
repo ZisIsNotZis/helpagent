@@ -868,6 +868,25 @@ def combine_review_verdicts(verdicts: Sequence["ReviewVerdict"], angles: Sequenc
     # still blocks the claim.
     by_angle = {v.angle: v for v in verdicts
                 if v.angle in set(angles) and not v.coerced}
+    # FIX 5 (wave 1): attribute the review to the revision it saw. An approving round may
+    # not re-approve the SAME source bytes an earlier round of the same angle rejected:
+    # that is the same model flip-flopping on unchanged bytes, not new evidence (T-26/T-28).
+    for angle, verdict in by_angle.items():
+        if not (verdict.approved and verdict.source_revision):
+            continue
+        for earlier in verdicts:
+            if (earlier is verdict or earlier.coerced or earlier.angle != angle
+                    or earlier.source_revision != verdict.source_revision):
+                continue
+            if review_grade_rank(earlier.grade) <= -2:
+                # Only a STRONG rejection (``definitely-problematic``) pins the revision;
+                # a weak ``probably-problematic`` may legitimately be re-graded on the
+                # same bytes (a fresh reviewer with more context), and blocking it would
+                # kill the ordinary exhaustion review flow.
+                return False, weighted_review_score(by_angle.values()), (
+                    f"angle {angle} approved a revision it had already rejected at the "
+                    f"same source revision ({verdict.source_revision[:12]}); a later "
+                    "round may not approve unchanged bytes")
     missing = [a for a in critical_review_angles(level) if a not in by_angle]
     if missing:
         return False, 0, f"critical review angle(s) not run: {', '.join(missing)}"
@@ -1630,6 +1649,10 @@ class IndependentTestVerdict:
     covered_indices: tuple[int, ...] = ()
     uncovered_indices: tuple[int, ...] = ()
     offending_indices: tuple[int, ...] = ()
+    #: FIX 2 (wave 1): on a whole-file ``independent-test-red-on-final`` the criteria whose
+    #: selection FAILED on the final revision but PASSED on the pristine source — an
+    #: inversion (the test asserts the pre-fix behaviour), never evidence against the fix.
+    inverted_indices: tuple[int, ...] = ()
     shared_node_ids: tuple[str, ...] = ()
 
     @property
@@ -1691,6 +1714,11 @@ class ReviewVerdict:
     raw: str = ""
     coerced: bool = False
     coercion_reason: str = ""
+    #: FIX 5 (wave 1): the deterministic fingerprint of the SOURCE revision this verdict
+    #: saw (:func:`_source_revision_fingerprint`). It attributes a review to the bytes it
+    #: approved, so a later review round cannot approve a revision an EARLIER round of the
+    #: same angle rejected unless the source bytes changed.
+    source_revision: str = ""
 
     @property
     def approved(self) -> bool:
@@ -1798,6 +1826,25 @@ def iv_inversion_evidence(
     return inverted, unmet
 
 
+def iv_blocking_final_ids(verdict: IndependentTestVerdict | None) -> tuple[str, ...]:
+    """FIX 2 (wave 1): the final-revision failures that BLOCK a claim.
+
+    Only a final-failing node id that did NOT pass on the pristine pre-run source is a
+    genuine unmet criterion; an id that PASSED there and FAILS on the final is an
+    INVERSION (the test asserts the pre-fix behaviour) and never blocks. This is the
+    per-id generalisation of :func:`iv_all_inverted` (which excuses a red only when EVERY
+    failing id is inverted) to a mixed file: the inverted ids are excluded and the
+    remaining unmet ids decide.
+    """
+    if verdict is None or verdict.reason != "independent-test-red-on-final":
+        return ()
+    final = verdict.final_gate
+    if final is None or not final.failed_ids:
+        return ()
+    inverted, _unmet = iv_inversion_evidence(verdict.original_gate, final)
+    return tuple(nid for nid in final.failed_ids if nid not in set(inverted))
+
+
 def iv_all_inverted(verdict: IndependentTestVerdict | None) -> bool:
     """True when the independent verification is RED on the final revision but EVERY
     failing node id PASSED on the pristine pre-run source (P3b FIX A).
@@ -1812,8 +1859,7 @@ def iv_all_inverted(verdict: IndependentTestVerdict | None) -> bool:
     final = verdict.final_gate
     if final is None or not final.failed_ids:
         return False
-    inverted, _unmet = iv_inversion_evidence(verdict.original_gate, final)
-    return set(final.failed_ids) <= set(inverted)
+    return not iv_blocking_final_ids(verdict)
 
 
 def pristine_red_is_discriminating(original_gate: "GateReport | None") -> bool:
@@ -1906,6 +1952,11 @@ def deterministic_greens(
     An UNOBSERVABLE regression check (no visible suite) is NOT a green signal — it is
     silence, and silence is never evidence. A claim requires at least one of these AND a
     delivery that differs from the baseline (:func:`_delivery_is_unchanged`).
+
+    FIX 4 (wave 1): only an anchor in :data:`_CARRYING_ANCHORS` may carry a claim
+    (:func:`claim_decision`); ``source-compiles`` alone never can. A model-written
+    discriminating-but-mis-aimed check therefore cannot carry a claim without a
+    behaviour-level deterministic fact (documented-api / no-regression).
     """
     greens: list[str] = []
     if not source_unparseable:
@@ -1917,7 +1968,8 @@ def deterministic_greens(
     return tuple(greens)
 
 
-def reconciliation_ruling(verdict: "JudgeVerdict | None") -> tuple[str, str]:
+def reconciliation_ruling(verdict: "JudgeVerdict | None",
+                          request: "JudgeRequest | None" = None) -> tuple[str, str]:
     """P5(c): the judge's OWN ruling on which side of a claim disagreement is wrong.
 
     Returns ``("check", why)`` when the judge attributes the trouble to the test/check,
@@ -1930,6 +1982,15 @@ def reconciliation_ruling(verdict: "JudgeVerdict | None") -> tuple[str, str]:
     ``implementation_wrong`` (:func:`apply_judge_filter`) so the automatic repair path
     cannot be driven by a vague label — a coercion that must not silence the judge when it
     is explicitly asked to rule which side is wrong.
+
+    D3b (wave 1) bounds that precedence: the raw word may not overrule the judge's own
+    REASON when the two contradict each other. T-35's reconciliation judge answered
+    ``blame="test"`` while its ``problem`` named the source defect ("the code fails to
+    merge ... because it uses 'start <= current_end'"), and crediting the word dropped the
+    run's red own test and granted a false success. When ``request`` is supplied, the SAME
+    coherence rule the deterministic filter already applies to a ``test_wrong`` label
+    (:func:`_judge_incoherence`: a reason that names the SOURCE and no failing test
+    function) decides: such a verdict rules neither side, so the red keeps blocking.
     """
     if verdict is None:
         return "unclear", "no verdict was returned"
@@ -1945,6 +2006,12 @@ def reconciliation_ruling(verdict: "JudgeVerdict | None") -> tuple[str, str]:
         blame = ""
     canonical = ATTRIBUTION_ALIASES.get(_norm(blame), "")
     if canonical == "tests":
+        reason = (verdict.defect or verdict.reason or "").strip()
+        if (request is not None and reason and _reason_names_source(reason, request)
+                and not _names_a_test_function(reason, request)):
+            return "unclear", (
+                "the judge blamed the check, but its own reason names the source and no "
+                f"failing test function (self-contradicting): {reason[:200]}")
         return "check", f"the judge named the CHECK wrong (its own blame={blame!r})"
     if canonical == "implementation":
         return "revision", f"the judge named the REVISION wrong (its own blame={blame!r})"
@@ -3106,6 +3173,15 @@ class BestEvidenceRevision:
     check never ran there. It exists because the own test is model-written and can be
     wrong: an own-test-only snapshot is restored only when that verdict is an empty set,
     and the refusal is what keeps a wrong revision from being delivered.
+
+    FIX 6 / D1 (wave 1): the four DETERMINISTIC contract verdicts of the SAME revision
+    (``documented_api_missing``, ``request_coverage_missing``, ``regressions``,
+    ``delivery_changed``; ``coverage_missing`` above completes the set) are captured with
+    the snapshot. ``request_coverage_missing`` ranks the candidate (a more complete
+    multi-file fix is preferred over a partial one an M1 erase would otherwise keep) and
+    the whole set lets a later revision that CLEARS a check the current best FAILS be
+    captured as ``contract-clear``. The contract is never treated as a grader verdict:
+    it can only promote a clearing candidate over a snapshot its own checks reject.
     """
 
     rank: int
@@ -3115,6 +3191,41 @@ class BestEvidenceRevision:
     files: dict[str, str] = field(default_factory=dict)
     test_path: str | None = None
     coverage_missing: tuple[str, ...] | None = None
+    documented_api_missing: tuple[str, ...] | None = None
+    request_coverage_missing: tuple[str, ...] | None = None
+    regressions: tuple[str, ...] | None = None
+    delivery_changed: bool | None = None
+
+
+def _snapshot_fails_contract(rev: BestEvidenceRevision | None) -> bool:
+    """D1 (wave 1): True when a snapshot has a KNOWN deterministic contract failure.
+
+    An unknown verdict (``None``) is not a failure — silence is never evidence — so this
+    is deliberately about the checks the harness actually ran at that revision.
+    """
+    if rev is None:
+        return False
+    return bool(
+        rev.delivery_changed is False
+        or (rev.documented_api_missing or ())
+        or (rev.request_coverage_missing or ())
+        or (rev.coverage_missing or ())
+        or (rev.regressions or ()))
+
+
+def _best_evidence_preference(rev: BestEvidenceRevision
+                              ) -> tuple[int, int]:
+    """FIX 6 (wave 1): the order best evidence is chosen — ``(request-coverage,
+    evidence rank)``.
+
+    ``request-coverage`` is the NEGATED number of request-named artifacts the revision
+    leaves untouched (fewer missing ⇒ more complete ⇒ higher), so a complete multi-file
+    revision is preferred over a partial one even when the partial one has stronger model
+    evidence. An unknown coverage verdict ranks below every known one.
+    """
+    missing = rev.request_coverage_missing
+    coverage = -len(missing) if missing is not None else -(10 ** 6)
+    return coverage, rev.rank
 
 
 def _exit_code(res: ShapedResult | Any) -> int | None:
@@ -3563,6 +3674,59 @@ _TEST_FN = re.compile(r"\bdef\s+(test_[A-Za-z0-9_]+)")
 _ASSERT = re.compile(r"\bassert\b\s+(.+)$")
 _STRING_LITERAL = re.compile(r"(['\"])(.+?)\1")
 _FAILED_TEST_ID = re.compile(r"::\s*([A-Za-z_][A-Za-z0-9_]*)")
+#: D2 (wave 1): a pytest traceback frame location (``tests/test_x.py:11:``).
+_FRAME_LOCATION = re.compile(r"(?:^|[\s(])(?P<path>[^\s:()]+\.py):(?P<line>\d+):")
+
+
+def _failure_frame_paths(failure_text: str) -> tuple[str, ...]:
+    """D2 (wave 1): the source paths named by FRAME locations in a failure excerpt.
+
+    Pytest prints each frame's location as ``path.py:line:``; only those are collected, so
+    a path mentioned in prose or in an assertion value is never mistaken for a frame.
+    """
+    out: list[str] = []
+    for match in _FRAME_LOCATION.finditer(failure_text or ""):
+        path = match.group("path").lstrip("./")
+        if path and path not in out:
+            out.append(path)
+    return tuple(out)
+
+
+def _same_path(a: str, b: str) -> bool:
+    return a == b or a.endswith("/" + b) or b.endswith("/" + a)
+
+
+def failure_is_test_attributed(
+    failure_text: str, test_path: str | None, source_paths: Sequence[str],
+) -> bool:
+    """D2 (wave 1): the recorded traceback proves the run's OWN TEST is at fault.
+
+    True when the failure names at least one frame in the run's own test file and NO frame
+    in a changed non-test source file. Deterministic from the failure text — it is the
+    fact the deterministic filter can credit even when the judge's prose does not name the
+    test (T-07: an unparameterised assertion the harness kept re-running while it churned
+    the correct source draft).
+    """
+    if not test_path:
+        return False
+    frames = _failure_frame_paths(failure_text)
+    if not frames:
+        return False
+    if not any(_same_path(frame, test_path) for frame in frames):
+        return False
+    sources = {path for path in source_paths if not is_test_path(path)}
+    return not any(any(_same_path(frame, source) for source in sources) for frame in frames)
+
+
+def _failure_names_a_source_frame(
+    failure_text: str, test_path: str | None, source_paths: Sequence[str],
+) -> bool:
+    """D3 (wave 1): the recorded failure names a frame in a changed non-test source."""
+    sources = {path for path in source_paths if not is_test_path(path)}
+    if not sources:
+        return False
+    return any(any(_same_path(frame, source) for source in sources)
+               for frame in _failure_frame_paths(failure_text))
 
 
 def _failing_assertion_lines(test_content: str, failure: str) -> tuple[str, ...]:
@@ -3709,12 +3873,22 @@ def _judge_incoherence(verdict: JudgeVerdict, request: JudgeRequest) -> str:
     whose reason names the SOURCE (a file/symbol) and not the failing test FUNCTION has
     described the implementation, so the label is not credited; a credited
     ``implementation_wrong`` whose reason names only a test/assertion and no source is
-    likewise incoherent. Returns the ``judge_incoherent: ...`` record text.
+    likewise incoherent. D3 (wave 1) extends the rule to ``spec_wrong``: a spec verdict
+    whose own reason names a source defect, or that is reached while the observed failure
+    has no frame in the changed source (and at least one frame in the own test), is a
+    self-contradiction — the judge named a code defect and still blamed the spec (T-35's
+    3-call spec bubble). Returns the ``judge_incoherent: ...`` record text.
     """
     text = (verdict.defect or verdict.reason or "").strip()
     if not text:
         return ""
     names_source = _reason_names_source(text, request)
+    if verdict.spec_wrong and (names_source
+                               or failure_is_test_attributed(
+                                   request.failure, request.test_path or None,
+                                   tuple(request.files))):
+        return ("judge_incoherent: spec_wrong whose reason names a source defect or "
+                f"whose failure has no changed-source frame: {text[:200]}")
     if verdict.test_wrong and names_source and not _names_a_test_function(text, request):
         return ("judge_incoherent: test_wrong whose reason names the source, not the "
                 f"failing test: {text[:200]}")
@@ -3729,33 +3903,64 @@ def apply_judge_filter(verdict: JudgeVerdict, request: JudgeRequest) -> JudgeVer
     """The DETERMINISTIC FILTER — never trust the model's word alone (ticket 19 A).
 
     A ``test_wrong`` label is honoured ONLY when the defect/reason is non-empty AND
-    names the failing test function or an assertion/expectation of the run's own test;
+    names the failing test function or an assertion/expectation of the run's own test, OR
+    when the recorded traceback is deterministically test-attributed (D2, wave 1);
     otherwise the label is dropped (coerced to ``implementation_wrong``) and the
     coercion is recorded (``coerced`` + ``coercion_reason``). An unknown attribution
-    label is likewise coerced to ``implementation``. ``spec_wrong`` and
-    ``environment_broken`` pass through: the loop's decision is dominant-first, and a
-    bogus spec/environment claim only parks or bubbles, never claims.
+    label is likewise coerced to ``implementation``. ``environment_broken`` passes
+    through. ``spec_wrong`` passes through when it is coherent; a ``spec_wrong`` whose own
+    reason names a source defect (D3, wave 1) is coerced to ``implementation``.
     """
     verdict = normalize_judge_labels(verdict)
     labels = judge_labels(verdict)
+    env_broken = verdict.environment_broken
+    # D2 (wave 1): the recorded traceback can prove the run's OWN TEST is at fault even
+    # when the judge's prose does not name it (T-07: an unparameterised SQL assertion the
+    # harness kept re-running while it churned the correct source draft).
+    test_attributed = failure_is_test_attributed(
+        request.failure, request.test_path or None, tuple(request.files))
+    # D3 (wave 1): an incoherent ``spec_wrong`` (its own reason names a source defect, or
+    # the observed failure has no changed-source frame) is not credited: it is a code
+    # defect the judge mislabelled, so the node keeps implementing instead of bubbling.
+    if verdict.spec_wrong:
+        incoherent = _judge_incoherence(verdict, request)
+        if incoherent:
+            merged = verdict.model_copy(update={
+                "spec_wrong": False, "implementation_wrong": True, "coerced": True,
+                "coercion_reason": incoherent})
+            return merged.model_copy(update={"attribution": "implementation"})
+        return verdict
     updates: dict[str, Any] = {}
     if not labels and verdict.attribution and (
             ATTRIBUTION_ALIASES.get(_norm(verdict.attribution)) is None):
         updates.update(implementation_wrong=True, coerced=True,
                        coercion_reason=(f"unknown attribution {verdict.attribution!r} "
                                         "coerced to implementation"))
-    if verdict.test_wrong and not _defect_names_the_test(
-            verdict.defect or verdict.reason, request):
-        updates.update(test_wrong=False, coerced=True,
-                       coercion_reason=("test_wrong without a defect naming the failing "
-                                        "test or one of its assertions (deterministic filter)"))
+    if verdict.test_wrong:
+        if (not _defect_names_the_test(verdict.defect or verdict.reason, request)
+                and not test_attributed):
+            updates.update(test_wrong=False, coerced=True,
+                           coercion_reason=("test_wrong without a defect naming the failing "
+                                            "test or one of its assertions (deterministic filter)"))
+        else:
+            # M1: a label that PASSED the anchor filter may still contradict its own reason.
+            # The anchor set admits loose string literals, so T-05's target "the add_tag
+            # function mutates the shared tags list ..." was credited as test_wrong while it
+            # actually named the SOURCE. Uncredit the incoherent verdict, keep the failure on
+            # the implementation path, and record judge_incoherent (never let a contradicting
+            # verdict drive the test-repair/drop path). A traceback-proven test attribution
+            # is exempt: the deterministic fact outranks the judge's prose.
+            incoherent = _judge_incoherence(verdict, request)
+            if incoherent and not test_attributed:
+                updates.update(test_wrong=False, coerced=True, coercion_reason=incoherent)
+    elif test_attributed and not env_broken:
+        # D2 (wave 1): credit the deterministic test attribution the judge missed, so the
+        # own test is repaired instead of the source being churned.
+        updates.update(test_wrong=True, implementation_wrong=False,
+                       coercion_reason="test_attributed_from_traceback")
     else:
-        # M1: a label that PASSED the anchor filter may still contradict its own reason.
-        # The anchor set admits loose string literals, so T-05's target "the add_tag
-        # function mutates the shared tags list ..." was credited as test_wrong while it
-        # actually named the SOURCE. Uncredit the incoherent verdict, keep the failure on
-        # the implementation path, and record judge_incoherent (never let a contradicting
-        # verdict drive the test-repair/drop path).
+        # M1: an ``implementation_wrong`` whose reason names only a test/assertion
+        # contradicts itself; uncredit it and keep the failure on the implementation path.
         incoherent = _judge_incoherence(verdict, request)
         if incoherent:
             updates.update(test_wrong=False, coerced=True, coercion_reason=incoherent)
@@ -5000,9 +5205,36 @@ async def evaluate_independent_test(
             original_gate=orig_gate, final_gate=None,
             output=tuple(getattr(final_res, "excerpts", []) or ()), **common)
     if not final_gate.green:
+        # FIX 2 (wave 1): classify per-criterion inversion BEFORE this whole-file early
+        # return. A final-failing node id that PASSED on the pristine source is an
+        # inversion (the test asserts the pre-fix behaviour); only an id that ALSO failed
+        # there is a genuine unmet criterion. The split is carried on the verdict so the
+        # record (and the criterion ledger) names the inverted indices even though the
+        # per-criterion approval pass below is never reached.
+        inverted, unmet = iv_inversion_evidence(orig_gate, final_gate)
+        inverted_set, unmet_set = set(inverted), set(unmet)
+        evidence: list[CriterionEvidence] = []
+        for index in range(1, criteria_count + 1):
+            node_ids = mapping[index]
+            if not node_ids:
+                evidence.append(_criterion_evidence(index, (), None, None, iv_path))
+                continue
+            evidence.append(_criterion_evidence(
+                index, node_ids, original_criteria.get(index), final_gate, iv_path))
+        criteria = tuple(_mark_shared(evidence, shared))
+        inverted_indices = tuple(
+            index for index in range(1, criteria_count + 1)
+            if mapping[index]
+            and any(nid in inverted_set for nid in mapping[index])
+            and not any(nid in unmet_set for nid in mapping[index]))
+        offending = tuple(
+            index for index in range(1, criteria_count + 1)
+            if any(nid in unmet_set for nid in mapping[index]))
         return IndependentTestVerdict(
             approved=False, reason="independent-test-red-on-final", detail=final_gate.detail,
             original_gate=orig_gate, final_gate=final_gate,
+            criteria=criteria, inverted_indices=inverted_indices,
+            offending_indices=offending,
             node_ids=tuple(nid for nid in final_gate.passed_ids
                            if nid.startswith(f"{iv_path}::")),
             output=tuple(getattr(final_res, "excerpts", []) or ()), **common)
@@ -5061,6 +5293,20 @@ async def _default_run_tests(workdir: Path, node_ids: Sequence[str] | None = Non
     to one acceptance criterion's tests (used for per-criterion discrimination). The
     per-run canary node id is forced into the same argument list so the report still
     carries this run's evidence; nothing else runs.
+
+    FIX 7 (wave 1): ``--continue-on-collection-errors`` is added to the invocation. A
+    single test file that fails to IMPORT (an incorrect ``from pkg.mod import name`` in a
+    model-authored independent test, an unimportable source module) makes pytest abort the
+    session before the canary file is ever collected, and the junit report then holds only
+    the collection error. The gate correctly refuses that report, but its reason ("the
+    per-run canary ... is absent from the report; the report cannot be this run's
+    evidence") is FALSE — it is this run's report — and it downgrades a real, observed
+    failure of the run's own check to ``independent-test-unobserved`` (a
+    non-discriminating state). With the flag the collectable tests (including the canary)
+    run, the report is authenticated, and the collection error is recorded as the observed
+    ``tests-failed`` red it is. The flag is applied HERE, not in the shared
+    :data:`harness.staging.PYTEST_ISOLATION_ARGS`, because the external grader's recorded
+    semantics (``suspected-contaminated-grade``) must not change.
     """
     workdir = Path(workdir)
     shadows = shadowing_paths(workdir)
@@ -5100,6 +5346,7 @@ async def _default_run_tests(workdir: Path, node_ids: Sequence[str] | None = Non
     try:
         res = await k_exec(
             ["python3", "-m", "pytest", "-q", *PYTEST_ISOLATION_ARGS,
+             "--continue-on-collection-errors",
              "-c", str(neutral_ini), "--rootdir=.", *target_args, *JUNIT_FAMILY_ARGS,
              f"--junitxml={report_path}"],
             workdir, provenance="kernel", extra_env=gate_env(workdir))
@@ -5764,27 +6011,88 @@ async def run_leaf(
     regression_last: tuple[dict[str, str], RegressionCheck] | None = None
     regression_result: RegressionCheck | None = None
 
+    def current_contract() -> dict[str, Any]:
+        """The deterministic contract verdicts of the revision ON DISK (FIX 6 / D1).
+
+        Cheap and synchronous: requirement-level coverage, request-level artifacts, the
+        documented-API contract, the CACHED visible-suite regression, and whether the
+        delivery differs from the pristine baseline. Never a model opinion.
+        """
+        coverage = _requirement_coverage(spec, workdir, baseline)
+        coverage_missing = tuple(
+            f"{c.statement!r} names {m}, untouched by the final diff"
+            for c in coverage for m in c.missing)
+        request_missing = tuple(_request_artifact_messages(
+            _request_coverage(spec, workdir, baseline)))
+        documented = tuple(documented_api_problem(spec, workdir, baseline))
+        regressions = (tuple(regression_result.regressions)
+                       if regression_result is not None and regression_result.observable
+                       else ())
+        return {
+            "coverage_missing": coverage_missing,
+            "request_coverage_missing": request_missing,
+            "documented_api_missing": documented,
+            "regressions": regressions,
+            "delivery_changed": not _delivery_is_unchanged(spec, workdir),
+        }
+
     def capture_best_evidence(rank: int, tier: str, reason: str) -> None:
         """Snapshot the work tree when an attempt reaches the STRONGEST evidence yet.
 
         Ticket 23 item 1: the snapshot is taken at the milestone itself (own test green /
         independent verification approved / the two agreeing / combined-positive review),
-        before anything later can overwrite the revision. Only a STRICT improvement
-        replaces the record, so the earliest revision at a given strength is kept. Reads
-        (never writes) the tree; an unreadable file is skipped by the snapshot helper.
-        Ticket 23 round 2: the snapshot carries the coverage verdict of ITS OWN revision
-        (``None`` when none was computed there).
+        before anything later can overwrite the revision. Reads (never writes) the tree; an
+        unreadable file is skipped by the snapshot helper. Ticket 23 round 2: the snapshot
+        carries the coverage verdict of ITS OWN revision.
+
+        FIX 6 (wave 1): the preference is ``(request-coverage, evidence rank)`` — a more
+        COMPLETE revision (one that touches more of the artifacts the whole request names)
+        is preferred over a partial one, so an M1 erase can never lose a complete multi-file
+        fix to a partial revision with stronger model evidence. D1 (wave 1): the snapshot
+        also carries every deterministic contract verdict of its own revision.
         """
         nonlocal best_revision
-        if rank <= 0 or rank <= (best_revision.rank if best_revision else 0):
+        if rank <= 0:
             return
         files = _snapshot_deliverable_files(workdir)
-        best_revision = BestEvidenceRevision(
+        candidate = BestEvidenceRevision(
             rank=rank, tier=tier, attempt=len(attempts), reason=reason,
-            files=files, test_path=self_test,
-            coverage_missing=(coverage_missing_at if coverage_files == files else None))
+            files=files, test_path=self_test, **current_contract())
+        if (best_revision is not None
+                and _best_evidence_preference(candidate)
+                <= _best_evidence_preference(best_revision)):
+            return
+        best_revision = candidate
         emit("best_evidence_revision", rank=rank, tier=tier, attempt=len(attempts),
              reason=reason, files=sorted(files), self_test=self_test)
+
+    def note_contract_clear() -> None:
+        """D1 (wave 1): capture the revision on disk when it CLEARS every deterministic
+        contract check while the recorded best snapshot FAILS one.
+
+        The clearing revision is recorded on the ``contract-clear`` tier ONLY to displace a
+        snapshot its own mechanical checks reject (T-28: the delivered rank-1 review
+        snapshot failed the documented-API check while a later revision cleared it and
+        passed the withheld suite). The contract is never a grader verdict: it can only
+        promote a clearing candidate over a FAILING best, never over a stronger clean one,
+        and it is never treated as a pass.
+        """
+        nonlocal best_revision
+        if best_revision is None or not _snapshot_fails_contract(best_revision):
+            return
+        files = _snapshot_deliverable_files(workdir)
+        if files == best_revision.files:
+            return
+        candidate = BestEvidenceRevision(
+            rank=best_revision.rank, tier="contract-clear", attempt=len(attempts),
+            reason="the revision clears every deterministic contract check",
+            files=files, test_path=self_test, **current_contract())
+        if _snapshot_fails_contract(candidate) or not candidate.delivery_changed:
+            return
+        best_revision = candidate
+        emit("best_evidence_revision", rank=candidate.rank, tier="contract-clear",
+             attempt=len(attempts), reason=candidate.reason, files=sorted(files),
+             self_test=self_test)
 
     def note_current_evidence(rank: int, tier: str, reason: str) -> None:
         """Record the evidence of the revision CURRENTLY on disk and, when it is the
@@ -5816,16 +6124,22 @@ async def run_leaf(
         acceptance criterion whose named artifact the revision leaves untouched (the
         revision really moves what the criteria name). Missing coverage at that revision
         refuses too: nothing was verified about it.
+
+        D1 (wave 1) records the deterministic contract verdicts on each snapshot; the
+        contract-clear candidate (see :func:`note_contract_clear`) is what displaces a
+        snapshot its own checks reject, so this refusal is not generalised to every
+        check — check-clearing is never treated as a grader pass.
         """
-        if best_revision is None or best_revision.tier != "own-test":
+        if best_revision is None:
             return ""
-        missing = best_revision.coverage_missing
-        if missing is None:
-            return ("the requirement-coverage check never ran at that revision, so the "
-                    "snapshot was not shown to move the artifacts the criteria name")
-        if missing:
-            return ("the revision leaves a named artifact untouched: "
-                    + "; ".join(missing))
+        if best_revision.tier == "own-test":
+            missing = best_revision.coverage_missing
+            if missing is None:
+                return ("the requirement-coverage check never ran at that revision, so the "
+                        "snapshot was not shown to move the artifacts the criteria name")
+            if missing:
+                return ("the revision leaves a named artifact untouched: "
+                        + "; ".join(missing))
         return ""
 
     def emit(kind: str, **data: Any) -> None:
@@ -5949,6 +6263,7 @@ async def run_leaf(
              covered_indices=list(verdict.covered_indices),
              uncovered_indices=list(verdict.uncovered_indices),
              offending_indices=list(verdict.offending_indices),
+             inverted_indices=list(verdict.inverted_indices),
              shared_node_ids=list(verdict.shared_node_ids),
              criteria=[{"index": c.index, "selection": c.selection,
                         "original_collected": c.original_collected,
@@ -5983,8 +6298,8 @@ async def run_leaf(
         if failure:
             return None, failure
         verdict = apply_review_filter(raw, request)
-        if not verdict.angle:
-            verdict = replace(verdict, angle=angle)
+        verdict = replace(verdict, angle=verdict.angle or angle,
+                          source_revision=_source_revision_fingerprint(workdir))
         review_verdicts.append(verdict)
         emit("review_verdict", angle=verdict.angle, grade=verdict.grade,
              approved=verdict.approved, evidence=verdict.evidence,
@@ -6395,6 +6710,10 @@ async def run_leaf(
              evidence=verdict.evidence, coerced=verdict.coerced, raw=verdict.raw)
         if verdict.coerced:
             emit("judge_coerced", reason=verdict.coercion_reason)
+        if (verdict.test_wrong
+                and verdict.coercion_reason == "test_attributed_from_traceback"):
+            # D2 (wave 1): the traceback proved the own test is at fault.
+            emit("judge_test_attributed", detail=last_excerpts[:2])
         if verdict.coercion_reason.startswith("judge_incoherent"):
             # M1 (P4a): the credited label disagreed with the judge's own reason. The
             # verdict is UNCREDITED and the failure stays on the implementation path.
@@ -6412,6 +6731,19 @@ async def run_leaf(
             judge_impl_wrong_detail = (verdict.defect or verdict.reason
                                        or verdict.evidence)[:200]
         if verdict.spec_wrong:
+            first_test_attributed = (
+                len(attempts) < 1
+                and failure_is_test_attributed(
+                    "\n".join(last_excerpts), self_test,
+                    tuple(set(spec.files) | set(baseline))))
+            if first_test_attributed:
+                # D3 (wave 1): a spec bubble ends the node, so a FIRST-attempt bubble from a
+                # failure that lives entirely in the run's own test is premature (T-35 was
+                # abandoned after one attempt); keep implementing so the judge can be
+                # consulted again on a real attempt. A failure with a changed-source frame
+                # may still bubble immediately.
+                emit("spec_bubble_deferred", reason="fewer than 2 attempts; test-attributed")
+                return "implementation"
             attempts.append(Attempt(
                 node_id="leaf", layer="spec", strategy=esc.strategy,
                 claimed_delta="judge attributed the failure to the spec",
@@ -6813,7 +7145,9 @@ async def run_leaf(
         if last is None or last.reason != "independent-test-red-on-final":
             return False
         if _gate_blocks_as_red(last.final_gate):
-            return not iv_all_inverted(last)
+            # FIX 2 (wave 1): a mixed file's inverted ids are excused; only the ids that
+            # ALSO failed on the pristine source (a genuine unmet criterion) block.
+            return bool(iv_blocking_final_ids(last))
         # F1 (P5): an unobserved or errors/collection-only final red is not a blocker BY
         # ITSELF (M4), but when the SAME check produced a REAL observed failure on the
         # PRISTINE source it is DISCRIMINATING — the final error is then evidence the
@@ -7052,6 +7386,14 @@ async def run_leaf(
         iv_approved = False
         own_green = _final_own_test_state(self_test, last_gate) == "green"
         test_could_not_carry = iv is None
+        # FIX 3 (wave 1): when the LAST independent verdict the run already holds is RED on
+        # the final revision, a fresh approving draw authored here is a RE-SAMPLE of the
+        # same model on the same goal — not new independent evidence. It is labelled and it
+        # may not by itself upgrade the claim above the review (T-35's false success: a
+        # re-authored test approved a revision the first IV had rejected while the grader
+        # failed the delivery).
+        resampled_from_red = bool(
+            iv_verdicts and iv_verdicts[-1].reason == "independent-test-red-on-final")
         if iv is not None and can_afford(1):
             iv_request = _iv_request(spec, workdir, baseline)
             original_tree = dict(spec.files)
@@ -7074,6 +7416,17 @@ async def run_leaf(
                         record_iv(repaired)
                         label = repaired
                 iv_approved = label.approved
+                if iv_approved and resampled_from_red:
+                    # The earlier independent test WAS red on this revision; this approving
+                    # draw is a re-sample and cannot carry the claim by itself.
+                    iv_approved = False
+                    last_iv_reason = (
+                        "independent-test-resampled: the earlier independent test was RED "
+                        "on the final revision; this approving draw is a re-sample of the "
+                        "same model and cannot by itself upgrade the claim above the review")
+                    emit("independent_test_resampled", path=label.path,
+                         repaired=label.relocated,
+                         detail="a fresh draw replaced a red-on-final independent test")
                 if iv_approved:
                     # Ticket 23 round 2: the independent verification OUTRANKS the run's
                     # own green test; when the own test is green at this same revision the
@@ -7091,10 +7444,14 @@ async def run_leaf(
                 # A TEST defect (or no producer) leaves room for the review path; ticket
                 # 22 item 3 adds the red-on-final FIX failure too, because a GRADED REVIEW
                 # outranks a conflicting test: the review's verdict then decides the claim.
-                test_could_not_carry = (not label.approved
-                                        and (label.reason in _IV_REPAIRABLE
-                                             or label.reason ==
-                                             "independent-test-red-on-final"))
+                # FIX 3: a re-sample whose prior draw was red-on-final also routes to the
+                # review (only a review may carry a claim above its own re-sample).
+                test_could_not_carry = (
+                    resampled_from_red
+                    or (not label.approved
+                        and (label.reason in _IV_REPAIRABLE
+                             or label.reason ==
+                             "independent-test-red-on-final")))
                 if not label.approved:
                     last_iv_reason = f"{label.reason}: {label.detail}"
 
@@ -7194,7 +7551,7 @@ async def run_leaf(
                      environment_broken=verdict.environment_broken,
                      attribution=verdict.attribution, reason=verdict.reason,
                      coerced=verdict.coerced, raw=verdict.raw)
-                ruling, why = reconciliation_ruling(verdict)
+                ruling, why = reconciliation_ruling(verdict, jr)
             emit("claim_reconciliation", checks=checks,
                  outputs=[extra for extra in evidence if extra.startswith("the ")],
                  deterministic_greens=list(deterministic),
@@ -8066,12 +8423,21 @@ async def run_leaf(
         # the previous draft (the previous attempt's changed paths are evidence of intent).
         implement_targets = _implement_targets(spec, workdir, baseline, self_test)
         if mode == "M1":
-            # Ticket 23 item 1: checkpoint the revision the M1 erase is about to discard,
-            # so an erase can never destroy the best-evidence revision. If the draft has
-            # no evidence, nothing is snapshotted and today's behaviour stands.
-            capture_best_evidence(current_rank, current_tier or "pre-erase",
-                                  "the revision on disk before the M1 erase")
-            _erase_draft(workdir, baseline)
+            # D2 (wave 1): never erase the source draft on a TEST-attributed failure — the
+            # own test is at fault, so the next attempt must repair it, not regenerate the
+            # source from scratch (T-07: M1 erased the correct attempt-1 draft six times).
+            last_test_attributed = failure_is_test_attributed(
+                "\n".join(last_excerpts), self_test,
+                tuple(set(spec.files) | set(baseline)))
+            if last_test_attributed:
+                emit("m1_erase_suppressed", reason="the last failure is test-attributed")
+            else:
+                # Ticket 23 item 1: checkpoint the revision the M1 erase is about to discard,
+                # so an erase can never destroy the best-evidence revision. If the draft has
+                # no evidence, nothing is snapshotted and today's behaviour stands.
+                capture_best_evidence(current_rank, current_tier or "pre-erase",
+                                      "the revision on disk before the M1 erase")
+                _erase_draft(workdir, baseline)
         # The model's new candidate overwrites whatever is on disk; the rank below is
         # recomputed from THIS attempt's evidence, never carried over from an earlier one.
         current_rank, current_tier = 0, ""
@@ -8293,6 +8659,12 @@ async def run_leaf(
                                           "diff")
                 else:
                     last_excerpts = [f"review did not approve: {why}"]
+
+        # D1 (wave 1): every landed write is a candidate. Capture this revision when it
+        # CLEARS a deterministic contract check the recorded best snapshot FAILS, so a
+        # later-written passing revision (T-28 n=4) is never lost to an earlier snapshot.
+        if wrote and not attempt_noop:
+            note_contract_clear()
 
         signature = failure_signature(last_excerpts, last_excerpts)
         if verification_basis == "review":
