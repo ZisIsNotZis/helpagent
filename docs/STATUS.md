@@ -610,3 +610,20 @@ met.
 
 Of the 16 failures in 8f, this run changed which tasks fail (T-14 and T-30 now pass; T-17, T-26 and
 T-34 fail here), which is the corpus's run-to-run variance, not a regression of the rule.
+
+## 8h. The strict claim rule, and what V3 costs (2026-10-11, revision `24d801e`)
+
+Owner decision (A): only a behaviour-level deterministic fact may carry a pass claim
+(`documented-api`, or `no-regression` observed on the visible suite). Parsing is necessary, never
+sufficient; model-written tests and reviews corroborate but may not carry. Refusal reason:
+`no-deterministic-anchor`.
+
+Probe after the change (A-02, T-21, A-05, T-04, n=1): **false successes 0**. A-02 - the last lie -
+is now an honest failure, and T-21 (a correct revision whose only support was model-written tests)
+is an honest unclaimed success. T-04 still claims, because it has a carrying anchor.
+
+**Cost, stated plainly:** on this corpus most tasks have no documented call-form API and no
+observable visible suite, so claims fall from 10/40 toward the handful of tasks where a carrying
+anchor exists. Actual is unaffected - C1 and C3 count the grader's verdict, and a claim is now a
+much stronger statement than it was. A user of the product should read an unclaimed-but-passing
+revision as "fixed, evidence is model-written only", which is what the report says.
