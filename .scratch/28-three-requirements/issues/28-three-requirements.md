@@ -86,3 +86,97 @@ D5 independent-verification admissibility, D6 the measurement protocol (seeds, s
   `bench/runs/v2sweep-20261009T{114753,114754,120918}Z/`; the pi quotes from
   `bench/runs/evidence/pi-maxed-20261006/`. Every "would have passed" claim is a re-run of the
   withheld suite on that revision in a pristine copy.
+
+## Closeout — final verdicts (2026-10-14, revision `45ebb32`)
+
+**Status: CLOSED.** The user asked for the closeout. The final measurement revision is
+`45ebb32f1be0977b9149057da3a80ee93ce22840` ("Fix wave 1: verification/review information +
+deterministic delivery anchor, plus T-35 and canary closures"). The current facts were
+rewritten in place into `docs/STATUS.md`, `docs/ROADMAP.md` and `README.md`; the extraction
+is the new `docs/LEARNINGS.md` and the working rules are `CONTRIBUTING.md`. This section is
+the narrative record and the home for the dated narrative that was removed from
+`docs/STATUS.md`.
+
+### Final verdicts
+
+| milestone | verdict | decisive numbers (revision `45ebb32`, 40 tasks, blind grader) |
+| --- | --- | --- |
+| Q1 (why we lose) | **done** | both parity losses had a grader-passing revision the harness threw away (T-17: 4/7 written revisions passed, delivered failed; T-28: discarded revision 4/4, delivered 0/4). Diagnosed at `d24410a`/`6b224f5`. |
+| Q2 (R1 parity) | **INCONCLUSIVE** | N=25/arm: ours `24.640/40` (sd 1.22) vs pi `24.960/40` (sd 2.15), delta `-0.320` tasks `= -0.8%`, task-clustered 95% CI `[-3.520, +3.080]`, `M=3` rule misses by `0.520` tasks. CI width structural (flat `6.53..6.60` from N=17..25), so more seeds cannot resolve. Evidence: `fix-wave-1-measurement-n25.md`, `fix-wave-1-measurement-final.md`. |
+| Q3 (R2 verification information) | **PARTLY / not as stated** | own test `-1.33` tasks (p=0.55); IV neutral on correctness, `-8.67` claims (p=0.0009) and `-3.00` false (p=0.031); review `+4.00` correctness (p=0.012) only atop own test + IV, and `+3.33` false (p=0.031) alone. False successes `0/0/0/10/1`. Evidence: `requirement-2-ablation.md`. |
+| Q4 (R3 decomposition) | **NEGATIVE** | leaf `47/70 (67.1%, 0 false)` vs tree-greedy `14/70 (20.0%, 4 false)` vs tree-tournament `15/70 (21.4%, 3 false)`; paired CI upper bounds below 0, p<0.001; mechanism fired (3/70 on 3/9 tasks; 9/70 on 4/9). Evidence: `requirement-3-result.md`. |
+| Q5 (final head-to-head) | **Q2 result; A2 arm unmeasured** | false successes ours `2.20%` vs pi `6.10%`; cost ours `~17.5k` tokens/task vs pi `~9k`. The improved-prompt pi arm (A2) was never run (environment blocker, then out of scope for the closeout). |
+
+Independent recomputation of all three requirement verdicts from the raw rows, with no
+discrepancy: `final-measurement-independent-verification.md`.
+
+### Open / unfinished (recorded as openly not closed)
+
+- **No proof of superiority and no proof of impossibility.** The pre-registered test
+  returns INCONCLUSIVE; the point estimate is a near-tie.
+- **The product CLI does not exist** (slice V6).
+- **The improved-prompt pi arm is unmeasured** (slice C4's "structure beats a better prompt").
+- **pi token cost is partly unmeasured** (`pi_baseline.py` carries no token counters; its
+  `~9k`/task comes from the recorded reference).
+- **Wall-clock is not cleanly comparable** (ours measured under concurrency, pi
+  sequentially); a clean single-lane 40-task run is outstanding.
+- **Results are corpus/model-scoped**: one model (Spark-X2.5-4B Q4_K_M), one 40-task
+  corpus, one baseline.
+- **Named harness defects remain unfixed**: redirect on a refusal; accumulate multi-file
+  changes instead of erasing; rank the delivered revision by required-surface coverage;
+  apply the non-discriminating-check rule to the plain green path; persist per-attempt
+  model output.
+
+### Closeout deliverables (same pass, no commit; a later integration worker commits)
+
+- `docs/LEARNINGS.md` (new): the extraction document.
+- `README.md` (rewritten).
+- `docs/STATUS.md` (rewritten to the final measured position).
+- `docs/ROADMAP.md` (rewritten to the final slice and criteria verdicts).
+- `CONTRIBUTING.md` (new).
+- `.gitignore` (small standard additions; proposed).
+- This closeout section (and the moved narrative below).
+
+### Superseded `STATUS.md` narrative (moved here; not current facts)
+
+The dated sections of the old `docs/STATUS.md` (`§1`, `§1a`, `§8b`..`§8h`) were folded
+into current facts. Their still-valuable history, kept for audit and not as the current
+position:
+
+- **2026-10-01/03 — the 9-task, 8192-token measurement** (`416f1bf`): `15/18` actual, `0`
+  false. **Retracted as a leaked-exam measurement:** the task repos shipped a stale
+  `.pytest_cache` holding the grader's own test node ids and the mature-agent baseline
+  visibly read it. `harness/staging.py` now withholds cache artifacts and the corpus caches
+  are gone.
+- **The claim-rule iteration on those 9 tasks** (`416f1bf`): agreement-required `14/18`
+  actual, 0 false; review-outranks-test `12/18`, 2 false; review + grant-calibre evidence
+  `12/18`, 0 false; plus best-evidence delivery `14/18`, 3 false; plus request-level
+  coverage and a red independent verification blocking a review `15/18`, 0 false.
+- **2026-10-03 development-vs-verification matrix** (`124c41d`, clean re-measurement, 33
+  common tasks): raw `17/33 (52%)`, test `18/33`, review `18/33` with 11 false, full
+  `20/33 (61%)` with 2 false.
+- **The retracted token headline:** the byte-stable-context change was reported as
+  `-31.3%` tokens; re-measurement did not reproduce it (mean `16,006` pre-change,
+  `16,132`/`16,872` after). Retracted at `25dafaf`.
+- **The throttled pi baseline and its correction:** the first pi measurement (`21/40`)
+  ran with `--thinking off` (the only level the temp model declaration allowed) on an 8k
+  server; re-measured with `--thinking max --reasoning` on 32k, pi fixes `27/40`, and the
+  anchors stay `0/5`. This is the fairness correction that turned a claimed tie into a
+  3-task deficit at `6b224f5`.
+- **Our 32k full arm** (`6b224f5`): `22/40`, with the missed wins dominated by our own
+  independently authored verification turning red on a correct fix
+  (`independent-test-red-on-final`, 8 tasks).
+- **Per-task failure verdicts** (`8f`, `d24410a`): all 16 failures given a quoted grader
+  failure and an `our-defect` / `model-ceiling` verdict; two harness defects remained open
+  (T-28 delivered nothing, T-14 shipped a known-partial revision).
+- **The strict claim rule (P8c, owner decision A)** at `24d801e`: only a behaviour-level
+  deterministic fact may carry a claim; a 5-task probe returned 0 false successes.
+- **The confirming 40-task run after P8b** (`8g`, `d24410a`): `26/40`, 1 false (A-02).
+- **Fix wave 1** (`45ebb32`): the delivery-anchor, review-attribution and IV-inversion fixes,
+  plus the T-35 false-success class closed by the self-contradicting-check rule; reviewed
+  and independently verified (`fix-wave-1-independent-review.md`,
+  `final-measurement-independent-verification.md`). The head-to-head to N=25 followed on
+  this revision.
+
+Full run records and raw rows are in this directory and in git history; the commits that
+bracket the story are `416f1bf`, `25dafaf`, `124c41d`, `6b224f5`, `24d801e` and `45ebb32`.

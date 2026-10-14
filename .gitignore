@@ -25,3 +25,15 @@ worktrees/
 .env.*
 !.env.example
 *.log
+
+# Python build/coverage artefacts (common junk)
+build/
+dist/
+*.egg-info/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+.ipynb_checkpoints/
+*.orig
+*.rej
