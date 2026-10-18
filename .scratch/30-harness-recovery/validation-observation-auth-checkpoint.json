@@ -1,0 +1,26 @@
+{
+  "name": "observation-auth-checkpoint",
+  "argv": [
+    "uv",
+    "run",
+    "--offline",
+    "--no-sync",
+    "python",
+    "-B",
+    ".scratch/30-harness-recovery/negative_controls.py",
+    "observation-auth"
+  ],
+  "expectedExit": 1,
+  "startedAt": "2026-10-15T16:52:55+08:00",
+  "sourceHashes": {
+    "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+    "tests/unit/test_own_test_setup.py": "b12d27f8b7632389442f73c347eac9490131672d09fe10064abef6dd19f6abab",
+    "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+  },
+  "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+  "pid": 3368456,
+  "exit": 1,
+  "endedAt": "2026-10-15T16:52:56+08:00",
+  "elapsedSeconds": 1.0059139240765944,
+  "outputSha256": "ee0e11729072f744e91add9849e3e3b3ae83682279801088158b2dbb31518ee7"
+}

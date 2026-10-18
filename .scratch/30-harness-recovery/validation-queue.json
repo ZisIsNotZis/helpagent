@@ -1,0 +1,245 @@
+[
+  {
+    "name": "setup",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "pytest",
+      "-q",
+      "-p",
+      "no:warnings",
+      "tests/unit/test_own_test_setup.py"
+    ],
+    "expectedExit": 0
+  },
+  {
+    "name": "parse-boundary",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "python",
+      "-B",
+      ".scratch/30-harness-recovery/parse_boundary_probe.py"
+    ],
+    "expectedExit": 0
+  },
+  {
+    "name": "leaf",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "pytest",
+      "-q",
+      "-p",
+      "no:warnings",
+      "tests/unit/test_v2_leaf.py"
+    ],
+    "expectedExit": 0
+  },
+  {
+    "name": "setup-final",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "pytest",
+      "-q",
+      "-p",
+      "no:warnings",
+      "tests/unit/test_own_test_setup.py"
+    ],
+    "expectedExit": 0
+  },
+  {
+    "name": "leaf-final",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "pytest",
+      "-q",
+      "-p",
+      "no:warnings",
+      "tests/unit/test_v2_leaf.py"
+    ],
+    "expectedExit": 0
+  },
+  {
+    "name": "project-final",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "pytest",
+      "-q",
+      "-p",
+      "no:warnings"
+    ],
+    "expectedExit": 0
+  },
+  {
+    "name": "setup-classifier",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "python",
+      "-B",
+      ".scratch/30-harness-recovery/negative_controls.py",
+      "setup-classifier"
+    ],
+    "expectedExit": 1
+  },
+  {
+    "name": "old-frame-attribution",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "python",
+      "-B",
+      ".scratch/30-harness-recovery/negative_controls.py",
+      "old-frame-attribution"
+    ],
+    "expectedExit": 1
+  },
+  {
+    "name": "setup-preservation",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "python",
+      "-B",
+      ".scratch/30-harness-recovery/negative_controls.py",
+      "setup-preservation"
+    ],
+    "expectedExit": 1
+  },
+  {
+    "name": "observation-auth",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "python",
+      "-B",
+      ".scratch/30-harness-recovery/negative_controls.py",
+      "observation-auth"
+    ],
+    "expectedExit": 1
+  },
+  {
+    "name": "setup-checkpoint",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "pytest",
+      "-q",
+      "-p",
+      "no:warnings",
+      "tests/unit/test_own_test_setup.py"
+    ],
+    "expectedExit": 0
+  },
+  {
+    "name": "project-checkpoint",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "pytest",
+      "-q",
+      "-p",
+      "no:warnings"
+    ],
+    "expectedExit": 0
+  },
+  {
+    "name": "setup-classifier-checkpoint",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "python",
+      "-B",
+      ".scratch/30-harness-recovery/negative_controls.py",
+      "setup-classifier"
+    ],
+    "expectedExit": 1
+  },
+  {
+    "name": "old-frame-attribution-checkpoint",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "python",
+      "-B",
+      ".scratch/30-harness-recovery/negative_controls.py",
+      "old-frame-attribution"
+    ],
+    "expectedExit": 1
+  },
+  {
+    "name": "setup-preservation-checkpoint",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "python",
+      "-B",
+      ".scratch/30-harness-recovery/negative_controls.py",
+      "setup-preservation"
+    ],
+    "expectedExit": 1
+  },
+  {
+    "name": "observation-auth-checkpoint",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "python",
+      "-B",
+      ".scratch/30-harness-recovery/negative_controls.py",
+      "observation-auth"
+    ],
+    "expectedExit": 1
+  },
+  {
+    "name": "leaf-checkpoint",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "pytest",
+      "-q",
+      "-p",
+      "no:warnings",
+      "tests/unit/test_v2_leaf.py"
+    ],
+    "expectedExit": 0
+  }
+]

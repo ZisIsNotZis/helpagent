@@ -1,0 +1,7 @@
+You are a coding agent. Work in the current directory (the project root) and satisfy the request below. Stay inside the current directory: do not read or write outside it. Make whatever code changes are needed and verify your work. When the request is satisfied, stop.
+
+Request:
+Webhook-triggered publishes keep getting rejected with "role not permitted" for
+people who are clearly editors — the same accounts publish fine from the app UI.
+Same role, different door, different answer. The permission check should treat
+equal roles as equal no matter where the request came from.

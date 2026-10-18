@@ -1,0 +1,1 @@
+12 trajectories; 50 source_write payload hashes match; no candidate execution

@@ -1,0 +1,36 @@
+warning: `VIRTUAL_ENV=/home/z/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+NEGATIVE CONTROL observation-auth: expect pytest exit 1 at the targeted behavioral assertion
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___ test_run_leaf_setup_repair_with_missing_report_cannot_reuse_invalid_red ____
+
+tmp_path = PosixPath('/tmp/pytest-of-z/pytest-1179/test_run_leaf_setup_repair_wit0')
+
+    def test_run_leaf_setup_repair_with_missing_report_cannot_reuse_invalid_red(tmp_path):
+        calls = 0
+    
+        async def lose_repair_report(workdir):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return await _default_run_tests(workdir)
+            return ShapedResult(command=["pytest"], exit=1, verdict="failed")
+    
+        outcome, model, _, _ = _run(
+            tmp_path, BROKEN_SOURCE,
+            [_write(TEST_PATH, MISSING_IMPORT_TEST), _write(TEST_PATH, VALID_TEST)],
+            run_tests=lose_repair_report)
+        assert not outcome.claimed
+        assert not model.calls("implement_write")
+        assert outcome.own_test_discriminating == []
+        assert not any(row.state == "violated" for row in outcome.ledger)
+        assert outcome.own_test_gate is None
+        assert outcome.state == "uncertain"
+>       assert (tmp_path / TEST_PATH).is_file()
+E       AssertionError: assert False
+E        +  where False = is_file()
+E        +    where is_file = (PosixPath('/tmp/pytest-of-z/pytest-1179/test_run_leaf_setup_repair_wit0') / 'tests/test_generated.py').is_file
+
+tests/unit/test_own_test_setup.py:189: AssertionError
+=========================== short test summary info ============================
+FAILED tests/unit/test_own_test_setup.py::test_run_leaf_setup_repair_with_missing_report_cannot_reuse_invalid_red

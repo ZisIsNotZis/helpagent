@@ -1,0 +1,844 @@
+[
+  {
+    "sample": "pi-T-33-serializer-contract-s1",
+    "line": 3,
+    "source_line": 72,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 64,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-33-serializer-contract-s1",
+    "line": 7,
+    "source_line": 310,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 233,
+    "tool_calls": [
+      "read",
+      "read",
+      "read",
+      "read",
+      "read"
+    ]
+  },
+  {
+    "sample": "pi-T-33-serializer-contract-s1",
+    "line": 23,
+    "source_line": 6545,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 6213,
+    "tool_calls": [
+      "bash",
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-33-serializer-contract-s1",
+    "line": 30,
+    "source_line": 14755,
+    "stopReason": "length",
+    "errorMessage": null,
+    "outputTokens": 8192,
+    "tool_calls": []
+  },
+  {
+    "sample": "pi-T-12-str-enum-compare-s1",
+    "line": 3,
+    "source_line": 69,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 61,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-12-str-enum-compare-s1",
+    "line": 7,
+    "source_line": 185,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 108,
+    "tool_calls": [
+      "bash",
+      "read"
+    ]
+  },
+  {
+    "sample": "pi-T-12-str-enum-compare-s1",
+    "line": 14,
+    "source_line": 350,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 154,
+    "tool_calls": [
+      "read",
+      "read",
+      "read"
+    ]
+  },
+  {
+    "sample": "pi-T-12-str-enum-compare-s1",
+    "line": 24,
+    "source_line": 4899,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 4534,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-12-str-enum-compare-s1",
+    "line": 28,
+    "source_line": 5154,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 243,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-12-str-enum-compare-s1",
+    "line": 32,
+    "source_line": 5447,
+    "stopReason": "error",
+    "errorMessage": "Context size has been exceeded.",
+    "outputTokens": 0,
+    "tool_calls": []
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 3,
+    "source_line": 68,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 60,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 7,
+    "source_line": 181,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 105,
+    "tool_calls": [
+      "read",
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 14,
+    "source_line": 261,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 67,
+    "tool_calls": [
+      "read"
+    ]
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 18,
+    "source_line": 1365,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 1097,
+    "tool_calls": [
+      "write"
+    ]
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 22,
+    "source_line": 1834,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 460,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 26,
+    "source_line": 2218,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 373,
+    "tool_calls": [
+      "read"
+    ]
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 30,
+    "source_line": 2529,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 304,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 34,
+    "source_line": 3880,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 1342,
+    "tool_calls": [
+      "write"
+    ]
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 38,
+    "source_line": 4915,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 1033,
+    "tool_calls": [
+      "edit"
+    ]
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 42,
+    "source_line": 5012,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 90,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 46,
+    "source_line": 6995,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 1978,
+    "tool_calls": [
+      "edit"
+    ]
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 50,
+    "source_line": 7114,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 112,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 54,
+    "source_line": 8240,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 1115,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 58,
+    "source_line": 8925,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 674,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 62,
+    "source_line": 9799,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 863,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 66,
+    "source_line": 11024,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 1222,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 70,
+    "source_line": 11171,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 136,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 74,
+    "source_line": 11329,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 146,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 78,
+    "source_line": 11442,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 102,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-35-interval-merge-invariants-s1",
+    "line": 82,
+    "source_line": 12168,
+    "stopReason": "stop",
+    "errorMessage": null,
+    "outputTokens": 714,
+    "tool_calls": []
+  },
+  {
+    "sample": "pi-T-30-naive-datetime-compare-s2",
+    "line": 3,
+    "source_line": 208,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 200,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-30-naive-datetime-compare-s2",
+    "line": 7,
+    "source_line": 281,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 64,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-30-naive-datetime-compare-s2",
+    "line": 11,
+    "source_line": 440,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 152,
+    "tool_calls": [
+      "read",
+      "read",
+      "read"
+    ]
+  },
+  {
+    "sample": "pi-T-30-naive-datetime-compare-s2",
+    "line": 21,
+    "source_line": 2005,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 1550,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-30-naive-datetime-compare-s2",
+    "line": 25,
+    "source_line": 3073,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 1070,
+    "tool_calls": [
+      "edit"
+    ]
+  },
+  {
+    "sample": "pi-T-30-naive-datetime-compare-s2",
+    "line": 29,
+    "source_line": 3144,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 62,
+    "tool_calls": [
+      "read"
+    ]
+  },
+  {
+    "sample": "pi-T-30-naive-datetime-compare-s2",
+    "line": 33,
+    "source_line": 3855,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 702,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-30-naive-datetime-compare-s2",
+    "line": 37,
+    "source_line": 4586,
+    "stopReason": "stop",
+    "errorMessage": null,
+    "outputTokens": 719,
+    "tool_calls": []
+  },
+  {
+    "sample": "pi-T-16-class-state-leak-s2",
+    "line": 3,
+    "source_line": 71,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 63,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-16-class-state-leak-s2",
+    "line": 7,
+    "source_line": 143,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 63,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-16-class-state-leak-s2",
+    "line": 11,
+    "source_line": 313,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 163,
+    "tool_calls": [
+      "read",
+      "read",
+      "read"
+    ]
+  },
+  {
+    "sample": "pi-T-16-class-state-leak-s2",
+    "line": 21,
+    "source_line": 394,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 66,
+    "tool_calls": [
+      "read"
+    ]
+  },
+  {
+    "sample": "pi-T-16-class-state-leak-s2",
+    "line": 25,
+    "source_line": 1821,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 1430,
+    "tool_calls": [
+      "edit"
+    ]
+  },
+  {
+    "sample": "pi-T-16-class-state-leak-s2",
+    "line": 29,
+    "source_line": 1891,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 63,
+    "tool_calls": [
+      "read"
+    ]
+  },
+  {
+    "sample": "pi-T-16-class-state-leak-s2",
+    "line": 33,
+    "source_line": 2269,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 369,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-16-class-state-leak-s2",
+    "line": 37,
+    "source_line": 2471,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 191,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-16-class-state-leak-s2",
+    "line": 41,
+    "source_line": 2608,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 125,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-16-class-state-leak-s2",
+    "line": 45,
+    "source_line": 3148,
+    "stopReason": "stop",
+    "errorMessage": null,
+    "outputTokens": 528,
+    "tool_calls": []
+  },
+  {
+    "sample": "pi-T-26-plan-dataclass-port-s1",
+    "line": 3,
+    "source_line": 67,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 59,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-26-plan-dataclass-port-s1",
+    "line": 7,
+    "source_line": 172,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 96,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-26-plan-dataclass-port-s1",
+    "line": 11,
+    "source_line": 243,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 61,
+    "tool_calls": [
+      "read"
+    ]
+  },
+  {
+    "sample": "pi-T-26-plan-dataclass-port-s1",
+    "line": 15,
+    "source_line": 3136,
+    "stopReason": "error",
+    "errorMessage": "Context size has been exceeded.",
+    "outputTokens": 0,
+    "tool_calls": []
+  },
+  {
+    "sample": "pi-A-02-protein-translation-s1",
+    "line": 3,
+    "source_line": 67,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 59,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-A-02-protein-translation-s1",
+    "line": 7,
+    "source_line": 134,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 58,
+    "tool_calls": [
+      "read"
+    ]
+  },
+  {
+    "sample": "pi-A-02-protein-translation-s1",
+    "line": 11,
+    "source_line": 247,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 106,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-A-02-protein-translation-s1",
+    "line": 15,
+    "source_line": 8319,
+    "stopReason": "error",
+    "errorMessage": "Context size has been exceeded.",
+    "outputTokens": 0,
+    "tool_calls": []
+  },
+  {
+    "sample": "pi-A-03-book-store-s1",
+    "line": 3,
+    "source_line": 5874,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 5866,
+    "tool_calls": [
+      "bash",
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-A-03-book-store-s1",
+    "line": 10,
+    "source_line": 5948,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 59,
+    "tool_calls": [
+      "read"
+    ]
+  },
+  {
+    "sample": "pi-A-03-book-store-s1",
+    "line": 14,
+    "source_line": 14142,
+    "stopReason": "length",
+    "errorMessage": null,
+    "outputTokens": 8192,
+    "tool_calls": []
+  },
+  {
+    "sample": "pi-A-04-connect-s1",
+    "line": 3,
+    "source_line": 6080,
+    "stopReason": "error",
+    "errorMessage": "Context size has been exceeded.",
+    "outputTokens": 0,
+    "tool_calls": []
+  },
+  {
+    "sample": "pi-T-27-snakecase-ingest-s1",
+    "line": 3,
+    "source_line": 88,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 78,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-27-snakecase-ingest-s1",
+    "line": 7,
+    "source_line": 249,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 153,
+    "tool_calls": [
+      "read",
+      "read",
+      "read"
+    ]
+  },
+  {
+    "sample": "pi-T-27-snakecase-ingest-s1",
+    "line": 17,
+    "source_line": 6297,
+    "stopReason": "error",
+    "errorMessage": "Context size has been exceeded.",
+    "outputTokens": 0,
+    "tool_calls": []
+  },
+  {
+    "sample": "pi-T-34-expression-tokenizer-s1",
+    "line": 3,
+    "source_line": 34,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 26,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-34-expression-tokenizer-s1",
+    "line": 7,
+    "source_line": 85,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 42,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-34-expression-tokenizer-s1",
+    "line": 11,
+    "source_line": 215,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 121,
+    "tool_calls": [
+      "read",
+      "read"
+    ]
+  },
+  {
+    "sample": "pi-T-34-expression-tokenizer-s1",
+    "line": 18,
+    "source_line": 417,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 191,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-34-expression-tokenizer-s1",
+    "line": 22,
+    "source_line": 8619,
+    "stopReason": "length",
+    "errorMessage": null,
+    "outputTokens": 8192,
+    "tool_calls": []
+  },
+  {
+    "sample": "pi-T-26-plan-dataclass-port-s2",
+    "line": 3,
+    "source_line": 67,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 59,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-26-plan-dataclass-port-s2",
+    "line": 7,
+    "source_line": 137,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 61,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-26-plan-dataclass-port-s2",
+    "line": 11,
+    "source_line": 290,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 146,
+    "tool_calls": [
+      "read",
+      "read",
+      "read"
+    ]
+  },
+  {
+    "sample": "pi-T-26-plan-dataclass-port-s2",
+    "line": 21,
+    "source_line": 6382,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 6077,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-26-plan-dataclass-port-s2",
+    "line": 25,
+    "source_line": 7015,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 623,
+    "tool_calls": [
+      "write"
+    ]
+  },
+  {
+    "sample": "pi-T-26-plan-dataclass-port-s2",
+    "line": 29,
+    "source_line": 7762,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 738,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-26-plan-dataclass-port-s2",
+    "line": 33,
+    "source_line": 8469,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 696,
+    "tool_calls": [
+      "bash"
+    ]
+  },
+  {
+    "sample": "pi-T-26-plan-dataclass-port-s2",
+    "line": 37,
+    "source_line": 8569,
+    "stopReason": "toolUse",
+    "errorMessage": null,
+    "outputTokens": 89,
+    "tool_calls": [
+      "read"
+    ]
+  },
+  {
+    "sample": "pi-T-26-plan-dataclass-port-s2",
+    "line": 41,
+    "source_line": 9171,
+    "stopReason": "stop",
+    "errorMessage": null,
+    "outputTokens": 592,
+    "tool_calls": []
+  }
+]

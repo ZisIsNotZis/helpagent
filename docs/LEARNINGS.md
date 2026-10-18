@@ -12,7 +12,7 @@ whether the result is better than the same model driving a mature free-form agen
 
 The short answer: **no detected capability difference — parity not established
 (INCONCLUSIVE at `M=3`), a real but shallow reliability advantage, and no cost
-advantage.** The value of the project is the design principle it validated, the
+advantage.** This closes the measured campaign, not the goals or their feasibility. The value of the project is the design principle it exercised, the
 methodology it demonstrated, and the negative results it recorded with error bars.
 
 ## 1. The design principle: harness-as-program, model-as-fallback-node
@@ -40,10 +40,9 @@ declared seam and validates the returned envelope before acting on it.
 **What the measurements say about this design** (revision `45ebb32`, 40-task corpus):
 
 - It works: the full harness fixes `77/120 = 64.2%` on a five-arm ablation, and the
-  head-to-head at N=25 is statistically indistinguishable from the mature CLI
+  head-to-head at N=25 detects no aggregate capability difference from the mature CLI
   (`24.640/40` vs `24.960/40`, task-clustered 95% CI `[-3.520, +3.080]`).
-- It is statistically indistinguishable from a free-form agent loop, but it is not better
-  on capability: the pre-registered test returned INCONCLUSIVE, so neither parity within
+- No aggregate capability advantage over the free-form agent loop was detected: the pre-registered test returned INCONCLUSIVE, so neither parity within
   margin nor inferiority is established. The development-only arm (a plain loop with no
   verification, `58.3%`) and the full stack (`64.2%`) differ by `+2.33 tasks [−0.33, +5.33]`,
   which is not significant at this sample size; and the head-to-head against `pi` (a
@@ -53,8 +52,7 @@ declared seam and validates the returned envelope before acting on it.
   and the ablation shows where that comes from (section 2).
 
 The design is worth copying when the model is weak and the task class is narrow. It is
-not shown to beat a good free-form loop on capability, and a stronger model would likely
-erase most of the reliability gap (section 7).
+not shown to beat a good free-form loop on capability. Whether a stronger model would erase the reliability gap is an untested hypothesis, not a measured result.
 
 ## 2. Verification methodology: deterministic gates, one claim gate, evidence ledger
 
@@ -69,32 +67,19 @@ The project's verification pipeline and what each part measured. The five-arm ab
 | A3 + the run's own test + a graded review | 71/120 (59.2%) | 10 |
 | A4 full (own test + independent test + review + one claim gate) | 77/120 (64.2%) | 1 |
 
-Paired incremental contributions (one stage isolated per contrast, 40 tasks):
+Paired stage-enable contrasts (40 tasks): net workflow effects, including changed feedback, iteration, stopping and delivery; not isolated measurements of signal information.
 
 | stage | effect on actual correctness | effect on claims / false successes |
 | --- | --- | --- |
-| the run's own test | `−1.33 tasks [−5.67, +3.00]`, p=0.55 | none; it never carried a claim in any of the 600 runs |
-| the independent test | no significant correctness effect (`−0.33`, `+2.00`, p≥0.39) | cuts claims `−8.67`, p=0.0009; cuts false successes `−3.00 [−5.67, −1.00]`, p=0.031 |
-| the graded review | the only significant correctness gain, and only **on top of** own test + independent test: `+4.00 [ +1.33, +7.00]`, p=0.012 | added to the own test alone, review produces `+3.33 false successes [+1.00, +6.33]`, p=0.031 |
+| the run's own test | `−1.33 tasks [−5.67, +3.00]`, p=0.55 | never directly carried a claim in the 600 runs; this does not exclude effects through code, stopping or later claims |
+| the independent test | no significant correctness effect (`−0.33`, `+2.00`, p≥0.39) | with review present, cuts claims `−8.67`, p=0.0009; cuts false successes `−3.00 [−5.67, −1.00]`, p=0.031 |
+| the graded review | a significant correctness gain **with** own test + independent test present: `+4.00 [ +1.33, +7.00]`, p=0.012 | added to the own test alone, review produces `+3.33 false successes [+1.00, +6.33]`, p=0.031 |
 
 The reusable findings:
 
-1. **A check that shares the generator of the thing it checks is not independent
-   evidence.** The own test is written by the same model that writes the code; measured,
-   it is zero-information on correctness (`−1.33`, p=0.55). The independent test is
-   written by the same model in a fresh context; on correctness it is also
-   indistinguishable from zero. When the model keeps a wrong reading, its code, its own
-   test, its independent test and its reviewer all inherit that reading, so agreement
-   between them proves nothing. The external grader is the only correctness arbiter.
+1. **Fresh context does not remove shared-model error.** No net correctness gain was detected from the own-test loop (`−1.33 [−5.67, +3.00]`, p=0.55); independent-test correctness contrasts are also unresolved. Neither establishes zero information. A shared wrong reading can survive code, own test, independent test and review; final R2 A-05#1 is a direct example. Agreement is not proof of correctness; the external grader remains this experiment's arbiter.
 
-2. **Each verification stage has a different, measurable job, and they are not
-   interchangeable.** The independent test is a **false-claim suppressor** (it buys
-   honesty, not fixes), and it is a conservative one: in the full arm it withheld approval
-   in `92/110` runs, `57` of which the grader passed. The review is a **correctness** lever
-   only when it is backstopped by an independent test; alone it mostly produces confident
-   wrong claims (`+3.33` false successes). The own test is a cost centre with no measured
-   correctness benefit here. A pipeline should assign these roles deliberately instead of
-   treating "more verification" as strictly better.
+2. **Measure the workflow effect without assigning universal stage roles.** With review present, enabling independent test reduced false successes (`−3.00 [−5.67, −1.00]`, p=0.031). In the full arm it withheld approval in `92/110` runs, `57` of which the final grader passed; this is a stage/final-outcome join, not independent diagnostic accuracy. Review's correctness contrast is positive with independent test present (`+4.00`, p=0.012); without it, false successes rise (`+3.33`) and correctness is unresolved. This does not establish an interaction or that review works only when backstopped. Own tests can change code and block claims without directly carrying a claim. Stage costs are unmatched and contrasts unadjusted for multiplicity; do not equate net outcome with signal information.
 
 3. **One claim gate, structurally enforced, is reusable and cheap.** There is exactly one
    function that can grant a pass claim, every path routes through it, and a structural
@@ -149,12 +134,7 @@ transferable output.
   parity within margin, `Hi95 < −M` means behind, else inconclusive), with a task-clustered
   bootstrap CI and a fixed seed. Pre-registration is what makes "INCONCLUSIVE" a real,
   publishable result instead of an invitation to keep sampling until it looks good.
-- **The decision rule can be structurally unable to resolve.** At N=25 the CI width was
-  flat (range `6.44`–`6.60`; `6.53` at N=17, `6.60` at N=25) because it is set by between-task
-  heterogeneity in the 40-task corpus, not by seed noise; more seeds cannot close the
-  0.52-task gap to the margin. The lesson is to compute the resolvable effect size from
-  the corpus before promising a decisive answer, and to say "the test cannot resolve this"
-  rather than "more data needed".
+- **Separate a statistical projection from impossibility.** At N=25 the CI width was flat (range `6.44`–`6.60`; `6.53` at N=17, `6.60` at N=25), dominated by between-task heterogeneity. At the observed task effects, more seeds alone are not projected to close the 0.52-task gap; future estimates can still move. Compute the resolvable effect size before promising a decisive answer, and distinguish the campaign's inconclusive stopping result from the capability goal's feasibility.
 - **Compare delivered bytes against every revision the run wrote**, not just the ones it
   claimed. This is the single most valuable forensic in the project: it revealed that the
   harness *discarded or overwrote revisions that already passed the grader* (T-17: 4 of 7
@@ -190,10 +170,7 @@ The harness is, deliberately, a small team's process written as code: implement,
 review, keep evidence. The interesting result is not that this is novel; it is that it
 transfers down to a 4B model when every step is bounded and checked, and that the process
 stages have *different* measured value in this setting (section 2). The conventional
-wisdom "write tests, review the change" is not uniformly true here: the model's own test
-is worthless, and review without an independent test manufactures confident errors. The
-process is worth codifying, but each stage must earn its place by measurement, not by
-analogy to a human team.
+wisdom "write tests, review the change" does not by itself establish benefit here: the own-test loop has no detected net correctness gain, and enabling review without independent test increases false successes. These are workflow effects, not proof that tests are worthless or review signals inherently negative. Each implementation must earn its place by measurement, not analogy to a human team.
 
 ## 5. Negative results worth recording
 
@@ -202,7 +179,7 @@ are the most reusable single contribution of the project.
 
 | idea | result |
 | --- | --- |
-| decomposition / step-splitting / multi-approach (tree of children; a tournament of Hows) | **harmful.** Monolithic leaf `47/70 (67.1%, 0 false)` vs tree-greedy `14/70 (20.0%, 4 false)` vs tree-tournament `15/70 (21.4%, 3 false)`; every paired delta CI has an upper bound below 0, p<0.001; the tree costs 2.2 to 2.4x the calls, 2.3 to 2.9x the wall and at least 1.85x the tokens. The mechanism verifiably fired (decomposition on 3 of 9 decomposable tasks in one arm, 4 of 9 in the other), so this is a valid negative, not an unfired mechanism. |
+| current tree / multi-approach bundle (tree of children; a tournament of Hows) | **harmful here.** Monolithic leaf `47/70 (67.1%, 0 false)` vs tree-greedy `14/70 (20.0%, 4 false)` vs tree-tournament `15/70 (21.4%, 3 false)`; every paired delta CI has an upper bound below 0, p<0.001; the tree costs 2.2 to 2.4x the calls, 2.3 to 2.9x the wall and at least 1.85x the tokens. Decomposition fired on 3 of 9 decomposable tasks in one arm, 4 of 9 in the other. Planning/spec rewriting, budget and closed-only delivery also differ; this is not an isolated test of splitting or field refinement (STATUS.md §5). |
 | injecting a context index (declared files in full, the rest as a compact index) | **harmful.** `13/24` vs `18/24` on the same 12 tasks x2, and `13/24` vs `19/24` against the pre-change revision `e190a4f` (commit `25dafaf`). Source is never hidden from the model now. |
 | forcing a deterministic file-change order | **harmful.** `14/15` vs `7/15`. |
 | a knowledge pack (signatures / callers / constants) injected per call | no gain (`4/15` vs `3/15`); off by default. |
@@ -211,10 +188,7 @@ are the most reusable single contribution of the project.
 | competitive How exploration (a tournament of candidates) | fires, but costs `2.2` to `2.4x` the calls and fixes far fewer tasks (`15/70` vs `47/70`); greedy is the default. |
 | asking a weak model to write and run its own tests (applied to the mature CLI) | **worse.** The 4B could not emit a whole test file as a tool argument (the write hit the output-token limit and was dropped or re-issued), and 9 of 10 runs in the last band ended on a length-truncated block. Measured at 8k context; not re-measured at 32k. |
 
-The pattern across all of them: **structure that costs calls without adding information
-loses.** What moved the numbers was giving the model more signal (a forced red-then-green
-loop, deterministic diagnosis rules, coverage and discrimination checks), not more
-elaborate control flow.
+These implementations added calls without a measured net capability gain. Historical delivery/attribution defects demonstrate that control flow can also lose already generated capability; no isolated experiment here establishes that all structural changes lose or that only added signal helps.
 
 Caveat on the mature-CLI test-writing result: it was measured on the throttled 8k
 baseline and is not re-measured at 32k, so it is recorded as known-at-8k only.
@@ -232,8 +206,7 @@ baseline and is not re-measured at 32k, so it is recorded as known-at-8k only.
 - The **evaluation checklists** (sections 2 and 3), including "compare delivered bytes to
   every written revision".
 - The **negative results** (section 5), which save a future project from repeating them.
-- The **generalisation**: a process works on a weak model only when each step is small,
-  bounded, checked, and derived from a human team's real practice.
+- The **design hypothesis**: small, bounded, checked steps can make a weak model usable on a narrow task class; these measurements do not establish that this is the only viable process.
 
 ## 7. What is not reusable / does not transfer
 
@@ -249,17 +222,13 @@ baseline and is not re-measured at 32k, so it is recorded as known-at-8k only.
 - **Nothing here generalises past its scope.** All results are for one 4B model, one
   40-task corpus and one baseline. There is no claim about stronger models, other
   corpora, other languages, or real repositories.
-- **The decomposition result is corpus- and model-scoped.** The negative is strong on "the
-  tree stage does not pay for itself here"; it bounds, but does not prove, "requirement-
-  level splitting can never help" (the planner only split on a minority of tasks). The
-  forced-leaf thresholds were never swept.
+- **The tree result is bundle-, corpus- and model-scoped.** This tree stage does not pay for itself here. It does not isolate decomposition or field refinement from planning/spec changes, budget and closed-only delivery, even where splitting fired. The forced-leaf thresholds were never swept; structural superiority in general remains unshown, not refuted.
 - **The internal verifiers share the model's weights.** Fresh context helps but does not
   make them independent; the external grader is the arbiter.
 
 ## 8. Future research directions
 
-1. **A larger or differently shaped corpus.** The 40-task corpus structurally caps the
-   resolvable difference at about 6.3 tasks even at infinite seeds. A decisive
+1. **A larger or differently shaped corpus.** At the observed task effects, the 40-task corpus projects an asymptotic CI width of about 6.3 tasks, not a capability ceiling. A decisive
    non-inferiority or superiority test needs a task set whose between-task heterogeneity
    is smaller relative to the effect, or a different design (paired within-task effect
    sizes with a pre-computed power analysis).
@@ -278,7 +247,7 @@ baseline and is not re-measured at 32k, so it is recorded as known-at-8k only.
    untested.
 5. **The decomposition question done differently.** Sweep the forced-leaf thresholds and
    test requirement-level splitting only on tasks that genuinely need it, with a design
-   that isolates splitting from planning overhead.
+   that isolates splitting and field refinement from planning/spec rewriting, budget and delivery policy.
 6. **Cost.** Cut tokens without hiding source, and measure a clean single-lane wall clock
    for both arms.
 
@@ -290,5 +259,6 @@ baseline and is not re-measured at 32k, so it is recorded as known-at-8k only.
   [`.scratch/28-three-requirements/issues/`](../.scratch/28-three-requirements/issues/)
   (`fix-wave-1-measurement-n25.md`, `requirement-2-ablation.md`,
   `requirement-3-result.md`, `final-measurement-independent-verification.md`).
+- Bounded final-revision causal audit, retained samples and evidence limits: [ticket 29](../.scratch/29-close-audit/report.md).
 - Design and flow: [`DESIGN.md`](DESIGN.md), [`FLOW.md`](FLOW.md).
 - Curated baseline evidence: [`bench/runs/evidence/`](../bench/runs/evidence/).

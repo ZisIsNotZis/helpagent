@@ -1,0 +1,9 @@
+[project]
+name = "connect"
+version = "0.1.0"
+description = "Exercism anchor task: connect."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

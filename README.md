@@ -3,7 +3,7 @@
 A research harness that wraps a small local model in a conventional software-engineering
 process, and measures the result honestly.
 
-**Status: completed / archived research.** This is not a shipped product. It is a
+**Status: campaign completed / research archived.** The three goals remain unmet or unresolved, not disproved. This is not a shipped product. It is a
 measurement project with a working research harness. The product command it was built
 toward (`helpagent "<request>"` against your own repository) does not exist. The results,
 the reusable patterns and the negative findings are in [`docs/LEARNINGS.md`](docs/LEARNINGS.md)
@@ -53,9 +53,9 @@ and the baseline (`pi` CLI) with **thinking max + reasoning**. Revision `45ebb32
 
 | requirement | verdict | number |
 | --- | --- | --- |
-| **1. Coding capability vs a mature agent CLI** | **INCONCLUSIVE** (parity not established) | ours `24.640/40` (sd 1.22) vs `pi` `24.960/40` (sd 2.15), N=25 seeds/arm; delta `−0.320` tasks `= −0.8%`; task-clustered 95% CI `[−3.520, +3.080]`; the pre-registered `M=3` rule returns INCONCLUSIVE by `0.52` tasks. The CI width is a structural limit of the 40-task corpus (flat from N=17 to N=25), so more seeds cannot resolve it. |
-| **2. Does verification add information?** | **PARTLY / not as stated** | `600`-run five-arm ablation: development-only `70/120 (58.3%)` to full stack `77/120 (64.2%)`. The own test alone is zero-information (`−1.33` tasks, p=0.55). The independent test does not significantly change correctness but cuts claims (`−8.67`, p=0.0009) and false successes (`−3.00`, p=0.031). Review adds the only significant correctness gain, and only on top of own test + independent test (`+4.00`, p=0.012); review alone adds false successes (`+3.33`, p=0.031). |
-| **3. Does decomposition / multi-approach help?** | **NEGATIVE** | `210`-run pre-registered experiment. Monolithic leaf `47/70 (67.1%, 0 false)` vs tree-greedy `14/70 (20.0%, 4 false)` vs tree-tournament `15/70 (21.4%, 3 false)`; paired delta CI upper bounds below 0, p<0.001. The mechanism verifiably fired, and the tree cost roughly 2 to 3x for far fewer fixes. |
+| **1. Coding capability vs a mature agent CLI** | **INCONCLUSIVE** (parity not established) | ours `24.640/40` (sd 1.22) vs `pi` `24.960/40` (sd 2.15), N=25 seeds/arm; delta `−0.320` tasks `= −0.8%`; task-clustered 95% CI `[−3.520, +3.080]`; the pre-registered `M=3` rule returns INCONCLUSIVE by `0.52` tasks. The CI width was flat from N=17 to N=25; at the observed task heterogeneity and point estimate, further seeds alone are not projected to resolve it. |
+| **2. Does verification add information?** | **PARTLY / not as stated** | `600`-run five-arm ablation: development-only `70/120 (58.3%)` to full stack `77/120 (64.2%)`. Enabling the own-test loop did not detect a net correctness gain (`−1.33` tasks, CI `[−5.67, +3.00]`, p=0.55), not proof of zero information. The independent-test contrasts did not detect a correctness effect but reduced claims (`−8.67`, p=0.0009) and false successes (`−3.00`, p=0.031) with review present. The review contrast with independent test present gained `+4.00` (p=0.012); without it, false successes increased (`+3.33`, p=0.031). This does not establish an interaction. |
+| **3. Does decomposition / multi-approach help?** | **NEGATIVE** | `210`-run pre-registered experiment. Monolithic leaf `47/70 (67.1%, 0 false)` vs tree-greedy `14/70 (20.0%, 4 false)` vs tree-tournament `15/70 (21.4%, 3 false)`; paired delta CI upper bounds below 0, p<0.001. The current tree bundle cost roughly 2 to 3x for far fewer fixes. Planning, budget and closed-only delivery also changed; splitting and field refinement were not isolated. |
 
 False successes across the ablation arms: `0 / 0 / 0 / 10 / 1`. Head-to-head honesty:
 ours `2.2%` vs `pi` `6.1%` false successes (difference CI excludes 0). Cost: ours about
@@ -66,11 +66,7 @@ quoted as a result.
 ## Conclusion
 
 - **Capability: no detected difference — parity not established (INCONCLUSIVE at `M=3`).**
-  The harness and the mature CLI are statistically indistinguishable on this model, corpus
-  and baseline (point estimate `24.640` vs `24.960`, delta `−0.320` tasks `= −0.8%`, well
-  inside the `±3` margin), but the pre-registered 95% test could not certify "within
-  margin": the 40-task corpus interval is itself `[−3.520, +3.080]` and does not tighten
-  with more seeds. Not proven stronger; not proven worse.
+  No aggregate capability difference was detected on this model, corpus and baseline (point estimate `24.640` vs `24.960`, delta `−0.320` tasks `= −0.8%`, inside the `±3` margin), but the pre-registered 95% test could not certify "within margin": the interval `[−3.520, +3.080]` was flat over N=17..25. Further-seed projections assume the observed task effects persist; this is not an impossibility result. Not proven stronger; not proven worse.
 - **Reliability: a real but shallow advantage.** The lower false-success rate comes from a
   claim gate that anyone could add to any agent, so it is not a durable moat.
 - **Cost: worse.** Roughly twice the tokens for no measured capability gain.
@@ -88,7 +84,7 @@ run wrote reveals it.
 
 Measured, not guessed (details in [`docs/LEARNINGS.md`](docs/LEARNINGS.md) §5):
 
-- **Decomposition / step-splitting / multi-approach**: harmful (section above).
+- **The measured tree / multi-approach bundle**: harmful here (section above); this does not isolate decomposition or field refinement.
 - **Injecting a context index** (a compact index for files not declared in full): harmful.
 - **Forcing a deterministic file-change order**: harmful.
 - **A knowledge pack** (signatures / callers / constants) injected per call: no gain.
@@ -98,8 +94,7 @@ Measured, not guessed (details in [`docs/LEARNINGS.md`](docs/LEARNINGS.md) §5):
   worse, because the 4B could not emit a whole test file as one tool argument. Measured at
   8k context; not re-measured at 32k.
 
-The pattern: structure that costs calls without adding information loses. What moved the
-numbers was giving the model more signal, not more control flow.
+These implementations spent extra calls without a measured net capability gain. That is a scoped outcome, not evidence that control flow or decomposition cannot help.
 
 ## Reusable parts
 
@@ -112,6 +107,8 @@ numbers was giving the model more signal, not more control flow.
 - The measured division of labour between own test, independent test and review.
 - Evaluation checklists, including "compare delivered bytes to every written revision".
 - The negative results, which save a future project from repeating them.
+
+The campaign is closed as a resource decision, not as proof that the goals are impossible. The bounded final-revision failure audit and its evidence limits are in [ticket 29](.scratch/29-close-audit/report.md).
 
 ## Future research
 

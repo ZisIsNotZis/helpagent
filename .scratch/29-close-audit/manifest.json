@@ -1,0 +1,1999 @@
+[
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/results.jsonl",
+    "source_sha256": "bf3e42877557d0c190b22242b4f498de0574e2fdde9889847510403651b0a93a",
+    "target": "evidence/ours-T-33-serializer-contract-s1/row.json",
+    "sha256": "43ba190cb28deaa85f0f3a4f9271420b6d407902d531f6a7bb31f14e259f6b9e",
+    "bytes": 41474,
+    "mode": "selection",
+    "source_line": 41
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-33-serializer-contract-1/trajectory.jsonl",
+    "target": "evidence/ours-T-33-serializer-contract-s1/trajectory.jsonl",
+    "sha256": "c5f5efcbfa865c796c2723ce1781437b734ae11e5279112e5f24e2f002e2c79f",
+    "bytes": 166697,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-33-serializer-contract-1/work/README.md",
+    "target": "evidence/ours-T-33-serializer-contract-s1/work/README.md",
+    "sha256": "43a11448804be82bb8945aa4856bf7212791880cc3c995f20746b884519a1b27",
+    "bytes": 100,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-33-serializer-contract-1/work/serialize/__init__.py",
+    "target": "evidence/ours-T-33-serializer-contract-s1/work/serialize/__init__.py",
+    "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "bytes": 1,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-33-serializer-contract-1/work/serialize/base.py",
+    "target": "evidence/ours-T-33-serializer-contract-s1/work/serialize/base.py",
+    "sha256": "b17fecb751358dd40af007cb84d34c976547d8d08e6c1cbe740963003853a1da",
+    "bytes": 456,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-33-serializer-contract-1/work/serialize/json_ser.py",
+    "target": "evidence/ours-T-33-serializer-contract-s1/work/serialize/json_ser.py",
+    "sha256": "276d190635cb726f35853dabada02f44d3c1b13f7ec23196b430522c9f4a72e9",
+    "bytes": 416,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-33-serializer-contract-1/work/serialize/pickle_ser.py",
+    "target": "evidence/ours-T-33-serializer-contract-s1/work/serialize/pickle_ser.py",
+    "sha256": "36c18f9e929d839d6d545a1503bb991831934af3e596b51f39797398e2310028",
+    "bytes": 468,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-33-serializer-contract-1/work/test_serialize.py",
+    "target": "evidence/ours-T-33-serializer-contract-s1/work/test_serialize.py",
+    "sha256": "1cad90b27404be8ca071ffe85639807aedd84d6ef35a06cc4986467d9a75b69c",
+    "bytes": 362,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-33-serializer-contract-1/grade/T-33-serializer-contract/repo/README.md",
+    "target": "evidence/ours-T-33-serializer-contract-s1/grade-repo/README.md",
+    "sha256": "43a11448804be82bb8945aa4856bf7212791880cc3c995f20746b884519a1b27",
+    "bytes": 100,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-33-serializer-contract-1/grade/T-33-serializer-contract/repo/pyproject.toml",
+    "target": "evidence/ours-T-33-serializer-contract-s1/grade-repo/pyproject.toml",
+    "sha256": "17df67714ac705728031bd351fe36b9bbbe05108b6ace5bb940d7639872b849f",
+    "bytes": 252,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-33-serializer-contract-1/grade/T-33-serializer-contract/repo/serialize/__init__.py",
+    "target": "evidence/ours-T-33-serializer-contract-s1/grade-repo/serialize/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-33-serializer-contract-1/grade/T-33-serializer-contract/repo/serialize/base.py",
+    "target": "evidence/ours-T-33-serializer-contract-s1/grade-repo/serialize/base.py",
+    "sha256": "b17fecb751358dd40af007cb84d34c976547d8d08e6c1cbe740963003853a1da",
+    "bytes": 456,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-33-serializer-contract-1/grade/T-33-serializer-contract/repo/serialize/json_ser.py",
+    "target": "evidence/ours-T-33-serializer-contract-s1/grade-repo/serialize/json_ser.py",
+    "sha256": "276d190635cb726f35853dabada02f44d3c1b13f7ec23196b430522c9f4a72e9",
+    "bytes": 416,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-33-serializer-contract-1/grade/T-33-serializer-contract/repo/serialize/pickle_ser.py",
+    "target": "evidence/ours-T-33-serializer-contract-s1/grade-repo/serialize/pickle_ser.py",
+    "sha256": "36c18f9e929d839d6d545a1503bb991831934af3e596b51f39797398e2310028",
+    "bytes": 468,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-33-serializer-contract-1/grade/T-33-serializer-contract/repo/tests/__init__.py",
+    "target": "evidence/ours-T-33-serializer-contract-s1/grade-repo/tests/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-33-serializer-contract-1/grade/T-33-serializer-contract/repo/tests/test_contract.py",
+    "target": "evidence/ours-T-33-serializer-contract-s1/grade-repo/tests/test_contract.py",
+    "sha256": "767fca8671d1dc37ee0dc948aea1ca3b9370b08ab769007903e0baa140af9a48",
+    "bytes": 825,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/results.jsonl",
+    "source_sha256": "2a3e40473b5a50d40a161216c769fe346859789c983a3c8b6229905544f4bed5",
+    "target": "evidence/pi-T-33-serializer-contract-s1/row.json",
+    "sha256": "8727001bf0b1ef813484650ed883041fb73395d03b6e90383d2f4e0cd4f3bd0b",
+    "bytes": 1635,
+    "mode": "selection",
+    "source_line": 9
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-33-serializer-contract-1/prompt.txt",
+    "target": "evidence/pi-T-33-serializer-contract-s1/prompt.txt",
+    "sha256": "36ca37c2a2cf4ec53e4935388badba3b2b962cece51fd395522416072f845793",
+    "bytes": 794,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-33-serializer-contract-1/rec.json",
+    "target": "evidence/pi-T-33-serializer-contract-s1/rec.json",
+    "sha256": "ec6b8dd9d3d2068717c95fd05e291f5416b4978d6b6950fa23d295aebe0e36c6",
+    "bytes": 1728,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-33-serializer-contract-1/events.jsonl",
+    "source_sha256": "c7b25dd7a8d330fd0bc81214a105a0ed298372e5305600abd19c599fb95dd703",
+    "target": "evidence/pi-T-33-serializer-contract-s1/events-selected.jsonl",
+    "sha256": "c124774b43f655e44bb8002b605ead022ec4feb9b836244c224b52436e2b76df",
+    "bytes": 82601,
+    "mode": "selection",
+    "selection": "message_end/tool_execution_start/tool_execution_end; omit streaming deltas"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-33-serializer-contract-1/work/README.md",
+    "target": "evidence/pi-T-33-serializer-contract-s1/work/README.md",
+    "sha256": "43a11448804be82bb8945aa4856bf7212791880cc3c995f20746b884519a1b27",
+    "bytes": 100,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-33-serializer-contract-1/work/serialize/__init__.py",
+    "target": "evidence/pi-T-33-serializer-contract-s1/work/serialize/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-33-serializer-contract-1/work/serialize/base.py",
+    "target": "evidence/pi-T-33-serializer-contract-s1/work/serialize/base.py",
+    "sha256": "b17fecb751358dd40af007cb84d34c976547d8d08e6c1cbe740963003853a1da",
+    "bytes": 456,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-33-serializer-contract-1/work/serialize/json_ser.py",
+    "target": "evidence/pi-T-33-serializer-contract-s1/work/serialize/json_ser.py",
+    "sha256": "cc201c7baf98d30a311f984b9a47c63637c7a4345c08ebf8a72a0fd7bc120a3a",
+    "bytes": 271,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-33-serializer-contract-1/work/serialize/pickle_ser.py",
+    "target": "evidence/pi-T-33-serializer-contract-s1/work/serialize/pickle_ser.py",
+    "sha256": "369aada35cb6021c92277ee443739cbd025acd71e2839c3c37f4df58b345df26",
+    "bytes": 256,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-33-serializer-contract-1/grade/T-33-serializer-contract/repo/README.md",
+    "target": "evidence/pi-T-33-serializer-contract-s1/grade-repo/README.md",
+    "sha256": "43a11448804be82bb8945aa4856bf7212791880cc3c995f20746b884519a1b27",
+    "bytes": 100,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-33-serializer-contract-1/grade/T-33-serializer-contract/repo/pyproject.toml",
+    "target": "evidence/pi-T-33-serializer-contract-s1/grade-repo/pyproject.toml",
+    "sha256": "17df67714ac705728031bd351fe36b9bbbe05108b6ace5bb940d7639872b849f",
+    "bytes": 252,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-33-serializer-contract-1/grade/T-33-serializer-contract/repo/serialize/__init__.py",
+    "target": "evidence/pi-T-33-serializer-contract-s1/grade-repo/serialize/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-33-serializer-contract-1/grade/T-33-serializer-contract/repo/serialize/base.py",
+    "target": "evidence/pi-T-33-serializer-contract-s1/grade-repo/serialize/base.py",
+    "sha256": "b17fecb751358dd40af007cb84d34c976547d8d08e6c1cbe740963003853a1da",
+    "bytes": 456,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-33-serializer-contract-1/grade/T-33-serializer-contract/repo/serialize/json_ser.py",
+    "target": "evidence/pi-T-33-serializer-contract-s1/grade-repo/serialize/json_ser.py",
+    "sha256": "cc201c7baf98d30a311f984b9a47c63637c7a4345c08ebf8a72a0fd7bc120a3a",
+    "bytes": 271,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-33-serializer-contract-1/grade/T-33-serializer-contract/repo/serialize/pickle_ser.py",
+    "target": "evidence/pi-T-33-serializer-contract-s1/grade-repo/serialize/pickle_ser.py",
+    "sha256": "369aada35cb6021c92277ee443739cbd025acd71e2839c3c37f4df58b345df26",
+    "bytes": 256,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-33-serializer-contract-1/grade/T-33-serializer-contract/repo/tests/__init__.py",
+    "target": "evidence/pi-T-33-serializer-contract-s1/grade-repo/tests/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-33-serializer-contract-1/grade/T-33-serializer-contract/repo/tests/test_contract.py",
+    "target": "evidence/pi-T-33-serializer-contract-s1/grade-repo/tests/test_contract.py",
+    "sha256": "767fca8671d1dc37ee0dc948aea1ca3b9370b08ab769007903e0baa140af9a48",
+    "bytes": 825,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/results.jsonl",
+    "source_sha256": "bf3e42877557d0c190b22242b4f498de0574e2fdde9889847510403651b0a93a",
+    "target": "evidence/ours-T-12-str-enum-compare-s1/row.json",
+    "sha256": "7c3f53e28e4a45b20fdda8032e17906f6bf164198a61d34f830df1116930dcde",
+    "bytes": 41175,
+    "mode": "selection",
+    "source_line": 16
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-12-str-enum-compare-1/trajectory.jsonl",
+    "target": "evidence/ours-T-12-str-enum-compare-s1/trajectory.jsonl",
+    "sha256": "60f249bc0436fa2a54c3648c9dea561c7753799de5bc53acd2ca94988d218227",
+    "bytes": 155401,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-12-str-enum-compare-1/work/README.md",
+    "target": "evidence/ours-T-12-str-enum-compare-s1/work/README.md",
+    "sha256": "85d6a4eeae759d98120fd5bf76e8881b7f5a9243960215b1953f24f2ce5ac17c",
+    "bytes": 247,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-12-str-enum-compare-1/work/access/__init__.py",
+    "target": "evidence/ours-T-12-str-enum-compare-s1/work/access/__init__.py",
+    "sha256": "3ba20281901c826154dd9ea8925f57514b98543562373c504850b77fd64d6d87",
+    "bytes": 33,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-12-str-enum-compare-1/work/access/gate.py",
+    "target": "evidence/ours-T-12-str-enum-compare-s1/work/access/gate.py",
+    "sha256": "62dff31b50c569a255e89b8705d4bc3005abba0a726f5c5b41d14462d32d8adf",
+    "bytes": 548,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-12-str-enum-compare-1/work/access/roles.py",
+    "target": "evidence/ours-T-12-str-enum-compare-s1/work/access/roles.py",
+    "sha256": "c5809f9f616593b449a0fd961edb361b4bc09f0456549447aee0ae896ece56fe",
+    "bytes": 260,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-12-str-enum-compare-1/grade/T-12-str-enum-compare/repo/README.md",
+    "target": "evidence/ours-T-12-str-enum-compare-s1/grade-repo/README.md",
+    "sha256": "85d6a4eeae759d98120fd5bf76e8881b7f5a9243960215b1953f24f2ce5ac17c",
+    "bytes": 247,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-12-str-enum-compare-1/grade/T-12-str-enum-compare/repo/access/__init__.py",
+    "target": "evidence/ours-T-12-str-enum-compare-s1/grade-repo/access/__init__.py",
+    "sha256": "3ba20281901c826154dd9ea8925f57514b98543562373c504850b77fd64d6d87",
+    "bytes": 33,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-12-str-enum-compare-1/grade/T-12-str-enum-compare/repo/access/gate.py",
+    "target": "evidence/ours-T-12-str-enum-compare-s1/grade-repo/access/gate.py",
+    "sha256": "62dff31b50c569a255e89b8705d4bc3005abba0a726f5c5b41d14462d32d8adf",
+    "bytes": 548,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-12-str-enum-compare-1/grade/T-12-str-enum-compare/repo/access/roles.py",
+    "target": "evidence/ours-T-12-str-enum-compare-s1/grade-repo/access/roles.py",
+    "sha256": "c5809f9f616593b449a0fd961edb361b4bc09f0456549447aee0ae896ece56fe",
+    "bytes": 260,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-12-str-enum-compare-1/grade/T-12-str-enum-compare/repo/pyproject.toml",
+    "target": "evidence/ours-T-12-str-enum-compare-s1/grade-repo/pyproject.toml",
+    "sha256": "705e8519f0edcb3c495a078f305f45ebdd0bea8b930e51ee131e773c9d2a2476",
+    "bytes": 208,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane2/none/T-12-str-enum-compare-1/grade/T-12-str-enum-compare/repo/tests/test_gate.py",
+    "target": "evidence/ours-T-12-str-enum-compare-s1/grade-repo/tests/test_gate.py",
+    "sha256": "9549826a3ddaa70aeaa67eb59a73a14733f62ec06b6ff2e13d13b31a83a28c25",
+    "bytes": 483,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/results.jsonl",
+    "source_sha256": "32e8765da0745c81b78c73221db2c441f86a87166d0d2be9ed1f08e23166439a",
+    "target": "evidence/pi-T-12-str-enum-compare-s1/row.json",
+    "sha256": "43bfea5595d3f4d49b3450274bb3817a319ab9c68903e007cd03f988629adc1f",
+    "bytes": 2403,
+    "mode": "selection",
+    "source_line": 4
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/T-12-str-enum-compare-1/prompt.txt",
+    "target": "evidence/pi-T-12-str-enum-compare-s1/prompt.txt",
+    "sha256": "d12641dfaf01396af45a1a4be185056ab5b0c5a0d76692056147d93b2458f5af",
+    "bytes": 581,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/T-12-str-enum-compare-1/rec.json",
+    "target": "evidence/pi-T-12-str-enum-compare-s1/rec.json",
+    "sha256": "6960ad06423efacf4e879b021c853cbf128bf52b0d66ea4d971c27fab21d01d4",
+    "bytes": 2494,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/T-12-str-enum-compare-1/events.jsonl",
+    "source_sha256": "7c3208d9650c9e2553ce58fa209f45a972ae117a425011c6c2005419bff1dc57",
+    "target": "evidence/pi-T-12-str-enum-compare-s1/events-selected.jsonl",
+    "sha256": "8c8bdc4ca98d9cdecf3bf22abbffdbc69addc7685a29c9a51de9bbcfeccb0358",
+    "bytes": 45409,
+    "mode": "selection",
+    "selection": "message_end/tool_execution_start/tool_execution_end; omit streaming deltas"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/T-12-str-enum-compare-1/work/README.md",
+    "target": "evidence/pi-T-12-str-enum-compare-s1/work/README.md",
+    "sha256": "85d6a4eeae759d98120fd5bf76e8881b7f5a9243960215b1953f24f2ce5ac17c",
+    "bytes": 247,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/T-12-str-enum-compare-1/work/access/__init__.py",
+    "target": "evidence/pi-T-12-str-enum-compare-s1/work/access/__init__.py",
+    "sha256": "3ba20281901c826154dd9ea8925f57514b98543562373c504850b77fd64d6d87",
+    "bytes": 33,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/T-12-str-enum-compare-1/work/access/gate.py",
+    "target": "evidence/pi-T-12-str-enum-compare-s1/work/access/gate.py",
+    "sha256": "41f97062ee79bd82c904ba319eabdfefd9e313bd41138e3f280bf5c420d6ca82",
+    "bytes": 548,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/T-12-str-enum-compare-1/work/access/roles.py",
+    "target": "evidence/pi-T-12-str-enum-compare-s1/work/access/roles.py",
+    "sha256": "c5809f9f616593b449a0fd961edb361b4bc09f0456549447aee0ae896ece56fe",
+    "bytes": 260,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/T-12-str-enum-compare-1/grade/T-12-str-enum-compare/repo/README.md",
+    "target": "evidence/pi-T-12-str-enum-compare-s1/grade-repo/README.md",
+    "sha256": "85d6a4eeae759d98120fd5bf76e8881b7f5a9243960215b1953f24f2ce5ac17c",
+    "bytes": 247,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/T-12-str-enum-compare-1/grade/T-12-str-enum-compare/repo/access/__init__.py",
+    "target": "evidence/pi-T-12-str-enum-compare-s1/grade-repo/access/__init__.py",
+    "sha256": "3ba20281901c826154dd9ea8925f57514b98543562373c504850b77fd64d6d87",
+    "bytes": 33,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/T-12-str-enum-compare-1/grade/T-12-str-enum-compare/repo/access/gate.py",
+    "target": "evidence/pi-T-12-str-enum-compare-s1/grade-repo/access/gate.py",
+    "sha256": "41f97062ee79bd82c904ba319eabdfefd9e313bd41138e3f280bf5c420d6ca82",
+    "bytes": 548,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/T-12-str-enum-compare-1/grade/T-12-str-enum-compare/repo/access/roles.py",
+    "target": "evidence/pi-T-12-str-enum-compare-s1/grade-repo/access/roles.py",
+    "sha256": "c5809f9f616593b449a0fd961edb361b4bc09f0456549447aee0ae896ece56fe",
+    "bytes": 260,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/T-12-str-enum-compare-1/grade/T-12-str-enum-compare/repo/pyproject.toml",
+    "target": "evidence/pi-T-12-str-enum-compare-s1/grade-repo/pyproject.toml",
+    "sha256": "705e8519f0edcb3c495a078f305f45ebdd0bea8b930e51ee131e773c9d2a2476",
+    "bytes": 208,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/T-12-str-enum-compare-1/grade/T-12-str-enum-compare/repo/tests/test_gate.py",
+    "target": "evidence/pi-T-12-str-enum-compare-s1/grade-repo/tests/test_gate.py",
+    "sha256": "9549826a3ddaa70aeaa67eb59a73a14733f62ec06b6ff2e13d13b31a83a28c25",
+    "bytes": 483,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/results.jsonl",
+    "source_sha256": "dcf6ffd42452234c2bec5151195275240537d80335a01232709c2c3a7538c970",
+    "target": "evidence/ours-T-35-interval-merge-invariants-s1/row.json",
+    "sha256": "b219816e1f853f3e64b2a9bc7db50cc06152f8e8ec1d6ff34151b8b74fc4a915",
+    "bytes": 25855,
+    "mode": "selection",
+    "source_line": 36
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-35-interval-merge-invariants-1/trajectory.jsonl",
+    "target": "evidence/ours-T-35-interval-merge-invariants-s1/trajectory.jsonl",
+    "sha256": "8a7588fa2af19519fe77151f8af45e9068a7e577eff21e7da4e1b0ee14868f7e",
+    "bytes": 225373,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-35-interval-merge-invariants-1/work/README.md",
+    "target": "evidence/ours-T-35-interval-merge-invariants-s1/work/README.md",
+    "sha256": "e2141e0f1aad124e82499e8bb2ae15f153219d9ec760a101930636bf2a3e8d90",
+    "bytes": 83,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-35-interval-merge-invariants-1/work/spans/__init__.py",
+    "target": "evidence/ours-T-35-interval-merge-invariants-s1/work/spans/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-35-interval-merge-invariants-1/work/spans/merge.py",
+    "target": "evidence/ours-T-35-interval-merge-invariants-s1/work/spans/merge.py",
+    "sha256": "399e8d6a0256c4ba26855da19414072f0e0c39fd5b8444bad4dd677bbe443168",
+    "bytes": 757,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-35-interval-merge-invariants-1/work/spans/test_merge.py",
+    "target": "evidence/ours-T-35-interval-merge-invariants-s1/work/spans/test_merge.py",
+    "sha256": "9f7b2e1032f066cec0b8611d1916fbb763ec233729dbf81cdef074cd8f5e4aaa",
+    "bytes": 607,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-35-interval-merge-invariants-1/grade/T-35-interval-merge-invariants/repo/README.md",
+    "target": "evidence/ours-T-35-interval-merge-invariants-s1/grade-repo/README.md",
+    "sha256": "e2141e0f1aad124e82499e8bb2ae15f153219d9ec760a101930636bf2a3e8d90",
+    "bytes": 83,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-35-interval-merge-invariants-1/grade/T-35-interval-merge-invariants/repo/pyproject.toml",
+    "target": "evidence/ours-T-35-interval-merge-invariants-s1/grade-repo/pyproject.toml",
+    "sha256": "4eb85e34de8eab74dbd6442da4532915e00438649bc131ec6400f5d8f0648709",
+    "bytes": 258,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-35-interval-merge-invariants-1/grade/T-35-interval-merge-invariants/repo/spans/__init__.py",
+    "target": "evidence/ours-T-35-interval-merge-invariants-s1/grade-repo/spans/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-35-interval-merge-invariants-1/grade/T-35-interval-merge-invariants/repo/spans/merge.py",
+    "target": "evidence/ours-T-35-interval-merge-invariants-s1/grade-repo/spans/merge.py",
+    "sha256": "399e8d6a0256c4ba26855da19414072f0e0c39fd5b8444bad4dd677bbe443168",
+    "bytes": 757,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-35-interval-merge-invariants-1/grade/T-35-interval-merge-invariants/repo/tests/__init__.py",
+    "target": "evidence/ours-T-35-interval-merge-invariants-s1/grade-repo/tests/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-35-interval-merge-invariants-1/grade/T-35-interval-merge-invariants/repo/tests/test_merge.py",
+    "target": "evidence/ours-T-35-interval-merge-invariants-s1/grade-repo/tests/test_merge.py",
+    "sha256": "6bce941501b24fb6eec3cbb247c7a87c265f8953a07203c7dc7f0cbcbd06052f",
+    "bytes": 605,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/results.jsonl",
+    "source_sha256": "2a3e40473b5a50d40a161216c769fe346859789c983a3c8b6229905544f4bed5",
+    "target": "evidence/pi-T-35-interval-merge-invariants-s1/row.json",
+    "sha256": "072491b3c84f15084dee9c81b57299627f2a74081b2a3f2bf46d72ed1249dbaf",
+    "bytes": 13350,
+    "mode": "selection",
+    "source_line": 10
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-35-interval-merge-invariants-1/prompt.txt",
+    "target": "evidence/pi-T-35-interval-merge-invariants-s1/prompt.txt",
+    "sha256": "44d4886abd8f64e1db272664d439e80f3c5e53b84f4a46711b4bda302d5caf07",
+    "bytes": 591,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-35-interval-merge-invariants-1/rec.json",
+    "target": "evidence/pi-T-35-interval-merge-invariants-s1/rec.json",
+    "sha256": "7748ca26228dc5e5fb20e5ea26bce8c31b05b17d31d291fa324d6ceb4f1f2d2e",
+    "bytes": 13513,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-35-interval-merge-invariants-1/events.jsonl",
+    "source_sha256": "5648079b0e6f57307e028aebcd034bba7fb439659b6620095b0f0a1ba9f68c96",
+    "target": "evidence/pi-T-35-interval-merge-invariants-s1/events-selected.jsonl",
+    "sha256": "5796b5ff57f21bf932825fc9199c064fa169cdb88d5abc84660941501e7b9a7f",
+    "bytes": 123924,
+    "mode": "selection",
+    "selection": "message_end/tool_execution_start/tool_execution_end; omit streaming deltas"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-35-interval-merge-invariants-1/work/README.md",
+    "target": "evidence/pi-T-35-interval-merge-invariants-s1/work/README.md",
+    "sha256": "e2141e0f1aad124e82499e8bb2ae15f153219d9ec760a101930636bf2a3e8d90",
+    "bytes": 83,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-35-interval-merge-invariants-1/work/spans/__init__.py",
+    "target": "evidence/pi-T-35-interval-merge-invariants-s1/work/spans/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-35-interval-merge-invariants-1/work/spans/merge.py",
+    "target": "evidence/pi-T-35-interval-merge-invariants-s1/work/spans/merge.py",
+    "sha256": "747e9395160b37e454d8330b3a036d5c91edb6c7618699f9ecfa0bd9c0ee75fe",
+    "bytes": 924,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-35-interval-merge-invariants-1/work/test_merge.py",
+    "target": "evidence/pi-T-35-interval-merge-invariants-s1/work/test_merge.py",
+    "sha256": "12731b6ca2d95b443d98cff1e523576b9e44f906d8f19edb3622d0fa71cca125",
+    "bytes": 1388,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-35-interval-merge-invariants-1/grade/T-35-interval-merge-invariants/repo/README.md",
+    "target": "evidence/pi-T-35-interval-merge-invariants-s1/grade-repo/README.md",
+    "sha256": "e2141e0f1aad124e82499e8bb2ae15f153219d9ec760a101930636bf2a3e8d90",
+    "bytes": 83,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-35-interval-merge-invariants-1/grade/T-35-interval-merge-invariants/repo/pyproject.toml",
+    "target": "evidence/pi-T-35-interval-merge-invariants-s1/grade-repo/pyproject.toml",
+    "sha256": "4eb85e34de8eab74dbd6442da4532915e00438649bc131ec6400f5d8f0648709",
+    "bytes": 258,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-35-interval-merge-invariants-1/grade/T-35-interval-merge-invariants/repo/spans/__init__.py",
+    "target": "evidence/pi-T-35-interval-merge-invariants-s1/grade-repo/spans/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-35-interval-merge-invariants-1/grade/T-35-interval-merge-invariants/repo/spans/merge.py",
+    "target": "evidence/pi-T-35-interval-merge-invariants-s1/grade-repo/spans/merge.py",
+    "sha256": "747e9395160b37e454d8330b3a036d5c91edb6c7618699f9ecfa0bd9c0ee75fe",
+    "bytes": 924,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-35-interval-merge-invariants-1/grade/T-35-interval-merge-invariants/repo/tests/__init__.py",
+    "target": "evidence/pi-T-35-interval-merge-invariants-s1/grade-repo/tests/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-35-interval-merge-invariants-1/grade/T-35-interval-merge-invariants/repo/tests/test_merge.py",
+    "target": "evidence/pi-T-35-interval-merge-invariants-s1/grade-repo/tests/test_merge.py",
+    "sha256": "6bce941501b24fb6eec3cbb247c7a87c265f8953a07203c7dc7f0cbcbd06052f",
+    "bytes": 605,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane3/none/results.jsonl",
+    "source_sha256": "c5e6711d3bfd2ff855310b95d3bb7db0b802728305d4bf112674e5923eca6e83",
+    "target": "evidence/ours-T-30-naive-datetime-compare-s2/row.json",
+    "sha256": "4a0d064f2743e82d99cb449e0ee74ec3a6fa09bc52047c0969adef2d08ae3a50",
+    "bytes": 48067,
+    "mode": "selection",
+    "source_line": 32
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane3/none/T-30-naive-datetime-compare-2/trajectory.jsonl",
+    "target": "evidence/ours-T-30-naive-datetime-compare-s2/trajectory.jsonl",
+    "sha256": "6865ece6868dd145c7e1a3d0a29e010f2c1dbdec84c37b215676afa53140f1c6",
+    "bytes": 248323,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane3/none/T-30-naive-datetime-compare-2/work/README.md",
+    "target": "evidence/ours-T-30-naive-datetime-compare-s2/work/README.md",
+    "sha256": "142d19bd815326d78245d6ebb18e429e5521c0d3a9c39f7af1eec7820e434271",
+    "bytes": 90,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane3/none/T-30-naive-datetime-compare-2/work/tokens/__init__.py",
+    "target": "evidence/ours-T-30-naive-datetime-compare-s2/work/tokens/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane3/none/T-30-naive-datetime-compare-2/work/tokens/tokens.py",
+    "target": "evidence/ours-T-30-naive-datetime-compare-s2/work/tokens/tokens.py",
+    "sha256": "9cc3a3dd8a6e13349bf1ca4f912a54cbcc1fc88d93a446cc5ee8f543ef754274",
+    "bytes": 469,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane3/none/T-30-naive-datetime-compare-2/grade/T-30-naive-datetime-compare/repo/README.md",
+    "target": "evidence/ours-T-30-naive-datetime-compare-s2/grade-repo/README.md",
+    "sha256": "142d19bd815326d78245d6ebb18e429e5521c0d3a9c39f7af1eec7820e434271",
+    "bytes": 90,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane3/none/T-30-naive-datetime-compare-2/grade/T-30-naive-datetime-compare/repo/pyproject.toml",
+    "target": "evidence/ours-T-30-naive-datetime-compare-s2/grade-repo/pyproject.toml",
+    "sha256": "d05a27041212fc5d1e56312acb9617a67974d0ab8d73c9ee33f6f0ee744eb4bd",
+    "bytes": 246,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane3/none/T-30-naive-datetime-compare-2/grade/T-30-naive-datetime-compare/repo/tests/__init__.py",
+    "target": "evidence/ours-T-30-naive-datetime-compare-s2/grade-repo/tests/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane3/none/T-30-naive-datetime-compare-2/grade/T-30-naive-datetime-compare/repo/tests/test_tokens.py",
+    "target": "evidence/ours-T-30-naive-datetime-compare-s2/grade-repo/tests/test_tokens.py",
+    "sha256": "823dabebc4cfd5920e906eb48e1e5d1064b43f98c716a09070e6bb7f691b34e1",
+    "bytes": 558,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane3/none/T-30-naive-datetime-compare-2/grade/T-30-naive-datetime-compare/repo/tokens/__init__.py",
+    "target": "evidence/ours-T-30-naive-datetime-compare-s2/grade-repo/tokens/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane3/none/T-30-naive-datetime-compare-2/grade/T-30-naive-datetime-compare/repo/tokens/tokens.py",
+    "target": "evidence/ours-T-30-naive-datetime-compare-s2/grade-repo/tokens/tokens.py",
+    "sha256": "9cc3a3dd8a6e13349bf1ca4f912a54cbcc1fc88d93a446cc5ee8f543ef754274",
+    "bytes": 469,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane4/results.jsonl",
+    "source_sha256": "fac6a9b90365731c6c44b6a46c02737c71ab0e21b509f78d541c0262f15730c1",
+    "target": "evidence/pi-T-30-naive-datetime-compare-s2/row.json",
+    "sha256": "51451a8b80ad42ceca9ab46a21e4ed8e7a0d1cd2e8a6423b2dcc219d6b45d541",
+    "bytes": 4429,
+    "mode": "selection",
+    "source_line": 8
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane4/T-30-naive-datetime-compare-1/prompt.txt",
+    "target": "evidence/pi-T-30-naive-datetime-compare-s2/prompt.txt",
+    "sha256": "e800a2bd1411d5065873595b53170bbb500d884823e8efb385d8f680594de857",
+    "bytes": 563,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane4/T-30-naive-datetime-compare-1/rec.json",
+    "target": "evidence/pi-T-30-naive-datetime-compare-s2/rec.json",
+    "sha256": "740a2cc338b7518375c033bcec0082cb824428aa3e69a9c624c7b632c3358f05",
+    "bytes": 4532,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane4/T-30-naive-datetime-compare-1/events.jsonl",
+    "source_sha256": "a0ed840966f0b39a69b7b975e920c7859239c704208e0a270480913acff02818",
+    "target": "evidence/pi-T-30-naive-datetime-compare-s2/events-selected.jsonl",
+    "sha256": "d7d8a14b3dfb22acdc6ecfce9f38db7c8e9ab4e93f0e8534bbc9d8d8c87b62c2",
+    "bytes": 46378,
+    "mode": "selection",
+    "selection": "message_end/tool_execution_start/tool_execution_end; omit streaming deltas"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane4/T-30-naive-datetime-compare-1/work/README.md",
+    "target": "evidence/pi-T-30-naive-datetime-compare-s2/work/README.md",
+    "sha256": "142d19bd815326d78245d6ebb18e429e5521c0d3a9c39f7af1eec7820e434271",
+    "bytes": 90,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane4/T-30-naive-datetime-compare-1/work/tokens/__init__.py",
+    "target": "evidence/pi-T-30-naive-datetime-compare-s2/work/tokens/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane4/T-30-naive-datetime-compare-1/work/tokens/tokens.py",
+    "target": "evidence/pi-T-30-naive-datetime-compare-s2/work/tokens/tokens.py",
+    "sha256": "10ffe74b928ca2db73e0e3fcc1e048ef758aa3414164041a590dd07cb46858fc",
+    "bytes": 585,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane4/T-30-naive-datetime-compare-1/grade/T-30-naive-datetime-compare/repo/README.md",
+    "target": "evidence/pi-T-30-naive-datetime-compare-s2/grade-repo/README.md",
+    "sha256": "142d19bd815326d78245d6ebb18e429e5521c0d3a9c39f7af1eec7820e434271",
+    "bytes": 90,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane4/T-30-naive-datetime-compare-1/grade/T-30-naive-datetime-compare/repo/pyproject.toml",
+    "target": "evidence/pi-T-30-naive-datetime-compare-s2/grade-repo/pyproject.toml",
+    "sha256": "d05a27041212fc5d1e56312acb9617a67974d0ab8d73c9ee33f6f0ee744eb4bd",
+    "bytes": 246,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane4/T-30-naive-datetime-compare-1/grade/T-30-naive-datetime-compare/repo/tests/__init__.py",
+    "target": "evidence/pi-T-30-naive-datetime-compare-s2/grade-repo/tests/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane4/T-30-naive-datetime-compare-1/grade/T-30-naive-datetime-compare/repo/tests/test_tokens.py",
+    "target": "evidence/pi-T-30-naive-datetime-compare-s2/grade-repo/tests/test_tokens.py",
+    "sha256": "823dabebc4cfd5920e906eb48e1e5d1064b43f98c716a09070e6bb7f691b34e1",
+    "bytes": 558,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane4/T-30-naive-datetime-compare-1/grade/T-30-naive-datetime-compare/repo/tokens/__init__.py",
+    "target": "evidence/pi-T-30-naive-datetime-compare-s2/grade-repo/tokens/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane4/T-30-naive-datetime-compare-1/grade/T-30-naive-datetime-compare/repo/tokens/tokens.py",
+    "target": "evidence/pi-T-30-naive-datetime-compare-s2/grade-repo/tokens/tokens.py",
+    "sha256": "10ffe74b928ca2db73e0e3fcc1e048ef758aa3414164041a590dd07cb46858fc",
+    "bytes": 585,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/results.jsonl",
+    "source_sha256": "46b59f09aea9c8f89b82f161026fe619ceb62cc838dc83dc69593e5de083dc5c",
+    "target": "evidence/ours-T-16-class-state-leak-s2/row.json",
+    "sha256": "417f524081698e635355738cf976d9600a7f640a345d8c60f70e705642c0066d",
+    "bytes": 16211,
+    "mode": "selection",
+    "source_line": 17
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-16-class-state-leak-2/trajectory.jsonl",
+    "target": "evidence/ours-T-16-class-state-leak-s2/trajectory.jsonl",
+    "sha256": "f93f0b66016078a43eb6bb6f5eb76f56e9635fa7aec76d3e8cbb4142f72ff0c5",
+    "bytes": 136845,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-16-class-state-leak-2/work/README.md",
+    "target": "evidence/ours-T-16-class-state-leak-s2/work/README.md",
+    "sha256": "f42a0f6f1e5d939987f19e664b00fb8607f45e625be6357841a1b9b8f2012423",
+    "bytes": 64,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-16-class-state-leak-2/work/cart/__init__.py",
+    "target": "evidence/ours-T-16-class-state-leak-s2/work/cart/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-16-class-state-leak-2/work/cart/cart.py",
+    "target": "evidence/ours-T-16-class-state-leak-s2/work/cart/cart.py",
+    "sha256": "c302c53493adef5639abbbfe2b5e3cf37bc8a4665158e9107f9cd20c2b55d5bc",
+    "bytes": 249,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-16-class-state-leak-2/work/test_cart.py",
+    "target": "evidence/ours-T-16-class-state-leak-s2/work/test_cart.py",
+    "sha256": "b083a55e26d592d6024e579e03af57e2bb04eed066df4a25b9b93fd1ed5a9e80",
+    "bytes": 451,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-16-class-state-leak-2/grade/T-16-class-state-leak/repo/README.md",
+    "target": "evidence/ours-T-16-class-state-leak-s2/grade-repo/README.md",
+    "sha256": "f42a0f6f1e5d939987f19e664b00fb8607f45e625be6357841a1b9b8f2012423",
+    "bytes": 64,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-16-class-state-leak-2/grade/T-16-class-state-leak/repo/cart/__init__.py",
+    "target": "evidence/ours-T-16-class-state-leak-s2/grade-repo/cart/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-16-class-state-leak-2/grade/T-16-class-state-leak/repo/cart/cart.py",
+    "target": "evidence/ours-T-16-class-state-leak-s2/grade-repo/cart/cart.py",
+    "sha256": "c302c53493adef5639abbbfe2b5e3cf37bc8a4665158e9107f9cd20c2b55d5bc",
+    "bytes": 249,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-16-class-state-leak-2/grade/T-16-class-state-leak/repo/pyproject.toml",
+    "target": "evidence/ours-T-16-class-state-leak-s2/grade-repo/pyproject.toml",
+    "sha256": "2ea49b053363e8c979733cbb6ba99b69e0b3b0e8efe5089ab35453ce37311284",
+    "bytes": 224,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-16-class-state-leak-2/grade/T-16-class-state-leak/repo/tests/__init__.py",
+    "target": "evidence/ours-T-16-class-state-leak-s2/grade-repo/tests/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-16-class-state-leak-2/grade/T-16-class-state-leak/repo/tests/test_cart.py",
+    "target": "evidence/ours-T-16-class-state-leak-s2/grade-repo/tests/test_cart.py",
+    "sha256": "c375477d27d6b035e3b1f0ef5f629716f3639f58d7a62f079da5921eb98d587b",
+    "bytes": 279,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/results.jsonl",
+    "source_sha256": "6b32d80f47700bfc75574fdd1a88df8a36b0ca49c365b5cf02ddc69e71588ff8",
+    "target": "evidence/pi-T-16-class-state-leak-s2/row.json",
+    "sha256": "93aad8c1ac4e268d8da9954d22fd9519d46375687d695216f1ced9c51105fd40",
+    "bytes": 4339,
+    "mode": "selection",
+    "source_line": 5
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-16-class-state-leak-1/prompt.txt",
+    "target": "evidence/pi-T-16-class-state-leak-s2/prompt.txt",
+    "sha256": "db3361b20dd5a17dbef23aec3eb9fcf34ab9ae9008787a9749ef69522e126029",
+    "bytes": 560,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-16-class-state-leak-1/rec.json",
+    "target": "evidence/pi-T-16-class-state-leak-s2/rec.json",
+    "sha256": "808e7d647483701e822ce20fe40ba2a8c6933970f2c173309cad76be975684e9",
+    "bytes": 4459,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-16-class-state-leak-1/events.jsonl",
+    "source_sha256": "a6d419a27da157f8d4db2c1b01ae977fc40480d078ae8f23d5c02e8bfae718e1",
+    "target": "evidence/pi-T-16-class-state-leak-s2/events-selected.jsonl",
+    "sha256": "a24011017399489d17149f1bb1f86ac8a62698432a33ecb484c02de6dfabac56",
+    "bytes": 59116,
+    "mode": "selection",
+    "selection": "message_end/tool_execution_start/tool_execution_end; omit streaming deltas"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-16-class-state-leak-1/work/README.md",
+    "target": "evidence/pi-T-16-class-state-leak-s2/work/README.md",
+    "sha256": "f42a0f6f1e5d939987f19e664b00fb8607f45e625be6357841a1b9b8f2012423",
+    "bytes": 64,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-16-class-state-leak-1/work/cart/__init__.py",
+    "target": "evidence/pi-T-16-class-state-leak-s2/work/cart/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-16-class-state-leak-1/work/cart/cart.py",
+    "target": "evidence/pi-T-16-class-state-leak-s2/work/cart/cart.py",
+    "sha256": "9cfafcf67ddb9c64e0eede3148b8d1d7de9de5bcfb951629aac5690440b3b5e9",
+    "bytes": 378,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-16-class-state-leak-1/grade/T-16-class-state-leak/repo/README.md",
+    "target": "evidence/pi-T-16-class-state-leak-s2/grade-repo/README.md",
+    "sha256": "f42a0f6f1e5d939987f19e664b00fb8607f45e625be6357841a1b9b8f2012423",
+    "bytes": 64,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-16-class-state-leak-1/grade/T-16-class-state-leak/repo/cart/__init__.py",
+    "target": "evidence/pi-T-16-class-state-leak-s2/grade-repo/cart/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-16-class-state-leak-1/grade/T-16-class-state-leak/repo/cart/cart.py",
+    "target": "evidence/pi-T-16-class-state-leak-s2/grade-repo/cart/cart.py",
+    "sha256": "9cfafcf67ddb9c64e0eede3148b8d1d7de9de5bcfb951629aac5690440b3b5e9",
+    "bytes": 378,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-16-class-state-leak-1/grade/T-16-class-state-leak/repo/pyproject.toml",
+    "target": "evidence/pi-T-16-class-state-leak-s2/grade-repo/pyproject.toml",
+    "sha256": "2ea49b053363e8c979733cbb6ba99b69e0b3b0e8efe5089ab35453ce37311284",
+    "bytes": 224,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-16-class-state-leak-1/grade/T-16-class-state-leak/repo/tests/__init__.py",
+    "target": "evidence/pi-T-16-class-state-leak-s2/grade-repo/tests/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-16-class-state-leak-1/grade/T-16-class-state-leak/repo/tests/test_cart.py",
+    "target": "evidence/pi-T-16-class-state-leak-s2/grade-repo/tests/test_cart.py",
+    "sha256": "c375477d27d6b035e3b1f0ef5f629716f3639f58d7a62f079da5921eb98d587b",
+    "bytes": 279,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/results.jsonl",
+    "source_sha256": "46b59f09aea9c8f89b82f161026fe619ceb62cc838dc83dc69593e5de083dc5c",
+    "target": "evidence/ours-T-26-plan-dataclass-port-s1/row.json",
+    "sha256": "4eb7454447a05cc9482fb61c00cbafeba90c8071d0619bc1df1955d07d9c866d",
+    "bytes": 33010,
+    "mode": "selection",
+    "source_line": 31
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-26-plan-dataclass-port-1/trajectory.jsonl",
+    "target": "evidence/ours-T-26-plan-dataclass-port-s1/trajectory.jsonl",
+    "sha256": "345d44d01413ddea785a4aa30cea8383de610b5beef9dd1dcb861a6682ea8da7",
+    "bytes": 131283,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-26-plan-dataclass-port-1/work/README.md",
+    "target": "evidence/ours-T-26-plan-dataclass-port-s1/work/README.md",
+    "sha256": "0f32d2db4b163dcf31274c9806f996d7fe00700e97f16262d31cad32e4f46b06",
+    "bytes": 72,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-26-plan-dataclass-port-1/work/plan/__init__.py",
+    "target": "evidence/ours-T-26-plan-dataclass-port-s1/work/plan/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-26-plan-dataclass-port-1/work/plan/model.py",
+    "target": "evidence/ours-T-26-plan-dataclass-port-s1/work/plan/model.py",
+    "sha256": "cf0cf2a54f8df6d8a0f5fe2c8422ecaacf60a7397b8e1c5769e6a8406b977683",
+    "bytes": 531,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-26-plan-dataclass-port-1/work/test_plan.py",
+    "target": "evidence/ours-T-26-plan-dataclass-port-s1/work/test_plan.py",
+    "sha256": "aab403da0cf7ddd6d5a55dbdec4b0b2986849d4e7984f75cd6c2ad502c191c0d",
+    "bytes": 522,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-26-plan-dataclass-port-1/grade/T-26-plan-dataclass-port/repo/README.md",
+    "target": "evidence/ours-T-26-plan-dataclass-port-s1/grade-repo/README.md",
+    "sha256": "0f32d2db4b163dcf31274c9806f996d7fe00700e97f16262d31cad32e4f46b06",
+    "bytes": 72,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-26-plan-dataclass-port-1/grade/T-26-plan-dataclass-port/repo/plan/__init__.py",
+    "target": "evidence/ours-T-26-plan-dataclass-port-s1/grade-repo/plan/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-26-plan-dataclass-port-1/grade/T-26-plan-dataclass-port/repo/plan/model.py",
+    "target": "evidence/ours-T-26-plan-dataclass-port-s1/grade-repo/plan/model.py",
+    "sha256": "cf0cf2a54f8df6d8a0f5fe2c8422ecaacf60a7397b8e1c5769e6a8406b977683",
+    "bytes": 531,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-26-plan-dataclass-port-1/grade/T-26-plan-dataclass-port/repo/pyproject.toml",
+    "target": "evidence/ours-T-26-plan-dataclass-port-s1/grade-repo/pyproject.toml",
+    "sha256": "69d07dac3f7989fd354c0f09c99cc33a8878feed4376034e1939d2dd164f5f47",
+    "bytes": 238,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-26-plan-dataclass-port-1/grade/T-26-plan-dataclass-port/repo/tests/__init__.py",
+    "target": "evidence/ours-T-26-plan-dataclass-port-s1/grade-repo/tests/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-26-plan-dataclass-port-1/grade/T-26-plan-dataclass-port/repo/tests/test_model.py",
+    "target": "evidence/ours-T-26-plan-dataclass-port-s1/grade-repo/tests/test_model.py",
+    "sha256": "b19b8e8e96a6aa155436f12ccc89e93e28a89a43a1d90da0df5f4b0b261c13b4",
+    "bytes": 507,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/results.jsonl",
+    "source_sha256": "94cddb3c306e388a9db2f1fc01aa1d9ba822dfa0d50d182333fb27f124175827",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s1/row.json",
+    "sha256": "fd364031309d83e92db210470b57346a3fe87a21191dbeeb129356eb1485b7d7",
+    "bytes": 1399,
+    "mode": "selection",
+    "source_line": 8
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/T-26-plan-dataclass-port-1/prompt.txt",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s1/prompt.txt",
+    "sha256": "d7b91eafd6bc9b938b3467f7f6c64e8f6ecd451d96c42b48e419315fc96772c4",
+    "bytes": 569,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/T-26-plan-dataclass-port-1/rec.json",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s1/rec.json",
+    "sha256": "68615c7645f9a6e351c66e49e26bc46032df8eece3573b64aa0227e6648f3a6e",
+    "bytes": 1484,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/T-26-plan-dataclass-port-1/events.jsonl",
+    "source_sha256": "75216b64c2d690fade87fcf2c833100567a40799598a0bddaf9ca31826cc44a5",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s1/events-selected.jsonl",
+    "sha256": "052c0020b2c9afa0dcc3379a20df076b9dbd3ab7be6184d5d2a37603a570c778",
+    "bytes": 27045,
+    "mode": "selection",
+    "selection": "message_end/tool_execution_start/tool_execution_end; omit streaming deltas"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/T-26-plan-dataclass-port-1/work/README.md",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s1/work/README.md",
+    "sha256": "0f32d2db4b163dcf31274c9806f996d7fe00700e97f16262d31cad32e4f46b06",
+    "bytes": 72,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/T-26-plan-dataclass-port-1/work/plan/__init__.py",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s1/work/plan/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/T-26-plan-dataclass-port-1/work/plan/model.py",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s1/work/plan/model.py",
+    "sha256": "0ef9d521688d193424c1497b0724afeb91d07366c9f4ce5fb1d7f1174c7ace8d",
+    "bytes": 419,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/T-26-plan-dataclass-port-1/grade/T-26-plan-dataclass-port/repo/README.md",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s1/grade-repo/README.md",
+    "sha256": "0f32d2db4b163dcf31274c9806f996d7fe00700e97f16262d31cad32e4f46b06",
+    "bytes": 72,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/T-26-plan-dataclass-port-1/grade/T-26-plan-dataclass-port/repo/plan/__init__.py",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s1/grade-repo/plan/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/T-26-plan-dataclass-port-1/grade/T-26-plan-dataclass-port/repo/plan/model.py",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s1/grade-repo/plan/model.py",
+    "sha256": "0ef9d521688d193424c1497b0724afeb91d07366c9f4ce5fb1d7f1174c7ace8d",
+    "bytes": 419,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/T-26-plan-dataclass-port-1/grade/T-26-plan-dataclass-port/repo/pyproject.toml",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s1/grade-repo/pyproject.toml",
+    "sha256": "69d07dac3f7989fd354c0f09c99cc33a8878feed4376034e1939d2dd164f5f47",
+    "bytes": 238,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/T-26-plan-dataclass-port-1/grade/T-26-plan-dataclass-port/repo/tests/__init__.py",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s1/grade-repo/tests/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/T-26-plan-dataclass-port-1/grade/T-26-plan-dataclass-port/repo/tests/test_model.py",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s1/grade-repo/tests/test_model.py",
+    "sha256": "b19b8e8e96a6aa155436f12ccc89e93e28a89a43a1d90da0df5f4b0b261c13b4",
+    "bytes": 507,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/results.jsonl",
+    "source_sha256": "dcf6ffd42452234c2bec5151195275240537d80335a01232709c2c3a7538c970",
+    "target": "evidence/ours-A-02-protein-translation-s1/row.json",
+    "sha256": "5df5ab7faa0b54a51a34d8e10baac8a4bc8d20c1007da526c896b474b9afa980",
+    "bytes": 56104,
+    "mode": "selection",
+    "source_line": 41
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/A-02-protein-translation-1/trajectory.jsonl",
+    "target": "evidence/ours-A-02-protein-translation-s1/trajectory.jsonl",
+    "sha256": "60918fa20ea934d022857c814dfeb71e7ad7193eb4887fd5c2d8920903cb0ace",
+    "bytes": 228930,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/A-02-protein-translation-1/work/protein_translation.py",
+    "target": "evidence/ours-A-02-protein-translation-s1/work/protein_translation.py",
+    "sha256": "cebed312ddeeaed040f4c0f96716c76e2a7593763ee72bd941d6ec183bc065f4",
+    "bytes": 735,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/A-02-protein-translation-1/work/test_protein_translation.py",
+    "target": "evidence/ours-A-02-protein-translation-s1/work/test_protein_translation.py",
+    "sha256": "ab8862f36dff6d5ef5f86c0932cef400502e4d1f8896f1e0d1ec69bc43ce7790",
+    "bytes": 471,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/A-02-protein-translation-1/grade/A-02-protein-translation/repo/protein_translation.py",
+    "target": "evidence/ours-A-02-protein-translation-s1/grade-repo/protein_translation.py",
+    "sha256": "cebed312ddeeaed040f4c0f96716c76e2a7593763ee72bd941d6ec183bc065f4",
+    "bytes": 735,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/A-02-protein-translation-1/grade/A-02-protein-translation/repo/protein_translation_test.py",
+    "target": "evidence/ours-A-02-protein-translation-s1/grade-repo/protein_translation_test.py",
+    "sha256": "1d2899f791cabefa7ea2ba52e105bbb7b3e2a47d71babeff791ea7dd4d8ee0bb",
+    "bytes": 4724,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/A-02-protein-translation-1/grade/A-02-protein-translation/repo/pyproject.toml",
+    "target": "evidence/ours-A-02-protein-translation-s1/grade-repo/pyproject.toml",
+    "sha256": "72febd642faf79da78a9716604557d9ee229fe0f9cb8a8bb00c51ec44458426e",
+    "bytes": 215,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/results.jsonl",
+    "source_sha256": "94cddb3c306e388a9db2f1fc01aa1d9ba822dfa0d50d182333fb27f124175827",
+    "target": "evidence/pi-A-02-protein-translation-s1/row.json",
+    "sha256": "e4ec13955f32ad73c79207039521c5bae8932338452c123d8cd0cfa886a0b72e",
+    "bytes": 1196,
+    "mode": "selection",
+    "source_line": 10
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/A-02-protein-translation-1/prompt.txt",
+    "target": "evidence/pi-A-02-protein-translation-s1/prompt.txt",
+    "sha256": "0fa2570508882f9087bd0ed6058d1ee8a3b899b4b58f2eb60c280b28e0146b3a",
+    "bytes": 2060,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/A-02-protein-translation-1/rec.json",
+    "target": "evidence/pi-A-02-protein-translation-s1/rec.json",
+    "sha256": "fd10637d17f9faff17c89f7078723e234e990f0101a23f07fc6e76a3c985535b",
+    "bytes": 1268,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/A-02-protein-translation-1/events.jsonl",
+    "source_sha256": "3d5f4c12f5cb8c034be91bfe11e733b571575334bd21a23361e1a7e8072b7849",
+    "target": "evidence/pi-A-02-protein-translation-s1/events-selected.jsonl",
+    "sha256": "d4f9759cb9aeedda9751617b73845ba0eec89c8f6cf88fe2ba2b3b7249c6062f",
+    "bytes": 40226,
+    "mode": "selection",
+    "selection": "message_end/tool_execution_start/tool_execution_end; omit streaming deltas"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/A-02-protein-translation-1/work/protein_translation.py",
+    "target": "evidence/pi-A-02-protein-translation-s1/work/protein_translation.py",
+    "sha256": "fa0181c5e94fdfa5a3ca0054d5cef0c80daf2f11753c84916b94dfed80186c95",
+    "bytes": 31,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/A-02-protein-translation-1/grade/A-02-protein-translation/repo/protein_translation.py",
+    "target": "evidence/pi-A-02-protein-translation-s1/grade-repo/protein_translation.py",
+    "sha256": "fa0181c5e94fdfa5a3ca0054d5cef0c80daf2f11753c84916b94dfed80186c95",
+    "bytes": 31,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/A-02-protein-translation-1/grade/A-02-protein-translation/repo/protein_translation_test.py",
+    "target": "evidence/pi-A-02-protein-translation-s1/grade-repo/protein_translation_test.py",
+    "sha256": "1d2899f791cabefa7ea2ba52e105bbb7b3e2a47d71babeff791ea7dd4d8ee0bb",
+    "bytes": 4724,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/A-02-protein-translation-1/grade/A-02-protein-translation/repo/pyproject.toml",
+    "target": "evidence/pi-A-02-protein-translation-s1/grade-repo/pyproject.toml",
+    "sha256": "72febd642faf79da78a9716604557d9ee229fe0f9cb8a8bb00c51ec44458426e",
+    "bytes": 215,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane3/none/results.jsonl",
+    "source_sha256": "c5e6711d3bfd2ff855310b95d3bb7db0b802728305d4bf112674e5923eca6e83",
+    "target": "evidence/ours-A-03-book-store-s1/row.json",
+    "sha256": "764e2f18327a35b32580327372b143043b2efae75cc249234a401de8245fa5fe",
+    "bytes": 124875,
+    "mode": "selection",
+    "source_line": 46
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane3/none/A-03-book-store-1/trajectory.jsonl",
+    "target": "evidence/ours-A-03-book-store-s1/trajectory.jsonl",
+    "sha256": "ef0d697b8db07798b2be644ff8c548ab267fa302713720b2fe7dd50dee67717e",
+    "bytes": 418766,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane3/none/A-03-book-store-1/work/book_store.py",
+    "target": "evidence/ours-A-03-book-store-s1/work/book_store.py",
+    "sha256": "ec3c4d4fb02e20f8ea2f9516a0f4d04133256210facc03e4436c870004777802",
+    "bytes": 1311,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane3/none/A-03-book-store-1/work/test_book_store.py",
+    "target": "evidence/ours-A-03-book-store-s1/work/test_book_store.py",
+    "sha256": "50b82e670d6fcdc60da34780df05665235c468762d35e2a6d311973f3ee0bc1d",
+    "bytes": 938,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane3/none/A-03-book-store-1/grade/A-03-book-store/repo/book_store.py",
+    "target": "evidence/ours-A-03-book-store-s1/grade-repo/book_store.py",
+    "sha256": "ec3c4d4fb02e20f8ea2f9516a0f4d04133256210facc03e4436c870004777802",
+    "bytes": 1311,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane3/none/A-03-book-store-1/grade/A-03-book-store/repo/book_store_test.py",
+    "target": "evidence/ours-A-03-book-store-s1/grade-repo/book_store_test.py",
+    "sha256": "59204f1edbb004c2402cea2aa7d1389c5293766fae4ce5d79a83627970c7acf3",
+    "bytes": 3495,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane3/none/A-03-book-store-1/grade/A-03-book-store/repo/pyproject.toml",
+    "target": "evidence/ours-A-03-book-store-s1/grade-repo/pyproject.toml",
+    "sha256": "bd2b6c0d6d8f6cc8617b459237c6a60239392c9fe2edee2490acff4240d94f49",
+    "bytes": 197,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/results.jsonl",
+    "source_sha256": "32e8765da0745c81b78c73221db2c441f86a87166d0d2be9ed1f08e23166439a",
+    "target": "evidence/pi-A-03-book-store-s1/row.json",
+    "sha256": "e7d09ee8be0e465affb1358da8ecbc11e2b9c73a9e0a8e3dc244b0fcdddc90f0",
+    "bytes": 1150,
+    "mode": "selection",
+    "source_line": 10
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/A-03-book-store-1/prompt.txt",
+    "target": "evidence/pi-A-03-book-store-s1/prompt.txt",
+    "sha256": "87e836e16bf9db8e44f07a086c12e3be15e848ebd4ba0eb7032c4c4a9540ee3b",
+    "bytes": 2227,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/A-03-book-store-1/rec.json",
+    "target": "evidence/pi-A-03-book-store-s1/rec.json",
+    "sha256": "b17a6fa23df3046d796221b1a766a2a3bfc77f469c62c2a6c6d9711cdb4886d9",
+    "bytes": 1222,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/A-03-book-store-1/events.jsonl",
+    "source_sha256": "aea3f706bb3227cc8617fb1e6821aa31e62f20e7c2e7f0aae8f85dc435c3e9f2",
+    "target": "evidence/pi-A-03-book-store-s1/events-selected.jsonl",
+    "sha256": "47ceb0be501bb2050c30d14332202ec8f2fe8e46062cfdbd18a0310f707d959d",
+    "bytes": 59520,
+    "mode": "selection",
+    "selection": "message_end/tool_execution_start/tool_execution_end; omit streaming deltas"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/A-03-book-store-1/work/book_store.py",
+    "target": "evidence/pi-A-03-book-store-s1/work/book_store.py",
+    "sha256": "5c22fe209f90b16dbbacff457199d0b14152b48616c875085c8ff1f6f7188ec2",
+    "bytes": 28,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/A-03-book-store-1/grade/A-03-book-store/repo/book_store.py",
+    "target": "evidence/pi-A-03-book-store-s1/grade-repo/book_store.py",
+    "sha256": "5c22fe209f90b16dbbacff457199d0b14152b48616c875085c8ff1f6f7188ec2",
+    "bytes": 28,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/A-03-book-store-1/grade/A-03-book-store/repo/book_store_test.py",
+    "target": "evidence/pi-A-03-book-store-s1/grade-repo/book_store_test.py",
+    "sha256": "59204f1edbb004c2402cea2aa7d1389c5293766fae4ce5d79a83627970c7acf3",
+    "bytes": 3495,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/A-03-book-store-1/grade/A-03-book-store/repo/pyproject.toml",
+    "target": "evidence/pi-A-03-book-store-s1/grade-repo/pyproject.toml",
+    "sha256": "bd2b6c0d6d8f6cc8617b459237c6a60239392c9fe2edee2490acff4240d94f49",
+    "bytes": 197,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/results.jsonl",
+    "source_sha256": "46b59f09aea9c8f89b82f161026fe619ceb62cc838dc83dc69593e5de083dc5c",
+    "target": "evidence/ours-A-04-connect-s1/row.json",
+    "sha256": "b9d1d89af8d2d34d461e9d2cd5813afe81a3e5773b427e90f63c9b0e58570c7f",
+    "bytes": 53743,
+    "mode": "selection",
+    "source_line": 51
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/A-04-connect-1/trajectory.jsonl",
+    "target": "evidence/ours-A-04-connect-s1/trajectory.jsonl",
+    "sha256": "3c1fbd5e270efb25290e9f61cce2ac8b50a9c1722884b47639baa4c1f28a29a6",
+    "bytes": 275862,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/A-04-connect-1/work/connect.py",
+    "target": "evidence/ours-A-04-connect-s1/work/connect.py",
+    "sha256": "f9eadeab4b7e7eec97d566e3cd6e42920f3f40027df5acaed9b3b11cc02ea068",
+    "bytes": 3155,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/A-04-connect-1/work/test_connect.py",
+    "target": "evidence/ours-A-04-connect-s1/work/test_connect.py",
+    "sha256": "e82174f25a1d6fc9f19c46cfad619f75dcf217a7ef996bd6f4625f1ff6656057",
+    "bytes": 953,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/A-04-connect-1/grade/A-04-connect/repo/connect.py",
+    "target": "evidence/ours-A-04-connect-s1/grade-repo/connect.py",
+    "sha256": "f9eadeab4b7e7eec97d566e3cd6e42920f3f40027df5acaed9b3b11cc02ea068",
+    "bytes": 3155,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/A-04-connect-1/grade/A-04-connect/repo/connect_test.py",
+    "target": "evidence/ours-A-04-connect-s1/grade-repo/connect_test.py",
+    "sha256": "901c80868737406b3aaf40b74a83aeb8f722e34ad0a22090931eccf8dcfcf548",
+    "bytes": 3682,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/A-04-connect-1/grade/A-04-connect/repo/pyproject.toml",
+    "target": "evidence/ours-A-04-connect-s1/grade-repo/pyproject.toml",
+    "sha256": "80fda88d348abb62866f77df9c8a26c13857327036549ffaabb179f5a94fd5ad",
+    "bytes": 191,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/results.jsonl",
+    "source_sha256": "f22482289937df11f138abfc433651d55d3276210d114865b0a4ecea7f606acc",
+    "target": "evidence/pi-A-04-connect-s1/row.json",
+    "sha256": "6a9e5f81716edcd0558d6412fae8c68e8b726a03adb551c70bb352f5a27b9b85",
+    "bytes": 961,
+    "mode": "selection",
+    "source_line": 9
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/A-04-connect-1/prompt.txt",
+    "target": "evidence/pi-A-04-connect-s1/prompt.txt",
+    "sha256": "1522114edfd398643d473a96f17208c9c197a90cec0bb0dad1aba936c87a695c",
+    "bytes": 1655,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/A-04-connect-1/rec.json",
+    "target": "evidence/pi-A-04-connect-s1/rec.json",
+    "sha256": "4e17ac3df91843e2cdfffd675e61f03d37448be3ce899a6ae61f3478376d797d",
+    "bytes": 1019,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/A-04-connect-1/events.jsonl",
+    "source_sha256": "e9b1b617aade003a8c4c4f5fe28da2f1d9952cdc0e0ea212c6e6957ee1bf7f9f",
+    "target": "evidence/pi-A-04-connect-s1/events-selected.jsonl",
+    "sha256": "77dd9dc535713fcba5c27ddb8e8f3247aaf183e6a528af7ab328568dd42ceeac",
+    "bytes": 25191,
+    "mode": "selection",
+    "selection": "message_end/tool_execution_start/tool_execution_end; omit streaming deltas"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/A-04-connect-1/work/connect.py",
+    "target": "evidence/pi-A-04-connect-s1/work/connect.py",
+    "sha256": "2e5d51380a8160d906d2eacc8655eceea5ce87abb7f0783a010a1521cf608216",
+    "bytes": 104,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/A-04-connect-1/grade/A-04-connect/repo/connect.py",
+    "target": "evidence/pi-A-04-connect-s1/grade-repo/connect.py",
+    "sha256": "2e5d51380a8160d906d2eacc8655eceea5ce87abb7f0783a010a1521cf608216",
+    "bytes": 104,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/A-04-connect-1/grade/A-04-connect/repo/connect_test.py",
+    "target": "evidence/pi-A-04-connect-s1/grade-repo/connect_test.py",
+    "sha256": "901c80868737406b3aaf40b74a83aeb8f722e34ad0a22090931eccf8dcfcf548",
+    "bytes": 3682,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/A-04-connect-1/grade/A-04-connect/repo/pyproject.toml",
+    "target": "evidence/pi-A-04-connect-s1/grade-repo/pyproject.toml",
+    "sha256": "80fda88d348abb62866f77df9c8a26c13857327036549ffaabb179f5a94fd5ad",
+    "bytes": 191,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/results.jsonl",
+    "source_sha256": "46b59f09aea9c8f89b82f161026fe619ceb62cc838dc83dc69593e5de083dc5c",
+    "target": "evidence/ours-T-27-snakecase-ingest-s1/row.json",
+    "sha256": "250590bc6ab3a49750cdda7b3a564cc7a66e62f5bb760b3b643b3b17365196a1",
+    "bytes": 15335,
+    "mode": "selection",
+    "source_line": 36
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-27-snakecase-ingest-1/trajectory.jsonl",
+    "target": "evidence/ours-T-27-snakecase-ingest-s1/trajectory.jsonl",
+    "sha256": "532d36b288f5607178facd545a1e19164dda3df9c96c2c189eda593949c4e74b",
+    "bytes": 120414,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-27-snakecase-ingest-1/work/README.md",
+    "target": "evidence/ours-T-27-snakecase-ingest-s1/work/README.md",
+    "sha256": "4cf78c1c09a7ef99d5c5b3c9cf9835d926e307adb962712548cec8047343f35c",
+    "bytes": 88,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-27-snakecase-ingest-1/work/ingest/__init__.py",
+    "target": "evidence/ours-T-27-snakecase-ingest-s1/work/ingest/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-27-snakecase-ingest-1/work/ingest/records.py",
+    "target": "evidence/ours-T-27-snakecase-ingest-s1/work/ingest/records.py",
+    "sha256": "88e78b580a61a88b2f732d78144ca7a333d9993dacec2b269cad29111ed89b3b",
+    "bytes": 405,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-27-snakecase-ingest-1/work/test_records.py",
+    "target": "evidence/ours-T-27-snakecase-ingest-s1/work/test_records.py",
+    "sha256": "67e32b4d9e0e5207d85492b46662265fa79693ca104f8c865680f81ec367908b",
+    "bytes": 471,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-27-snakecase-ingest-1/grade/T-27-snakecase-ingest/repo/README.md",
+    "target": "evidence/ours-T-27-snakecase-ingest-s1/grade-repo/README.md",
+    "sha256": "4cf78c1c09a7ef99d5c5b3c9cf9835d926e307adb962712548cec8047343f35c",
+    "bytes": 88,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-27-snakecase-ingest-1/grade/T-27-snakecase-ingest/repo/ingest/__init__.py",
+    "target": "evidence/ours-T-27-snakecase-ingest-s1/grade-repo/ingest/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-27-snakecase-ingest-1/grade/T-27-snakecase-ingest/repo/ingest/records.py",
+    "target": "evidence/ours-T-27-snakecase-ingest-s1/grade-repo/ingest/records.py",
+    "sha256": "88e78b580a61a88b2f732d78144ca7a333d9993dacec2b269cad29111ed89b3b",
+    "bytes": 405,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-27-snakecase-ingest-1/grade/T-27-snakecase-ingest/repo/pyproject.toml",
+    "target": "evidence/ours-T-27-snakecase-ingest-s1/grade-repo/pyproject.toml",
+    "sha256": "4b6ecd643f0e1a80d1d768603df1c9911ecf3568a83b27c7c918bebb0d53817b",
+    "bytes": 247,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-27-snakecase-ingest-1/grade/T-27-snakecase-ingest/repo/tests/__init__.py",
+    "target": "evidence/ours-T-27-snakecase-ingest-s1/grade-repo/tests/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane4/none/T-27-snakecase-ingest-1/grade/T-27-snakecase-ingest/repo/tests/test_records.py",
+    "target": "evidence/ours-T-27-snakecase-ingest-s1/grade-repo/tests/test_records.py",
+    "sha256": "301dfc914f713bffc99524978fdc4644a5d8d02991d2ebc1f0913a50c3c45565",
+    "bytes": 376,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/results.jsonl",
+    "source_sha256": "2a3e40473b5a50d40a161216c769fe346859789c983a3c8b6229905544f4bed5",
+    "target": "evidence/pi-T-27-snakecase-ingest-s1/row.json",
+    "sha256": "cb361e5c9e7e96a5fe2106728cd8c8b29870f90a97840476ccc9a55a06e00e25",
+    "bytes": 1363,
+    "mode": "selection",
+    "source_line": 7
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-27-snakecase-ingest-1/prompt.txt",
+    "target": "evidence/pi-T-27-snakecase-ingest-s1/prompt.txt",
+    "sha256": "66e70273bf159fd94bf2a3a912c320ccd9c446b60ad79e8e6421e5385708b22f",
+    "bytes": 578,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-27-snakecase-ingest-1/rec.json",
+    "target": "evidence/pi-T-27-snakecase-ingest-s1/rec.json",
+    "sha256": "16f10f38f77a14b5b33d5b02f598b67a03bc343b7aaa560a120941a4ddac6863",
+    "bytes": 1446,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-27-snakecase-ingest-1/events.jsonl",
+    "source_sha256": "c8152a043f2c242fb31ffcf76436dc096328b90fcd18aaffc24caffecce79c5b",
+    "target": "evidence/pi-T-27-snakecase-ingest-s1/events-selected.jsonl",
+    "sha256": "27b76fab6e92e25c62c252d3ff8b9e3d1fb0af6dffc698282464ea1c3601e712",
+    "bytes": 36812,
+    "mode": "selection",
+    "selection": "message_end/tool_execution_start/tool_execution_end; omit streaming deltas"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-27-snakecase-ingest-1/work/README.md",
+    "target": "evidence/pi-T-27-snakecase-ingest-s1/work/README.md",
+    "sha256": "4cf78c1c09a7ef99d5c5b3c9cf9835d926e307adb962712548cec8047343f35c",
+    "bytes": 88,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-27-snakecase-ingest-1/work/ingest/__init__.py",
+    "target": "evidence/pi-T-27-snakecase-ingest-s1/work/ingest/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-27-snakecase-ingest-1/work/ingest/records.py",
+    "target": "evidence/pi-T-27-snakecase-ingest-s1/work/ingest/records.py",
+    "sha256": "8cb83de59f839e34ed4d94696ed92669f0375796793e6adff5bbb64511394f7e",
+    "bytes": 261,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-27-snakecase-ingest-1/grade/T-27-snakecase-ingest/repo/README.md",
+    "target": "evidence/pi-T-27-snakecase-ingest-s1/grade-repo/README.md",
+    "sha256": "4cf78c1c09a7ef99d5c5b3c9cf9835d926e307adb962712548cec8047343f35c",
+    "bytes": 88,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-27-snakecase-ingest-1/grade/T-27-snakecase-ingest/repo/ingest/__init__.py",
+    "target": "evidence/pi-T-27-snakecase-ingest-s1/grade-repo/ingest/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-27-snakecase-ingest-1/grade/T-27-snakecase-ingest/repo/ingest/records.py",
+    "target": "evidence/pi-T-27-snakecase-ingest-s1/grade-repo/ingest/records.py",
+    "sha256": "8cb83de59f839e34ed4d94696ed92669f0375796793e6adff5bbb64511394f7e",
+    "bytes": 261,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-27-snakecase-ingest-1/grade/T-27-snakecase-ingest/repo/pyproject.toml",
+    "target": "evidence/pi-T-27-snakecase-ingest-s1/grade-repo/pyproject.toml",
+    "sha256": "4b6ecd643f0e1a80d1d768603df1c9911ecf3568a83b27c7c918bebb0d53817b",
+    "bytes": 247,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-27-snakecase-ingest-1/grade/T-27-snakecase-ingest/repo/tests/__init__.py",
+    "target": "evidence/pi-T-27-snakecase-ingest-s1/grade-repo/tests/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-27-snakecase-ingest-1/grade/T-27-snakecase-ingest/repo/tests/test_records.py",
+    "target": "evidence/pi-T-27-snakecase-ingest-s1/grade-repo/tests/test_records.py",
+    "sha256": "301dfc914f713bffc99524978fdc4644a5d8d02991d2ebc1f0913a50c3c45565",
+    "bytes": 376,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/results.jsonl",
+    "source_sha256": "dcf6ffd42452234c2bec5151195275240537d80335a01232709c2c3a7538c970",
+    "target": "evidence/ours-T-34-expression-tokenizer-s1/row.json",
+    "sha256": "3c1b79f9d40d735800a12340c877f27583a59a8a2ddf9dac015acfc3019d9bbc",
+    "bytes": 17123,
+    "mode": "selection",
+    "source_line": 31
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-34-expression-tokenizer-1/trajectory.jsonl",
+    "target": "evidence/ours-T-34-expression-tokenizer-s1/trajectory.jsonl",
+    "sha256": "73b39215798c8d4403ba0c741787d750ac72f0cc78c9a1b6b33fe3d0a1a00876",
+    "bytes": 175434,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-34-expression-tokenizer-1/work/README.md",
+    "target": "evidence/ours-T-34-expression-tokenizer-s1/work/README.md",
+    "sha256": "94eb5f7673a3c6c73ecc45d07cea215000ca4326c451ab9625ad4080deb30d4a",
+    "bytes": 86,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-34-expression-tokenizer-1/work/test_lexer.py",
+    "target": "evidence/ours-T-34-expression-tokenizer-s1/work/test_lexer.py",
+    "sha256": "1758905cff44d4d6394dbf7c830e5fa3ced7d14df4920587bee384001b95e269",
+    "bytes": 675,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-34-expression-tokenizer-1/work/tok/__init__.py",
+    "target": "evidence/ours-T-34-expression-tokenizer-s1/work/tok/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-34-expression-tokenizer-1/work/tok/lexer.py",
+    "target": "evidence/ours-T-34-expression-tokenizer-s1/work/tok/lexer.py",
+    "sha256": "38a3096c4a79513b11d8d0b910ad792b2477a507a9d483ea52f475af555c40cf",
+    "bytes": 1652,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-34-expression-tokenizer-1/grade/T-34-expression-tokenizer/repo/README.md",
+    "target": "evidence/ours-T-34-expression-tokenizer-s1/grade-repo/README.md",
+    "sha256": "94eb5f7673a3c6c73ecc45d07cea215000ca4326c451ab9625ad4080deb30d4a",
+    "bytes": 86,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-34-expression-tokenizer-1/grade/T-34-expression-tokenizer/repo/pyproject.toml",
+    "target": "evidence/ours-T-34-expression-tokenizer-s1/grade-repo/pyproject.toml",
+    "sha256": "ecef9b8ae47c0932f0605f23f4219f0486af62563dce581630cfc2357265146a",
+    "bytes": 251,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-34-expression-tokenizer-1/grade/T-34-expression-tokenizer/repo/tests/__init__.py",
+    "target": "evidence/ours-T-34-expression-tokenizer-s1/grade-repo/tests/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-34-expression-tokenizer-1/grade/T-34-expression-tokenizer/repo/tests/test_lexer.py",
+    "target": "evidence/ours-T-34-expression-tokenizer-s1/grade-repo/tests/test_lexer.py",
+    "sha256": "ebd28353be392ffac70fb9283eb8e0ee3dd84e9928a4fb145ba299619cb520ff",
+    "bytes": 699,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-34-expression-tokenizer-1/grade/T-34-expression-tokenizer/repo/tok/__init__.py",
+    "target": "evidence/ours-T-34-expression-tokenizer-s1/grade-repo/tok/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/our-n5/lane1/none/T-34-expression-tokenizer-1/grade/T-34-expression-tokenizer/repo/tok/lexer.py",
+    "target": "evidence/ours-T-34-expression-tokenizer-s1/grade-repo/tok/lexer.py",
+    "sha256": "38a3096c4a79513b11d8d0b910ad792b2477a507a9d483ea52f475af555c40cf",
+    "bytes": 1652,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/results.jsonl",
+    "source_sha256": "f22482289937df11f138abfc433651d55d3276210d114865b0a4ecea7f606acc",
+    "target": "evidence/pi-T-34-expression-tokenizer-s1/row.json",
+    "sha256": "9769b31b1a475d5be3c08423f4634842d776fff5f6950b9529140a4795267530",
+    "bytes": 1519,
+    "mode": "selection",
+    "source_line": 8
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/T-34-expression-tokenizer-1/prompt.txt",
+    "target": "evidence/pi-T-34-expression-tokenizer-s1/prompt.txt",
+    "sha256": "e10c613dac9abc4bc5539487c2681deb6d59836bd1826b4b21667f8e148612ee",
+    "bytes": 661,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/T-34-expression-tokenizer-1/rec.json",
+    "target": "evidence/pi-T-34-expression-tokenizer-s1/rec.json",
+    "sha256": "373a3cd4cde78603dc135089767fb45f18f1acd607a761aef553305aa9d49a45",
+    "bytes": 1606,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/T-34-expression-tokenizer-1/events.jsonl",
+    "source_sha256": "e787aa9f5e4dc957190f661f91795d098fce591de26b587e82c8187f6cc45234",
+    "target": "evidence/pi-T-34-expression-tokenizer-s1/events-selected.jsonl",
+    "sha256": "c28d8f2c305cd227dd084598b39276af178f591ed920533cdf2f5d797f99e1a7",
+    "bytes": 44879,
+    "mode": "selection",
+    "selection": "message_end/tool_execution_start/tool_execution_end; omit streaming deltas"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/T-34-expression-tokenizer-1/work/README.md",
+    "target": "evidence/pi-T-34-expression-tokenizer-s1/work/README.md",
+    "sha256": "94eb5f7673a3c6c73ecc45d07cea215000ca4326c451ab9625ad4080deb30d4a",
+    "bytes": 86,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/T-34-expression-tokenizer-1/work/tok/__init__.py",
+    "target": "evidence/pi-T-34-expression-tokenizer-s1/work/tok/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/T-34-expression-tokenizer-1/work/tok/lexer.py",
+    "target": "evidence/pi-T-34-expression-tokenizer-s1/work/tok/lexer.py",
+    "sha256": "7939ab0cb783a4484cd192861f18d522a87bde5493522380449d028ebc6296fa",
+    "bytes": 477,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/T-34-expression-tokenizer-1/grade/T-34-expression-tokenizer/repo/README.md",
+    "target": "evidence/pi-T-34-expression-tokenizer-s1/grade-repo/README.md",
+    "sha256": "94eb5f7673a3c6c73ecc45d07cea215000ca4326c451ab9625ad4080deb30d4a",
+    "bytes": 86,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/T-34-expression-tokenizer-1/grade/T-34-expression-tokenizer/repo/pyproject.toml",
+    "target": "evidence/pi-T-34-expression-tokenizer-s1/grade-repo/pyproject.toml",
+    "sha256": "ecef9b8ae47c0932f0605f23f4219f0486af62563dce581630cfc2357265146a",
+    "bytes": 251,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/T-34-expression-tokenizer-1/grade/T-34-expression-tokenizer/repo/tests/__init__.py",
+    "target": "evidence/pi-T-34-expression-tokenizer-s1/grade-repo/tests/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/T-34-expression-tokenizer-1/grade/T-34-expression-tokenizer/repo/tests/test_lexer.py",
+    "target": "evidence/pi-T-34-expression-tokenizer-s1/grade-repo/tests/test_lexer.py",
+    "sha256": "ebd28353be392ffac70fb9283eb8e0ee3dd84e9928a4fb145ba299619cb520ff",
+    "bytes": 699,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/T-34-expression-tokenizer-1/grade/T-34-expression-tokenizer/repo/tok/__init__.py",
+    "target": "evidence/pi-T-34-expression-tokenizer-s1/grade-repo/tok/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/T-34-expression-tokenizer-1/grade/T-34-expression-tokenizer/repo/tok/lexer.py",
+    "target": "evidence/pi-T-34-expression-tokenizer-s1/grade-repo/tok/lexer.py",
+    "sha256": "7939ab0cb783a4484cd192861f18d522a87bde5493522380449d028ebc6296fa",
+    "bytes": 477,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/results.jsonl",
+    "source_sha256": "6b32d80f47700bfc75574fdd1a88df8a36b0ca49c365b5cf02ddc69e71588ff8",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s2/row.json",
+    "sha256": "b61fcc0f0646012780b2843cf28da144a38399c9935be2c9e84b10f07ad9be41",
+    "bytes": 7511,
+    "mode": "selection",
+    "source_line": 8
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-26-plan-dataclass-port-1/prompt.txt",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s2/prompt.txt",
+    "sha256": "d7b91eafd6bc9b938b3467f7f6c64e8f6ecd451d96c42b48e419315fc96772c4",
+    "bytes": 569,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-26-plan-dataclass-port-1/rec.json",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s2/rec.json",
+    "sha256": "031fac7b72c8af5b6f340fb25d2c59abc157d44849230ad30926963c54b165b2",
+    "bytes": 7633,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-26-plan-dataclass-port-1/events.jsonl",
+    "source_sha256": "b853dd8078898306724db4dae2d6d9c430151c7d54270513d7d18e1cd9473c45",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s2/events-selected.jsonl",
+    "sha256": "833c44ccd465f257c66f3110d92c826df02e52da11c054e4bc86fddbd520c6b9",
+    "bytes": 70933,
+    "mode": "selection",
+    "selection": "message_end/tool_execution_start/tool_execution_end; omit streaming deltas"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-26-plan-dataclass-port-1/work/README.md",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s2/work/README.md",
+    "sha256": "0f32d2db4b163dcf31274c9806f996d7fe00700e97f16262d31cad32e4f46b06",
+    "bytes": 72,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-26-plan-dataclass-port-1/work/plan/__init__.py",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s2/work/plan/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-26-plan-dataclass-port-1/work/plan/model.py",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s2/work/plan/model.py",
+    "sha256": "f754cab726074b03c8848ef90c7356efdeb2ca93bbb26a52601d212086d58eee",
+    "bytes": 1548,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-26-plan-dataclass-port-1/grade/T-26-plan-dataclass-port/repo/README.md",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s2/grade-repo/README.md",
+    "sha256": "0f32d2db4b163dcf31274c9806f996d7fe00700e97f16262d31cad32e4f46b06",
+    "bytes": 72,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-26-plan-dataclass-port-1/grade/T-26-plan-dataclass-port/repo/plan/__init__.py",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s2/grade-repo/plan/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-26-plan-dataclass-port-1/grade/T-26-plan-dataclass-port/repo/plan/model.py",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s2/grade-repo/plan/model.py",
+    "sha256": "f754cab726074b03c8848ef90c7356efdeb2ca93bbb26a52601d212086d58eee",
+    "bytes": 1548,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-26-plan-dataclass-port-1/grade/T-26-plan-dataclass-port/repo/pyproject.toml",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s2/grade-repo/pyproject.toml",
+    "sha256": "69d07dac3f7989fd354c0f09c99cc33a8878feed4376034e1939d2dd164f5f47",
+    "bytes": 238,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-26-plan-dataclass-port-1/grade/T-26-plan-dataclass-port/repo/tests/__init__.py",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s2/grade-repo/tests/__init__.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-26-plan-dataclass-port-1/grade/T-26-plan-dataclass-port/repo/tests/test_model.py",
+    "target": "evidence/pi-T-26-plan-dataclass-port-s2/grade-repo/tests/test_model.py",
+    "sha256": "b19b8e8e96a6aa155436f12ccc89e93e28a89a43a1d90da0df5f4b0b261c13b4",
+    "bytes": 507,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/r2/runs/c4/full/full/results.jsonl",
+    "source_sha256": "bd012b954a7dd0fa510648a3f5d9d99b8174f4a7d7e656c964b151f545ac3e60",
+    "target": "evidence/r2-full-A-05-zebra-puzzle-s1/row.json",
+    "sha256": "e6dc0aea2714b9a78dbe7a48b77a6fc0953b331be668e01576ce0f502cf1a5a8",
+    "bytes": 54224,
+    "mode": "selection",
+    "source_line": 28
+  },
+  {
+    "source": "/tmp/wave1/final/r2/runs/c4/full/full/A-05-zebra-puzzle-1/trajectory.jsonl",
+    "target": "evidence/r2-full-A-05-zebra-puzzle-s1/trajectory.jsonl",
+    "sha256": "075c85ab7cc98592b114fce7f841098b6c0a142ad0dc471a33ed79636704ecee",
+    "bytes": 180370,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/r2/runs/c4/full/full/A-05-zebra-puzzle-1/work/zebra_puzzle.py",
+    "target": "evidence/r2-full-A-05-zebra-puzzle-s1/work/zebra_puzzle.py",
+    "sha256": "1bd694e5574e7ad16cc86e35ca9ba27a6aef34393d3059e8d5ee331241b7bae9",
+    "bytes": 88,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/r2/runs/c4/full/full/A-05-zebra-puzzle-1/grade/A-05-zebra-puzzle/repo/pyproject.toml",
+    "target": "evidence/r2-full-A-05-zebra-puzzle-s1/grade-repo/pyproject.toml",
+    "sha256": "cc5884d380afa418a08d4c490e14179bbc0cae98fb249aeda3ecf8d6b93a0664",
+    "bytes": 201,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/r2/runs/c4/full/full/A-05-zebra-puzzle-1/grade/A-05-zebra-puzzle/repo/zebra_puzzle.py",
+    "target": "evidence/r2-full-A-05-zebra-puzzle-s1/grade-repo/zebra_puzzle.py",
+    "sha256": "1bd694e5574e7ad16cc86e35ca9ba27a6aef34393d3059e8d5ee331241b7bae9",
+    "bytes": 88,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/r2/runs/c4/full/full/A-05-zebra-puzzle-1/grade/A-05-zebra-puzzle/repo/zebra_puzzle_test.py",
+    "target": "evidence/r2-full-A-05-zebra-puzzle-s1/grade-repo/zebra_puzzle_test.py",
+    "sha256": "079d65e614c911f7e21ef19a1aa5d0d4bb2c69fba1bd86cb84e0f1f4e39efb90",
+    "bytes": 515,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/n25/analyze_n25.py",
+    "target": "evidence/analyze_n25.py",
+    "sha256": "dca51234bd83b479bc9121bd37b418d4e5c4b765842c55b3bcf46f9e8e83f78f",
+    "bytes": 10349,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/home/z/.pi/agent/sessions/--home-z-vibe-helpagent--/subagent-artifacts/outputs/c84a86f9-2258-4314-a36c-2cffacc38905/.scratch/29-close-audit/investigation.md",
+    "target": "evidence/prior-investigation.md",
+    "sha256": "66c6b1f0e63e5e94dd701c97e2d381a4c48a63d55c9fbec5b35c2d60cbb1d833",
+    "bytes": 27100,
+    "mode": "byte-copy"
+  }
+]

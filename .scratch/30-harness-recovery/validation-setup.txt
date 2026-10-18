@@ -1,0 +1,18 @@
+warning: `VIRTUAL_ENV=/home/z/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+..............................F..............................            [100%]
+=================================== FAILURES ===================================
+____ test_run_leaf_unparseable_original_stops_when_preservation_is_unknown _____
+
+tmp_path = PosixPath('/tmp/pytest-of-z/pytest-1165/test_run_leaf_unparseable_orig0')
+
+    def test_run_leaf_unparseable_original_stops_when_preservation_is_unknown(tmp_path):
+        outcome, model, test_calls, _ = _run(
+            tmp_path, BROKEN_SOURCE, [_write(TEST_PATH, SYNTAX_TEST)])
+>       assert len(test_calls) == 1  # do not spend a repair call we cannot safely validate
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: assert 9 == 1
+E        +  where 9 = len([CallRecord(step_type='write_test', artifacts={'stable_context': 'goal: make result() return 42\nacceptance criteria:\...RED end state a correct fix produces, never the reported symptom.\nRespond with the one envelope for this step.'), ...])
+
+tests/unit/test_own_test_setup.py:282: AssertionError
+=========================== short test summary info ============================
+FAILED tests/unit/test_own_test_setup.py::test_run_leaf_unparseable_original_stops_when_preservation_is_unknown

@@ -1,0 +1,16 @@
+2026-10-15T16:58:08+08:00
+               total        used        free      shared  buff/cache   available
+Mem:     134896082944 20287344640 29917528064   115961856 86989578240 114608738304
+Swap:              0           0           0
+ControlGroup=
+LoadState=not-found
+ActiveState=inactive
+SubState=dead
+    PID    PPID ELAPSED %CPU   RSS COMMAND
+3377685 2650367     197  100 2089924 python3 /home/z/vibe/pathlm/axes/2-depth/2.2.2-attention-residual/experiments/2653-interlayer-attn-13m/run.py --arms attn-scalar,attn-qkv --seed 0 --steps 12000 --lock-wait-s 8 --arm-gap-s 65
+3390935 3390931       0  100  5136 ps -eo pid,ppid,etimes,%cpu,rss,args --sort=-%cpu
+3390804 2650406       2 91.4 715580 python3 /home/z/vibe/pathlm/axes/2-depth/2.2.3-learned-layer-sum/experiments/2651-inter-layer-topology-s1-13m/run.py --arms sequential,parallel,parallel-dual-ln,dense --skip-s0-anchor --caps-min 14 --budget-min 42 --lock-wait-s 8 --lock-poll-s 5
+   4019    1579  614226 27.9 1143416 /usr/bin/ghostty --gtk-single-instance=true --initial-window=false
+3347517 3347420     669 23.5 576684 /opt/microsoft/msedge/msedge --type=renderer --crashpad-handler-pid=3347408 --enable-crash-reporter=, --change-stack-guard-on-fork=enable --ozone-platform=x11 --lang=en-US --js-flags --num-raster-threads=4 --enable-main-frame-before-activation --renderer-client-id=5 --launch-time-ticks=613626022889 --shared-files=v8_context_snapshot_data:100 --metrics-shmem-handle=4,i,9080559024197217778,9045969016447292123,1048576 --field-trial-handle=3,i,12475065367613292874,3323173376521540089,262144 --variations-seed-version --pseudonymization-salt-handle=7,i,836373139380233495,3032671326689561932,4 --trace-process-track-uuid=3190708990997080739
+3316127 3235734    1502 12.3 428084 pi
+3390876 3390875       0 11.2  8852 /usr/bin/ssh -o SendEnv=GIT_PROTOCOL git@github.com git-upload-pack 'ZisIsNotZis/flashdb.git'

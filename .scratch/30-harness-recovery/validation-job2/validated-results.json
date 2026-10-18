@@ -1,0 +1,285 @@
+{
+  "at": "2026-10-15T17:14:16+08:00",
+  "sourceHashes": {
+    "harness/leaf.py": "d61843420090a4962e170e3a61e0212c3f6b8b53010659204609cef9503bee45",
+    "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+    "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+  },
+  "finalCommands": [
+    {
+      "name": "chain-green",
+      "argv": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-sync",
+        "pytest",
+        "-q",
+        "-p",
+        "no:warnings",
+        "tests/unit/test_own_test_setup.py::test_failure_is_test_attributed_discards_chain_without_terminal_location"
+      ],
+      "expectedExit": 0,
+      "startedAt": "2026-10-15T16:59:27+08:00",
+      "sourceHashes": {
+        "harness/leaf.py": "d61843420090a4962e170e3a61e0212c3f6b8b53010659204609cef9503bee45",
+        "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+        "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+      },
+      "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+      "pid": 3394005,
+      "exit": 0,
+      "endedAt": "2026-10-15T16:59:28+08:00",
+      "elapsedSeconds": 1.0050250649219379,
+      "outputSha256": "0805f24fab3bc97a855220b807990eb08655f7928a7f1ee2cb90d4d76acff7df",
+      "passedTestCount": 2,
+      "countDefinition": "count of passed-test progress dots in retained clean pytest output",
+      "interpretation": "green",
+      "evidenceDirectory": "validation-job2"
+    },
+    {
+      "name": "setup-checkpoint",
+      "argv": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-sync",
+        "pytest",
+        "-q",
+        "-p",
+        "no:warnings",
+        "tests/unit/test_own_test_setup.py"
+      ],
+      "expectedExit": 0,
+      "startedAt": "2026-10-15T16:59:28+08:00",
+      "sourceHashes": {
+        "harness/leaf.py": "d61843420090a4962e170e3a61e0212c3f6b8b53010659204609cef9503bee45",
+        "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+        "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+      },
+      "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+      "pid": 3394047,
+      "exit": 0,
+      "endedAt": "2026-10-15T16:59:49+08:00",
+      "elapsedSeconds": 20.58402740699239,
+      "outputSha256": "1359df2ccf22d0f0b407f9f61121615a4ce6f75b85955a7ba2350a3084dca745",
+      "passedTestCount": 64,
+      "countDefinition": "count of passed-test progress dots in retained clean pytest output",
+      "interpretation": "green",
+      "evidenceDirectory": "validation-job2"
+    },
+    {
+      "name": "leaf-checkpoint",
+      "argv": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-sync",
+        "pytest",
+        "-q",
+        "-p",
+        "no:warnings",
+        "tests/unit/test_v2_leaf.py"
+      ],
+      "expectedExit": 0,
+      "startedAt": "2026-10-15T16:59:49+08:00",
+      "sourceHashes": {
+        "harness/leaf.py": "d61843420090a4962e170e3a61e0212c3f6b8b53010659204609cef9503bee45",
+        "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+        "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+      },
+      "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+      "pid": 3395858,
+      "exit": 0,
+      "endedAt": "2026-10-15T17:00:08+08:00",
+      "elapsedSeconds": 19.082637635059655,
+      "outputSha256": "9c43100de2ab9952c8e0742433a70b00e9c13a5b390687298defc1ba19d61a1e",
+      "passedTestCount": 314,
+      "countDefinition": "count of passed-test progress dots in retained clean pytest output",
+      "interpretation": "green",
+      "evidenceDirectory": "validation-job2"
+    },
+    {
+      "name": "project-checkpoint",
+      "argv": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-sync",
+        "pytest",
+        "-q",
+        "-p",
+        "no:warnings"
+      ],
+      "expectedExit": 0,
+      "startedAt": "2026-10-15T17:00:08+08:00",
+      "sourceHashes": {
+        "harness/leaf.py": "d61843420090a4962e170e3a61e0212c3f6b8b53010659204609cef9503bee45",
+        "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+        "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+      },
+      "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+      "pid": 3397484,
+      "exit": 0,
+      "endedAt": "2026-10-15T17:01:18+08:00",
+      "elapsedSeconds": 70.2835982789984,
+      "outputSha256": "f95d55a93cec55f2489bf27094bcbdd6a4a08d8c68b7369e08f2656a450cf038",
+      "passedTestCount": 891,
+      "countDefinition": "count of passed-test progress dots in retained clean pytest output",
+      "interpretation": "green",
+      "evidenceDirectory": "validation-job2"
+    },
+    {
+      "name": "setup-classifier-checkpoint",
+      "argv": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-sync",
+        "python",
+        "-B",
+        ".scratch/30-harness-recovery/negative_controls.py",
+        "setup-classifier"
+      ],
+      "expectedExit": 1,
+      "startedAt": "2026-10-15T17:01:41+08:00",
+      "sourceHashes": {
+        "harness/leaf.py": "d61843420090a4962e170e3a61e0212c3f6b8b53010659204609cef9503bee45",
+        "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+        "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+      },
+      "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+      "pid": 3406488,
+      "exit": 1,
+      "endedAt": "2026-10-15T17:01:42+08:00",
+      "elapsedSeconds": 1.5098324760328978,
+      "outputSha256": "3b8450e9a4a9fe43ed848f6763e96ff336747f993faf2a213037d7ae9f7e3f2f",
+      "interpretation": "expected targeted assertion failure, not setup/import/collection/transport error",
+      "evidenceDirectory": "validation-job2"
+    },
+    {
+      "name": "old-frame-attribution-checkpoint",
+      "argv": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-sync",
+        "python",
+        "-B",
+        ".scratch/30-harness-recovery/negative_controls.py",
+        "old-frame-attribution"
+      ],
+      "expectedExit": 1,
+      "startedAt": "2026-10-15T17:01:42+08:00",
+      "sourceHashes": {
+        "harness/leaf.py": "d61843420090a4962e170e3a61e0212c3f6b8b53010659204609cef9503bee45",
+        "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+        "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+      },
+      "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+      "pid": 3406558,
+      "exit": 1,
+      "endedAt": "2026-10-15T17:01:45+08:00",
+      "elapsedSeconds": 2.0090641520218924,
+      "outputSha256": "aba0162affca3d540787836902078b27eed4b0c5595d7654063ce9edd85502fd",
+      "interpretation": "expected targeted assertion failure, not setup/import/collection/transport error",
+      "evidenceDirectory": "validation-job2"
+    },
+    {
+      "name": "setup-preservation-checkpoint",
+      "argv": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-sync",
+        "python",
+        "-B",
+        ".scratch/30-harness-recovery/negative_controls.py",
+        "setup-preservation"
+      ],
+      "expectedExit": 1,
+      "startedAt": "2026-10-15T17:01:45+08:00",
+      "sourceHashes": {
+        "harness/leaf.py": "d61843420090a4962e170e3a61e0212c3f6b8b53010659204609cef9503bee45",
+        "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+        "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+      },
+      "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+      "pid": 3406737,
+      "exit": 1,
+      "endedAt": "2026-10-15T17:01:46+08:00",
+      "elapsedSeconds": 1.5074958340264857,
+      "outputSha256": "77b7e64c04c01d250d0763eb0e262a3698152c7073f3f2d11ccc5bb652c3347c",
+      "interpretation": "expected targeted assertion failure, not setup/import/collection/transport error",
+      "evidenceDirectory": "validation-job2"
+    },
+    {
+      "name": "observation-auth-checkpoint",
+      "argv": [
+        "uv",
+        "run",
+        "--offline",
+        "--no-sync",
+        "python",
+        "-B",
+        ".scratch/30-harness-recovery/negative_controls.py",
+        "observation-auth"
+      ],
+      "expectedExit": 1,
+      "startedAt": "2026-10-15T17:01:46+08:00",
+      "sourceHashes": {
+        "harness/leaf.py": "d61843420090a4962e170e3a61e0212c3f6b8b53010659204609cef9503bee45",
+        "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+        "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+      },
+      "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+      "pid": 3406776,
+      "exit": 1,
+      "endedAt": "2026-10-15T17:01:47+08:00",
+      "elapsedSeconds": 1.0054446900030598,
+      "outputSha256": "3a382d6a9298adcf9d7b42980fdce57e67aa5ba7f14480c98998eed260128f18",
+      "interpretation": "expected targeted assertion failure, not setup/import/collection/transport error",
+      "evidenceDirectory": "validation-job2"
+    }
+  ],
+  "truncatedChainPreFixRed": {
+    "name": "chain-reproduction",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "pytest",
+      "-q",
+      "-p",
+      "no:warnings",
+      "tests/unit/test_own_test_setup.py::test_failure_is_test_attributed_discards_chain_without_terminal_location"
+    ],
+    "expectedExit": 1,
+    "startedAt": "2026-10-15T16:58:53+08:00",
+    "sourceHashes": {
+      "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+      "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+      "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+    },
+    "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+    "pid": 3392702,
+    "exit": 1,
+    "endedAt": "2026-10-15T16:58:54+08:00",
+    "elapsedSeconds": 1.0059673050418496,
+    "outputSha256": "365b76889d151a787eb520258f53e6ea298026756926b4f3c2435e2269b473c0"
+  },
+  "truncatedChainDelta": "job2-repair.diff",
+  "previousRevisionHistory": "pre-validation-snapshot/job1-validation-summary.json and original validation-*.txt/json",
+  "initialFailuresRetained": [
+    "validation-setup.txt/json: malformed fixture intercepted by existing tree-sitter respawn; corrected test fixture",
+    "validation-leaf.txt/json: legacy transport deletion/stop expectation; updated to approved artifact retention"
+  ],
+  "productionRepairDuringValidation": "Clear earlier exception ownership at uncaptured handling/direct-cause chain separators when final location is unavailable; job2-repair.diff",
+  "review": "cycle2 pending; P1a/P1/M1 not complete",
+  "limitations": [
+    "CPython-unparseable originals fail closed, no broader syntax-recovery claim",
+    "Import-only non-import AST preservation is not a semantic oracle",
+    "No real model/grader/network/GPU or M2 evaluation"
+  ]
+}

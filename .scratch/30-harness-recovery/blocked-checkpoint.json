@@ -1,0 +1,65 @@
+{
+  "at": "2026-10-15T17:23:04+08:00",
+  "scope": "checkpoint only; <=10min/depth0/max1 no-progress; no tests or repairs",
+  "verdict": "BLOCK",
+  "acceptance": "P1a incomplete; P1/M1 not passed; P1b/P2-P5 not done; M2 not authorised",
+  "reviewsUsed": 2,
+  "reviewCap": 2,
+  "sourceUnchanged": true,
+  "sourceHashes": {
+    "harness/leaf.py": "d61843420090a4962e170e3a61e0212c3f6b8b53010659204609cef9503bee45",
+    "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+    "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+  },
+  "head": "72f25fac838afa5b6ff1b7799225ebfd6e252a1e",
+  "reviewedWorktreeHash": "dc042868227a2b4b0e9535e1d5f46f9e1089d8d7f9910fc7eaab596e949149ce",
+  "currentWorktreeHash": "3aa639e8ecb23440cad4d23ed0b53d5c79357a91c666c5615ceaab00385b0fe6",
+  "worktreeHashDefinition": "SHA256 of canonical JSON {head,files} for all dirty files outside ticket30",
+  "reviewedPackageDiff": {
+    "path": ".scratch/30-harness-recovery/package.diff",
+    "sha256": "1983b4bc91ca178048a9a2d78eae24ccb5025bd7743af7758a8ed6d710ba4ac0"
+  },
+  "finalReview": {
+    "origin": "/home/z/.pi/agent/sessions/--home-z-vibe-helpagent--/subagent-artifacts/b03cab38-2837-42a9-b160-ad5210fa481c_reviewer_output.md",
+    "copy": ".scratch/30-harness-recovery/review-cycle2.md",
+    "sha256": "9a8233164f00c2c9ed3be4dc023ce3f2f9314ec52ad78f64d54dc709545f2f70"
+  },
+  "protectedPreexistingHashesVerified": 491,
+  "resources": [
+    {
+      "stopProof": ".scratch/30-harness-recovery/stop-proof.json",
+      "sha256": "5c11236eda3e089b29d24f64ab2f4908a632e0c68398bd3d664c83a3a8bf3d14",
+      "releasedAt": "2026-10-15T16:54:25+08:00",
+      "group": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+      "recordedGroupAbsent": true,
+      "recordedSameIdentityLivePids": [],
+      "observedStoppedIdentities": 611,
+      "groupAbsentNow": true
+    },
+    {
+      "stopProof": ".scratch/30-harness-recovery/validation-job2/stop-proof.json",
+      "sha256": "789c85cf113bd36eda79b7ae36eaa00a02fc9b2ab66fe19364797661cab3767c",
+      "releasedAt": "2026-10-15T17:14:58+08:00",
+      "group": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+      "recordedGroupAbsent": true,
+      "recordedSameIdentityLivePids": [],
+      "observedStoppedIdentities": 248,
+      "groupAbsentNow": true
+    }
+  ],
+  "lifecycleState": "released-verified-stopped",
+  "noStagedFiles": true,
+  "testsRunThisCheckpoint": [],
+  "noStageCommitPush": true,
+  "nextAction": "HOLD; user may explicitly extend same P1a by minimum one repair-validation-fresh-review cycle plus fresh resource admission; not authorised now",
+  "checkpointEvidence": {
+    ".scratch/30-harness-recovery/current.diff": "8c7623feb6286f05aebf24173f2d445da295c0e10f45aae773e60b43aac9ca23",
+    ".scratch/30-harness-recovery/current-status.txt": "0605f8aed3a46fd3958ce5b62b948406bc7ed349df0488c03d372f76737d083c",
+    ".scratch/30-harness-recovery/blocked-checkpoint.md": "95c7005fb0d0e3c93568002a7fa2e2986259c29f43f3cf65b8e744029c0b93bf",
+    ".scratch/30-harness-recovery/ticket.md": "34afa1bbade1bb0f2f0aa99f1d7d7a046326a454bfd4c6b15f57a0632384bdf8",
+    ".scratch/30-harness-recovery/issues.md": "3ca2e914f940665234c4552f9bc2f19a327ac40b14269d91060b896dd8945968",
+    "docs/ROADMAP.md": "8b6778b02a53bc7fd0372bc9440520b4f2eb1924afa62066e81da4c62770d290",
+    ".scratch/30-harness-recovery/delivery.json": "6e51216d0b0261a9cdc7dae113a748536690dbf62e7a74b168e653da4af470c5",
+    ".scratch/30-harness-recovery/job-lifecycle.json": "6cf09cb16ed990432e0f5f98e55f43649d7e7dd134fc89186ab933d73c3b8564"
+  }
+}

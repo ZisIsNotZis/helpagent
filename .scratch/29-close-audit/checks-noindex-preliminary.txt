@@ -1,0 +1,22 @@
+2026-10-15T12:50:21+08:00
+$ python3 -B .scratch/29-close-audit/verify_evidence.py --check-sources
+PASS retained byte hashes: 284; in-memory corruption negative control rejected
+PASS literal source_write identity: 50; final work/graded hashes verified separately
+PASS pi text-operation replay: 12 runs; source payloads reconstruct retained work; shell commands not rerun
+PASS bounded outcome shape: 550 unique rows, 25/task/arm; R3 70/arm and 52 unclaimed pristine failures/tree arm
+PASS report/matrix counts agree with retained selected outcomes
+PASS explicit alias file/line references: 37; compressed context references still require human reading
+PASS scoped local Markdown destinations: 106; external URLs/heading anchors not validated
+No grader, candidate, model, pytest, or heavy test execution was performed by this command.
+$ python3 -B .scratch/29-close-audit/check_docs_semantics.py
+PASS current known-overclaim regression; baseline negative control rejects 15 file/pattern pairs
+PASS C1-C5 criterion text and V1-V6 outcome/check columns unchanged
+PASS retained arm/contrast measurement rows unchanged; no inference about untested designs
+$ AST parse of seven authored work-record Python scripts (not captured payloads)
+PASS authored scripts AST parse: 7
+$ git diff --check -- README.md docs/STATUS.md docs/LEARNINGS.md docs/ROADMAP.md .scratch/29-close-audit
+PASS tracked scoped diff whitespace
+$ git diff --no-index --check /dev/null <each newly authored root .md/.py/.json>
+Traceback (most recent call last):
+  File "<stdin>", line 6, in <module>
+AssertionError: ('.scratch/29-close-audit/ticket.md', '', '', 1)

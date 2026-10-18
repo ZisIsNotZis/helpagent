@@ -1,0 +1,10 @@
+You are a coding agent. Work in the current directory (the project root) and satisfy the request below. Stay inside the current directory: do not read or write outside it. Make whatever code changes are needed and verify your work. When the request is satisfied, stop.
+
+Request:
+Our serializer layer has a binding contract in serialize/base.py: every
+implementation must roundtrip any JSON-representable object (including
+non-ASCII text) and must REJECT bytes it did not produce with ValueError.
+Both shipped implementations violate it in places: JSON mangles non-ASCII
+names and crashes on foreign bytes with the wrong error; pickle lets foreign
+bytes raise its own UnpicklingError instead of the contract's ValueError.
+Bring BOTH implementations into the contract (base.py itself is frozen).

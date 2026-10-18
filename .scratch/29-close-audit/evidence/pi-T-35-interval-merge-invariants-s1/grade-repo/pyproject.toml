@@ -1,0 +1,10 @@
+[project]
+name = "35intervalmergeinvariants"
+version = "0.1.0"
+description = "Half-open interval merging with strict output invariants."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

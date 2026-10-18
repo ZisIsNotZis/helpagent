@@ -1,0 +1,948 @@
+--- before/docs/ROADMAP.md
++++ after/docs/ROADMAP.md
+@@ -7,6 +7,29 @@
+ and what is not is in [`LEARNINGS.md`](LEARNINGS.md). The narrative and the raw provenance
+ of the final campaign are in `.scratch/28-three-requirements/`. If this file and a work
+ record disagree about *what you can see*, this file wins.
++
++## Approved recovery milestones
++
++The measured campaign remains complete and archived; recovery work is active without changing R1/R2/R3, V1–V6 or C1–C5 below. The execution contract and complete known-problem dispositions are in [ticket 30](../.scratch/30-harness-recovery/ticket.md) and its [issue ledger](../.scratch/30-harness-recovery/issues.md). A package finishing is not a milestone finishing.
++
++| milestone | deliverable and acceptance | user synchronisation |
++| --- | --- | --- |
++| **M1 — harness and test-workflow recovery** | Modified harness, deterministic regression tests that expose the original errors, and evidence for every known problem with disposition `verified fixed`, `refuted` or `blocked`; distinguish syntax/import/setup from assertion failures, route valid test/review feedback into implementation, preserve/revert/deliver candidates consistently across tree/leaf independently of claim, separately record context/length termination, and review visible-spec gaps without exposing hidden answers or changing acceptance. Configured project tests, fresh independent review and integrated consistency checks must pass; an unverified item cannot be represented as fixed. | Execute now; deliver evidence and pause at M1. |
++| **M2 — frozen-method controlled evaluation** | After M1 method freeze, original-task regression plus held-out tasks and controlled retests isolating checker capability, feedback closure, field refinement and decomposition; hold model, grader, acceptance and resource conditions fixed, register comparisons before outcomes, report effectiveness and cost with uncertainty rather than infer gains from unit tests. | **Not authorised to start** until the user approves again after M1 delivery. No M2 experiments during M1. |
++
++M1 packages are owned by the current sole worker unless the parent explicitly reassigns exclusive file ownership; depth 0, no worker delegation. The parent owns fresh-review scheduling and final integration. Implementation packages use one writer in the current worktree; read-only review may overlap a stable revision only.
++
++| package / owner | cohesive outcome and proof | dependencies |
++| --- | --- | --- |
++| **P1 — test failure ownership / worker** | Separate test syntax/import/setup faults from behavior assertions; bounded repair/re-observation of malformed tests before source iteration; protect valid behavior-red feedback and record honest unavailable evidence. Deterministic regression fixtures include missing imports and genuine source failures. | Approved contract, baseline and resource admission for tests. |
++| **P2 — feedback and accumulation / worker** | Valid independent-test/review diagnostics reach a subsequent implementation when budget permits; redirect repeated refusal/off-plan errors and accumulate multi-file changes without losing valid earlier work; retain deterministic closure/redirect/accumulation regressions. | P1 evidence interface; parent fresh review of stable P1. |
++| **P3 — candidates and common delivery / worker** | Preserve per-attempt candidate bytes and evidence, rank required-surface coverage explicitly, revert unsafe later candidates, and use the same delivery policy for tree/leaf without conflating delivery with claim; plain-green discrimination remains enforced. Regression checks catch discarded valid candidates and non-discriminating green claims. | P1; P2 feedback/attempt interface. |
++| **P4 — termination and visible-spec evidence / worker** | Distinct inference context/length vs driver-timeout records, visible-spec gap audit with declared unknowns and no hidden-answer injection, disposition evidence for every audit29/LEARNINGS issue. | P1–P3 records; can statically diagnose earlier but no overlapping writes. |
++| **P5 — integrated M1 gate / parent integrator with assigned sole writer** | Configured project gate, scoped negative controls, fresh final-revision review and integration checks; exact hashes, issue dispositions and remaining limitations; deliver M1 and stop. Model experiments remain deferred to M2 notwithstanding the ordinary real-model contribution gate. | P1–P4 and their reviews; user approval required before any M2 work. |
++
++DAG: `approval → P1 → P2 → P3 → P4 → P5 → M1 user gate → renewed approval → M2`. Scope discovery may split these into sequential cohesive packages in the ticket, not silently omit issues. Every package has at most two repair–independent-review cycles; two consecutive attempts without new evidence require a changed hypothesis or a recorded blocker.
++
++Budget: first round cumulative execution **8 hours**; at most **2 parallel execution packages**, currently only **1 worker**, **depth 0**. The first dispatch is at most **90 minutes**, an internal review/checkpoint slice rather than a user gate. No model experiments, paid services, model swaps, push, CLI or hidden-grader specialization. Heavy computation requires coordinated complete-bundle admission and observed runtime binding; small project tests use one conservative runner and bounded threads only after resource coordination. Preserve the pre-existing dirty documents/ticket29; no reset, stage, commit or push. All original acceptance below remains unchanged.
+ 
+ ## The slices
+ 
+@@ -57,8 +80,7 @@
+ 
+ - A corpus/design with sufficient power for the parity question (the observed task effects project an asymptotic CI width of about `6.3` tasks; this is not an impossibility result).
+ - The product CLI (V6), and with it V5.
+-- The named cheap harness fixes (redirect on refusal, multi-file accumulation,
+-  coverage-ranked delivery, the green-path claim rule).
++- The measured effectiveness of the named harness fixes: their implementation and deterministic checks are M1 work above; any capability/cost claim requires the separately approved M2 evaluation.
+ - A measured improved-prompt baseline.
+ - A clean single-lane wall-clock comparison for both arms.
+ - Sweeping the forced-leaf thresholds and re-testing requirement-level splitting on a
+--- before/docs/FLOW.md
++++ after/docs/FLOW.md
+@@ -154,6 +154,8 @@
+ 
+ ### 4.1 Test states
+ 
++Before source iteration, an authenticated own-test report with a definite test-file syntax error, terminating test-local NameError/UnboundLocalError or missing fixture is setup-invalid, not a behavioral red; exception-name text in an assertion message or captured output is not exception ownership. The harness allows at most one bounded import-only setup repair on pristine source, shared with the green re-ask, and mechanically preserves the parseable original non-import AST (predicates, control flow, helpers and fixture signatures); changed checks or an unparseable original stop uncertain because preservation cannot be established. This structural guard does not prove semantic oracle correctness or unchanged import meaning. The replacement must have an authenticated current observation before accepting a target; missing, unobserved or structurally anomalous initial/replacement reports stop uncertain, retain the test artifact for inspection and clear active evidence without source edits. A returned-value assertion normally has only a test frame, which does **not** prove its oracle wrong; source errors and ambiguous imports still require their own evidence/attribution rather than automatic test blame. Other authenticated collection failures retain the recorded uncollectible-test fallback.
++
+ | state | when |
+ | --- | --- |
+ | **pass** | the declared tests run GREEN on the final revision **and** they discriminate (each is RED on the pristine source — checked after the fact, deterministically) |
+--- before/harness/leaf.py
++++ after/harness/leaf.py
+@@ -3696,26 +3696,127 @@
+     return a == b or a.endswith("/" + b) or b.endswith("/" + a)
+ 
+ 
++def _terminal_pytest_exceptions(failure_text: str) -> tuple[tuple[str, str], ...]:
++    """Read the terminating exception/location of each pytest failure traceback.
++
++    Exception names inside assertion messages, source lines or captured output are not
++    exception types. In a chained traceback only its final exception owns the failure.
++    Truncated output without a terminal location supplies no deterministic attribution.
++    """
++    terminal = re.compile(
++        r"^(?P<path>[^\s:()]+\.py):\d+: (?P<exception>[A-Za-z_][\w.]*)(?::.*)?$")
++    out: list[tuple[str, str]] = []
++    current: tuple[str, str] | None = None
++    captured = False
++    for line in (failure_text or "").splitlines():
++        if re.match(r"^={3,} (?:short test summary|warnings summary)", line):
++            break
++        if re.match(r"^_{3,} .+ _{3,}$", line):
++            if current is not None:
++                out.append(current)
++            current = None
++            captured = False
++        elif re.match(r"^-{3,} Captured ", line):
++            captured = True
++        elif not captured and line.strip() in (
++            "During handling of the above exception, another exception occurred:",
++            "The above exception was the direct cause of the following exception:",
++        ):
++            current = None  # earlier ownership cannot survive a missing final location
++        elif not captured and (match := terminal.fullmatch(line)):
++            current = (match.group("path").lstrip("./"), match.group("exception"))
++    if current is not None:
++        out.append(current)
++    return tuple(out)
++
++
+ def failure_is_test_attributed(
+     failure_text: str, test_path: str | None, source_paths: Sequence[str],
+ ) -> bool:
+-    """D2 (wave 1): the recorded traceback proves the run's OWN TEST is at fault.
+-
+-    True when the failure names at least one frame in the run's own test file and NO frame
+-    in a changed non-test source file. Deterministic from the failure text — it is the
+-    fact the deterministic filter can credit even when the judge's prose does not name the
+-    test (T-07: an unparameterised assertion the harness kept re-running while it churned
+-    the correct source draft).
++    """Credit a terminating test-local name fault, never exception-name prose.
++
++    Assertion-only frames cannot prove the oracle wrong. Missing imported source APIs
++    likewise remain ambiguous; the terminal exception must actually be a name fault in
++    the test, not a source exception or an earlier exception caught by the test.
+     """
+     if not test_path:
+         return False
+-    frames = _failure_frame_paths(failure_text)
+-    if not frames:
+-        return False
+-    if not any(_same_path(frame, test_path) for frame in frames):
+-        return False
+     sources = {path for path in source_paths if not is_test_path(path)}
+-    return not any(any(_same_path(frame, source) for source in sources) for frame in frames)
++    return any(exception in ("NameError", "UnboundLocalError")
++               and _same_path(path, test_path)
++               and not any(_same_path(path, source) for source in sources)
++               for path, exception in _terminal_pytest_exceptions(failure_text))
++
++
++def _own_test_observation_state(result: Any) -> tuple[str, str]:
++    """Authenticate the current observation separately from setup classification."""
++    gate = getattr(result, "gate", None)
++    if (getattr(result, "policy_blocked", False) or _exit_code(result) is None
++            or getattr(result, "verdict", "") == "transport_error"):
++        return "unverified", "test execution unavailable or blocked"
++    if gate is None:
++        return "unverified", "no current machine-readable test report"
++    if gate.process_exit is None:
++        return "unverified", "test process completion was not observed"
++    if not gate.observed or gate.structural_anomaly:
++        return "unverified", f"{gate.anomaly}: {gate.detail}"
++    return "authenticated", ""
++
++
++def _setup_repair_preservation_problem(original: str, replacement: str) -> str:
++    """Permit import setup edits only; preserve all parseable non-import structure.
++
++    This is a syntactic guard, not a semantic oracle: even an import can change meaning.
++    Unparseable originals cannot establish preservation and therefore fail closed.
++    """
++    class WithoutImports(ast.NodeTransformer):
++        def visit_Import(self, node: ast.Import) -> None:
++            return None
++
++        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
++            return None
++
++    try:
++        before = ast.parse(original)
++    except SyntaxError:
++        return "original test is unparseable; behavioral-check preservation is unknown"
++    try:
++        after = ast.parse(replacement)
++    except SyntaxError:
++        return "setup replacement is unparseable"
++    if ast.dump(WithoutImports().visit(before)) != ast.dump(WithoutImports().visit(after)):
++        return "setup-only repair changed existing non-import behavioral-check structure"
++    return ""
++
++
++def _own_test_setup_problem(
++    test_path: str, content: str, result: Any, source_paths: Sequence[str],
++) -> tuple[str, str]:
++    """A definite test syntax/name/fixture fault; unknown ownership stays unclassified.
++
++    Consume the authenticated gate plus output tails: shaped excerpts alone discard
++    traceback locations. Collection/import errors in source are not proof of bad tests.
++    """
++    gate = getattr(result, "gate", None)
++    if gate is None or not gate.observed or gate.structural_anomaly or gate.green:
++        return "", ""
++    try:
++        ast.parse(content, filename=test_path)
++    except SyntaxError as exc:
++        return "syntax", f"{test_path}:{exc.lineno}: {exc.msg}"
++    # Prefer complete output to shaped excerpts, which can omit the owning location or
++    # mix captured text into traceback snippets. Do not splice copies of one traceback.
++    failure = "\n".join(filter(None, (getattr(result, "stdout_tail", ""),
++                                     getattr(result, "stderr_tail", ""))))
++    if not failure:
++        failure = "\n".join(getattr(result, "excerpts", []))
++    if failure_is_test_attributed(failure, test_path, source_paths):
++        return "name", failure
++    if (gate.n_errors and any(nid.startswith(test_path + "::") for nid in gate.failed_ids)
++            and re.search(r"fixture '[^']+' not found", failure)
++            and not _failure_names_a_source_frame(failure, test_path, source_paths)):
++        return "fixture", failure
++    return "", ""
+ 
+ 
+ def _failure_names_a_source_frame(
+@@ -3875,7 +3976,7 @@
+     ``implementation_wrong`` whose reason names only a test/assertion and no source is
+     likewise incoherent. D3 (wave 1) extends the rule to ``spec_wrong``: a spec verdict
+     whose own reason names a source defect, or that is reached while the observed failure
+-    has no frame in the changed source (and at least one frame in the own test), is a
++    proves a test-local missing name rather than an evaluated behavior, is a
+     self-contradiction — the judge named a code defect and still blamed the spec (T-35's
+     3-call spec bubble). Returns the ``judge_incoherent: ...`` record text.
+     """
+@@ -3914,9 +4015,8 @@
+     verdict = normalize_judge_labels(verdict)
+     labels = judge_labels(verdict)
+     env_broken = verdict.environment_broken
+-    # D2 (wave 1): the recorded traceback can prove the run's OWN TEST is at fault even
+-    # when the judge's prose does not name it (T-07: an unparameterised SQL assertion the
+-    # harness kept re-running while it churned the correct source draft).
++    # Only a test-local setup fault can override the judge deterministically. A
++    # returned-value assertion without a source frame is not proof of a bad oracle.
+     test_attributed = failure_is_test_attributed(
+         request.failure, request.test_path or None, tuple(request.files))
+     # D3 (wave 1): an incoherent ``spec_wrong`` (its own reason names a source defect, or
+@@ -5802,24 +5902,33 @@
+ 
+ async def _repair_test(
+     model: Any, spec: LeafSpec, workdir: Path, self_test: str,
+-    last_excerpts: Sequence[str], previous: Any,
++    last_excerpts: Sequence[str], previous: Any, *, setup_fault: bool = False,
+ ) -> Any:
+     repair_request = (
+         "Your own test is red; the failure was attributed to the TEST. Rewrite the "
+         "complete test file from scratch so it correctly pins the goal. Reply with the "
+         "new content. It must still FAIL on arrival against the current source."
+     )
+-    return await _request_write(
+-        model,
+-        {
+-            "goal": spec.goal,
+-            "acceptance_criteria": "\n".join(f"- {a}" for a in spec.acs),
+-            "current_test": _read(workdir, self_test),
+-            "failure_output": "\n".join(last_excerpts),
+-            "prior_claim": getattr(previous, "comment", ""),
+-        },
+-        repair_request,
+-    )
++    artifacts = {
++        "goal": spec.goal,
++        "acceptance_criteria": "\n".join(f"- {a}" for a in spec.acs),
++        "current_test": _read(workdir, self_test),
++        "failure_output": "\n".join(last_excerpts),
++        "prior_claim": getattr(previous, "comment", ""),
++    }
++    if setup_fault:
++        repair_request = (
++            "Your test could not evaluate the goal because of a syntax/import/setup "
++            "fault. Make import-only setup edits in the complete test file; all "
++            "non-import AST structure (assertions, control flow, helpers and fixture "
++            "signatures) must remain unchanged. If that cannot repair it, return blocked. "
++            "Use the visible interfaces/source for import paths. The replacement will be run "
++            "again on pristine source; a setup error is not a behavioral red."
++        )
++        artifacts["current_test_path"] = self_test
++        artifacts["interfaces"] = "\n".join(spec.interfaces)
++        artifacts["repo_files"] = json.dumps(_source_view(spec), ensure_ascii=False)
++    return await _request_write(model, artifacts, repair_request)
+ 
+ 
+ # ---------------------------------------------------------------------------
+@@ -6737,8 +6846,8 @@
+                     "\n".join(last_excerpts), self_test,
+                     tuple(set(spec.files) | set(baseline))))
+             if first_test_attributed:
+-                # D3 (wave 1): a spec bubble ends the node, so a FIRST-attempt bubble from a
+-                # failure that lives entirely in the run's own test is premature (T-35 was
++                # A spec bubble ends the node, so a FIRST-attempt bubble from a
++                # test-local setup failure is premature (T-35 was
+                 # abandoned after one attempt); keep implementing so the judge can be
+                 # consulted again on a real attempt. A failure with a changed-source frame
+                 # may still bubble immediately.
+@@ -6916,9 +7025,9 @@
+         """
+         nonlocal last_gate
+         gate = getattr(res, "gate", None)
++        last_gate = gate
+         if gate is None:
+             return None
+-        last_gate = gate
+         if gate.structural_anomaly:
+             emit("gate_report_anomaly", anomaly=gate.anomaly, detail=gate.detail,
+                  report=gate.report_path, process_exit=gate.process_exit)
+@@ -8204,6 +8313,93 @@
+         last_excerpts = excerpts_of(rres)
+         return True
+ 
++    setup_repair_attempted = False
++
++    def stop_own_test_preflight(path: str, detail: str, *, unverified: bool = False) -> None:
++        """Retain the artifact but clear every active own-test evidence pointer."""
++        nonlocal self_test, last_gate, last_excerpts, own_test_report
++        nonlocal own_test_discriminating, own_test_symptom_ids
++        refusals.append(f"{path}: own-test preflight stopped ({detail})")
++        emit("self_test_unverified" if unverified else "self_test_invalid", path=path,
++             anomaly="observation-unverified" if unverified else "test-setup", detail=detail)
++        self_test = None
++        last_gate = None
++        own_test_report = None
++        own_test_discriminating = []
++        own_test_symptom_ids = []
++        last_excerpts = [detail]
++        if budget.expired(clock()):
++            stop("handover", "deadline", "deadline")
++        else:
++            reason = "self-test-unverified" if unverified else "self-test-invalid"
++            stop("honest-failure", reason, reason)
++
++    async def validate_own_test_setup(res: Any) -> Any | None:
++        """Authenticate before classifying; repair setup once without rewriting checks.
++
++        A missing/anomalous observation is not a clean setup check. Replacement checks
++        must preserve parseable non-import structure and be authentically re-observed
++        before they can become a behavioral target. Unknown preservation stops uncertain.
++        """
++        nonlocal last_excerpts, setup_repair_attempted
++        if self_test is None:
++            return res
++        path = self_test
++        observation_state, detail = _own_test_observation_state(res)
++        if observation_state != "authenticated":
++            stop_own_test_preflight(path, detail, unverified=True)
++            return None
++        original = _read(workdir, path)
++        layer, detail = _own_test_setup_problem(path, original, res, tuple(spec.files))
++        if not layer:
++            return res
++        emit("self_test_setup_invalid", path=path, layer=layer, detail=detail)
++        last_excerpts = [f"own-test {layer} fault (not behavior evidence): {detail}"]
++        problem = _setup_repair_preservation_problem(original, original)
++        if problem:
++            detail = problem
++        elif setup_repair_attempted:
++            detail = "shared setup-only repair cap exhausted"
++        elif not can_afford(1):
++            detail = "no calls remain for setup-only repair"
++        elif budget.expired(clock()):
++            detail = "deadline expired before setup-only repair"
++        else:
++            setup_repair_attempted = True
++            repaired, failure = await request_bounded(
++                partial(_repair_test, model, spec, workdir, path, last_excerpts, None,
++                        setup_fault=True),
++                "self-test-setup-repair", retries=0)
++            if budget.expired(clock()):
++                detail = "deadline expired during setup-only repair"
++            elif (failure or getattr(repaired, "status", "") != "ok"
++                  or _env_path(repaired) != path or not getattr(repaired, "content", "")
++                  or repaired.content == original):
++                detail = "setup-only repair unavailable, unchanged or named a different path"
++            elif (problem := _setup_repair_preservation_problem(original, repaired.content)):
++                detail = problem
++                emit("self_test_setup_repair_rejected", path=path, detail=detail)
++            elif (problem := write_self_test(path, repaired.content)):
++                detail = problem
++            else:
++                res = await _maybe_await(tests, workdir)
++                _record_test_run("own-test-setup-repair", res)
++                record_gate(res)
++                observation_state, detail = _own_test_observation_state(res)
++                if observation_state != "authenticated":
++                    stop_own_test_preflight(path, detail, unverified=True)
++                    return None
++                layer, detail = _own_test_setup_problem(
++                    path, repaired.content, res, tuple(spec.files))
++                if not layer:
++                    emit("self_test_setup_rechecked", path=path, observed=True,
++                         observation_state=observation_state)
++                    return res
++                emit("self_test_setup_invalid", path=path, layer=layer,
++                     detail=detail, after_repair=True)
++        stop_own_test_preflight(path, detail)
++        return None
++
+     # ---- deadline before the first call (an already-expired budget writes nothing)
+     if budget.expired(clock()):
+         stop("handover", "deadline", "deadline")
+@@ -8259,7 +8455,10 @@
+         if verification_basis == "test":
+             res = await _maybe_await(tests, workdir)
+             _record_test_run("own-test", res)
+-            gate = record_gate(res)
++            record_gate(res)
++            res = await validate_own_test_setup(res)
++            if res is None:
++                return finish()
+             if _is_green(res):
+                 # A test that passes on arrival does not exercise the failure. Re-ask ONCE
+                 # with that evidence; never emit red=True without having observed a red.
+@@ -8302,17 +8501,10 @@
+                         self_test = normalized
+                         res = await _maybe_await(tests, workdir)
+                         _record_test_run("own-test-reask", res)
+-                        gate = record_gate(res)
+-            if verification_basis == "test" and (
+-                    _exit_code(res) is None or (gate is not None and not gate.observed)):
+-                # We could not trust an observation of the run's own tests: a transport
+-                # error / sandbox block, or a gate report that is missing or holds no
+-                # testcase. Nothing may be recorded as a red, so no target is kept.
+-                emit("self_test_unverified", path=self_test, reason="tests did not run")
+-                (workdir / self_test).unlink(missing_ok=True)
+-                self_test = None
+-                stop("honest-failure", "self-test-unverified", "self-test")
+-                return finish()
++                        record_gate(res)
++                        res = await validate_own_test_setup(res)
++                        if res is None:
++                            return finish()
+             green_rewritten = False
+             if verification_basis == "test" and _is_green(res):
+                 # The one re-ask was green too: no red target. Ticket 19 A: consult the
+--- before/tests/unit/test_v2_leaf.py
++++ after/tests/unit/test_v2_leaf.py
+@@ -991,10 +991,14 @@
+                         run_tests=ScriptedTests([transport()]))
+ 
+     assert out.claimed is False
+-    assert out.stop_reason == "self-test"
++    assert out.stop_reason == "self-test-unverified"
++    assert out.state == "uncertain"
+     assert out.self_test is None
+-    assert not (tmp_path / "tests" / "test_leaf_self.py").exists()
++    assert out.own_test_gate is None
++    assert out.own_test_discriminating == []
++    assert (tmp_path / "tests" / "test_leaf_self.py").read_text() == SELF_TEST["content"]
+     assert "self_test_written" not in ledger_kinds()
++    assert "self_test_unverified" in ledger_kinds()
+ 
+ 
+ def test_rewrite_green_on_arrival_leaves_no_bogus_target_on_disk(tmp_path):
+@@ -7649,13 +7653,14 @@
+ 
+ 
+ def test_d2_test_attributed_traceback_credits_test_wrong():
+-    """D2: the recorded traceback proves the run's own test is at fault (a frame in the
+-    own test, none in a changed source), so ``test_wrong`` is credited deterministically
+-    even though the judge's prose blamed the implementation."""
++    """A test-local missing name proves setup invalidity despite a source blame.
++
++    An assertion-only traceback is not such proof (covered by the negative control).
++    """
+     request = JudgeRequest(
+         goal="fix the source", acs=["result() returns 42"],
+         failure=("FAILED tests/test_leaf_self.py::test_goal\n"
+-                 "tests/test_leaf_self.py:3: AssertionError"),
++                 "tests/test_leaf_self.py:3: NameError: name 'result' is not defined"),
+         test_path="tests/test_leaf_self.py",
+         test_content="def test_goal():\n    assert result() == 42\n",
+         files={"pkg/calc.py": "def result():\n    return 0\n"})
+@@ -7666,9 +7671,22 @@
+     assert filtered.implementation_wrong is False
+     assert filtered.coercion_reason == "test_attributed_from_traceback"
+ 
+-    # a failure that DOES name a changed-source frame stays on the implementation path
++    for failure in (
++        "tests/test_leaf_self.py:3: AssertionError: assert 0 == 42",
++        "tests/test_leaf_self.py:3: AssertionError: NameError: unexpected result",
++        ("tests/test_leaf_self.py:3: AssertionError: assert 0 == 42\n"
++         "---------------- Captured stdout call ----------------\n"
++         "tests/test_leaf_self.py:3: NameError: printed text"),
++    ):
++        assertion_request = dataclasses.replace(request, failure=failure)
++        assertion_filtered = apply_judge_filter(verdict, assertion_request)
++        assert assertion_filtered.test_wrong is False
++        assert assertion_filtered.implementation_wrong is True
++
++    # A missing name in source must not trigger a test repair either.
+     source_request = dataclasses.replace(
+-        request, failure="pkg/calc.py:1: AssertionError")
++        request, failure=("tests/test_leaf_self.py:3: \n"
++                          "pkg/calc.py:1: NameError: name 'missing' is not defined"))
+     source_filtered = apply_judge_filter(verdict, source_request)
+     assert source_filtered.test_wrong is False
+     assert source_filtered.implementation_wrong is True
+--- /dev/null
++++ after/tests/unit/test_own_test_setup.py
+@@ -0,0 +1,469 @@
++"""Own-test setup failures must not drive source edits or establish discrimination.
++
++Use the actual pytest/JUnit gate with a scripted model, never a model server. These
++checks distinguish missing imports, syntax and fixture setup from assertion/source red.
++"""
++
++import asyncio
++from dataclasses import replace
++from pathlib import Path
++
++import pytest
++
++from harness.budget import Budget
++from harness.exec import ShapedResult
++from harness.fake_model import EnvelopeSpec, FakeModelRunner
++from harness.leaf import (
++    DeclaredTestCase,
++    JudgeVerdict,
++    LeafSpec,
++    _default_run_tests,
++    _own_test_setup_problem,
++    _setup_repair_preservation_problem,
++    failure_is_test_attributed,
++    run_leaf,
++)
++from harness.runner import reset_ledger_for_tests
++
++
++TEST_PATH = "tests/test_generated.py"
++SOURCE_PATH = "pkg/calc.py"
++BROKEN_SOURCE = "def result():\n    return 0\n"
++FIXED_SOURCE = "def result():\n    return 42\n"
++VALID_TEST = "from pkg.calc import result\n\ndef test_ac1_result():\n    assert result() == 42\n"
++MISSING_IMPORT_TEST = "def test_ac1_result():\n    assert result() == 42\n"
++SYNTAX_TEST = "def test_ac1_result(:\n    assert True\n"
++# Tree-sitter accepts this grammar; CPython rejects deleting a call expression.
++# It reaches the real pytest/preflight boundary rather than the earlier parse respawn.
++CPYTHON_SYNTAX_TEST = "def test_ac1_result():\n    del result()\n"
++MISSING_FIXTURE_TEST = "def test_ac1_result(unknown_fixture):\n    assert unknown_fixture == 42\n"
++FIXTURE_SOURCE = ("import pytest\n\n" + BROKEN_SOURCE
++                  + "\n@pytest.fixture\ndef unknown_fixture():\n    return result()\n")
++FIXTURE_TEST = "from pkg.calc import unknown_fixture\n\n" + MISSING_FIXTURE_TEST
++
++
++def _write(path: str, content: str) -> dict:
++    return {"status": "ok", "comment": "write the declared artifact",
++            "file_path": path, "content": content}
++
++
++def _stage(workdir: Path, source: str, test: str | None = None) -> None:
++    source_path = workdir / SOURCE_PATH
++    source_path.parent.mkdir(parents=True, exist_ok=True)
++    source_path.write_text(source)
++    if test is not None:
++        test_path = workdir / TEST_PATH
++        test_path.parent.mkdir(parents=True, exist_ok=True)
++        test_path.write_text(test)
++
++
++def _spec(source: str) -> LeafSpec:
++    return LeafSpec(
++        goal="make result() return 42", files={SOURCE_PATH: source},
++        acs=["result() returns 42"], interfaces=["pkg.calc.result() -> int"],
++        planned_tests=(DeclaredTestCase("AC-1", TEST_PATH, ("test_ac1_result",)),),
++        verification_reason="a returned-value assertion pins the goal",
++    )
++
++
++def _run(workdir, source, responses, **kwargs):
++    reset_ledger_for_tests()
++    _stage(workdir, source)
++    model = FakeModelRunner({"write_test": responses})
++    events = []
++    outcome = asyncio.run(run_leaf(
++        model, _spec(source), workdir,
++        kwargs.pop("budget", Budget(calls=8, deadline_ts=2_000_000_000)),
++        on_event=lambda kind, body: events.append((kind, body)),
++        verification_mode="test", **kwargs))
++    test_calls = [c for c in model.calls("write_test") if c.step_type == "write_test"]
++    return outcome, model, test_calls, events
++
++
++@pytest.mark.parametrize(("test", "layer"), [
++    (MISSING_IMPORT_TEST, "name"), (SYNTAX_TEST, "syntax"),
++    (CPYTHON_SYNTAX_TEST, "syntax"), (MISSING_FIXTURE_TEST, "fixture"),
++])
++def test_own_test_setup_problem_uses_real_gate_output(tmp_path, test, layer):
++    _stage(tmp_path, BROKEN_SOURCE, test)
++    result = asyncio.run(_default_run_tests(tmp_path))
++    assert result.gate.observed and not result.gate.green
++    actual, detail = _own_test_setup_problem(TEST_PATH, test, result, (SOURCE_PATH,))
++    assert actual == layer
++    assert detail
++
++
++@pytest.mark.parametrize(("source", "test", "repair", "fixed"), [
++    (BROKEN_SOURCE, MISSING_IMPORT_TEST, VALID_TEST, FIXED_SOURCE),
++    (FIXTURE_SOURCE, MISSING_FIXTURE_TEST, FIXTURE_TEST,
++     FIXTURE_SOURCE.replace("return 0", "return 42")),
++], ids=["missing-import", "fixture-import"])
++def test_run_leaf_repairs_setup_before_implementation_and_reproves_red(
++    tmp_path, source, test, repair, fixed,
++):
++    outcome, model, test_calls, events = _run(
++        tmp_path, source,
++        [_write(TEST_PATH, test), _write(TEST_PATH, repair),
++         _write(SOURCE_PATH, fixed)])
++    assert len(test_calls) == 2
++    assert len(model.calls("implement_write")) == 1
++    assert "not behavior evidence" in test_calls[1].artifacts["failure_output"]
++    assert SOURCE_PATH in test_calls[1].artifacts["repo_files"]
++    assert (tmp_path / SOURCE_PATH).read_text() == fixed
++    kinds = [kind for kind, _ in events]
++    assert kinds.index("self_test_setup_invalid") < kinds.index("self_test_written")
++    assert "self_test_setup_rechecked" in kinds
++    assert outcome.own_test_discriminating == [f"{TEST_PATH}::test_ac1_result"]
++    assert outcome.test_rewrites == 0  # no valid red target existed before setup repair
++    assert outcome.claimed is True
++
++
++@pytest.mark.parametrize("repair", [
++    MISSING_IMPORT_TEST, SYNTAX_TEST, "import math\n\n" + MISSING_IMPORT_TEST,
++], ids=["unchanged", "unparseable", "still-missing-name"])
++def test_run_leaf_unrepaired_setup_stops_without_source_churn(tmp_path, repair):
++    outcome, model, _, events = _run(
++        tmp_path, BROKEN_SOURCE,
++        [_write(TEST_PATH, MISSING_IMPORT_TEST), _write(TEST_PATH, repair)])
++    assert not model.calls("implement_write")
++    assert (tmp_path / SOURCE_PATH).read_text() == BROKEN_SOURCE
++    assert not outcome.claimed
++    assert outcome.stop_reason == "self-test-invalid"
++    assert outcome.state == "uncertain"
++    assert outcome.attempts == []
++    assert outcome.own_test_discriminating == []
++    assert not any(row.state == "violated" for row in outcome.ledger)
++    assert any(kind == "self_test_invalid" for kind, _ in events)
++    assert (tmp_path / TEST_PATH).is_file()  # invalid artifact remains inspectable
++
++
++@pytest.mark.parametrize("source", [
++    BROKEN_SOURCE,
++    "def result():\n    return unknown_source_name\n",
++], ids=["assertion", "source-name"])
++def test_run_leaf_assertion_and_source_name_error_remain_implementation_feedback(tmp_path, source):
++    outcome, model, test_calls, events = _run(
++        tmp_path, source, [_write(TEST_PATH, VALID_TEST), _write(SOURCE_PATH, FIXED_SOURCE)],
++        judge=lambda request: JudgeVerdict(
++            implementation_wrong=True, reason="result returns the wrong value",
++            defect="result must return 42"))
++    assert len(test_calls) == 1
++    assert not any(kind == "self_test_setup_invalid" for kind, _ in events)
++    assert len(model.calls("implement_write")) == 1
++    assert outcome.claimed
++
++
++@pytest.mark.parametrize("source", [
++    "def result(:\n    return 42\n",
++    "def different_api():\n    return 42\n",
++], ids=["source-syntax", "missing-source-api"])
++def test_source_import_collection_errors_are_not_automatic_test_setup_blame(tmp_path, source):
++    # Ownership of a missing imported API needs goal/visible-interface evidence, not
++    # an automatic rewrite of the importing test. Its controller route remains P1b.
++    _stage(tmp_path, source, VALID_TEST)
++    result = asyncio.run(_default_run_tests(tmp_path))
++    assert result.gate.observed and not result.gate.green
++    assert _own_test_setup_problem(TEST_PATH, VALID_TEST, result, (SOURCE_PATH,)) == ("", "")
++
++
++def test_run_leaf_setup_repair_with_missing_report_cannot_reuse_invalid_red(tmp_path):
++    calls = 0
++
++    async def lose_repair_report(workdir):
++        nonlocal calls
++        calls += 1
++        if calls == 1:
++            return await _default_run_tests(workdir)
++        return ShapedResult(command=["pytest"], exit=1, verdict="failed")
++
++    outcome, model, _, _ = _run(
++        tmp_path, BROKEN_SOURCE,
++        [_write(TEST_PATH, MISSING_IMPORT_TEST), _write(TEST_PATH, VALID_TEST)],
++        run_tests=lose_repair_report)
++    assert not outcome.claimed
++    assert not model.calls("implement_write")
++    assert outcome.own_test_discriminating == []
++    assert not any(row.state == "violated" for row in outcome.ledger)
++    assert outcome.own_test_gate is None
++    assert outcome.state == "uncertain"
++    assert (tmp_path / TEST_PATH).is_file()
++    assert (tmp_path / TEST_PATH).read_text() == VALID_TEST
++    assert outcome.stop_reason == "self-test-unverified"
++
++
++def test_run_leaf_repaired_test_green_on_pristine_cannot_claim(tmp_path):
++    # Preserve the original predicate: the pristine implementation already meets it.
++    outcome, model, _, _ = _run(
++        tmp_path, FIXED_SOURCE,
++        [_write(TEST_PATH, MISSING_IMPORT_TEST), _write(TEST_PATH, VALID_TEST),
++         _write(TEST_PATH, VALID_TEST)])
++    assert not outcome.claimed
++    assert not model.calls("implement_write")
++    assert outcome.own_test_discriminating == []
++    assert (tmp_path / SOURCE_PATH).read_text() == FIXED_SOURCE
++
++
++@pytest.mark.parametrize("failure", [
++    f"{TEST_PATH}:4: AssertionError: NameError: unexpected result",
++    (f"{TEST_PATH}:4: AssertionError: assert 0 == 42\n"
++     "---------------- Captured stdout call ----------------\n"
++     f"{TEST_PATH}:4: NameError: printed text, not the exception"),
++    (f"{TEST_PATH}:4: NameError: handled by the test\n"
++     "During handling of the above exception, another exception occurred:\n"
++     f"{TEST_PATH}:8: AssertionError: NameError: wrong result"),
++    (f"{TEST_PATH}:4: \n"
++     f"{SOURCE_PATH}:2: NameError: source failure"),
++], ids=["assertion-message", "captured-output", "chained-exception", "source-owner"])
++def test_failure_is_test_attributed_requires_the_actual_terminal_exception(failure):
++    assert not failure_is_test_attributed(failure, TEST_PATH, (SOURCE_PATH,))
++
++
++@pytest.mark.parametrize("separator", [
++    "During handling of the above exception, another exception occurred:",
++    "The above exception was the direct cause of the following exception:",
++], ids=["handling", "direct-cause"])
++def test_failure_is_test_attributed_discards_chain_without_terminal_location(separator):
++    failure = (f"{TEST_PATH}:4: NameError: earlier test fault\n{separator}\n"
++               "E   ValueError: final exception has no retained terminal location")
++    assert not failure_is_test_attributed(failure, TEST_PATH, (SOURCE_PATH,))
++
++
++@pytest.mark.parametrize("exception", ["NameError", "UnboundLocalError"])
++def test_failure_is_test_attributed_accepts_terminal_test_name_fault(exception):
++    failure = f"{TEST_PATH}:4: {exception}: missing local name"
++    assert failure_is_test_attributed(failure, TEST_PATH, (SOURCE_PATH,))
++
++
++@pytest.mark.parametrize("test", [
++    VALID_TEST.replace("== 42", '== 42, "NameError: unexpected result"'),
++    VALID_TEST.replace("== 42", '== 42, "UnboundLocalError: unexpected result"'),
++    VALID_TEST.replace("    assert", f'    print("{TEST_PATH}:4: NameError: captured")\n    assert'),
++], ids=["name-in-assertion-message", "unbound-in-assertion-message", "captured-location"])
++def test_run_leaf_exception_name_prose_stays_implementation_feedback(tmp_path, test):
++    outcome, model, test_calls, events = _run(
++        tmp_path, BROKEN_SOURCE,
++        [_write(TEST_PATH, test), _write(SOURCE_PATH, FIXED_SOURCE)],
++        judge=lambda request: JudgeVerdict(
++            implementation_wrong=True, reason="result returns 0 instead of 42",
++            defect="result must return 42"))
++    assert len(test_calls) == 1
++    assert not any(kind == "self_test_setup_invalid" for kind, _ in events)
++    assert len(model.calls("implement_write")) == 1
++    assert outcome.claimed
++
++
++@pytest.mark.parametrize("repair", [
++    VALID_TEST.replace("== 42", ">= 42"),  # still red on return 0; not caught by green re-ask
++    VALID_TEST.replace("assert result() == 42", "assert True"),
++    VALID_TEST.replace("    assert", "    if False:\n        assert"),
++    VALID_TEST.replace("def test_ac1_result():", "def test_other():"),
++    VALID_TEST.replace("def test_ac1_result():", "@pytest.mark.skip\ndef test_ac1_result():"),
++    "from pkg.calc import result\n",  # deleting the check also cannot be setup-only
++], ids=["weakened-still-red", "vacuous", "unreachable", "renamed", "skipped", "deleted"])
++def test_run_leaf_setup_only_repair_cannot_replace_existing_behavioral_checks(tmp_path, repair):
++    outcome, model, _, events = _run(
++        tmp_path, BROKEN_SOURCE,
++        [_write(TEST_PATH, MISSING_IMPORT_TEST), _write(TEST_PATH, repair)])
++    assert outcome.state == "uncertain"
++    assert outcome.stop_reason == "self-test-invalid"
++    assert not outcome.claimed
++    assert not model.calls("implement_write")
++    assert outcome.attempts == []
++    assert outcome.own_test_discriminating == []
++    assert outcome.own_test_gate is None
++    assert not any(row.state == "violated" for row in outcome.ledger)
++    assert any(kind == "self_test_setup_repair_rejected" for kind, _ in events)
++    assert (tmp_path / TEST_PATH).read_text() == MISSING_IMPORT_TEST
++    assert (tmp_path / SOURCE_PATH).read_text() == BROKEN_SOURCE
++
++
++def test_setup_repair_preservation_includes_expected_values_helpers_and_check_context():
++    original = ("EXPECTED = 42\n\ndef read_result():\n    return result()\n\n"
++                "def test_ac1_result():\n    assert read_result() == EXPECTED\n")
++    repair = "from pkg.calc import result\n\n" + original
++    assert _setup_repair_preservation_problem(original, repair) == ""
++    assert _setup_repair_preservation_problem(original, repair.replace("EXPECTED = 42", "EXPECTED = 0"))
++    assert _setup_repair_preservation_problem(original, repair.replace("return result()", "return 42"))
++    assert _setup_repair_preservation_problem(SYNTAX_TEST, VALID_TEST)
++    assert _setup_repair_preservation_problem(MISSING_IMPORT_TEST, SYNTAX_TEST)
++    # This proves structural preservation only. Dynamic import effects/semantic oracle
++    # correctness are explicitly outside this mechanical check's guarantee.
++
++
++def test_run_leaf_unparseable_original_stops_when_preservation_is_unknown(tmp_path):
++    outcome, model, test_calls, _ = _run(
++        tmp_path, BROKEN_SOURCE, [_write(TEST_PATH, CPYTHON_SYNTAX_TEST)])
++    assert len(test_calls) == 1  # do not spend a repair call we cannot safely validate
++    assert not model.calls("implement_write")
++    assert not outcome.claimed
++    assert outcome.state == "uncertain"
++    assert outcome.stop_reason == "self-test-invalid"
++    assert outcome.own_test_discriminating == []
++    assert not any(row.state == "violated" for row in outcome.ledger)
++    assert any("preservation is unknown" in refusal for refusal in outcome.refusals)
++    assert (tmp_path / TEST_PATH).read_text() == CPYTHON_SYNTAX_TEST
++
++
++@pytest.mark.parametrize("fault", [
++    "report-missing", "unobserved", "canary-missing", "expected-tests-missing",
++    "process-exit", "transport", "process-unfinished", "transport-verdict", "blocked",
++])
++@pytest.mark.parametrize("during_repair", [False, True], ids=["initial", "repair-reobservation"])
++def test_run_leaf_untrusted_observation_stops_uncertain_retaining_artifact(
++    tmp_path, fault, during_repair,
++):
++    calls = 0
++
++    async def untrusted_observation(workdir):
++        nonlocal calls
++        calls += 1
++        result = await _default_run_tests(workdir)
++        if during_repair and calls == 1:
++            return result
++        if fault == "report-missing":
++            return replace(result, gate=None)
++        if fault == "transport":
++            return replace(result, exit=None, verdict="transport_error")
++        if fault == "process-unfinished":
++            return replace(result, gate=replace(result.gate, process_exit=None))
++        if fault == "transport-verdict":
++            return replace(result, verdict="transport_error")
++        if fault == "blocked":
++            return replace(result, policy_blocked=True)
++        if fault == "unobserved":
++            return replace(result, gate=replace(result.gate, observed=False))
++        # Retain real failed own-test IDs and observed=True: structural distrust must
++        # stop before collectibility/partitioning could promote them to a source target.
++        return replace(result, gate=replace(result.gate, anomaly=fault, observed=True))
++
++    responses = [_write(TEST_PATH, MISSING_IMPORT_TEST)]
++    if during_repair:
++        responses.append(_write(TEST_PATH, VALID_TEST))
++    outcome, model, test_calls, events = _run(
++        tmp_path, BROKEN_SOURCE, responses, run_tests=untrusted_observation)
++    assert len(test_calls) == (2 if during_repair else 1)
++    assert calls == (2 if during_repair else 1)
++    assert not model.calls("implement_write")
++    assert not outcome.claimed
++    assert outcome.state == "uncertain"
++    assert outcome.stop_reason == "self-test-unverified"
++    assert outcome.attempts == []
++    assert outcome.own_test_discriminating == []
++    assert outcome.own_test_symptom_ids == []
++    assert outcome.own_test_gate is None
++    assert not any(row.state == "violated" for row in outcome.ledger)
++    assert any(kind == "self_test_unverified" for kind, _ in events)
++    assert (tmp_path / TEST_PATH).read_text() == (VALID_TEST if during_repair else MISSING_IMPORT_TEST)
++    assert (tmp_path / SOURCE_PATH).read_text() == BROKEN_SOURCE
++
++
++def test_run_leaf_green_reask_setup_failure_is_repaired_before_source_iteration(tmp_path):
++    green_test = VALID_TEST.replace("== 42", "== 0")
++    outcome, model, test_calls, events = _run(
++        tmp_path, BROKEN_SOURCE,
++        [_write(TEST_PATH, green_test), _write(TEST_PATH, MISSING_IMPORT_TEST),
++         _write(TEST_PATH, VALID_TEST), _write(SOURCE_PATH, FIXED_SOURCE)])
++    assert len(test_calls) == 3
++    assert len(model.calls("implement_write")) == 1
++    kinds = [kind for kind, _ in events]
++    assert kinds.index("self_test_green_on_arrival") < kinds.index("self_test_setup_invalid")
++    assert kinds.index("self_test_setup_rechecked") < kinds.index("self_test_written")
++    assert outcome.own_test_discriminating == [f"{TEST_PATH}::test_ac1_result"]
++    assert outcome.claimed
++
++
++def test_run_leaf_green_reask_shares_the_single_setup_repair_cap(tmp_path):
++    missing_green_test = MISSING_IMPORT_TEST.replace("== 42", "== 0")
++    green_test = VALID_TEST.replace("== 42", "== 0")
++    outcome, model, test_calls, events = _run(
++        tmp_path, BROKEN_SOURCE,
++        [_write(TEST_PATH, missing_green_test), _write(TEST_PATH, green_test),
++         _write(TEST_PATH, MISSING_IMPORT_TEST)])
++    assert len(test_calls) == 3
++    assert sum(kind == "self_test_setup_invalid" for kind, _ in events) == 2
++    assert any("cap exhausted" in refusal for refusal in outcome.refusals)
++    assert not model.calls("implement_write")
++    assert not outcome.claimed
++    assert outcome.state == "uncertain"
++    assert outcome.own_test_discriminating == []
++    assert outcome.own_test_gate is None
++    assert not any(row.state == "violated" for row in outcome.ledger)
++    assert (tmp_path / TEST_PATH).read_text() == MISSING_IMPORT_TEST
++
++
++def test_run_leaf_setup_failure_with_no_repair_calls_stops_without_source_churn(tmp_path):
++    outcome, model, test_calls, _ = _run(
++        tmp_path, BROKEN_SOURCE, [_write(TEST_PATH, MISSING_IMPORT_TEST)],
++        budget=Budget(calls=1, deadline_ts=2_000_000_000))
++    assert len(test_calls) == 1
++    assert not model.calls("implement_write")
++    assert not outcome.claimed
++    assert outcome.state == "uncertain"
++    assert outcome.stop_reason == "self-test-invalid"
++    assert any("no calls remain" in refusal for refusal in outcome.refusals)
++    assert (tmp_path / TEST_PATH).read_text() == MISSING_IMPORT_TEST
++
++
++@pytest.mark.parametrize("expire_during_repair", [False, True], ids=["before-repair", "during-repair"])
++def test_run_leaf_setup_repair_respects_deadline_and_retains_artifact(
++    tmp_path, monkeypatch, expire_during_repair,
++):
++    clock = [0]
++    original_complete = FakeModelRunner.complete
++
++    async def expire_after_model_response(model, request):
++        response = await original_complete(model, request)
++        if expire_during_repair and model.total_calls == 2:
++            clock[0] = 10
++        return response
++
++    monkeypatch.setattr(FakeModelRunner, "complete", expire_after_model_response)
++
++    async def expire_after_initial_observation(workdir):
++        result = await _default_run_tests(workdir)
++        if not expire_during_repair:
++            clock[0] = 10
++        return result
++
++    responses = [_write(TEST_PATH, MISSING_IMPORT_TEST)]
++    if expire_during_repair:
++        responses.append(_write(TEST_PATH, VALID_TEST))
++    outcome, model, test_calls, _ = _run(
++        tmp_path, BROKEN_SOURCE, responses,
++        budget=Budget(calls=8, deadline_ts=10), now=lambda: clock[0],
++        run_tests=expire_after_initial_observation)
++    assert len(test_calls) == (2 if expire_during_repair else 1)
++    assert not model.calls("implement_write")
++    assert not outcome.claimed
++    assert outcome.state == "parked"  # preserve the existing deadline/handover contract
++    assert outcome.stop_reason == "deadline"
++    assert outcome.own_test_discriminating == []
++    assert not any(row.state == "violated" for row in outcome.ledger)
++    assert (tmp_path / TEST_PATH).read_text() == MISSING_IMPORT_TEST
++
++
++@pytest.mark.parametrize("repair", [
++    {**_write(TEST_PATH, VALID_TEST), "status": "blocked"},
++    {"status": "unable", "comment": "cannot repair imports", "unable_reason": "no valid setup edit"},
++    _write(TEST_PATH, ""),
++    _write(TEST_PATH, MISSING_IMPORT_TEST),
++    _write(SOURCE_PATH, VALID_TEST),
++    _write("../test_escape.py", VALID_TEST),
++    EnvelopeSpec(kind="raw", body='{"status": "ok",'),
++], ids=["blocked", "unable", "empty", "unchanged", "source-path", "escaping-path", "malformed"])
++def test_run_leaf_unusable_setup_repair_is_bounded_and_cannot_write_another_path(tmp_path, repair):
++    outcome, model, test_calls, _ = _run(
++        tmp_path, BROKEN_SOURCE,
++        [_write(TEST_PATH, MISSING_IMPORT_TEST), repair])
++    assert len(test_calls) == 2
++    assert not model.calls("implement_write")
++    assert not outcome.claimed
++    assert outcome.state == "uncertain"
++    assert outcome.stop_reason == "self-test-invalid"
++    assert outcome.attempts == []
++    assert outcome.own_test_discriminating == []
++    assert outcome.own_test_gate is None
++    assert not any(row.state == "violated" for row in outcome.ledger)
++    assert (tmp_path / TEST_PATH).read_text() == MISSING_IMPORT_TEST
++    assert (tmp_path / SOURCE_PATH).read_text() == BROKEN_SOURCE
++    assert not (tmp_path.parent / "test_escape.py").exists()

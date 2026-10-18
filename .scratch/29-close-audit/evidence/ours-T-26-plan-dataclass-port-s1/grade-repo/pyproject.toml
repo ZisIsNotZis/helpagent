@@ -1,0 +1,10 @@
+[project]
+name = "26plandataclassport"
+version = "0.1.0"
+description = "Port the ad-hoc plan record to a dataclass."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

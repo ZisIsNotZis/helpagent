@@ -1,0 +1,6 @@
+PASS: protected baseline hashes, unchanged acceptance columns, AST parse, no staged files
+Baseline worktree: c1807db9456869917df04cdceeee9c54c46bcadd831085f49129231b0691fcf3
+Current worktree: 28f54b4df08b17f0bb27e13cef54f7d9c59e1e0f73e90ed97757630278407fec
+Package diff: 0bd998ae2e771c5f09a9ab808e18385c3591955bdaa517d6ed9e398cc7473e55
+Cycle1 repair diff: 9dfeb2deebf0457ad1316a618607e396e5736af1c37881556e16f0d08f80c80f
+Behavioral validation: validation-summary.json; independent review: cycle2 pending

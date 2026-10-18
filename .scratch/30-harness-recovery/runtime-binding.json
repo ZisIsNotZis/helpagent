@@ -1,0 +1,41 @@
+{
+  "at": "2026-10-15T16:44:17+08:00",
+  "group": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+  "attributes": {
+    "cgroup.controllers": "cpu memory pids",
+    "cgroup.events": "populated 1\nfrozen 0",
+    "cgroup.procs": "3337272\n3337274\n3337275",
+    "cpu.max": "100000 100000",
+    "cpu.stat": "usage_usec 68309\nuser_usec 54245\nsystem_usec 14063\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 3\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0",
+    "memory.max": "1073741824",
+    "memory.current": "16273408",
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0",
+    "pids.max": "64",
+    "pids.current": "3",
+    "pids.events": "max 0"
+  },
+  "hostAvailableBytes": 117131288576,
+  "processes": {
+    "3337272": {
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+      "stat": "3337272 (python) R 3337262 3337262 3337262 0 -1 4194304 2584 0 0 0 2 1 0 0 20 0 1 0 61346464 23367680 4219 18446744073709551615 4325376 7352253 140723152267200 0 0 0 0 16781319 0 0 0 0 17 11 0 0 0 0 0 10653128 12216448 1072033792 140723152272447 140723152272518 140723152272518 140723152281575 0\n",
+      "affinity": [
+        11
+      ]
+    },
+    "3337274": {
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+      "stat": "3337274 (python) S 3337272 3337262 3337262 0 -1 4194304 1348 0 0 0 2 0 0 0 20 0 1 0 61346470 17182720 2839 18446744073709551615 4325376 7352253 140737198184176 0 0 0 0 16781319 0 1 0 0 17 11 0 0 0 0 0 10653128 12216448 1004621824 140737198193600 140737198193775 140737198193775 140737198202832 0\n",
+      "affinity": [
+        11
+      ]
+    },
+    "3337275": {
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+      "stat": "3337275 (python) S 3337274 3337262 3337262 0 -1 4194304 1027 0 0 0 0 0 0 0 20 0 1 0 61346472 15749120 2477 18446744073709551615 4325376 7352253 140731195404672 0 0 0 0 16781319 0 1 0 0 17 11 0 0 0 0 0 10653128 12216448 546394112 140731195411494 140731195411567 140731195411567 140731195420624 0\n",
+      "affinity": [
+        11
+      ]
+    }
+  }
+}

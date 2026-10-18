@@ -1,0 +1,14 @@
+2026-10-15T16:43:19+08:00
+               total        used        free      shared  buff/cache   available
+Mem:     134896082944 18187710464 40064475136   108634112 78934962176 116708372480
+Swap:              0           0           0
+pid 3336828's current affinity list: 0-11
+Version=255.4-1ubuntu8.17
+ControlGroup=/user.slice/user-1000.slice/user@1000.service
+PID=3318293
+0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-ghostty-surface-transient-15049.scope
+State:	S (sleeping)
+VmRSS:	 2161016 kB
+Threads:	17
+Cpus_allowed_list:	0-11
+638

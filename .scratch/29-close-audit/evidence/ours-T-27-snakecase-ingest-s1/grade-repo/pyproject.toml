@@ -1,0 +1,10 @@
+[project]
+name = "27snakecaseingest"
+version = "0.1.0"
+description = "Port the ingest layer to the snake_case wire contract."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

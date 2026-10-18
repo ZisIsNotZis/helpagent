@@ -1,0 +1,10 @@
+[project]
+name = "34expressiontokenizer"
+version = "0.1.0"
+description = "Tokenizer for a mini expression language with escapes."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

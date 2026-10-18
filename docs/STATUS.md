@@ -1,10 +1,7 @@
 # Status — the final measured position
 
 This is the current-state record for the helpagent research project. The project is
-**complete and archived**: the campaign that the owner mandated (match or beat a mature
-agent CLI on the same model, without lying, with verification that carries information)
-has run to its pre-registered end and reported its verdicts. The product CLI does not
-exist.
+**campaign complete and research archived**: the campaign has run to its pre-registered end and reported its verdicts. The goals (match or beat a mature agent CLI on the same model, without lying, with verification that carries information) remain unmet or unresolved, not disproved. The product CLI does not exist.
 
 Every number here was measured on revision `45ebb32`, with the same reference model, the
 same server window and a blind external grader. When this document and the run records
@@ -28,9 +25,9 @@ Held equal for every arm in the final measurement:
 
 | requirement | verdict | decisive numbers |
 | --- | --- | --- |
-| **R1 capability parity** (ours >= `pi` within the error margin) | **INCONCLUSIVE** | N=25/arm: ours `24.640/40` (sd 1.22) vs `pi` `24.960/40` (sd 2.15); delta `−0.320` tasks `= −0.8%`; task-clustered 95% CI `[−3.520, +3.080]`; pre-registered `M=3` rule returns INCONCLUSIVE by `0.52` tasks; the CI width is structural, so more seeds cannot resolve it. |
-| **R2 verification carries information** | **PARTLY / not as stated** | own test `−1.33` tasks (p=0.55, zero-information); independent test neutral on correctness, `−8.67` claims (p=0.0009) and `−3.00` false successes (p=0.031); review `+4.00` correctness (p=0.012) only on top of own test + independent test, and `+3.33` false successes (p=0.031) on its own. |
-| **R3 decomposition / multi-approach** | **NEGATIVE** | leaf `47/70 (67.1%, 0 false)` vs tree-greedy `14/70 (20.0%, 4 false)` vs tree-tournament `15/70 (21.4%, 3 false)`; paired delta CI upper bounds below 0, p<0.001; the mechanism verifiably fired. |
+| **R1 capability parity** (ours >= `pi` within the error margin) | **INCONCLUSIVE** | N=25/arm: ours `24.640/40` (sd 1.22) vs `pi` `24.960/40` (sd 2.15); delta `−0.320` tasks `= −0.8%`; task-clustered 95% CI `[−3.520, +3.080]`; pre-registered `M=3` rule returns INCONCLUSIVE by `0.52` tasks; the CI width was flat over N=17..25, so further seeds alone are not projected to resolve it at the observed task effects. |
+| **R2 verification carries information** | **PARTLY / not as stated** | own-test loop `−1.33` tasks (CI `[−5.67, +3.00]`, p=0.55), net correctness effect unresolved; independent-test correctness effects unresolved, `−8.67` claims (p=0.0009) and `−3.00` false successes (p=0.031) with review present; review `+4.00` correctness (p=0.012) with independent test present, and `+3.33` false successes (p=0.031) without it; interaction not established. |
+| **R3 decomposition / multi-approach** | **NEGATIVE** | leaf `47/70 (67.1%, 0 false)` vs tree-greedy `14/70 (20.0%, 4 false)` vs tree-tournament `15/70 (21.4%, 3 false)`; paired delta CI upper bounds below 0, p<0.001; negative for the current tree bundle, not isolated decomposition or field refinement. |
 
 The three requirements map to the acceptance criteria as R1 = C1 + C4 + C5, R2 = C2 and
 R3 = the structural-superiority part of C4. The criterion-by-criterion verdicts are in
@@ -39,7 +36,7 @@ R3 = the structural-superiority part of C4. The criterion-by-criterion verdicts 
 ## 3. R1 — capability parity (INCONCLUSIVE)
 
 Head-to-head, same server, same grader, N=25 seeds/arm (1000 rows/arm), 0 crashes and 0
-timeouts. Revision `45ebb32`; the frozen N=17 result was reused and seeds 18..25 added.
+timeouts in the recorded driver-level metrics. Revision `45ebb32`; the frozen N=17 result was reused and seeds 18..25 added. Those metrics do not mean every inference completed: retained final-revision `pi` samples contain length stops and explicit context-size errors before any code write; the [bounded audit](../.scratch/29-close-audit/report.md) distinguishes them from driver timeout and leaves their runtime capacity cause unknown.
 
 | | ours (N=25) | `pi` (N=25, same server) |
 | --- | --- | --- |
@@ -57,12 +54,11 @@ timeouts. Revision `45ebb32`; the frozen N=17 result was reused and seeds 18..25
   is a near-tie, but the frozen test establishes neither parity within margin nor
   inferiority.
 
-**Why N=25 did not resolve it (structural, not a lucky draw).** The CI half-width is about
+**Why N=25 did not resolve it (projection from observed task effects).** The CI half-width is about
 `3.3` tasks and is flat over N=17..25 (full width `6.53` to `6.60`). It is set by
 between-task heterogeneity in the 40-task corpus, not by seed noise: at N=25 the
 within-seed variance contributes only about `8.7%` of the per-task-mean variance, leaving a
-`~6.3`-task floor at infinite seeds. The rule would need the point estimate to move to
-about `+0.3` tasks, or a different or larger task set, to return ACHIEVED.
+`~6.3`-task asymptotic width projected from the observed effects. At that width the rule would need the point estimate to move to about `+0.3` tasks, or a different or larger task set, to return ACHIEVED. This is not proof that more seeds cannot change the estimate, nor that the capability goal is impossible.
 
 **Where the starting position came from.** The 2026-10-09 campaign measurement on revision
 `6b224f5` was ours `24/40` vs `pi` `27/40`, caused by a discarded grader-passing revision in
@@ -86,10 +82,9 @@ ladder is cumulative, one stage added per arm.
 | A3 + own test + review | `71/120 (59.2%)` | 54 | **10** | 9.13 | 12,696 | 60.7 |
 | A4 full (own test + independent test + review + claim gate) | `77/120 (64.2%)` | 28 | **1** | 12.86 | 18,894 | 97.9 |
 
-Paired incremental contributions (one stage isolated per contrast, 40 tasks, 95%
-percentile bootstrap, seed `20261013`):
+Paired stage-enable contrasts (net workflow effects, 40 tasks, 95% percentile bootstrap, seed `20261013`); enabling a stage also changes feedback, iteration, stopping and delivery, so this does not isolate the information in a test or review:
 
-| contrast | stage isolated | Δactual [95% CI] | p | Δclaimed | Δfalse [95% CI] | p |
+| contrast | stage enabled | Δactual [95% CI] | p | Δclaimed | Δfalse [95% CI] | p |
 | --- | --- | --- | --- | --- | --- | --- |
 | A1 − A0 | own test | `−1.33 [−5.67, +3.00]` | 0.549 | +0.00 | `+0.00 [0.00, 0.00]` | 1.000 |
 | A2 − A1 | independent test | `−0.33 [−3.00, +2.33]` | 1.000 | +0.33 | `+0.00 [0.00, 0.00]` | 1.000 |
@@ -99,24 +94,10 @@ percentile bootstrap, seed `20261013`):
 
 Reading it:
 
-- **The own test is zero-information on correctness.** The point estimate is negative, the
-  CI spans 0, and the self-test never carried a claim in any of the 600 runs
-  (`claimed_basis` is always review and/or independent test). It costs about 7x the tokens
-  and 6.6x the wall time of development-only.
-- **The independent test is a false-claim suppressor, not a correctness lever.** On actual
-  correctness it is indistinguishable from zero, but it cuts claims (`−8.67`, p=0.0009) and
-  false successes (`−3.00 [−5.67, −1.00]`, p=0.031). It is conservative: in the full arm
-  it withheld approval in `92/110` runs, `57` of which the grader passed.
-- **Review buys correctness only when backstopped.** Added to the own test alone, review
-  gives no significant correctness change while producing `+18.00` claims and `+3.33`
-  false successes. Added on top of own test + independent test, it is the **only
-  significant correctness gain in the ladder** (`+4.00 [ +1.33, +7.00]`, p=0.012).
-- **The requirement as stated is not supported.** Not every stage carries
-  positive information: the own test is zero-information, and review alone is negative
-  information (it raises false successes). The full stack is net-positive in point estimate
-  (`+2.33` tasks `[−0.33, +5.33]`, p=0.34, not significant); the only significant
-  correctness gain is review on top of own test + independent test. The stages are not
-  interchangeable.
+- **No net correctness gain was detected from enabling the own-test loop.** Its CI `[−5.67, +3.00]` includes losses and gains; this is not proof of zero information or equivalence. Own tests never directly carried a claim, but can change code and block later claims. The loop costs about 7x the tokens and 6.6x the wall time of development-only.
+- **The independent-test contrasts leave correctness unresolved and reduce false claims with review present.** Claims fall (`−8.67`, p=0.0009) and false successes fall (`−3.00 [−5.67, −1.00]`, p=0.031). In the full arm it withheld approval in `92/110` runs, `57` of which the final grader passed; that join is not an independent diagnostic-accuracy experiment.
+- **Review has a positive correctness contrast with independent test present.** `A4−A2` is `+4.00 [+1.33, +7.00]`, p=0.012. Without independent test, `A3−A1` has no detected correctness effect and increases false successes by `+3.33`. A significant contrast beside a nonsignificant one does not establish that their difference (the interaction) is significant.
+- **The requirement remains not met as stated.** The net full-stack gain is unresolved (`+2.33 [−0.33, +5.33]`, p=0.34), not every final failure has a deviation-point explanation, and the final R2 A-05#1 shows independent test and review jointly approving wrong answers. These workflow measurements do not measure information content. Small N, unmatched stage costs and multiple unadjusted contrasts limit interpretation; see the measurement record and [bounded final-revision audit](../.scratch/29-close-audit/report.md).
 
 ## 5. R3 — decomposition / multi-approach (NEGATIVE)
 
@@ -138,13 +119,8 @@ Paired deltas (tree − leaf), 95% bootstrap CI, seed `20261013`:
 | B2 vs leaf, decomposable tasks | `−0.422` | `[−0.689, −0.178]` | 2 / 21 | 0.000 |
 | B2 vs leaf, forced-leaf tasks | `−0.520` | `[−0.800, −0.240]` | 1 / 14 | 0.001 |
 
-The pre-registered rule fires NEGATIVE for both tree arms (every decomp-related CI upper
-bound is below 0). The mechanism verifiably fired, so this is a valid negative and not an
-unfired-mechanism artefact: decomposition ran in `3/70` runs on `3/9` decomposable tasks
-(B1) and `9/70` runs on `4/9` tasks (B2). The tree cost `2.2` to `2.4x` the calls, `2.3` to
-`2.9x` the wall and at least `1.85x` the tokens, for one third of the leaf's grader passes.
-The correct wording is: **structural superiority is refuted on this corpus; the monolithic
-leaf matches or beats the tree at a fraction of the cost.**
+The pre-registered rule returns NEGATIVE for both current tree arms (every decomp-related CI upper bound is below 0). Decomposition ran in `3/70` runs on `3/9` decomposable tasks (B1) and `9/70` runs on `4/9` tasks (B2); this establishes that it sometimes fired, not causal isolation. The tree cost `2.2` to `2.4x` the calls, `2.3` to `2.9x` the wall and at least `1.85x` the tokens, for one third of the leaf's grader passes.
+**The current tree bundle is worse here; decomposition, field refinement and structural superiority in general are not refuted.** It changes planning/spec rewriting, budget and delivery as well as splitting: tree merges only closed, claimed candidates, whereas leaf also delivers unclaimed code. Both tree arms delivered pristine Python source on all 52 unclaimed failures; leaf passed 39 unclaimed runs. The deleted tree candidates cannot establish how many were correct. See [ticket 29](../.scratch/29-close-audit/report.md) for code/byte evidence and limits.
 
 ## 6. Cost
 
@@ -196,7 +172,7 @@ leaf matches or beats the tree at a fraction of the cost.**
 
 | mechanism | result |
 | --- | --- |
-| decomposition / step-splitting / multi-approach | harmful (R3 above) |
+| current tree / multi-approach bundle | harmful here; splitting and field refinement not isolated (R3 above) |
 | injecting a knowledge pack (signatures / callers / constants) | no gain (`4/15` vs `3/15`) |
 | putting module importers into the write spec | no gain (`10/15` vs `10/15`) |
 | forcing a deterministic file-change order | harmful (`14/15` vs `7/15`) |
@@ -205,7 +181,7 @@ leaf matches or beats the tree at a fraction of the cost.**
 | the bounded source index (declared files in full, the rest as an index) | harmful (`13/24` vs `18/24`; `13/24` vs `19/24` against the pre-change revision `e190a4f`, commit `25dafaf`) |
 | asking the mature CLI to write and run its own tests | worse at 8k (`16/40` vs `21/40`); the 4B could not emit a whole test file as one tool argument. Not re-measured at 32k |
 
-The pattern: structure that costs calls without adding information loses.
+These implementations spent extra calls without a measured net capability gain; this does not show that structure in general cannot help.
 
 ## 10. Known limits (accepted, not pretended away)
 

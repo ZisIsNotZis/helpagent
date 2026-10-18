@@ -1,0 +1,5 @@
+warning: `VIRTUAL_ENV=/home/z/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+assignment-target tree-sitter= False CPython AST error= cannot assign to expression here. Maybe you meant '==' instead of '='? (<unknown>, line 2)
+literal-target tree-sitter= False CPython AST error= cannot assign to literal here. Maybe you meant '==' instead of '='? (<unknown>, line 2)
+invalid-delete tree-sitter= True CPython AST error= cannot delete function call (<unknown>, line 2)
+invalid-walrus tree-sitter= False CPython AST error= cannot use assignment expressions with function call (<unknown>, line 2)

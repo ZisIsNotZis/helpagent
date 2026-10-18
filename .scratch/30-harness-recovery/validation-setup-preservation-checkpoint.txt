@@ -1,0 +1,30 @@
+warning: `VIRTUAL_ENV=/home/z/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+NEGATIVE CONTROL setup-preservation: expect pytest exit 1 at the targeted behavioral assertion
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_run_leaf_setup_only_repair_cannot_replace_existing_behavioral_checks[weakened-still-red] _
+
+tmp_path = PosixPath('/tmp/pytest-of-z/pytest-1178/test_run_leaf_setup_only_repai0')
+repair = 'from pkg.calc import result\n\ndef test_ac1_result():\n    assert result() >= 42\n'
+
+    @pytest.mark.parametrize("repair", [
+        VALID_TEST.replace("== 42", ">= 42"),  # still red on return 0; not caught by green re-ask
+        VALID_TEST.replace("assert result() == 42", "assert True"),
+        VALID_TEST.replace("    assert", "    if False:\n        assert"),
+        VALID_TEST.replace("def test_ac1_result():", "def test_other():"),
+        VALID_TEST.replace("def test_ac1_result():", "@pytest.mark.skip\ndef test_ac1_result():"),
+        "from pkg.calc import result\n",  # deleting the check also cannot be setup-only
+    ], ids=["weakened-still-red", "vacuous", "unreachable", "renamed", "skipped", "deleted"])
+    def test_run_leaf_setup_only_repair_cannot_replace_existing_behavioral_checks(tmp_path, repair):
+        outcome, model, _, events = _run(
+            tmp_path, BROKEN_SOURCE,
+            [_write(TEST_PATH, MISSING_IMPORT_TEST), _write(TEST_PATH, repair)])
+>       assert outcome.state == "uncertain"
+E       AssertionError: assert 'parked' == 'uncertain'
+E         
+E         - uncertain
+E         + parked
+
+tests/unit/test_own_test_setup.py:257: AssertionError
+=========================== short test summary info ============================
+FAILED tests/unit/test_own_test_setup.py::test_run_leaf_setup_only_repair_cannot_replace_existing_behavioral_checks[weakened-still-red]

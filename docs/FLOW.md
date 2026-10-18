@@ -154,6 +154,8 @@ disjoint targets: source vs test file), followed by the test run, then the revie
 
 ### 4.1 Test states
 
+Before source iteration, an authenticated own-test report with a definite test-file syntax error, terminating test-local NameError/UnboundLocalError or missing fixture is setup-invalid, not a behavioral red; exception-name text in an assertion message or captured output is not exception ownership. The harness allows at most one bounded import-only setup repair on pristine source, shared with the green re-ask, and mechanically preserves the parseable original non-import AST (predicates, control flow, helpers and fixture signatures); changed checks or an unparseable original stop uncertain because preservation cannot be established. This structural guard does not prove semantic oracle correctness or unchanged import meaning. The replacement must have an authenticated current observation before accepting a target; missing, unobserved or structurally anomalous initial/replacement reports stop uncertain, retain the test artifact for inspection and clear active evidence without source edits. A returned-value assertion normally has only a test frame, which does **not** prove its oracle wrong; source errors and ambiguous imports still require their own evidence/attribution rather than automatic test blame. Other authenticated collection failures retain the recorded uncollectible-test fallback.
+
 | state | when |
 | --- | --- |
 | **pass** | the declared tests run GREEN on the final revision **and** they discriminate (each is RED on the pristine source — checked after the fact, deterministically) |

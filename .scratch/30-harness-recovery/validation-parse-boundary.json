@@ -1,0 +1,25 @@
+{
+  "name": "parse-boundary",
+  "argv": [
+    "uv",
+    "run",
+    "--offline",
+    "--no-sync",
+    "python",
+    "-B",
+    ".scratch/30-harness-recovery/parse_boundary_probe.py"
+  ],
+  "expectedExit": 0,
+  "startedAt": "2026-10-15T16:45:57+08:00",
+  "sourceHashes": {
+    "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+    "tests/unit/test_own_test_setup.py": "7d805c6519ba0d9e863f2c863e456672588bc7adeb48fc260c75e1735fc4e4ea",
+    "tests/unit/test_v2_leaf.py": "1bc06d8c69a40d1a7016f0f9dfd24bc6bcd983dda3256be8e94053d6039c4cc4"
+  },
+  "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+  "pid": 3345071,
+  "exit": 0,
+  "endedAt": "2026-10-15T16:45:57+08:00",
+  "elapsedSeconds": 0.5029785250080749,
+  "outputSha256": "fdf580136c85d07b335ffb18ee39f843b66f4674f928212941a6b950ff635e48"
+}

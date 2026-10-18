@@ -1,0 +1,41 @@
+warning: `VIRTUAL_ENV=/home/z/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+NEGATIVE CONTROL old-frame-attribution: expect pytest exit 1 at the targeted behavioral assertion
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_d2_test_attributed_traceback_credits_test_wrong _____________
+
+    def test_d2_test_attributed_traceback_credits_test_wrong():
+        """A test-local missing name proves setup invalidity despite a source blame.
+    
+        An assertion-only traceback is not such proof (covered by the negative control).
+        """
+        request = JudgeRequest(
+            goal="fix the source", acs=["result() returns 42"],
+            failure=("FAILED tests/test_leaf_self.py::test_goal\n"
+                     "tests/test_leaf_self.py:3: NameError: name 'result' is not defined"),
+            test_path="tests/test_leaf_self.py",
+            test_content="def test_goal():\n    assert result() == 42\n",
+            files={"pkg/calc.py": "def result():\n    return 0\n"})
+        verdict = JudgeVerdict(attribution="implementation", reason="the source is wrong",
+                               defect="the source is wrong")
+        filtered = apply_judge_filter(verdict, request)
+        assert filtered.test_wrong is True
+        assert filtered.implementation_wrong is False
+        assert filtered.coercion_reason == "test_attributed_from_traceback"
+    
+        for failure in (
+            "tests/test_leaf_self.py:3: AssertionError: assert 0 == 42",
+            "tests/test_leaf_self.py:3: AssertionError: NameError: unexpected result",
+            ("tests/test_leaf_self.py:3: AssertionError: assert 0 == 42\n"
+             "---------------- Captured stdout call ----------------\n"
+             "tests/test_leaf_self.py:3: NameError: printed text"),
+        ):
+            assertion_request = dataclasses.replace(request, failure=failure)
+            assertion_filtered = apply_judge_filter(verdict, assertion_request)
+>           assert assertion_filtered.test_wrong is False
+E           AssertionError: assert True is False
+E            +  where True = JudgeVerdict(implementation_wrong=False, test_wrong=True, spec_wrong=False, environment_broken=False, reason='the sour...ibution='tests', defect='the source is wrong', raw='', coerced=False, coercion_reason='test_attributed_from_traceback').test_wrong
+
+tests/unit/test_v2_leaf.py:7683: AssertionError
+=========================== short test summary info ============================
+FAILED tests/unit/test_v2_leaf.py::test_d2_test_attributed_traceback_credits_test_wrong

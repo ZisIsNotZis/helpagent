@@ -1,0 +1,1 @@
+We're porting the build plan to a real dataclass (it's plain dicts today). The ported version must keep the old dict-style access working for callers not yet migrated, keep make_plan/finish as-is, and Plan instances must be real dataclass objects with attribute access. Please do the port.

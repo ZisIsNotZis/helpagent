@@ -1,0 +1,31 @@
+warning: `VIRTUAL_ENV=/home/z/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+NEGATIVE CONTROL setup-classifier: expect pytest exit 1 at the targeted behavioral assertion
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_run_leaf_repairs_setup_before_implementation_and_reproves_red[missing-import] _
+
+tmp_path = PosixPath('/tmp/pytest-of-z/pytest-1171/test_run_leaf_repairs_setup_be0')
+source = 'def result():\n    return 0\n'
+test = 'def test_ac1_result():\n    assert result() == 42\n'
+repair = 'from pkg.calc import result\n\ndef test_ac1_result():\n    assert result() == 42\n'
+fixed = 'def result():\n    return 42\n'
+
+    @pytest.mark.parametrize(("source", "test", "repair", "fixed"), [
+        (BROKEN_SOURCE, MISSING_IMPORT_TEST, VALID_TEST, FIXED_SOURCE),
+        (FIXTURE_SOURCE, MISSING_FIXTURE_TEST, FIXTURE_TEST,
+         FIXTURE_SOURCE.replace("return 0", "return 42")),
+    ], ids=["missing-import", "fixture-import"])
+    def test_run_leaf_repairs_setup_before_implementation_and_reproves_red(
+        tmp_path, source, test, repair, fixed,
+    ):
+        outcome, model, test_calls, events = _run(
+            tmp_path, source,
+            [_write(TEST_PATH, test), _write(TEST_PATH, repair),
+             _write(SOURCE_PATH, fixed)])
+>       assert len(test_calls) == 2
+E       AssertionError: assert 1 == 2
+E        +  where 1 = len([CallRecord(step_type='write_test', artifacts={'stable_context': 'goal: make result() return 42\nacceptance criteria:\... DESIRED end state a correct fix produces, never the reported symptom.\nRespond with the one envelope for this step.')])
+
+tests/unit/test_own_test_setup.py:108: AssertionError
+=========================== short test summary info ============================
+FAILED tests/unit/test_own_test_setup.py::test_run_leaf_repairs_setup_before_implementation_and_reproves_red[missing-import]

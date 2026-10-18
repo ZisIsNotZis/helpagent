@@ -1,0 +1,27 @@
+{
+  "name": "setup-checkpoint",
+  "argv": [
+    "uv",
+    "run",
+    "--offline",
+    "--no-sync",
+    "pytest",
+    "-q",
+    "-p",
+    "no:warnings",
+    "tests/unit/test_own_test_setup.py"
+  ],
+  "expectedExit": 0,
+  "startedAt": "2026-10-15T16:50:56+08:00",
+  "sourceHashes": {
+    "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+    "tests/unit/test_own_test_setup.py": "b12d27f8b7632389442f73c347eac9490131672d09fe10064abef6dd19f6abab",
+    "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+  },
+  "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+  "pid": 3361013,
+  "exit": 0,
+  "endedAt": "2026-10-15T16:51:16+08:00",
+  "elapsedSeconds": 20.584529979038052,
+  "outputSha256": "fa5b06574bf10afba892e2156c99ece0e8779b10204127dd87438db4c336ee82"
+}

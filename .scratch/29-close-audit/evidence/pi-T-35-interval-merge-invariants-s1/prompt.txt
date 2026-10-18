@@ -1,0 +1,4 @@
+You are a coding agent. Work in the current directory (the project root) and satisfy the request below. Stay inside the current directory: do not read or write outside it. Make whatever code changes are needed and verify your work. When the request is satisfied, stop.
+
+Request:
+The scheduler's interval merge is broken: overlapping spans stay separate and the output isn't merged properly. Contract (module docstring): half-open [start, end), sorted non-overlapping result, TOUCHING intervals merge into one, empty spans dropped, input may be unsorted. Please implement it to the contract.

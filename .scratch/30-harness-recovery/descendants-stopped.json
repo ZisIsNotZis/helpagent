@@ -1,0 +1,27 @@
+{
+  "at": "2026-10-15T16:53:54+08:00",
+  "group": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+  "attributes": {
+    "cgroup.controllers": "cpu memory pids",
+    "cgroup.events": "populated 1\nfrozen 0",
+    "cgroup.procs": "3337272",
+    "cpu.max": "100000 100000",
+    "cpu.stat": "usage_usec 281033523\nuser_usec 246426826\nsystem_usec 34606697\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 3962\nnr_throttled 84\nthrottled_usec 31558\nnr_bursts 0\nburst_usec 0",
+    "memory.max": "1073741824",
+    "memory.current": "90607616",
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0",
+    "pids.max": "64",
+    "pids.current": "1",
+    "pids.events": "max 0"
+  },
+  "hostAvailableBytes": 115298312192,
+  "processes": {
+    "3337272": {
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+      "stat": "3337272 (python) R 1579 3337262 3337262 0 -1 4194560 2988 6597782 0 47 158 60 24393 3340 20 0 1 0 61346464 25403392 4524 18446744073709551615 4325376 7352253 140723152267200 0 0 0 0 16781319 0 0 0 0 17 11 0 0 0 0 0 10653128 12216448 1072033792 140723152272447 140723152272518 140723152272518 140723152281575 0\n",
+      "affinity": [
+        11
+      ]
+    }
+  }
+}

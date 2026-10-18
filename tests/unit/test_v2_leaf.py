@@ -991,10 +991,14 @@ def test_self_test_transport_error_is_not_recorded_as_a_red(tmp_path):
                         run_tests=ScriptedTests([transport()]))
 
     assert out.claimed is False
-    assert out.stop_reason == "self-test"
+    assert out.stop_reason == "self-test-unverified"
+    assert out.state == "uncertain"
     assert out.self_test is None
-    assert not (tmp_path / "tests" / "test_leaf_self.py").exists()
+    assert out.own_test_gate is None
+    assert out.own_test_discriminating == []
+    assert (tmp_path / "tests" / "test_leaf_self.py").read_text() == SELF_TEST["content"]
     assert "self_test_written" not in ledger_kinds()
+    assert "self_test_unverified" in ledger_kinds()
 
 
 def test_rewrite_green_on_arrival_leaves_no_bogus_target_on_disk(tmp_path):
@@ -7649,13 +7653,14 @@ def test_d1_contract_clear_revision_displaces_a_failing_snapshot(tmp_path):
 
 
 def test_d2_test_attributed_traceback_credits_test_wrong():
-    """D2: the recorded traceback proves the run's own test is at fault (a frame in the
-    own test, none in a changed source), so ``test_wrong`` is credited deterministically
-    even though the judge's prose blamed the implementation."""
+    """A test-local missing name proves setup invalidity despite a source blame.
+
+    An assertion-only traceback is not such proof (covered by the negative control).
+    """
     request = JudgeRequest(
         goal="fix the source", acs=["result() returns 42"],
         failure=("FAILED tests/test_leaf_self.py::test_goal\n"
-                 "tests/test_leaf_self.py:3: AssertionError"),
+                 "tests/test_leaf_self.py:3: NameError: name 'result' is not defined"),
         test_path="tests/test_leaf_self.py",
         test_content="def test_goal():\n    assert result() == 42\n",
         files={"pkg/calc.py": "def result():\n    return 0\n"})
@@ -7666,9 +7671,22 @@ def test_d2_test_attributed_traceback_credits_test_wrong():
     assert filtered.implementation_wrong is False
     assert filtered.coercion_reason == "test_attributed_from_traceback"
 
-    # a failure that DOES name a changed-source frame stays on the implementation path
+    for failure in (
+        "tests/test_leaf_self.py:3: AssertionError: assert 0 == 42",
+        "tests/test_leaf_self.py:3: AssertionError: NameError: unexpected result",
+        ("tests/test_leaf_self.py:3: AssertionError: assert 0 == 42\n"
+         "---------------- Captured stdout call ----------------\n"
+         "tests/test_leaf_self.py:3: NameError: printed text"),
+    ):
+        assertion_request = dataclasses.replace(request, failure=failure)
+        assertion_filtered = apply_judge_filter(verdict, assertion_request)
+        assert assertion_filtered.test_wrong is False
+        assert assertion_filtered.implementation_wrong is True
+
+    # A missing name in source must not trigger a test repair either.
     source_request = dataclasses.replace(
-        request, failure="pkg/calc.py:1: AssertionError")
+        request, failure=("tests/test_leaf_self.py:3: \n"
+                          "pkg/calc.py:1: NameError: name 'missing' is not defined"))
     source_filtered = apply_judge_filter(verdict, source_request)
     assert source_filtered.test_wrong is False
     assert source_filtered.implementation_wrong is True

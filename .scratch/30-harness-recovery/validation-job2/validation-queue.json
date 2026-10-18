@@ -1,0 +1,132 @@
+[
+  {
+    "name": "chain-reproduction",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "pytest",
+      "-q",
+      "-p",
+      "no:warnings",
+      "tests/unit/test_own_test_setup.py::test_failure_is_test_attributed_discards_chain_without_terminal_location"
+    ],
+    "expectedExit": 1
+  },
+  {
+    "name": "chain-green",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "pytest",
+      "-q",
+      "-p",
+      "no:warnings",
+      "tests/unit/test_own_test_setup.py::test_failure_is_test_attributed_discards_chain_without_terminal_location"
+    ],
+    "expectedExit": 0
+  },
+  {
+    "name": "setup-checkpoint",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "pytest",
+      "-q",
+      "-p",
+      "no:warnings",
+      "tests/unit/test_own_test_setup.py"
+    ],
+    "expectedExit": 0
+  },
+  {
+    "name": "leaf-checkpoint",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "pytest",
+      "-q",
+      "-p",
+      "no:warnings",
+      "tests/unit/test_v2_leaf.py"
+    ],
+    "expectedExit": 0
+  },
+  {
+    "name": "project-checkpoint",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "pytest",
+      "-q",
+      "-p",
+      "no:warnings"
+    ],
+    "expectedExit": 0
+  },
+  {
+    "name": "setup-classifier-checkpoint",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "python",
+      "-B",
+      ".scratch/30-harness-recovery/negative_controls.py",
+      "setup-classifier"
+    ],
+    "expectedExit": 1
+  },
+  {
+    "name": "old-frame-attribution-checkpoint",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "python",
+      "-B",
+      ".scratch/30-harness-recovery/negative_controls.py",
+      "old-frame-attribution"
+    ],
+    "expectedExit": 1
+  },
+  {
+    "name": "setup-preservation-checkpoint",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "python",
+      "-B",
+      ".scratch/30-harness-recovery/negative_controls.py",
+      "setup-preservation"
+    ],
+    "expectedExit": 1
+  },
+  {
+    "name": "observation-auth-checkpoint",
+    "argv": [
+      "uv",
+      "run",
+      "--offline",
+      "--no-sync",
+      "python",
+      "-B",
+      ".scratch/30-harness-recovery/negative_controls.py",
+      "observation-auth"
+    ],
+    "expectedExit": 1
+  }
+]

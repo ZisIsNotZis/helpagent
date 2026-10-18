@@ -1,0 +1,238 @@
+[
+  {
+    "id": "pi-T-33-serializer-contract-s1",
+    "changes": [],
+    "finals": [
+      {
+        "path": "serialize/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "same_as_pristine": true
+      },
+      {
+        "path": "serialize/base.py",
+        "sha256": "b17fecb751358dd40af007cb84d34c976547d8d08e6c1cbe740963003853a1da",
+        "same_as_pristine": true
+      },
+      {
+        "path": "serialize/json_ser.py",
+        "sha256": "cc201c7baf98d30a311f984b9a47c63637c7a4345c08ebf8a72a0fd7bc120a3a",
+        "same_as_pristine": true
+      },
+      {
+        "path": "serialize/pickle_ser.py",
+        "sha256": "369aada35cb6021c92277ee443739cbd025acd71e2839c3c37f4df58b345df26",
+        "same_as_pristine": true
+      }
+    ]
+  },
+  {
+    "id": "pi-T-12-str-enum-compare-s1",
+    "changes": [],
+    "finals": [
+      {
+        "path": "access/__init__.py",
+        "sha256": "3ba20281901c826154dd9ea8925f57514b98543562373c504850b77fd64d6d87",
+        "same_as_pristine": true
+      },
+      {
+        "path": "access/gate.py",
+        "sha256": "41f97062ee79bd82c904ba319eabdfefd9e313bd41138e3f280bf5c420d6ca82",
+        "same_as_pristine": true
+      },
+      {
+        "path": "access/roles.py",
+        "sha256": "c5809f9f616593b449a0fd961edb361b4bc09f0456549447aee0ae896ece56fe",
+        "same_as_pristine": true
+      }
+    ]
+  },
+  {
+    "id": "pi-T-35-interval-merge-invariants-s1",
+    "changes": [
+      {
+        "event_line": 18,
+        "path": "spans/merge.py",
+        "sha256": "747e9395160b37e454d8330b3a036d5c91edb6c7618699f9ecfa0bd9c0ee75fe"
+      },
+      {
+        "event_line": 34,
+        "path": "test_merge.py",
+        "sha256": "7056fdec2e2243a51a2aa9fe6827b5c80285edc8b3cec39e25d1504408994210"
+      },
+      {
+        "event_line": 38,
+        "path": "test_merge.py",
+        "sha256": "fa824933a1de72942cab979e3e09042978da3e0d6a2817c3fc0c5006dfd8790c"
+      },
+      {
+        "event_line": 46,
+        "path": "test_merge.py",
+        "sha256": "12731b6ca2d95b443d98cff1e523576b9e44f906d8f19edb3622d0fa71cca125"
+      }
+    ],
+    "finals": [
+      {
+        "path": "spans/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "same_as_pristine": true
+      },
+      {
+        "path": "spans/merge.py",
+        "sha256": "747e9395160b37e454d8330b3a036d5c91edb6c7618699f9ecfa0bd9c0ee75fe",
+        "same_as_pristine": false
+      },
+      {
+        "path": "test_merge.py",
+        "sha256": "12731b6ca2d95b443d98cff1e523576b9e44f906d8f19edb3622d0fa71cca125",
+        "same_as_pristine": false
+      }
+    ]
+  },
+  {
+    "id": "pi-T-30-naive-datetime-compare-s2",
+    "changes": [
+      {
+        "event_line": 25,
+        "path": "tokens/tokens.py",
+        "sha256": "10ffe74b928ca2db73e0e3fcc1e048ef758aa3414164041a590dd07cb46858fc"
+      }
+    ],
+    "finals": [
+      {
+        "path": "tokens/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "same_as_pristine": true
+      },
+      {
+        "path": "tokens/tokens.py",
+        "sha256": "10ffe74b928ca2db73e0e3fcc1e048ef758aa3414164041a590dd07cb46858fc",
+        "same_as_pristine": false
+      }
+    ]
+  },
+  {
+    "id": "pi-T-16-class-state-leak-s2",
+    "changes": [
+      {
+        "event_line": 25,
+        "path": "cart/cart.py",
+        "sha256": "9cfafcf67ddb9c64e0eede3148b8d1d7de9de5bcfb951629aac5690440b3b5e9"
+      }
+    ],
+    "finals": [
+      {
+        "path": "cart/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "same_as_pristine": true
+      },
+      {
+        "path": "cart/cart.py",
+        "sha256": "9cfafcf67ddb9c64e0eede3148b8d1d7de9de5bcfb951629aac5690440b3b5e9",
+        "same_as_pristine": false
+      }
+    ]
+  },
+  {
+    "id": "pi-T-26-plan-dataclass-port-s1",
+    "changes": [],
+    "finals": [
+      {
+        "path": "plan/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "same_as_pristine": true
+      },
+      {
+        "path": "plan/model.py",
+        "sha256": "0ef9d521688d193424c1497b0724afeb91d07366c9f4ce5fb1d7f1174c7ace8d",
+        "same_as_pristine": true
+      }
+    ]
+  },
+  {
+    "id": "pi-A-02-protein-translation-s1",
+    "changes": [],
+    "finals": [
+      {
+        "path": "protein_translation.py",
+        "sha256": "fa0181c5e94fdfa5a3ca0054d5cef0c80daf2f11753c84916b94dfed80186c95",
+        "same_as_pristine": true
+      }
+    ]
+  },
+  {
+    "id": "pi-A-03-book-store-s1",
+    "changes": [],
+    "finals": [
+      {
+        "path": "book_store.py",
+        "sha256": "5c22fe209f90b16dbbacff457199d0b14152b48616c875085c8ff1f6f7188ec2",
+        "same_as_pristine": true
+      }
+    ]
+  },
+  {
+    "id": "pi-A-04-connect-s1",
+    "changes": [],
+    "finals": [
+      {
+        "path": "connect.py",
+        "sha256": "2e5d51380a8160d906d2eacc8655eceea5ce87abb7f0783a010a1521cf608216",
+        "same_as_pristine": true
+      }
+    ]
+  },
+  {
+    "id": "pi-T-27-snakecase-ingest-s1",
+    "changes": [],
+    "finals": [
+      {
+        "path": "ingest/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "same_as_pristine": true
+      },
+      {
+        "path": "ingest/records.py",
+        "sha256": "8cb83de59f839e34ed4d94696ed92669f0375796793e6adff5bbb64511394f7e",
+        "same_as_pristine": true
+      }
+    ]
+  },
+  {
+    "id": "pi-T-34-expression-tokenizer-s1",
+    "changes": [],
+    "finals": [
+      {
+        "path": "tok/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "same_as_pristine": true
+      },
+      {
+        "path": "tok/lexer.py",
+        "sha256": "7939ab0cb783a4484cd192861f18d522a87bde5493522380449d028ebc6296fa",
+        "same_as_pristine": true
+      }
+    ]
+  },
+  {
+    "id": "pi-T-26-plan-dataclass-port-s2",
+    "changes": [
+      {
+        "event_line": 25,
+        "path": "plan/model.py",
+        "sha256": "f754cab726074b03c8848ef90c7356efdeb2ca93bbb26a52601d212086d58eee"
+      }
+    ],
+    "finals": [
+      {
+        "path": "plan/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "same_as_pristine": true
+      },
+      {
+        "path": "plan/model.py",
+        "sha256": "f754cab726074b03c8848ef90c7356efdeb2ca93bbb26a52601d212086d58eee",
+        "same_as_pristine": false
+      }
+    ]
+  }
+]

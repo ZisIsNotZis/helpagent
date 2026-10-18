@@ -1,0 +1,9 @@
+RuntimeMaxUSec=55min
+ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope
+CPUQuotaPerSecUSec=1s
+CPUQuotaPeriodUSec=infinity
+MemoryMax=1073741824
+MemorySwapMax=0
+TasksMax=64
+ActiveState=active
+SubState=running

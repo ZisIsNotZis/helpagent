@@ -1,0 +1,33 @@
+2026-10-15T12:56:45+08:00
+$ python3 -B .scratch/29-close-audit/verify_evidence.py --check-sources
+PASS retained byte hashes: 284; in-memory corruption negative control rejected
+PASS literal source_write identity: 50; final work/graded hashes verified separately
+PASS pi text-operation replay: 12 runs; source payloads reconstruct retained work; shell commands not rerun
+PASS bounded outcome shape: 550 unique rows, 25/task/arm; R3 70/arm and 52 unclaimed pristine failures/tree arm
+PASS report/matrix counts agree with retained selected outcomes
+PASS explicit alias file/line references: 38; compressed context references still require human reading
+PASS scoped local Markdown destinations: 106; external URLs/heading anchors not validated
+No grader, candidate, model, pytest, or heavy test execution was performed by this command.
+$ python3 -B .scratch/29-close-audit/check_docs_semantics.py
+PASS current known-overclaim regression; baseline negative control rejects 15 file/pattern pairs
+PASS C1-C5 criterion text and V1-V6 outcome/check columns unchanged
+PASS retained arm/contrast measurement rows unchanged; no inference about untested designs
+$ AST parse authored root Python; bash -n run_checks.sh
+PASS authored scripts AST parse: 7
+$ git diff --check -- README.md docs/STATUS.md docs/LEARNINGS.md docs/ROADMAP.md .scratch/29-close-audit
+PASS tracked scoped diff whitespace
+$ git diff --no-index --check /dev/null <new authored root text> with stdin negative control
+PASS new authored/structured root files whitespace: 26 ; stdin whitespace negative control rejected
+Raw evidence/payload/patch bytes are preserved, hash-checked, not normalized or executed.
+$ git apply --check --reverse .scratch/29-close-audit/final.diff
+PASS saved document patch reverses cleanly in check-only mode; nothing applied
+$ git diff 45ebb32 HEAD --exit-code -- <named code and corpus paths>
+PASS measurement-source identity
+$ git diff --cached --exit-code
+PASS no staged files
+$ validate changed-path allowlist and unchanged HEAD
+PASS four modified current docs; additions only .scratch/29-close-audit/; HEAD unchanged
+NOT RUN: model calls, candidate execution, original grader, pytest/unit/contract/full CI; docs-only bounded read/AST/hash checks.
+2026-10-15T12:56:45+08:00
+PASS P2: eight T35 writes = first seven unknown, eighth retained graded-final failure (actual=false; 3 failed, 3 passed); payload/final bytes match; no rerun
+PASS original manifest hashes unchanged; prior delivery files changed only report.md, ticket.md, commands.md, checks.txt; new review-fix.diff reverses check-only

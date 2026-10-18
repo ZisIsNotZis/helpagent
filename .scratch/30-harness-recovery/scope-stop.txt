@@ -1,0 +1,5 @@
+Result=success
+ControlGroup=
+LoadState=not-found
+ActiveState=inactive
+SubState=dead

@@ -1,0 +1,26 @@
+{
+  "name": "old-frame-attribution-checkpoint",
+  "argv": [
+    "uv",
+    "run",
+    "--offline",
+    "--no-sync",
+    "python",
+    "-B",
+    ".scratch/30-harness-recovery/negative_controls.py",
+    "old-frame-attribution"
+  ],
+  "expectedExit": 1,
+  "startedAt": "2026-10-15T17:01:42+08:00",
+  "sourceHashes": {
+    "harness/leaf.py": "d61843420090a4962e170e3a61e0212c3f6b8b53010659204609cef9503bee45",
+    "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+    "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+  },
+  "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+  "pid": 3406558,
+  "exit": 1,
+  "endedAt": "2026-10-15T17:01:45+08:00",
+  "elapsedSeconds": 2.0090641520218924,
+  "outputSha256": "aba0162affca3d540787836902078b27eed4b0c5595d7654063ce9edd85502fd"
+}

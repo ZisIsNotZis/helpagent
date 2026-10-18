@@ -1,0 +1,26 @@
+{
+  "name": "setup-preservation",
+  "argv": [
+    "uv",
+    "run",
+    "--offline",
+    "--no-sync",
+    "python",
+    "-B",
+    ".scratch/30-harness-recovery/negative_controls.py",
+    "setup-preservation"
+  ],
+  "expectedExit": 1,
+  "startedAt": "2026-10-15T16:50:05+08:00",
+  "sourceHashes": {
+    "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+    "tests/unit/test_own_test_setup.py": "0579dcf0f6573a6fc4baf946fd3b47149cf49f8c5e8c61e330052e9a264a16cf",
+    "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+  },
+  "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+  "pid": 3360502,
+  "exit": 1,
+  "endedAt": "2026-10-15T16:50:06+08:00",
+  "elapsedSeconds": 1.5072458729846403,
+  "outputSha256": "9cbfec4fe1c7fee993aa4abac25e4d3a637256bd80ab8f469a7acb430b7b975a"
+}

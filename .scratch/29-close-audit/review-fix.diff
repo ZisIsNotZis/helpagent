@@ -1,0 +1,11 @@
+--- a/.scratch/29-close-audit/report.md
++++ b/.scratch/29-close-audit/report.md
+@@ -51,7 +51,7 @@
+ - **传播**：`:10-12` judge 标签说test、理由却说“merge不在源码定义”，filter归implementation；`:15` 的 implementation artifacts.failure_output 真的注入这段误归因。八次 source_write 位于`:7,16,22,28,34,40,46,52`；`:45` deterministic diagnosis在只许改source的step里要求“add import”，但测试根本未修。own-test八次红一直是未绑定名字，并不能区分这八版算法。
+ - **最终偏离**：最终payload `L051/spans/merge.py:17-25` 对未合并元素沿用输入 tuple，对合并结果新造list，hash `399e8d6a0256`；外部 grader 的 overlapping/touching/chain 三个失败与 list-vs-tuple 完全对应（`row.json:1`、`specs/T-35-interval-merge-invariants/repo/tests/test_merge.py:10-27`）。这不是单纯“验证把正确代码挡掉”。可见契约的返回注解只是list，未明说元素必须tuple；这是**接口表示信息缺口 + test生成/归因 + 最终生成**的混合，不把隐藏形状要求当模型本已知道的事实。
+ - **Test/Review状态**：`:58-69` IV首次语法错、repair后采用list输入/list期望而approve；`:70-75` best-evidence接纳IV版本，但own-test仍NameError，verifier conflict阻claim，普通review未运行。IV绿只是它那套fixture通过，非外部契约被证明。
+-- **成功对照/unknown**：`PT35/events-selected.jsonl:18` 首次write始终返回tuple，final actual=true；`:22-46` pi自己也写错预期，但后来只修test不改正确source。所选ours run没有grader证实的中间正确candidate；全部八版的外部结果unknown。下一检查是对这些保留payload做授权后的有界grader反事实，尤其返回形状；本次不重跑。
++- **成功对照/unknown**：`PT35/events-selected.jsonl:18` 首次write始终返回tuple，final actual=true；`:22-46` pi自己也写错预期，但后来只修test不改正确source。所选ours run没有grader证实的中间正确candidate；前七版的外部结果unknown，第八版与实际graded final字节一致（`revision-table.md:18`），保留的`OT35/row.json:1`记载历史外部grader失败（3 failed、3 passed），不是本次重跑。下一检查是对前七版保留payload做授权后的有界grader反事实，尤其返回形状；本次不重跑。
+ ### 2.4 T30 — ours#2：不区分的own test消失，正确核心曾出现，最终漏import
+ - **首偏离**：`OT30/trajectory.jsonl:2-7` own test两次都构造naive expires_at和naive at（`payloads/L002/test_tokens.py:10-15`），没有制造请求里的aware expiry/naive caller不匹配；两次pristine绿后被丢掉。`:11` 转review，后面没有可运行的own-test目标。
+ - **逐版关键变化**：`:13-14` v1/v2（第二次`:28-30`相同）用本地 `datetime.now().astimezone().tzinfo`，不是明示UTC；`:41-42` v3补 `timezone.utc` 且在文件末尾 import timezone（hash `4af3dc7d5344`）；`:53-54` v4又用本地timezone；`:65-66` v5、`:78-79` v6用 `timezone.utc` 却都漏import，final hash `9cc3a3dd8a6e`。

@@ -1,0 +1,1 @@
+Upstream switched their API to snake_case, and our ingest layer still passes their old camelCase records straight through. Downstream code now expects snake_case keys (firstName becomes first_name) and unknown keys must be dropped, not forwarded. Please port the normalize step to the new contract.

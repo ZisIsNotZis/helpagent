@@ -1,0 +1,381 @@
+diff --git a/README.md b/README.md
+index 1a32c6a..eb6231a 100644
+--- a/README.md
++++ b/README.md
+@@ -3,7 +3,7 @@
+ A research harness that wraps a small local model in a conventional software-engineering
+ process, and measures the result honestly.
+ 
+-**Status: completed / archived research.** This is not a shipped product. It is a
++**Status: campaign completed / research archived.** The three goals remain unmet or unresolved, not disproved. This is not a shipped product. It is a
+ measurement project with a working research harness. The product command it was built
+ toward (`helpagent "<request>"` against your own repository) does not exist. The results,
+ the reusable patterns and the negative findings are in [`docs/LEARNINGS.md`](docs/LEARNINGS.md)
+@@ -53,9 +53,9 @@ and the baseline (`pi` CLI) with **thinking max + reasoning**. Revision `45ebb32
+ 
+ | requirement | verdict | number |
+ | --- | --- | --- |
+-| **1. Coding capability vs a mature agent CLI** | **INCONCLUSIVE** (parity not established) | ours `24.640/40` (sd 1.22) vs `pi` `24.960/40` (sd 2.15), N=25 seeds/arm; delta `−0.320` tasks `= −0.8%`; task-clustered 95% CI `[−3.520, +3.080]`; the pre-registered `M=3` rule returns INCONCLUSIVE by `0.52` tasks. The CI width is a structural limit of the 40-task corpus (flat from N=17 to N=25), so more seeds cannot resolve it. |
+-| **2. Does verification add information?** | **PARTLY / not as stated** | `600`-run five-arm ablation: development-only `70/120 (58.3%)` to full stack `77/120 (64.2%)`. The own test alone is zero-information (`−1.33` tasks, p=0.55). The independent test does not significantly change correctness but cuts claims (`−8.67`, p=0.0009) and false successes (`−3.00`, p=0.031). Review adds the only significant correctness gain, and only on top of own test + independent test (`+4.00`, p=0.012); review alone adds false successes (`+3.33`, p=0.031). |
+-| **3. Does decomposition / multi-approach help?** | **NEGATIVE** | `210`-run pre-registered experiment. Monolithic leaf `47/70 (67.1%, 0 false)` vs tree-greedy `14/70 (20.0%, 4 false)` vs tree-tournament `15/70 (21.4%, 3 false)`; paired delta CI upper bounds below 0, p<0.001. The mechanism verifiably fired, and the tree cost roughly 2 to 3x for far fewer fixes. |
++| **1. Coding capability vs a mature agent CLI** | **INCONCLUSIVE** (parity not established) | ours `24.640/40` (sd 1.22) vs `pi` `24.960/40` (sd 2.15), N=25 seeds/arm; delta `−0.320` tasks `= −0.8%`; task-clustered 95% CI `[−3.520, +3.080]`; the pre-registered `M=3` rule returns INCONCLUSIVE by `0.52` tasks. The CI width was flat from N=17 to N=25; at the observed task heterogeneity and point estimate, further seeds alone are not projected to resolve it. |
++| **2. Does verification add information?** | **PARTLY / not as stated** | `600`-run five-arm ablation: development-only `70/120 (58.3%)` to full stack `77/120 (64.2%)`. Enabling the own-test loop did not detect a net correctness gain (`−1.33` tasks, CI `[−5.67, +3.00]`, p=0.55), not proof of zero information. The independent-test contrasts did not detect a correctness effect but reduced claims (`−8.67`, p=0.0009) and false successes (`−3.00`, p=0.031) with review present. The review contrast with independent test present gained `+4.00` (p=0.012); without it, false successes increased (`+3.33`, p=0.031). This does not establish an interaction. |
++| **3. Does decomposition / multi-approach help?** | **NEGATIVE** | `210`-run pre-registered experiment. Monolithic leaf `47/70 (67.1%, 0 false)` vs tree-greedy `14/70 (20.0%, 4 false)` vs tree-tournament `15/70 (21.4%, 3 false)`; paired delta CI upper bounds below 0, p<0.001. The current tree bundle cost roughly 2 to 3x for far fewer fixes. Planning, budget and closed-only delivery also changed; splitting and field refinement were not isolated. |
+ 
+ False successes across the ablation arms: `0 / 0 / 0 / 10 / 1`. Head-to-head honesty:
+ ours `2.2%` vs `pi` `6.1%` false successes (difference CI excludes 0). Cost: ours about
+@@ -69,8 +69,7 @@ quoted as a result.
+   The harness and the mature CLI are statistically indistinguishable on this model, corpus
+   and baseline (point estimate `24.640` vs `24.960`, delta `−0.320` tasks `= −0.8%`, well
+   inside the `±3` margin), but the pre-registered 95% test could not certify "within
+-  margin": the 40-task corpus interval is itself `[−3.520, +3.080]` and does not tighten
+-  with more seeds. Not proven stronger; not proven worse.
++  margin": the 40-task corpus interval is itself `[−3.520, +3.080]` was flat over N=17..25. Further-seed projections assume the observed task effects persist; this is not an impossibility result. Not proven stronger; not proven worse.
+ - **Reliability: a real but shallow advantage.** The lower false-success rate comes from a
+   claim gate that anyone could add to any agent, so it is not a durable moat.
+ - **Cost: worse.** Roughly twice the tokens for no measured capability gain.
+@@ -88,7 +87,7 @@ run wrote reveals it.
+ 
+ Measured, not guessed (details in [`docs/LEARNINGS.md`](docs/LEARNINGS.md) §5):
+ 
+-- **Decomposition / step-splitting / multi-approach**: harmful (section above).
++- **The measured tree / multi-approach bundle**: harmful here (section above); this does not isolate decomposition or field refinement.
+ - **Injecting a context index** (a compact index for files not declared in full): harmful.
+ - **Forcing a deterministic file-change order**: harmful.
+ - **A knowledge pack** (signatures / callers / constants) injected per call: no gain.
+@@ -98,8 +97,7 @@ Measured, not guessed (details in [`docs/LEARNINGS.md`](docs/LEARNINGS.md) §5):
+   worse, because the 4B could not emit a whole test file as one tool argument. Measured at
+   8k context; not re-measured at 32k.
+ 
+-The pattern: structure that costs calls without adding information loses. What moved the
+-numbers was giving the model more signal, not more control flow.
++These implementations spent extra calls without a measured net capability gain. That is a scoped outcome, not evidence that control flow or decomposition cannot help.
+ 
+ ## Reusable parts
+ 
+@@ -113,6 +111,8 @@ numbers was giving the model more signal, not more control flow.
+ - Evaluation checklists, including "compare delivered bytes to every written revision".
+ - The negative results, which save a future project from repeating them.
+ 
++The campaign is closed as a resource decision, not as proof that the goals are impossible. The bounded final-revision failure audit and its evidence limits are in [ticket 29](.scratch/29-close-audit/report.md).
++
+ ## Future research
+ 
+ See [`docs/LEARNINGS.md`](docs/LEARNINGS.md) §8 and [`docs/ROADMAP.md`](docs/ROADMAP.md).
+diff --git a/docs/LEARNINGS.md b/docs/LEARNINGS.md
+index 160490e..23a975c 100644
+--- a/docs/LEARNINGS.md
++++ b/docs/LEARNINGS.md
+@@ -12,7 +12,7 @@ whether the result is better than the same model driving a mature free-form agen
+ 
+ The short answer: **no detected capability difference — parity not established
+ (INCONCLUSIVE at `M=3`), a real but shallow reliability advantage, and no cost
+-advantage.** The value of the project is the design principle it validated, the
++advantage.** This closes the measured campaign, not the goals or their feasibility. The value of the project is the design principle it exercised, the
+ methodology it demonstrated, and the negative results it recorded with error bars.
+ 
+ ## 1. The design principle: harness-as-program, model-as-fallback-node
+@@ -53,8 +53,7 @@ declared seam and validates the returned envelope before acting on it.
+   and the ablation shows where that comes from (section 2).
+ 
+ The design is worth copying when the model is weak and the task class is narrow. It is
+-not shown to beat a good free-form loop on capability, and a stronger model would likely
+-erase most of the reliability gap (section 7).
++not shown to beat a good free-form loop on capability. Whether a stronger model would erase the reliability gap is an untested hypothesis, not a measured result.
+ 
+ ## 2. Verification methodology: deterministic gates, one claim gate, evidence ledger
+ 
+@@ -69,32 +68,19 @@ The project's verification pipeline and what each part measured. The five-arm ab
+ | A3 + the run's own test + a graded review | 71/120 (59.2%) | 10 |
+ | A4 full (own test + independent test + review + one claim gate) | 77/120 (64.2%) | 1 |
+ 
+-Paired incremental contributions (one stage isolated per contrast, 40 tasks):
++Paired stage-enable contrasts (40 tasks): net workflow effects, including changed feedback, iteration, stopping and delivery; not isolated measurements of signal information.
+ 
+ | stage | effect on actual correctness | effect on claims / false successes |
+ | --- | --- | --- |
+ | the run's own test | `−1.33 tasks [−5.67, +3.00]`, p=0.55 | none; it never carried a claim in any of the 600 runs |
+ | the independent test | no significant correctness effect (`−0.33`, `+2.00`, p≥0.39) | cuts claims `−8.67`, p=0.0009; cuts false successes `−3.00 [−5.67, −1.00]`, p=0.031 |
+-| the graded review | the only significant correctness gain, and only **on top of** own test + independent test: `+4.00 [ +1.33, +7.00]`, p=0.012 | added to the own test alone, review produces `+3.33 false successes [+1.00, +6.33]`, p=0.031 |
++| the graded review | a significant correctness gain **with** own test + independent test present: `+4.00 [ +1.33, +7.00]`, p=0.012 | added to the own test alone, review produces `+3.33 false successes [+1.00, +6.33]`, p=0.031 |
+ 
+ The reusable findings:
+ 
+-1. **A check that shares the generator of the thing it checks is not independent
+-   evidence.** The own test is written by the same model that writes the code; measured,
+-   it is zero-information on correctness (`−1.33`, p=0.55). The independent test is
+-   written by the same model in a fresh context; on correctness it is also
+-   indistinguishable from zero. When the model keeps a wrong reading, its code, its own
+-   test, its independent test and its reviewer all inherit that reading, so agreement
+-   between them proves nothing. The external grader is the only correctness arbiter.
+-
+-2. **Each verification stage has a different, measurable job, and they are not
+-   interchangeable.** The independent test is a **false-claim suppressor** (it buys
+-   honesty, not fixes), and it is a conservative one: in the full arm it withheld approval
+-   in `92/110` runs, `57` of which the grader passed. The review is a **correctness** lever
+-   only when it is backstopped by an independent test; alone it mostly produces confident
+-   wrong claims (`+3.33` false successes). The own test is a cost centre with no measured
+-   correctness benefit here. A pipeline should assign these roles deliberately instead of
+-   treating "more verification" as strictly better.
++1. **Fresh context does not remove shared-model error.** No net correctness gain was detected from the own-test loop (`−1.33 [−5.67, +3.00]`, p=0.55); independent-test correctness contrasts are also unresolved. Neither establishes zero information. A shared wrong reading can survive code, own test, independent test and review; final R2 A-05#1 is a direct example. Agreement is not proof of correctness; the external grader remains this experiment's arbiter.
++
++2. **Measure the workflow effect without assigning universal stage roles.** With review present, enabling independent test reduced false successes (`−3.00 [−5.67, −1.00]`, p=0.031). In the full arm it withheld approval in `92/110` runs, `57` of which the final grader passed; this is a stage/final-outcome join, not independent diagnostic accuracy. Review's correctness contrast is positive with independent test present (`+4.00`, p=0.012); without it, false successes rise (`+3.33`) and correctness is unresolved. This does not establish an interaction or that review works only when backstopped. Own tests can change code and block claims without directly carrying a claim. Stage costs are unmatched and contrasts unadjusted for multiplicity; do not equate net outcome with signal information.
+ 
+ 3. **One claim gate, structurally enforced, is reusable and cheap.** There is exactly one
+    function that can grant a pass claim, every path routes through it, and a structural
+@@ -149,12 +135,7 @@ transferable output.
+   parity within margin, `Hi95 < −M` means behind, else inconclusive), with a task-clustered
+   bootstrap CI and a fixed seed. Pre-registration is what makes "INCONCLUSIVE" a real,
+   publishable result instead of an invitation to keep sampling until it looks good.
+-- **The decision rule can be structurally unable to resolve.** At N=25 the CI width was
+-  flat (range `6.44`–`6.60`; `6.53` at N=17, `6.60` at N=25) because it is set by between-task
+-  heterogeneity in the 40-task corpus, not by seed noise; more seeds cannot close the
+-  0.52-task gap to the margin. The lesson is to compute the resolvable effect size from
+-  the corpus before promising a decisive answer, and to say "the test cannot resolve this"
+-  rather than "more data needed".
++- **Separate a statistical projection from impossibility.** At N=25 the CI width was flat (range `6.44`–`6.60`; `6.53` at N=17, `6.60` at N=25), dominated by between-task heterogeneity. At the observed task effects, more seeds alone are not projected to close the 0.52-task gap; future estimates can still move. Compute the resolvable effect size before promising a decisive answer, and distinguish the campaign's inconclusive stopping result from the capability goal's feasibility.
+ - **Compare delivered bytes against every revision the run wrote**, not just the ones it
+   claimed. This is the single most valuable forensic in the project: it revealed that the
+   harness *discarded or overwrote revisions that already passed the grader* (T-17: 4 of 7
+@@ -190,10 +171,7 @@ The harness is, deliberately, a small team's process written as code: implement,
+ review, keep evidence. The interesting result is not that this is novel; it is that it
+ transfers down to a 4B model when every step is bounded and checked, and that the process
+ stages have *different* measured value in this setting (section 2). The conventional
+-wisdom "write tests, review the change" is not uniformly true here: the model's own test
+-is worthless, and review without an independent test manufactures confident errors. The
+-process is worth codifying, but each stage must earn its place by measurement, not by
+-analogy to a human team.
++wisdom "write tests, review the change" does not by itself establish benefit here: the own-test loop has no detected net correctness gain, and enabling review without independent test increases false successes. These are workflow effects, not proof that tests are worthless or review signals inherently negative. Each implementation must earn its place by measurement, not analogy to a human team.
+ 
+ ## 5. Negative results worth recording
+ 
+@@ -202,7 +180,7 @@ are the most reusable single contribution of the project.
+ 
+ | idea | result |
+ | --- | --- |
+-| decomposition / step-splitting / multi-approach (tree of children; a tournament of Hows) | **harmful.** Monolithic leaf `47/70 (67.1%, 0 false)` vs tree-greedy `14/70 (20.0%, 4 false)` vs tree-tournament `15/70 (21.4%, 3 false)`; every paired delta CI has an upper bound below 0, p<0.001; the tree costs 2.2 to 2.4x the calls, 2.3 to 2.9x the wall and at least 1.85x the tokens. The mechanism verifiably fired (decomposition on 3 of 9 decomposable tasks in one arm, 4 of 9 in the other), so this is a valid negative, not an unfired mechanism. |
++| current tree / multi-approach bundle (tree of children; a tournament of Hows) | **harmful here.** Monolithic leaf `47/70 (67.1%, 0 false)` vs tree-greedy `14/70 (20.0%, 4 false)` vs tree-tournament `15/70 (21.4%, 3 false)`; every paired delta CI has an upper bound below 0, p<0.001; the tree costs 2.2 to 2.4x the calls, 2.3 to 2.9x the wall and at least 1.85x the tokens. Decomposition fired on 3 of 9 decomposable tasks in one arm, 4 of 9 in the other. Planning/spec rewriting, budget and closed-only delivery also differ; this is not an isolated test of splitting or field refinement (STATUS.md §5). |
+ | injecting a context index (declared files in full, the rest as a compact index) | **harmful.** `13/24` vs `18/24` on the same 12 tasks x2, and `13/24` vs `19/24` against the pre-change revision `e190a4f` (commit `25dafaf`). Source is never hidden from the model now. |
+ | forcing a deterministic file-change order | **harmful.** `14/15` vs `7/15`. |
+ | a knowledge pack (signatures / callers / constants) injected per call | no gain (`4/15` vs `3/15`); off by default. |
+@@ -211,10 +189,7 @@ are the most reusable single contribution of the project.
+ | competitive How exploration (a tournament of candidates) | fires, but costs `2.2` to `2.4x` the calls and fixes far fewer tasks (`15/70` vs `47/70`); greedy is the default. |
+ | asking a weak model to write and run its own tests (applied to the mature CLI) | **worse.** The 4B could not emit a whole test file as a tool argument (the write hit the output-token limit and was dropped or re-issued), and 9 of 10 runs in the last band ended on a length-truncated block. Measured at 8k context; not re-measured at 32k. |
+ 
+-The pattern across all of them: **structure that costs calls without adding information
+-loses.** What moved the numbers was giving the model more signal (a forced red-then-green
+-loop, deterministic diagnosis rules, coverage and discrimination checks), not more
+-elaborate control flow.
++These implementations added calls without a measured net capability gain. Historical delivery/attribution defects demonstrate that control flow can also lose already generated capability; no isolated experiment here establishes that all structural changes lose or that only added signal helps.
+ 
+ Caveat on the mature-CLI test-writing result: it was measured on the throttled 8k
+ baseline and is not re-measured at 32k, so it is recorded as known-at-8k only.
+@@ -249,17 +224,13 @@ baseline and is not re-measured at 32k, so it is recorded as known-at-8k only.
+ - **Nothing here generalises past its scope.** All results are for one 4B model, one
+   40-task corpus and one baseline. There is no claim about stronger models, other
+   corpora, other languages, or real repositories.
+-- **The decomposition result is corpus- and model-scoped.** The negative is strong on "the
+-  tree stage does not pay for itself here"; it bounds, but does not prove, "requirement-
+-  level splitting can never help" (the planner only split on a minority of tasks). The
+-  forced-leaf thresholds were never swept.
++- **The tree result is bundle-, corpus- and model-scoped.** This tree stage does not pay for itself here. It does not isolate decomposition or field refinement from planning/spec changes, budget and closed-only delivery, even where splitting fired. The forced-leaf thresholds were never swept; structural superiority in general remains unshown, not refuted.
+ - **The internal verifiers share the model's weights.** Fresh context helps but does not
+   make them independent; the external grader is the arbiter.
+ 
+ ## 8. Future research directions
+ 
+-1. **A larger or differently shaped corpus.** The 40-task corpus structurally caps the
+-   resolvable difference at about 6.3 tasks even at infinite seeds. A decisive
++1. **A larger or differently shaped corpus.** At the observed task effects, the 40-task corpus projects an asymptotic CI width of about 6.3 tasks, not a capability ceiling. A decisive
+    non-inferiority or superiority test needs a task set whose between-task heterogeneity
+    is smaller relative to the effect, or a different design (paired within-task effect
+    sizes with a pre-computed power analysis).
+@@ -278,7 +249,7 @@ baseline and is not re-measured at 32k, so it is recorded as known-at-8k only.
+    untested.
+ 5. **The decomposition question done differently.** Sweep the forced-leaf thresholds and
+    test requirement-level splitting only on tasks that genuinely need it, with a design
+-   that isolates splitting from planning overhead.
++   that isolates splitting and field refinement from planning/spec rewriting, budget and delivery policy.
+ 6. **Cost.** Cut tokens without hiding source, and measure a clean single-lane wall clock
+    for both arms.
+ 
+@@ -290,5 +261,6 @@ baseline and is not re-measured at 32k, so it is recorded as known-at-8k only.
+   [`.scratch/28-three-requirements/issues/`](../.scratch/28-three-requirements/issues/)
+   (`fix-wave-1-measurement-n25.md`, `requirement-2-ablation.md`,
+   `requirement-3-result.md`, `final-measurement-independent-verification.md`).
++- Bounded final-revision causal audit, retained samples and evidence limits: [ticket 29](../.scratch/29-close-audit/report.md).
+ - Design and flow: [`DESIGN.md`](DESIGN.md), [`FLOW.md`](FLOW.md).
+ - Curated baseline evidence: [`bench/runs/evidence/`](../bench/runs/evidence/).
+diff --git a/docs/ROADMAP.md b/docs/ROADMAP.md
+index 98d3e98..0e74d3e 100644
+--- a/docs/ROADMAP.md
++++ b/docs/ROADMAP.md
+@@ -1,9 +1,7 @@
+ # Roadmap — what you can see, and the final verdicts
+ 
+ This project has no UI. Its product surface is **a command you run and the honest report it
+-prints**, so every slice below is something you can run and look at. A slice is done when
+-you can see it, not when the code for it exists. The project is now **complete and
+-archived**: the slices and the acceptance criteria have final verdicts, recorded here.
++prints**, so every slice below is something you can run and look at. A slice is done when you can see it, not when the code for it exists. The measured campaign is **complete and the research archived**; its verdicts are recorded here. The goals and acceptance criteria below are unchanged: unmet or unresolved is not disproved or impossible.
+ 
+ The current numbers are in [`STATUS.md`](STATUS.md). The extraction of what is reusable
+ and what is not is in [`LEARNINGS.md`](LEARNINGS.md). The narrative and the raw provenance
+@@ -32,15 +30,15 @@ The five criteria the campaign set out to meet, with their final verdicts:
+ | # | criterion | verdict | evidence |
+ | --- | --- | --- | --- |
+ | C1 | coding >= `pi` on the same model with every knob maxed, and better in wall-clock and tokens | **NOT MET** | parity not established (INCONCLUSIVE at `M=3`, CI `[−3.520, +3.080]`); tokens about `2x` worse; wall-clock not cleanly comparable. `STATUS.md` §3, §6. |
+-| C2 | verification carries information (no meaningless test or review; failures traced to their exact deviation point) | **NOT MET as stated** | the own test is zero-information (`−1.33`, p=0.55) and review alone raises false successes (`+3.33`, p=0.031); only the review + independent-test combination carries a significant correctness gain (`+4.00`, p=0.012). `STATUS.md` §4. |
++| C2 | verification carries information (no meaningless test or review; failures traced to their exact deviation point) | **NOT MET as stated** | the own-test loop has no detected net correctness gain (`−1.33 [−5.67, +3.00]`, p=0.55), not proven zero information; review without independent test raises false successes (`+3.33`, p=0.031), while with independent test its correctness contrast is positive (`+4.00`, p=0.012); interaction not established and final failures not fully traced. `STATUS.md` §4. |
+ | C3 | no unexplained failures: every remaining failure has an evidenced `our-defect` (with the fix) or `model-ceiling` (with the evidence), zero false successes | **NOT MET** | per-task verdicts exist for the campaign revision (`d24410a`), but the final wave (`45ebb32`) changed which tasks fail; the final false-success rate is `2.20%` at N=25, not zero. `STATUS.md` §7, §10. |
+-| C4 | structural superiority: work that prompting alone cannot get out of `pi` but the structure can | **REFUTED / not shown** | decomposition / multi-approach is NEGATIVE (`STATUS.md` §5); coding is statistically indistinguishable, not superior (parity not established; INCONCLUSIVE at `M=3`); the improved-prompt baseline arm is unmeasured. |
++| C4 | structural superiority: work that prompting alone cannot get out of `pi` but the structure can | **NOT SHOWN** | the current tree bundle is NEGATIVE; splitting and field refinement were not isolated from planning, budget and delivery policy (`STATUS.md` §5); coding is statistically indistinguishable, not superior (parity not established; INCONCLUSIVE at `M=3`); the improved-prompt baseline arm is unmeasured. |
+ | C5 | efficiency measured, not assumed | **MET (result unfavourable)** | tokens measured for ours (`~18.9k`/task) and partly for `pi` (`~9k`); the honest result is that the harness costs roughly twice as much. `STATUS.md` §6. |
+ 
+ ## What you can see today
+ 
+ The two runnable slices (V1 and V2) work now; the campaign's three requirement verdicts
+-are recorded and independently recomputed from the raw rows. Everything else is either
++are recorded and their numerical results independently recomputed from the raw rows; that recomputation does not validate causal interpretations. Everything else is either
+ not closed (V3, C1–C4) or never attempted (V5, V6).
+ 
+ ```sh
+@@ -53,14 +51,15 @@ uv run python bench/v2_sweep.py --tasks T-02-off-by-one,T-20-average-truncation
+   --verify full --server http://127.0.0.1:8834
+ ```
+ 
++The bounded final-revision explanations in [ticket 29](../.scratch/29-close-audit/report.md) do not close C3: missing records and ungraded intermediate candidates remain explicitly unknown.
++
+ ## What is explicitly deferred as future research
+ 
+-- A corpus large enough to resolve the parity question (the 40-task corpus caps the CI at
+-  about `6.3` tasks even at infinite seeds).
++- A corpus/design with sufficient power for the parity question (the observed task effects project an asymptotic CI width of about `6.3` tasks; this is not an impossibility result).
+ - The product CLI (V6), and with it V5.
+ - The named cheap harness fixes (redirect on refusal, multi-file accumulation,
+   coverage-ranked delivery, the green-path claim rule).
+ - A measured improved-prompt baseline.
+ - A clean single-lane wall-clock comparison for both arms.
+ - Sweeping the forced-leaf thresholds and re-testing requirement-level splitting on a
+-  design that isolates splitting from planning overhead.
++  design that isolates splitting and field refinement from planning/spec rewriting, budget and delivery policy.
+diff --git a/docs/STATUS.md b/docs/STATUS.md
+index be8efa9..c0aecc6 100644
+--- a/docs/STATUS.md
++++ b/docs/STATUS.md
+@@ -1,10 +1,7 @@
+ # Status — the final measured position
+ 
+ This is the current-state record for the helpagent research project. The project is
+-**complete and archived**: the campaign that the owner mandated (match or beat a mature
+-agent CLI on the same model, without lying, with verification that carries information)
+-has run to its pre-registered end and reported its verdicts. The product CLI does not
+-exist.
++**campaign complete and research archived**: the campaign has run to its pre-registered end and reported its verdicts. The goals (match or beat a mature agent CLI on the same model, without lying, with verification that carries information) remain unmet or unresolved, not disproved. The product CLI does not exist.
+ 
+ Every number here was measured on revision `45ebb32`, with the same reference model, the
+ same server window and a blind external grader. When this document and the run records
+@@ -28,9 +25,9 @@ Held equal for every arm in the final measurement:
+ 
+ | requirement | verdict | decisive numbers |
+ | --- | --- | --- |
+-| **R1 capability parity** (ours >= `pi` within the error margin) | **INCONCLUSIVE** | N=25/arm: ours `24.640/40` (sd 1.22) vs `pi` `24.960/40` (sd 2.15); delta `−0.320` tasks `= −0.8%`; task-clustered 95% CI `[−3.520, +3.080]`; pre-registered `M=3` rule returns INCONCLUSIVE by `0.52` tasks; the CI width is structural, so more seeds cannot resolve it. |
+-| **R2 verification carries information** | **PARTLY / not as stated** | own test `−1.33` tasks (p=0.55, zero-information); independent test neutral on correctness, `−8.67` claims (p=0.0009) and `−3.00` false successes (p=0.031); review `+4.00` correctness (p=0.012) only on top of own test + independent test, and `+3.33` false successes (p=0.031) on its own. |
+-| **R3 decomposition / multi-approach** | **NEGATIVE** | leaf `47/70 (67.1%, 0 false)` vs tree-greedy `14/70 (20.0%, 4 false)` vs tree-tournament `15/70 (21.4%, 3 false)`; paired delta CI upper bounds below 0, p<0.001; the mechanism verifiably fired. |
++| **R1 capability parity** (ours >= `pi` within the error margin) | **INCONCLUSIVE** | N=25/arm: ours `24.640/40` (sd 1.22) vs `pi` `24.960/40` (sd 2.15); delta `−0.320` tasks `= −0.8%`; task-clustered 95% CI `[−3.520, +3.080]`; pre-registered `M=3` rule returns INCONCLUSIVE by `0.52` tasks; the CI width was flat over N=17..25, so further seeds alone are not projected to resolve it at the observed task effects. |
++| **R2 verification carries information** | **PARTLY / not as stated** | own-test loop `−1.33` tasks (CI `[−5.67, +3.00]`, p=0.55), net correctness effect unresolved; independent-test correctness effects unresolved, `−8.67` claims (p=0.0009) and `−3.00` false successes (p=0.031) with review present; review `+4.00` correctness (p=0.012) with independent test present, and `+3.33` false successes (p=0.031) without it; interaction not established. |
++| **R3 decomposition / multi-approach** | **NEGATIVE** | leaf `47/70 (67.1%, 0 false)` vs tree-greedy `14/70 (20.0%, 4 false)` vs tree-tournament `15/70 (21.4%, 3 false)`; paired delta CI upper bounds below 0, p<0.001; negative for the current tree bundle, not isolated decomposition or field refinement. |
+ 
+ The three requirements map to the acceptance criteria as R1 = C1 + C4 + C5, R2 = C2 and
+ R3 = the structural-superiority part of C4. The criterion-by-criterion verdicts are in
+@@ -57,12 +54,11 @@ timeouts. Revision `45ebb32`; the frozen N=17 result was reused and seeds 18..25
+   is a near-tie, but the frozen test establishes neither parity within margin nor
+   inferiority.
+ 
+-**Why N=25 did not resolve it (structural, not a lucky draw).** The CI half-width is about
++**Why N=25 did not resolve it (projection from observed task effects).** The CI half-width is about
+ `3.3` tasks and is flat over N=17..25 (full width `6.53` to `6.60`). It is set by
+ between-task heterogeneity in the 40-task corpus, not by seed noise: at N=25 the
+ within-seed variance contributes only about `8.7%` of the per-task-mean variance, leaving a
+-`~6.3`-task floor at infinite seeds. The rule would need the point estimate to move to
+-about `+0.3` tasks, or a different or larger task set, to return ACHIEVED.
++`~6.3`-task asymptotic width projected from the observed effects. At that width the rule would need the point estimate to move to about `+0.3` tasks, or a different or larger task set, to return ACHIEVED. This is not proof that more seeds cannot change the estimate, nor that the capability goal is impossible.
+ 
+ **Where the starting position came from.** The 2026-10-09 campaign measurement on revision
+ `6b224f5` was ours `24/40` vs `pi` `27/40`, caused by a discarded grader-passing revision in
+@@ -86,10 +82,9 @@ ladder is cumulative, one stage added per arm.
+ | A3 + own test + review | `71/120 (59.2%)` | 54 | **10** | 9.13 | 12,696 | 60.7 |
+ | A4 full (own test + independent test + review + claim gate) | `77/120 (64.2%)` | 28 | **1** | 12.86 | 18,894 | 97.9 |
+ 
+-Paired incremental contributions (one stage isolated per contrast, 40 tasks, 95%
+-percentile bootstrap, seed `20261013`):
++Paired stage-enable contrasts (net workflow effects, 40 tasks, 95% percentile bootstrap, seed `20261013`); enabling a stage also changes feedback, iteration, stopping and delivery, so this does not isolate the information in a test or review:
+ 
+-| contrast | stage isolated | Δactual [95% CI] | p | Δclaimed | Δfalse [95% CI] | p |
++| contrast | stage enabled | Δactual [95% CI] | p | Δclaimed | Δfalse [95% CI] | p |
+ | --- | --- | --- | --- | --- | --- | --- |
+ | A1 − A0 | own test | `−1.33 [−5.67, +3.00]` | 0.549 | +0.00 | `+0.00 [0.00, 0.00]` | 1.000 |
+ | A2 − A1 | independent test | `−0.33 [−3.00, +2.33]` | 1.000 | +0.33 | `+0.00 [0.00, 0.00]` | 1.000 |
+@@ -99,24 +94,10 @@ percentile bootstrap, seed `20261013`):
+ 
+ Reading it:
+ 
+-- **The own test is zero-information on correctness.** The point estimate is negative, the
+-  CI spans 0, and the self-test never carried a claim in any of the 600 runs
+-  (`claimed_basis` is always review and/or independent test). It costs about 7x the tokens
+-  and 6.6x the wall time of development-only.
+-- **The independent test is a false-claim suppressor, not a correctness lever.** On actual
+-  correctness it is indistinguishable from zero, but it cuts claims (`−8.67`, p=0.0009) and
+-  false successes (`−3.00 [−5.67, −1.00]`, p=0.031). It is conservative: in the full arm
+-  it withheld approval in `92/110` runs, `57` of which the grader passed.
+-- **Review buys correctness only when backstopped.** Added to the own test alone, review
+-  gives no significant correctness change while producing `+18.00` claims and `+3.33`
+-  false successes. Added on top of own test + independent test, it is the **only
+-  significant correctness gain in the ladder** (`+4.00 [ +1.33, +7.00]`, p=0.012).
+-- **The requirement as stated is not supported.** Not every stage carries
+-  positive information: the own test is zero-information, and review alone is negative
+-  information (it raises false successes). The full stack is net-positive in point estimate
+-  (`+2.33` tasks `[−0.33, +5.33]`, p=0.34, not significant); the only significant
+-  correctness gain is review on top of own test + independent test. The stages are not
+-  interchangeable.
++- **No net correctness gain was detected from enabling the own-test loop.** Its CI `[−5.67, +3.00]` includes losses and gains; this is not proof of zero information or equivalence. Own tests never directly carried a claim, but can change code and block later claims. The loop costs about 7x the tokens and 6.6x the wall time of development-only.
++- **The independent-test contrasts leave correctness unresolved and reduce false claims with review present.** Claims fall (`−8.67`, p=0.0009) and false successes fall (`−3.00 [−5.67, −1.00]`, p=0.031). In the full arm it withheld approval in `92/110` runs, `57` of which the final grader passed; that join is not an independent diagnostic-accuracy experiment.
++- **Review has a positive correctness contrast with independent test present.** `A4−A2` is `+4.00 [+1.33, +7.00]`, p=0.012. Without independent test, `A3−A1` has no detected correctness effect and increases false successes by `+3.33`. A significant contrast beside a nonsignificant one does not establish that their difference (the interaction) is significant.
++- **The requirement remains not met as stated.** The net full-stack gain is unresolved (`+2.33 [−0.33, +5.33]`, p=0.34), not every final failure has a deviation-point explanation, and the final R2 A-05#1 shows independent test and review jointly approving wrong answers. These workflow measurements do not measure information content. Small N, unmatched stage costs and multiple unadjusted contrasts limit interpretation; see the measurement record and [bounded final-revision audit](../.scratch/29-close-audit/report.md).
+ 
+ ## 5. R3 — decomposition / multi-approach (NEGATIVE)
+ 
+@@ -138,13 +119,8 @@ Paired deltas (tree − leaf), 95% bootstrap CI, seed `20261013`:
+ | B2 vs leaf, decomposable tasks | `−0.422` | `[−0.689, −0.178]` | 2 / 21 | 0.000 |
+ | B2 vs leaf, forced-leaf tasks | `−0.520` | `[−0.800, −0.240]` | 1 / 14 | 0.001 |
+ 
+-The pre-registered rule fires NEGATIVE for both tree arms (every decomp-related CI upper
+-bound is below 0). The mechanism verifiably fired, so this is a valid negative and not an
+-unfired-mechanism artefact: decomposition ran in `3/70` runs on `3/9` decomposable tasks
+-(B1) and `9/70` runs on `4/9` tasks (B2). The tree cost `2.2` to `2.4x` the calls, `2.3` to
+-`2.9x` the wall and at least `1.85x` the tokens, for one third of the leaf's grader passes.
+-The correct wording is: **structural superiority is refuted on this corpus; the monolithic
+-leaf matches or beats the tree at a fraction of the cost.**
++The pre-registered rule returns NEGATIVE for both current tree arms (every decomp-related CI upper bound is below 0). Decomposition ran in `3/70` runs on `3/9` decomposable tasks (B1) and `9/70` runs on `4/9` tasks (B2); this establishes that it sometimes fired, not causal isolation. The tree cost `2.2` to `2.4x` the calls, `2.3` to `2.9x` the wall and at least `1.85x` the tokens, for one third of the leaf's grader passes.
++**The current tree bundle is worse here; decomposition, field refinement and structural superiority in general are not refuted.** It changes planning/spec rewriting, budget and delivery as well as splitting: tree merges only closed, claimed candidates, whereas leaf also delivers unclaimed code. Both tree arms delivered pristine Python source on all 52 unclaimed failures; leaf passed 39 unclaimed runs. The deleted tree candidates cannot establish how many were correct. See [ticket 29](../.scratch/29-close-audit/report.md) for code/byte evidence and limits.
+ 
+ ## 6. Cost
+ 
+@@ -196,7 +172,7 @@ leaf matches or beats the tree at a fraction of the cost.**
+ 
+ | mechanism | result |
+ | --- | --- |
+-| decomposition / step-splitting / multi-approach | harmful (R3 above) |
++| current tree / multi-approach bundle | harmful here; splitting and field refinement not isolated (R3 above) |
+ | injecting a knowledge pack (signatures / callers / constants) | no gain (`4/15` vs `3/15`) |
+ | putting module importers into the write spec | no gain (`10/15` vs `10/15`) |
+ | forcing a deterministic file-change order | harmful (`14/15` vs `7/15`) |
+@@ -205,7 +181,7 @@ leaf matches or beats the tree at a fraction of the cost.**
+ | the bounded source index (declared files in full, the rest as an index) | harmful (`13/24` vs `18/24`; `13/24` vs `19/24` against the pre-change revision `e190a4f`, commit `25dafaf`) |
+ | asking the mature CLI to write and run its own tests | worse at 8k (`16/40` vs `21/40`); the 4B could not emit a whole test file as one tool argument. Not re-measured at 32k |
+ 
+-The pattern: structure that costs calls without adding information loses.
++These implementations spent extra calls without a measured net capability gain; this does not show that structure in general cannot help.
+ 
+ ## 10. Known limits (accepted, not pretended away)
+ 

@@ -1,0 +1,17 @@
+N25 totals {'ours-rows': 1000, 'ours-pass': 616, 'pi-rows': 1000, 'pi-pass': 624}
+task ours-pass pi-pass pi-failed-no-files-touched (metadata, not byte proof)
+T-33 23 1 24
+T-12 24 6 19
+T-35 1 20 2
+T-30 15 25 0
+T-16 17 25 0
+T-26 2 10 15
+A-02 0 0 10
+A-03 0 0 25
+A-04 0 0 25
+T-27 0 0 23
+T-34 0 0 24
+frozen producer totals agree
+R3 leaf {(True, False): 39, (False, False): 23, (True, True): 8} failed-unchanged 7
+R3 tree-greedy {(False, False): 52, (True, True): 14, (False, True): 4} failed-unchanged 52
+R3 tree-tournament {(False, False): 52, (True, True): 15, (False, True): 3} failed-unchanged 52

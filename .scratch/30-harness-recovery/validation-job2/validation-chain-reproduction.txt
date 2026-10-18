@@ -1,0 +1,38 @@
+warning: `VIRTUAL_ENV=/home/z/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_failure_is_test_attributed_discards_chain_without_terminal_location[handling] _
+
+separator = 'During handling of the above exception, another exception occurred:'
+
+    @pytest.mark.parametrize("separator", [
+        "During handling of the above exception, another exception occurred:",
+        "The above exception was the direct cause of the following exception:",
+    ], ids=["handling", "direct-cause"])
+    def test_failure_is_test_attributed_discards_chain_without_terminal_location(separator):
+        failure = (f"{TEST_PATH}:4: NameError: earlier test fault\n{separator}\n"
+                   "E   ValueError: final exception has no retained terminal location")
+>       assert not failure_is_test_attributed(failure, TEST_PATH, (SOURCE_PATH,))
+E       AssertionError: assert not True
+E        +  where True = failure_is_test_attributed('tests/test_generated.py:4: NameError: earlier test fault\nDuring handling of the above exception, another exception occurred:\nE   ValueError: final exception has no retained terminal location', 'tests/test_generated.py', ('pkg/calc.py',))
+
+tests/unit/test_own_test_setup.py:228: AssertionError
+_ test_failure_is_test_attributed_discards_chain_without_terminal_location[direct-cause] _
+
+separator = 'The above exception was the direct cause of the following exception:'
+
+    @pytest.mark.parametrize("separator", [
+        "During handling of the above exception, another exception occurred:",
+        "The above exception was the direct cause of the following exception:",
+    ], ids=["handling", "direct-cause"])
+    def test_failure_is_test_attributed_discards_chain_without_terminal_location(separator):
+        failure = (f"{TEST_PATH}:4: NameError: earlier test fault\n{separator}\n"
+                   "E   ValueError: final exception has no retained terminal location")
+>       assert not failure_is_test_attributed(failure, TEST_PATH, (SOURCE_PATH,))
+E       AssertionError: assert not True
+E        +  where True = failure_is_test_attributed('tests/test_generated.py:4: NameError: earlier test fault\nThe above exception was the direct cause of the following exception:\nE   ValueError: final exception has no retained terminal location', 'tests/test_generated.py', ('pkg/calc.py',))
+
+tests/unit/test_own_test_setup.py:228: AssertionError
+=========================== short test summary info ============================
+FAILED tests/unit/test_own_test_setup.py::test_failure_is_test_attributed_discards_chain_without_terminal_location[handling]
+FAILED tests/unit/test_own_test_setup.py::test_failure_is_test_attributed_discards_chain_without_terminal_location[direct-cause]

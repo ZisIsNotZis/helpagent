@@ -1,0 +1,41 @@
+{
+  "at": "2026-10-15T16:58:49+08:00",
+  "group": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+  "attributes": {
+    "cgroup.controllers": "cpu memory pids",
+    "cgroup.events": "populated 1\nfrozen 0",
+    "cgroup.procs": "3392182\n3392191\n3392192",
+    "cpu.max": "100000 100000",
+    "cpu.stat": "usage_usec 74259\nuser_usec 56436\nsystem_usec 17822\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 2\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0",
+    "memory.max": "1073741824",
+    "memory.current": "16228352",
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0",
+    "pids.max": "64",
+    "pids.current": "3",
+    "pids.events": "max 0"
+  },
+  "hostAvailableBytes": 112755404800,
+  "processes": {
+    "3392182": {
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+      "stat": "3392182 (python) R 3392179 3392179 3392179 0 -1 4194304 2619 0 0 0 3 1 0 0 20 0 1 0 61433595 24498176 4246 18446744073709551615 4325376 7352253 140731357729552 0 0 0 0 16781319 0 0 0 0 17 11 0 0 0 0 0 10653128 12216448 46653440 140731357731858 140731357731974 140731357731974 140731357741031 0\n",
+      "affinity": [
+        11
+      ]
+    },
+    "3392191": {
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+      "stat": "3392191 (python) S 3392182 3392179 3392179 0 -1 4194304 1347 0 0 0 1 0 0 0 20 0 1 0 61433602 17182720 2848 18446744073709551615 4325376 7352253 140723983227824 0 0 0 0 16781319 0 1 0 0 17 11 0 0 0 0 0 10653128 12216448 1009201152 140723983231936 140723983232111 140723983232111 140723983241168 0\n",
+      "affinity": [
+        11
+      ]
+    },
+    "3392192": {
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+      "stat": "3392192 (python) S 3392191 3392179 3392179 0 -1 4194304 1026 0 0 0 0 0 0 0 20 0 1 0 61433604 15749120 2476 18446744073709551615 4325376 7352253 140727388240912 0 0 0 0 16781319 0 1 0 0 17 11 0 0 0 0 0 10653128 12216448 183214080 140727388249126 140727388249199 140727388249199 140727388258256 0\n",
+      "affinity": [
+        11
+      ]
+    }
+  }
+}

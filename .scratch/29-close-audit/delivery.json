@@ -1,0 +1,2975 @@
+{
+  "kind": "ticket-29 uncommitted delivery inventory",
+  "createdAt": "2026-10-15T12:57:37+08:00",
+  "baseline": "72f25fac838afa5b6ff1b7799225ebfd6e252a1e",
+  "measurementRevision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+  "head": "72f25fac838afa5b6ff1b7799225ebfd6e252a1e",
+  "modifiedFiles": [
+    "README.md",
+    "docs/STATUS.md",
+    "docs/LEARNINGS.md",
+    "docs/ROADMAP.md"
+  ],
+  "addedFileCountIncludingInventory": 488,
+  "inventoryExclusion": ".scratch/29-close-audit/delivery.json excludes its own bytes; hash this file separately for the final handoff",
+  "inventorySha256": "edb3f1e4ce50455346cfd3d0fff6baf4d5a9e12afbecba3872f93d0df715be2d",
+  "inventoryDefinition": "SHA256 of sorted path + NUL + file SHA256 + LF entries below; includes all other new artifacts and the four modified current docs",
+  "diffPath": ".scratch/29-close-audit/final.diff",
+  "diffScope": "Exact baseline-to-worktree patch for the four tracked current docs; new work-record additions are retained directly and individually inventoried below rather than duplicated in a multi-megabyte addition patch",
+  "trackedDiffSha256": "8f3c41ad2a69ed63b22b35d238b54a8681b3a18e1718c07b8a19c8904b8c5ded",
+  "reportSha256": "ecc1c0c5bad330c3235d26952487fafe83d775455e815f7fe96cdec28dc42c29",
+  "matrixSha256": "8219732ecc453f4071de3435fd68b71bf5f7214ae259e947013c6ca619ee0778",
+  "statusSha256": "6915a06b3ed2e7bdea14d4c3c9997e43223f94d3010b788ebc39d32de6802446",
+  "independentReview": "PASS with nonblocking P2 per fresh-review verdict supplied in dispatch; single-line T35 correction recorded in ticket.md and review-fix.diff; no worker self-review verdict claimed",
+  "noStagedFiles": true,
+  "committed": false,
+  "pushed": false,
+  "files": [
+    {
+      "path": ".scratch/29-close-audit/build_tables.py",
+      "change": "added",
+      "bytes": 2124,
+      "sha256": "0836d7171104448352ac7bfd7ed3e0af54cf838687d9b077467830e6c10f5b21"
+    },
+    {
+      "path": ".scratch/29-close-audit/check_docs_semantics.py",
+      "change": "added",
+      "bytes": 3125,
+      "sha256": "e4a667f8697006844c77922004055d1a1894b7e39b572baab4c9a4ae25c08bf0"
+    },
+    {
+      "path": ".scratch/29-close-audit/checks-noindex-preliminary.txt",
+      "change": "added",
+      "bytes": 1625,
+      "sha256": "66a191de5152cc662a8f1f20bb7686e4a4a183cbd6005f012395834d068e2b51"
+    },
+    {
+      "path": ".scratch/29-close-audit/checks-preliminary.txt",
+      "change": "added",
+      "bytes": 886,
+      "sha256": "7d59ddd4d02826c7206bf2542631f3ceaa45f7745f388554e92024fe012b4dd9"
+    },
+    {
+      "path": ".scratch/29-close-audit/checks.txt",
+      "change": "added",
+      "bytes": 2581,
+      "sha256": "ed9c04813c2ab01d75303d18cd6873396d33303da1edd8d30226da3485e4da58"
+    },
+    {
+      "path": ".scratch/29-close-audit/collect_evidence.py",
+      "change": "added",
+      "bytes": 6647,
+      "sha256": "e1259cb9ee1d0e5b7f84f7712543c376da8d33d2ea3cf071b46c0e024562e23b"
+    },
+    {
+      "path": ".scratch/29-close-audit/collection.txt",
+      "change": "added",
+      "bytes": 2186,
+      "sha256": "d1bab7f33182cdb329fdde35e02796614a3f267d1070708caaf381635de2124c"
+    },
+    {
+      "path": ".scratch/29-close-audit/commands.md",
+      "change": "added",
+      "bytes": 7041,
+      "sha256": "e1d0fcacef04b71d744f0c7acf5cd4a649470fca46d2be0eac801aadc0ace30f"
+    },
+    {
+      "path": ".scratch/29-close-audit/docs-first-pass.diff",
+      "change": "added",
+      "bytes": 38786,
+      "sha256": "5953b1be4fa5e63dfff01d3970c093269d2064ee4afe115f2ad0dbe0a0426d41"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence-matrix.md",
+      "change": "added",
+      "bytes": 7223,
+      "sha256": "8219732ecc453f4071de3435fd68b71bf5f7214ae259e947013c6ca619ee0778"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/analyze_n25.py",
+      "change": "added",
+      "bytes": 10349,
+      "sha256": "dca51234bd83b479bc9121bd37b418d4e5c4b765842c55b3bcf46f9e8e83f78f"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-02-protein-translation-s1/grade-repo/protein_translation.py",
+      "change": "added",
+      "bytes": 735,
+      "sha256": "cebed312ddeeaed040f4c0f96716c76e2a7593763ee72bd941d6ec183bc065f4"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-02-protein-translation-s1/grade-repo/protein_translation_test.py",
+      "change": "added",
+      "bytes": 4724,
+      "sha256": "1d2899f791cabefa7ea2ba52e105bbb7b3e2a47d71babeff791ea7dd4d8ee0bb"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-02-protein-translation-s1/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 215,
+      "sha256": "72febd642faf79da78a9716604557d9ee229fe0f9cb8a8bb00c51ec44458426e"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-02-protein-translation-s1/index.md",
+      "change": "added",
+      "bytes": 24786,
+      "sha256": "3f7d8ca20b77e5aa9f2857f7a8ddb5cb96b27dadd55a1a6d593bd19d1e88c459"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-02-protein-translation-s1/payloads/L002/test_protein_translation.py",
+      "change": "added",
+      "bytes": 471,
+      "sha256": "ab8862f36dff6d5ef5f86c0932cef400502e4d1f8896f1e0d1ec69bc43ce7790"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-02-protein-translation-s1/payloads/L006/protein_translation.py",
+      "change": "added",
+      "bytes": 751,
+      "sha256": "5a6fe84d0982e6763a7f53498dd1708722f492d3a1d43e8ad94906c19c5ce110"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-02-protein-translation-s1/payloads/L015/protein_translation.py",
+      "change": "added",
+      "bytes": 751,
+      "sha256": "5a6fe84d0982e6763a7f53498dd1708722f492d3a1d43e8ad94906c19c5ce110"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-02-protein-translation-s1/payloads/L022/protein_translation.py",
+      "change": "added",
+      "bytes": 735,
+      "sha256": "cebed312ddeeaed040f4c0f96716c76e2a7593763ee72bd941d6ec183bc065f4"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-02-protein-translation-s1/payloads/L032/tests/test_protein_translation.py",
+      "change": "added",
+      "bytes": 3278,
+      "sha256": "66825e5e3c88f7997323ce1eb45d30e6649f24a54670fb62e938f0d50f86c09c"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-02-protein-translation-s1/row.json",
+      "change": "added",
+      "bytes": 56104,
+      "sha256": "5df5ab7faa0b54a51a34d8e10baac8a4bc8d20c1007da526c896b474b9afa980"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-02-protein-translation-s1/trajectory.jsonl",
+      "change": "added",
+      "bytes": 228930,
+      "sha256": "60918fa20ea934d022857c814dfeb71e7ad7193eb4887fd5c2d8920903cb0ace"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-02-protein-translation-s1/work/protein_translation.py",
+      "change": "added",
+      "bytes": 735,
+      "sha256": "cebed312ddeeaed040f4c0f96716c76e2a7593763ee72bd941d6ec183bc065f4"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-02-protein-translation-s1/work/test_protein_translation.py",
+      "change": "added",
+      "bytes": 471,
+      "sha256": "ab8862f36dff6d5ef5f86c0932cef400502e4d1f8896f1e0d1ec69bc43ce7790"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-03-book-store-s1/grade-repo/book_store.py",
+      "change": "added",
+      "bytes": 1311,
+      "sha256": "ec3c4d4fb02e20f8ea2f9516a0f4d04133256210facc03e4436c870004777802"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-03-book-store-s1/grade-repo/book_store_test.py",
+      "change": "added",
+      "bytes": 3495,
+      "sha256": "59204f1edbb004c2402cea2aa7d1389c5293766fae4ce5d79a83627970c7acf3"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-03-book-store-s1/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 197,
+      "sha256": "bd2b6c0d6d8f6cc8617b459237c6a60239392c9fe2edee2490acff4240d94f49"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-03-book-store-s1/index.md",
+      "change": "added",
+      "bytes": 47735,
+      "sha256": "f23a53fcee33b3c20667bc9d73b15690dddb302c6de52703629939a3f0b04fc0"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-03-book-store-s1/payloads/L002/test_book_store.py",
+      "change": "added",
+      "bytes": 938,
+      "sha256": "50b82e670d6fcdc60da34780df05665235c468762d35e2a6d311973f3ee0bc1d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-03-book-store-s1/payloads/L006/book_store.py",
+      "change": "added",
+      "bytes": 1311,
+      "sha256": "ec3c4d4fb02e20f8ea2f9516a0f4d04133256210facc03e4436c870004777802"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-03-book-store-s1/payloads/L016/tests/book_store_test.py",
+      "change": "added",
+      "bytes": 5648,
+      "sha256": "0d601b4e821056cadb32d758e180fab7ce3e1af05999b9818a2edffa978f3316"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-03-book-store-s1/payloads/L055/tests/book_store_test.py",
+      "change": "added",
+      "bytes": 6069,
+      "sha256": "193a9e84a0d62f3258b190007dfae7527af2ac4476150b0503cbaef0ddbd603d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-03-book-store-s1/row.json",
+      "change": "added",
+      "bytes": 124875,
+      "sha256": "764e2f18327a35b32580327372b143043b2efae75cc249234a401de8245fa5fe"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-03-book-store-s1/trajectory.jsonl",
+      "change": "added",
+      "bytes": 418766,
+      "sha256": "ef0d697b8db07798b2be644ff8c548ab267fa302713720b2fe7dd50dee67717e"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-03-book-store-s1/work/book_store.py",
+      "change": "added",
+      "bytes": 1311,
+      "sha256": "ec3c4d4fb02e20f8ea2f9516a0f4d04133256210facc03e4436c870004777802"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-03-book-store-s1/work/test_book_store.py",
+      "change": "added",
+      "bytes": 938,
+      "sha256": "50b82e670d6fcdc60da34780df05665235c468762d35e2a6d311973f3ee0bc1d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-04-connect-s1/grade-repo/connect.py",
+      "change": "added",
+      "bytes": 3155,
+      "sha256": "f9eadeab4b7e7eec97d566e3cd6e42920f3f40027df5acaed9b3b11cc02ea068"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-04-connect-s1/grade-repo/connect_test.py",
+      "change": "added",
+      "bytes": 3682,
+      "sha256": "901c80868737406b3aaf40b74a83aeb8f722e34ad0a22090931eccf8dcfcf548"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-04-connect-s1/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 191,
+      "sha256": "80fda88d348abb62866f77df9c8a26c13857327036549ffaabb179f5a94fd5ad"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-04-connect-s1/index.md",
+      "change": "added",
+      "bytes": 21775,
+      "sha256": "a0091a372be0c7cd55952f29c6e79898d0c7683c1e8e862ea7c2a3e4626f39e8"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-04-connect-s1/payloads/L002/test_connect.py",
+      "change": "added",
+      "bytes": 1166,
+      "sha256": "ad959c9cc001afd68a93408949615b60be4cb79e90fd7aa05c4b0379860ddc9a"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-04-connect-s1/payloads/L006/test_connect.py",
+      "change": "added",
+      "bytes": 953,
+      "sha256": "e82174f25a1d6fc9f19c46cfad619f75dcf217a7ef996bd6f4625f1ff6656057"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-04-connect-s1/payloads/L011/connect.py",
+      "change": "added",
+      "bytes": 3157,
+      "sha256": "5214cb570152ecd2e7c2b891afa1d226cf72501f9c24f4145dd5b240177854fa"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-04-connect-s1/payloads/L017/test_connect.py",
+      "change": "added",
+      "bytes": 953,
+      "sha256": "e82174f25a1d6fc9f19c46cfad619f75dcf217a7ef996bd6f4625f1ff6656057"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-04-connect-s1/payloads/L020/connect.py",
+      "change": "added",
+      "bytes": 3154,
+      "sha256": "236d3af889c62ebdf95fda4de6b33b26268ecb7460b2e0988b336c21dd95849f"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-04-connect-s1/payloads/L029/connect.py",
+      "change": "added",
+      "bytes": 3155,
+      "sha256": "f9eadeab4b7e7eec97d566e3cd6e42920f3f40027df5acaed9b3b11cc02ea068"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-04-connect-s1/payloads/L034/tests/connect_test.py",
+      "change": "added",
+      "bytes": 4372,
+      "sha256": "e8381b655718ca3f20d4a19b8f3bcfde34ca94129ebd6f070af87a5b42b77427"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-04-connect-s1/row.json",
+      "change": "added",
+      "bytes": 53743,
+      "sha256": "b9d1d89af8d2d34d461e9d2cd5813afe81a3e5773b427e90f63c9b0e58570c7f"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-04-connect-s1/trajectory.jsonl",
+      "change": "added",
+      "bytes": 275862,
+      "sha256": "3c1fbd5e270efb25290e9f61cce2ac8b50a9c1722884b47639baa4c1f28a29a6"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-04-connect-s1/work/connect.py",
+      "change": "added",
+      "bytes": 3155,
+      "sha256": "f9eadeab4b7e7eec97d566e3cd6e42920f3f40027df5acaed9b3b11cc02ea068"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-A-04-connect-s1/work/test_connect.py",
+      "change": "added",
+      "bytes": 953,
+      "sha256": "e82174f25a1d6fc9f19c46cfad619f75dcf217a7ef996bd6f4625f1ff6656057"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-12-str-enum-compare-s1/grade-repo/README.md",
+      "change": "added",
+      "bytes": 247,
+      "sha256": "85d6a4eeae759d98120fd5bf76e8881b7f5a9243960215b1953f24f2ce5ac17c"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-12-str-enum-compare-s1/grade-repo/access/__init__.py",
+      "change": "added",
+      "bytes": 33,
+      "sha256": "3ba20281901c826154dd9ea8925f57514b98543562373c504850b77fd64d6d87"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-12-str-enum-compare-s1/grade-repo/access/gate.py",
+      "change": "added",
+      "bytes": 548,
+      "sha256": "62dff31b50c569a255e89b8705d4bc3005abba0a726f5c5b41d14462d32d8adf"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-12-str-enum-compare-s1/grade-repo/access/roles.py",
+      "change": "added",
+      "bytes": 260,
+      "sha256": "c5809f9f616593b449a0fd961edb361b4bc09f0456549447aee0ae896ece56fe"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-12-str-enum-compare-s1/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 208,
+      "sha256": "705e8519f0edcb3c495a078f305f45ebdd0bea8b930e51ee131e773c9d2a2476"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-12-str-enum-compare-s1/grade-repo/tests/test_gate.py",
+      "change": "added",
+      "bytes": 483,
+      "sha256": "9549826a3ddaa70aeaa67eb59a73a14733f62ec06b6ff2e13d13b31a83a28c25"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-12-str-enum-compare-s1/index.md",
+      "change": "added",
+      "bytes": 27637,
+      "sha256": "dc755c639bd4fca71e8d6d25463c0e3007bf89241c2cd14489edf1dd712d4398"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-12-str-enum-compare-s1/payloads/L002/test_access.py",
+      "change": "added",
+      "bytes": 1144,
+      "sha256": "992d987d96e8571e81b1e00966373e063bb21e99e229f55e316b328320a42d7f"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-12-str-enum-compare-s1/payloads/L005/test_access_webhook_equality.py",
+      "change": "added",
+      "bytes": 1165,
+      "sha256": "6815aaa798956a134663559c220082daa9d07cccab1de326fe386c8f94de779e"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-12-str-enum-compare-s1/payloads/L008/access/gate.py",
+      "change": "added",
+      "bytes": 548,
+      "sha256": "62dff31b50c569a255e89b8705d4bc3005abba0a726f5c5b41d14462d32d8adf"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-12-str-enum-compare-s1/payloads/L020/tests/access_gate_test.py",
+      "change": "added",
+      "bytes": 1103,
+      "sha256": "3a06bd28bd25cb422804e4c04a8ade11cdfa372865fbe974f2f6839f55cf5351"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-12-str-enum-compare-s1/payloads/L030/tests/access_gate_test.py",
+      "change": "added",
+      "bytes": 1137,
+      "sha256": "508ce6fd557908759600d2c8c8f7b0c638d9f777370443da712f2ea75da420f4"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-12-str-enum-compare-s1/row.json",
+      "change": "added",
+      "bytes": 41175,
+      "sha256": "7c3f53e28e4a45b20fdda8032e17906f6bf164198a61d34f830df1116930dcde"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-12-str-enum-compare-s1/trajectory.jsonl",
+      "change": "added",
+      "bytes": 155401,
+      "sha256": "60f249bc0436fa2a54c3648c9dea561c7753799de5bc53acd2ca94988d218227"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-12-str-enum-compare-s1/work/README.md",
+      "change": "added",
+      "bytes": 247,
+      "sha256": "85d6a4eeae759d98120fd5bf76e8881b7f5a9243960215b1953f24f2ce5ac17c"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-12-str-enum-compare-s1/work/access/__init__.py",
+      "change": "added",
+      "bytes": 33,
+      "sha256": "3ba20281901c826154dd9ea8925f57514b98543562373c504850b77fd64d6d87"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-12-str-enum-compare-s1/work/access/gate.py",
+      "change": "added",
+      "bytes": 548,
+      "sha256": "62dff31b50c569a255e89b8705d4bc3005abba0a726f5c5b41d14462d32d8adf"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-12-str-enum-compare-s1/work/access/roles.py",
+      "change": "added",
+      "bytes": 260,
+      "sha256": "c5809f9f616593b449a0fd961edb361b4bc09f0456549447aee0ae896ece56fe"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/grade-repo/README.md",
+      "change": "added",
+      "bytes": 64,
+      "sha256": "f42a0f6f1e5d939987f19e664b00fb8607f45e625be6357841a1b9b8f2012423"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/grade-repo/cart/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/grade-repo/cart/cart.py",
+      "change": "added",
+      "bytes": 249,
+      "sha256": "c302c53493adef5639abbbfe2b5e3cf37bc8a4665158e9107f9cd20c2b55d5bc"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 224,
+      "sha256": "2ea49b053363e8c979733cbb6ba99b69e0b3b0e8efe5089ab35453ce37311284"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/grade-repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/grade-repo/tests/test_cart.py",
+      "change": "added",
+      "bytes": 279,
+      "sha256": "c375477d27d6b035e3b1f0ef5f629716f3639f58d7a62f079da5921eb98d587b"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/index.md",
+      "change": "added",
+      "bytes": 15431,
+      "sha256": "8edffc00120330d7d3346334d78a54469fa3feb6a782741a448ac10d053cda11"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/payloads/L002/test_cart.py",
+      "change": "added",
+      "bytes": 451,
+      "sha256": "b083a55e26d592d6024e579e03af57e2bb04eed066df4a25b9b93fd1ed5a9e80"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/payloads/L006/cart/cart.py",
+      "change": "added",
+      "bytes": 249,
+      "sha256": "c302c53493adef5639abbbfe2b5e3cf37bc8a4665158e9107f9cd20c2b55d5bc"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/payloads/L015/cart/cart.py",
+      "change": "added",
+      "bytes": 291,
+      "sha256": "8171a419e76354d87aad1f518109127131640e980bb5544f88a3a0fb9bf12c7d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/payloads/L020/cart/cart.py",
+      "change": "added",
+      "bytes": 291,
+      "sha256": "8171a419e76354d87aad1f518109127131640e980bb5544f88a3a0fb9bf12c7d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/payloads/L027/cart/cart.py",
+      "change": "added",
+      "bytes": 249,
+      "sha256": "c302c53493adef5639abbbfe2b5e3cf37bc8a4665158e9107f9cd20c2b55d5bc"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/payloads/L033/cart/cart.py",
+      "change": "added",
+      "bytes": 249,
+      "sha256": "c302c53493adef5639abbbfe2b5e3cf37bc8a4665158e9107f9cd20c2b55d5bc"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/payloads/L039/cart/cart.py",
+      "change": "added",
+      "bytes": 249,
+      "sha256": "c302c53493adef5639abbbfe2b5e3cf37bc8a4665158e9107f9cd20c2b55d5bc"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/payloads/L045/cart/cart.py",
+      "change": "added",
+      "bytes": 249,
+      "sha256": "c302c53493adef5639abbbfe2b5e3cf37bc8a4665158e9107f9cd20c2b55d5bc"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/payloads/L051/cart/cart.py",
+      "change": "added",
+      "bytes": 249,
+      "sha256": "c302c53493adef5639abbbfe2b5e3cf37bc8a4665158e9107f9cd20c2b55d5bc"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/row.json",
+      "change": "added",
+      "bytes": 16211,
+      "sha256": "417f524081698e635355738cf976d9600a7f640a345d8c60f70e705642c0066d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/trajectory.jsonl",
+      "change": "added",
+      "bytes": 136845,
+      "sha256": "f93f0b66016078a43eb6bb6f5eb76f56e9635fa7aec76d3e8cbb4142f72ff0c5"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/work/README.md",
+      "change": "added",
+      "bytes": 64,
+      "sha256": "f42a0f6f1e5d939987f19e664b00fb8607f45e625be6357841a1b9b8f2012423"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/work/cart/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/work/cart/cart.py",
+      "change": "added",
+      "bytes": 249,
+      "sha256": "c302c53493adef5639abbbfe2b5e3cf37bc8a4665158e9107f9cd20c2b55d5bc"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-16-class-state-leak-s2/work/test_cart.py",
+      "change": "added",
+      "bytes": 451,
+      "sha256": "b083a55e26d592d6024e579e03af57e2bb04eed066df4a25b9b93fd1ed5a9e80"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-26-plan-dataclass-port-s1/grade-repo/README.md",
+      "change": "added",
+      "bytes": 72,
+      "sha256": "0f32d2db4b163dcf31274c9806f996d7fe00700e97f16262d31cad32e4f46b06"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-26-plan-dataclass-port-s1/grade-repo/plan/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-26-plan-dataclass-port-s1/grade-repo/plan/model.py",
+      "change": "added",
+      "bytes": 531,
+      "sha256": "cf0cf2a54f8df6d8a0f5fe2c8422ecaacf60a7397b8e1c5769e6a8406b977683"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-26-plan-dataclass-port-s1/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 238,
+      "sha256": "69d07dac3f7989fd354c0f09c99cc33a8878feed4376034e1939d2dd164f5f47"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-26-plan-dataclass-port-s1/grade-repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-26-plan-dataclass-port-s1/grade-repo/tests/test_model.py",
+      "change": "added",
+      "bytes": 507,
+      "sha256": "b19b8e8e96a6aa155436f12ccc89e93e28a89a43a1d90da0df5f4b0b261c13b4"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-26-plan-dataclass-port-s1/index.md",
+      "change": "added",
+      "bytes": 22457,
+      "sha256": "403f422381d44fde2155520165f1a62f60f3182e9d3eded86edf97f6671c5b73"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-26-plan-dataclass-port-s1/payloads/L002/test_plan.py",
+      "change": "added",
+      "bytes": 1022,
+      "sha256": "0015620455368ab204f80baa746568040f6e41fe572c06531923d3a51710fcb2"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-26-plan-dataclass-port-s1/payloads/L006/test_plan.py",
+      "change": "added",
+      "bytes": 948,
+      "sha256": "ea1d69d0b7acdfd13922092b96d6cacdab587b115cb4985f94eb7a566bcbeca0"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-26-plan-dataclass-port-s1/payloads/L012/plan/model.py",
+      "change": "added",
+      "bytes": 531,
+      "sha256": "cf0cf2a54f8df6d8a0f5fe2c8422ecaacf60a7397b8e1c5769e6a8406b977683"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-26-plan-dataclass-port-s1/payloads/L022/tests/test_plan_model.py",
+      "change": "added",
+      "bytes": 1101,
+      "sha256": "c9afba1318997d680757fd7f37442b7b1baccd0507e924498e22750b542593c0"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-26-plan-dataclass-port-s1/payloads/L029/tests/test_plan_model.py",
+      "change": "added",
+      "bytes": 1116,
+      "sha256": "94c4c3a8b4a59a621def7bf51b24a15bad1a9790de0ec77739a917050629f02b"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-26-plan-dataclass-port-s1/row.json",
+      "change": "added",
+      "bytes": 33010,
+      "sha256": "4eb7454447a05cc9482fb61c00cbafeba90c8071d0619bc1df1955d07d9c866d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-26-plan-dataclass-port-s1/trajectory.jsonl",
+      "change": "added",
+      "bytes": 131283,
+      "sha256": "345d44d01413ddea785a4aa30cea8383de610b5beef9dd1dcb861a6682ea8da7"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-26-plan-dataclass-port-s1/work/README.md",
+      "change": "added",
+      "bytes": 72,
+      "sha256": "0f32d2db4b163dcf31274c9806f996d7fe00700e97f16262d31cad32e4f46b06"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-26-plan-dataclass-port-s1/work/plan/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-26-plan-dataclass-port-s1/work/plan/model.py",
+      "change": "added",
+      "bytes": 531,
+      "sha256": "cf0cf2a54f8df6d8a0f5fe2c8422ecaacf60a7397b8e1c5769e6a8406b977683"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-26-plan-dataclass-port-s1/work/test_plan.py",
+      "change": "added",
+      "bytes": 522,
+      "sha256": "aab403da0cf7ddd6d5a55dbdec4b0b2986849d4e7984f75cd6c2ad502c191c0d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/grade-repo/README.md",
+      "change": "added",
+      "bytes": 88,
+      "sha256": "4cf78c1c09a7ef99d5c5b3c9cf9835d926e307adb962712548cec8047343f35c"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/grade-repo/ingest/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/grade-repo/ingest/records.py",
+      "change": "added",
+      "bytes": 405,
+      "sha256": "88e78b580a61a88b2f732d78144ca7a333d9993dacec2b269cad29111ed89b3b"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 247,
+      "sha256": "4b6ecd643f0e1a80d1d768603df1c9911ecf3568a83b27c7c918bebb0d53817b"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/grade-repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/grade-repo/tests/test_records.py",
+      "change": "added",
+      "bytes": 376,
+      "sha256": "301dfc914f713bffc99524978fdc4644a5d8d02991d2ebc1f0913a50c3c45565"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/index.md",
+      "change": "added",
+      "bytes": 14939,
+      "sha256": "3cae2e793364afcd4bd4247e0ae324755bda4a11ea10c5d1149fe3deaf69575d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/payloads/L002/test_records.py",
+      "change": "added",
+      "bytes": 471,
+      "sha256": "67e32b4d9e0e5207d85492b46662265fa79693ca104f8c865680f81ec367908b"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/payloads/L006/ingest/records.py",
+      "change": "added",
+      "bytes": 482,
+      "sha256": "7c229808a630360715c26c9f74d0ce4d4d30005c0d2a78378f8b81b97cf19702"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/payloads/L016/ingest/records.py",
+      "change": "added",
+      "bytes": 870,
+      "sha256": "336d5fee76c885ff475bca7643f2b0916c42bed25ce903cf51dfc60438f67645"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/payloads/L023/ingest/records.py",
+      "change": "added",
+      "bytes": 542,
+      "sha256": "d14a3936f753328b0ba6b94732193d28eb8bbf5a6601621e3b4a4b4ed1e029d2"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/payloads/L030/ingest/records.py",
+      "change": "added",
+      "bytes": 476,
+      "sha256": "e00261c2a946cc28ee3a787a89da5c18d344cbfecebf48500b9d9af273e16f5a"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/payloads/L035/ingest/records.py",
+      "change": "added",
+      "bytes": 484,
+      "sha256": "22374d832a568e595b7349d8b4054317d4d3821d8c895a3a698647da10a16ae5"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/payloads/L042/ingest/records.py",
+      "change": "added",
+      "bytes": 405,
+      "sha256": "88e78b580a61a88b2f732d78144ca7a333d9993dacec2b269cad29111ed89b3b"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/row.json",
+      "change": "added",
+      "bytes": 15335,
+      "sha256": "250590bc6ab3a49750cdda7b3a564cc7a66e62f5bb760b3b643b3b17365196a1"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/trajectory.jsonl",
+      "change": "added",
+      "bytes": 120414,
+      "sha256": "532d36b288f5607178facd545a1e19164dda3df9c96c2c189eda593949c4e74b"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/work/README.md",
+      "change": "added",
+      "bytes": 88,
+      "sha256": "4cf78c1c09a7ef99d5c5b3c9cf9835d926e307adb962712548cec8047343f35c"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/work/ingest/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/work/ingest/records.py",
+      "change": "added",
+      "bytes": 405,
+      "sha256": "88e78b580a61a88b2f732d78144ca7a333d9993dacec2b269cad29111ed89b3b"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-27-snakecase-ingest-s1/work/test_records.py",
+      "change": "added",
+      "bytes": 471,
+      "sha256": "67e32b4d9e0e5207d85492b46662265fa79693ca104f8c865680f81ec367908b"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/grade-repo/README.md",
+      "change": "added",
+      "bytes": 90,
+      "sha256": "142d19bd815326d78245d6ebb18e429e5521c0d3a9c39f7af1eec7820e434271"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 246,
+      "sha256": "d05a27041212fc5d1e56312acb9617a67974d0ab8d73c9ee33f6f0ee744eb4bd"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/grade-repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/grade-repo/tests/test_tokens.py",
+      "change": "added",
+      "bytes": 558,
+      "sha256": "823dabebc4cfd5920e906eb48e1e5d1064b43f98c716a09070e6bb7f691b34e1"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/grade-repo/tokens/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/grade-repo/tokens/tokens.py",
+      "change": "added",
+      "bytes": 469,
+      "sha256": "9cc3a3dd8a6e13349bf1ca4f912a54cbcc1fc88d93a446cc5ee8f543ef754274"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/index.md",
+      "change": "added",
+      "bytes": 35735,
+      "sha256": "dddd5ca32fca9265f09d73275b761fd77331b88a2e5e3b4458131a9b6e2fc10f"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/payloads/L002/test_tokens.py",
+      "change": "added",
+      "bytes": 994,
+      "sha256": "26421363d78b2a07d69abc6113d6d4a203fca2259f3c822a3790fa344eac42fa"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/payloads/L005/test_tokens_tz.py",
+      "change": "added",
+      "bytes": 992,
+      "sha256": "5cec6d22607fab0c40918fce0ce95dccd66b06f5b87861a558263f83b90efc4f"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/payloads/L013/tokens/tokens.py",
+      "change": "added",
+      "bytes": 491,
+      "sha256": "4558d22bcb724703aa853d3ef290992df914ae7971134ce9153a75454737eff7"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/payloads/L028/tokens/tokens.py",
+      "change": "added",
+      "bytes": 491,
+      "sha256": "4558d22bcb724703aa853d3ef290992df914ae7971134ce9153a75454737eff7"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/payloads/L041/tokens/tokens.py",
+      "change": "added",
+      "bytes": 446,
+      "sha256": "4af3dc7d5344fe4ea240c6a0b3f70ba3e77d3021e9cf519fbfd1277077d72438"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/payloads/L053/tokens/tokens.py",
+      "change": "added",
+      "bytes": 494,
+      "sha256": "bb50e335b9b0265bb108144c0b69d7f575e263d5022874701d6e78ce3a94131d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/payloads/L065/tokens/tokens.py",
+      "change": "added",
+      "bytes": 432,
+      "sha256": "038692a2c90daa12511c253767d6eda82ff6aab3c7b807b0f1f17be1d3c129c3"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/payloads/L078/tokens/tokens.py",
+      "change": "added",
+      "bytes": 469,
+      "sha256": "9cc3a3dd8a6e13349bf1ca4f912a54cbcc1fc88d93a446cc5ee8f543ef754274"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/payloads/L091/tests/test_tokens.py",
+      "change": "added",
+      "bytes": 882,
+      "sha256": "da25b17bc8bbf2265384ed20695e8f3c9254bbfbb05112283b75fbcf611d52c7"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/row.json",
+      "change": "added",
+      "bytes": 48067,
+      "sha256": "4a0d064f2743e82d99cb449e0ee74ec3a6fa09bc52047c0969adef2d08ae3a50"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/trajectory.jsonl",
+      "change": "added",
+      "bytes": 248323,
+      "sha256": "6865ece6868dd145c7e1a3d0a29e010f2c1dbdec84c37b215676afa53140f1c6"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/work/README.md",
+      "change": "added",
+      "bytes": 90,
+      "sha256": "142d19bd815326d78245d6ebb18e429e5521c0d3a9c39f7af1eec7820e434271"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/work/tokens/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-30-naive-datetime-compare-s2/work/tokens/tokens.py",
+      "change": "added",
+      "bytes": 469,
+      "sha256": "9cc3a3dd8a6e13349bf1ca4f912a54cbcc1fc88d93a446cc5ee8f543ef754274"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/grade-repo/README.md",
+      "change": "added",
+      "bytes": 100,
+      "sha256": "43a11448804be82bb8945aa4856bf7212791880cc3c995f20746b884519a1b27"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 252,
+      "sha256": "17df67714ac705728031bd351fe36b9bbbe05108b6ace5bb940d7639872b849f"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/grade-repo/serialize/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/grade-repo/serialize/base.py",
+      "change": "added",
+      "bytes": 456,
+      "sha256": "b17fecb751358dd40af007cb84d34c976547d8d08e6c1cbe740963003853a1da"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/grade-repo/serialize/json_ser.py",
+      "change": "added",
+      "bytes": 416,
+      "sha256": "276d190635cb726f35853dabada02f44d3c1b13f7ec23196b430522c9f4a72e9"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/grade-repo/serialize/pickle_ser.py",
+      "change": "added",
+      "bytes": 468,
+      "sha256": "36c18f9e929d839d6d545a1503bb991831934af3e596b51f39797398e2310028"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/grade-repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/grade-repo/tests/test_contract.py",
+      "change": "added",
+      "bytes": 825,
+      "sha256": "767fca8671d1dc37ee0dc948aea1ca3b9370b08ab769007903e0baa140af9a48"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/index.md",
+      "change": "added",
+      "bytes": 25360,
+      "sha256": "7941964d26a352407b89138ad782f37124f90a26d0df4012882a659693ad9d38"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/payloads/L002/test_serialize.py",
+      "change": "added",
+      "bytes": 1268,
+      "sha256": "fd97bee291464f18d450b9d3991fc08178179b081e0987138471cde3af02f0dd"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/payloads/L006/test_serialize.py",
+      "change": "added",
+      "bytes": 1049,
+      "sha256": "09704b6b64a50d5f84067779f85452b1ad77554fa74e18feb88807da796322f8"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/payloads/L012/README.md",
+      "change": "added",
+      "bytes": 100,
+      "sha256": "43a11448804be82bb8945aa4856bf7212791880cc3c995f20746b884519a1b27"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/payloads/L012/serialize/__init__.py",
+      "change": "added",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/payloads/L012/serialize/base.py",
+      "change": "added",
+      "bytes": 456,
+      "sha256": "b17fecb751358dd40af007cb84d34c976547d8d08e6c1cbe740963003853a1da"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/payloads/L012/serialize/json_ser.py",
+      "change": "added",
+      "bytes": 416,
+      "sha256": "276d190635cb726f35853dabada02f44d3c1b13f7ec23196b430522c9f4a72e9"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/payloads/L012/serialize/pickle_ser.py",
+      "change": "added",
+      "bytes": 468,
+      "sha256": "36c18f9e929d839d6d545a1503bb991831934af3e596b51f39797398e2310028"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/payloads/L034/tests/serialize_contract.py",
+      "change": "added",
+      "bytes": 1711,
+      "sha256": "b8da921247463fbcbd4cd5fb270d892e4e4e0a68424d4f4a30208f638f0d8cfb"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/payloads/L046/tests/test_serializer_contract.py",
+      "change": "added",
+      "bytes": 2168,
+      "sha256": "0123f6989df910181635f8457deb1c3fddd33a31a3565a57af107d0358719a19"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/row.json",
+      "change": "added",
+      "bytes": 41474,
+      "sha256": "43ba190cb28deaa85f0f3a4f9271420b6d407902d531f6a7bb31f14e259f6b9e"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/trajectory.jsonl",
+      "change": "added",
+      "bytes": 166697,
+      "sha256": "c5f5efcbfa865c796c2723ce1781437b734ae11e5279112e5f24e2f002e2c79f"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/work/README.md",
+      "change": "added",
+      "bytes": 100,
+      "sha256": "43a11448804be82bb8945aa4856bf7212791880cc3c995f20746b884519a1b27"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/work/serialize/__init__.py",
+      "change": "added",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/work/serialize/base.py",
+      "change": "added",
+      "bytes": 456,
+      "sha256": "b17fecb751358dd40af007cb84d34c976547d8d08e6c1cbe740963003853a1da"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/work/serialize/json_ser.py",
+      "change": "added",
+      "bytes": 416,
+      "sha256": "276d190635cb726f35853dabada02f44d3c1b13f7ec23196b430522c9f4a72e9"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/work/serialize/pickle_ser.py",
+      "change": "added",
+      "bytes": 468,
+      "sha256": "36c18f9e929d839d6d545a1503bb991831934af3e596b51f39797398e2310028"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-33-serializer-contract-s1/work/test_serialize.py",
+      "change": "added",
+      "bytes": 362,
+      "sha256": "1cad90b27404be8ca071ffe85639807aedd84d6ef35a06cc4986467d9a75b69c"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/grade-repo/README.md",
+      "change": "added",
+      "bytes": 86,
+      "sha256": "94eb5f7673a3c6c73ecc45d07cea215000ca4326c451ab9625ad4080deb30d4a"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 251,
+      "sha256": "ecef9b8ae47c0932f0605f23f4219f0486af62563dce581630cfc2357265146a"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/grade-repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/grade-repo/tests/test_lexer.py",
+      "change": "added",
+      "bytes": 699,
+      "sha256": "ebd28353be392ffac70fb9283eb8e0ee3dd84e9928a4fb145ba299619cb520ff"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/grade-repo/tok/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/grade-repo/tok/lexer.py",
+      "change": "added",
+      "bytes": 1652,
+      "sha256": "38a3096c4a79513b11d8d0b910ad792b2477a507a9d483ea52f475af555c40cf"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/index.md",
+      "change": "added",
+      "bytes": 15034,
+      "sha256": "178fb7182e2bca5e5ba1360d758ac34463b5baece030a6192cf0de5faa4920ba"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/payloads/L002/test_lexer.py",
+      "change": "added",
+      "bytes": 675,
+      "sha256": "1758905cff44d4d6394dbf7c830e5fa3ced7d14df4920587bee384001b95e269"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/payloads/L006/tok/lexer.py",
+      "change": "added",
+      "bytes": 1588,
+      "sha256": "b51ef633b014bd99f2002d6e71dcf5f7f9afd0570b241773c629f2d8047532e8"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/payloads/L015/tok/lexer.py",
+      "change": "added",
+      "bytes": 2034,
+      "sha256": "e155dcdc9bc64c3d20bf2a1ef8e6158df547296bbff8310e406bfa67885e0129"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/payloads/L022/tok/lexer.py",
+      "change": "added",
+      "bytes": 1587,
+      "sha256": "4c028fe7efbe8c9a20f85156f943b08b8dda39bf166f4ddcc94597095f1a1c5d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/payloads/L027/tok/lexer.py",
+      "change": "added",
+      "bytes": 1588,
+      "sha256": "b51ef633b014bd99f2002d6e71dcf5f7f9afd0570b241773c629f2d8047532e8"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/payloads/L033/tok/lexer.py",
+      "change": "added",
+      "bytes": 1617,
+      "sha256": "5632fc4696959a60b5cd2e35a7638e7d5f736955ad31041945fa9c4b53ebd9a9"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/payloads/L038/tok/lexer.py",
+      "change": "added",
+      "bytes": 1471,
+      "sha256": "c5e2b0588fd0c3eb5c880de870ff761fc6a2c3e1f8e3680c3e13cd8bb5375836"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/payloads/L046/tok/lexer.py",
+      "change": "added",
+      "bytes": 1652,
+      "sha256": "38a3096c4a79513b11d8d0b910ad792b2477a507a9d483ea52f475af555c40cf"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/row.json",
+      "change": "added",
+      "bytes": 17123,
+      "sha256": "3c1b79f9d40d735800a12340c877f27583a59a8a2ddf9dac015acfc3019d9bbc"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/trajectory.jsonl",
+      "change": "added",
+      "bytes": 175434,
+      "sha256": "73b39215798c8d4403ba0c741787d750ac72f0cc78c9a1b6b33fe3d0a1a00876"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/work/README.md",
+      "change": "added",
+      "bytes": 86,
+      "sha256": "94eb5f7673a3c6c73ecc45d07cea215000ca4326c451ab9625ad4080deb30d4a"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/work/test_lexer.py",
+      "change": "added",
+      "bytes": 675,
+      "sha256": "1758905cff44d4d6394dbf7c830e5fa3ced7d14df4920587bee384001b95e269"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/work/tok/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-34-expression-tokenizer-s1/work/tok/lexer.py",
+      "change": "added",
+      "bytes": 1652,
+      "sha256": "38a3096c4a79513b11d8d0b910ad792b2477a507a9d483ea52f475af555c40cf"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/grade-repo/README.md",
+      "change": "added",
+      "bytes": 83,
+      "sha256": "e2141e0f1aad124e82499e8bb2ae15f153219d9ec760a101930636bf2a3e8d90"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 258,
+      "sha256": "4eb85e34de8eab74dbd6442da4532915e00438649bc131ec6400f5d8f0648709"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/grade-repo/spans/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/grade-repo/spans/merge.py",
+      "change": "added",
+      "bytes": 757,
+      "sha256": "399e8d6a0256c4ba26855da19414072f0e0c39fd5b8444bad4dd677bbe443168"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/grade-repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/grade-repo/tests/test_merge.py",
+      "change": "added",
+      "bytes": 605,
+      "sha256": "6bce941501b24fb6eec3cbb247c7a87c265f8953a07203c7dc7f0cbcbd06052f"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/index.md",
+      "change": "added",
+      "bytes": 22907,
+      "sha256": "268a8ee230c34ba748b567b27aa4c05c6216b2fbb05c97988b256ee43cec0e6d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/payloads/L002/spans/test_merge.py",
+      "change": "added",
+      "bytes": 607,
+      "sha256": "9f7b2e1032f066cec0b8611d1916fbb763ec233729dbf81cdef074cd8f5e4aaa"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/payloads/L006/spans/merge.py",
+      "change": "added",
+      "bytes": 722,
+      "sha256": "6781dfcbdaf2b39306a3d4228dac528c1167143b6e80609942d409586be3ef8c"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/payloads/L015/spans/merge.py",
+      "change": "added",
+      "bytes": 723,
+      "sha256": "fe1f19644975c943d504735b6039cc0e97a1b0e3e8bb224503af1d54cf98c66e"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/payloads/L020/spans/merge.py",
+      "change": "added",
+      "bytes": 723,
+      "sha256": "fe1f19644975c943d504735b6039cc0e97a1b0e3e8bb224503af1d54cf98c66e"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/payloads/L027/spans/merge.py",
+      "change": "added",
+      "bytes": 660,
+      "sha256": "568190b13b170e977d85e1ba051c20b864c321bbe6211b647c5f9c214deec3dc"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/payloads/L033/spans/merge.py",
+      "change": "added",
+      "bytes": 694,
+      "sha256": "6289ddf47a9a6e00e70b5e052ee47d2f70b8a64bb6bf39e8176f464c62ce599d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/payloads/L039/spans/merge.py",
+      "change": "added",
+      "bytes": 619,
+      "sha256": "f5a5acc1a285e7ab7c5a094b54a6d89d9f3d7bdffa639401876cf801bf49a293"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/payloads/L045/spans/merge.py",
+      "change": "added",
+      "bytes": 1105,
+      "sha256": "1023fbc71598c8e55afdce6ce7ce1cb316b48089232a2350f5eb0bdf248e8ed4"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/payloads/L051/spans/merge.py",
+      "change": "added",
+      "bytes": 757,
+      "sha256": "399e8d6a0256c4ba26855da19414072f0e0c39fd5b8444bad4dd677bbe443168"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/payloads/L058/tests/merge_test.py",
+      "change": "added",
+      "bytes": 735,
+      "sha256": "e5037898fb8c9b8fabb668767a485b98dc6474adadfee254e46c8c032b33788c"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/payloads/L059/tests/test_merge_contract.py",
+      "change": "added",
+      "bytes": 686,
+      "sha256": "97de5e5f4ddd4e51d2b39919ea83e27cb81b75507601a243508c93dd6cac66f3"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/row.json",
+      "change": "added",
+      "bytes": 25855,
+      "sha256": "b219816e1f853f3e64b2a9bc7db50cc06152f8e8ec1d6ff34151b8b74fc4a915"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/trajectory.jsonl",
+      "change": "added",
+      "bytes": 225373,
+      "sha256": "8a7588fa2af19519fe77151f8af45e9068a7e577eff21e7da4e1b0ee14868f7e"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/work/README.md",
+      "change": "added",
+      "bytes": 83,
+      "sha256": "e2141e0f1aad124e82499e8bb2ae15f153219d9ec760a101930636bf2a3e8d90"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/work/spans/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/work/spans/merge.py",
+      "change": "added",
+      "bytes": 757,
+      "sha256": "399e8d6a0256c4ba26855da19414072f0e0c39fd5b8444bad4dd677bbe443168"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/ours-T-35-interval-merge-invariants-s1/work/spans/test_merge.py",
+      "change": "added",
+      "bytes": 607,
+      "sha256": "9f7b2e1032f066cec0b8611d1916fbb763ec233729dbf81cdef074cd8f5e4aaa"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-02-protein-translation-s1/events-selected.jsonl",
+      "change": "added",
+      "bytes": 40226,
+      "sha256": "d4f9759cb9aeedda9751617b73845ba0eec89c8f6cf88fe2ba2b3b7249c6062f"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-02-protein-translation-s1/grade-repo/protein_translation.py",
+      "change": "added",
+      "bytes": 31,
+      "sha256": "fa0181c5e94fdfa5a3ca0054d5cef0c80daf2f11753c84916b94dfed80186c95"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-02-protein-translation-s1/grade-repo/protein_translation_test.py",
+      "change": "added",
+      "bytes": 4724,
+      "sha256": "1d2899f791cabefa7ea2ba52e105bbb7b3e2a47d71babeff791ea7dd4d8ee0bb"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-02-protein-translation-s1/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 215,
+      "sha256": "72febd642faf79da78a9716604557d9ee229fe0f9cb8a8bb00c51ec44458426e"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-02-protein-translation-s1/index.md",
+      "change": "added",
+      "bytes": 28832,
+      "sha256": "f0c64086fa56b126930609954375f1d959f1a5bce864bb027a109a61b070ecd6"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-02-protein-translation-s1/prompt.txt",
+      "change": "added",
+      "bytes": 2060,
+      "sha256": "0fa2570508882f9087bd0ed6058d1ee8a3b899b4b58f2eb60c280b28e0146b3a"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-02-protein-translation-s1/rec.json",
+      "change": "added",
+      "bytes": 1268,
+      "sha256": "fd10637d17f9faff17c89f7078723e234e990f0101a23f07fc6e76a3c985535b"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-02-protein-translation-s1/row.json",
+      "change": "added",
+      "bytes": 1196,
+      "sha256": "e4ec13955f32ad73c79207039521c5bae8932338452c123d8cd0cfa886a0b72e"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-02-protein-translation-s1/work/protein_translation.py",
+      "change": "added",
+      "bytes": 31,
+      "sha256": "fa0181c5e94fdfa5a3ca0054d5cef0c80daf2f11753c84916b94dfed80186c95"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-03-book-store-s1/events-selected.jsonl",
+      "change": "added",
+      "bytes": 59520,
+      "sha256": "47ceb0be501bb2050c30d14332202ec8f2fe8e46062cfdbd18a0310f707d959d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-03-book-store-s1/grade-repo/book_store.py",
+      "change": "added",
+      "bytes": 28,
+      "sha256": "5c22fe209f90b16dbbacff457199d0b14152b48616c875085c8ff1f6f7188ec2"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-03-book-store-s1/grade-repo/book_store_test.py",
+      "change": "added",
+      "bytes": 3495,
+      "sha256": "59204f1edbb004c2402cea2aa7d1389c5293766fae4ce5d79a83627970c7acf3"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-03-book-store-s1/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 197,
+      "sha256": "bd2b6c0d6d8f6cc8617b459237c6a60239392c9fe2edee2490acff4240d94f49"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-03-book-store-s1/index.md",
+      "change": "added",
+      "bytes": 49303,
+      "sha256": "3c3c36c58b17704db1981a013f6813c7e1db5a3f58e5ed6b759d7f152d3befd4"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-03-book-store-s1/prompt.txt",
+      "change": "added",
+      "bytes": 2227,
+      "sha256": "87e836e16bf9db8e44f07a086c12e3be15e848ebd4ba0eb7032c4c4a9540ee3b"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-03-book-store-s1/rec.json",
+      "change": "added",
+      "bytes": 1222,
+      "sha256": "b17a6fa23df3046d796221b1a766a2a3bfc77f469c62c2a6c6d9711cdb4886d9"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-03-book-store-s1/row.json",
+      "change": "added",
+      "bytes": 1150,
+      "sha256": "e7d09ee8be0e465affb1358da8ecbc11e2b9c73a9e0a8e3dc244b0fcdddc90f0"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-03-book-store-s1/work/book_store.py",
+      "change": "added",
+      "bytes": 28,
+      "sha256": "5c22fe209f90b16dbbacff457199d0b14152b48616c875085c8ff1f6f7188ec2"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-04-connect-s1/events-selected.jsonl",
+      "change": "added",
+      "bytes": 25191,
+      "sha256": "77dd9dc535713fcba5c27ddb8e8f3247aaf183e6a528af7ab328568dd42ceeac"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-04-connect-s1/grade-repo/connect.py",
+      "change": "added",
+      "bytes": 104,
+      "sha256": "2e5d51380a8160d906d2eacc8655eceea5ce87abb7f0783a010a1521cf608216"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-04-connect-s1/grade-repo/connect_test.py",
+      "change": "added",
+      "bytes": 3682,
+      "sha256": "901c80868737406b3aaf40b74a83aeb8f722e34ad0a22090931eccf8dcfcf548"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-04-connect-s1/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 191,
+      "sha256": "80fda88d348abb62866f77df9c8a26c13857327036549ffaabb179f5a94fd5ad"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-04-connect-s1/index.md",
+      "change": "added",
+      "bytes": 17971,
+      "sha256": "ea71507135af8cab013daa231a72c40107cce0378a41915976691e2cd9df558d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-04-connect-s1/prompt.txt",
+      "change": "added",
+      "bytes": 1655,
+      "sha256": "1522114edfd398643d473a96f17208c9c197a90cec0bb0dad1aba936c87a695c"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-04-connect-s1/rec.json",
+      "change": "added",
+      "bytes": 1019,
+      "sha256": "4e17ac3df91843e2cdfffd675e61f03d37448be3ce899a6ae61f3478376d797d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-04-connect-s1/row.json",
+      "change": "added",
+      "bytes": 961,
+      "sha256": "6a9e5f81716edcd0558d6412fae8c68e8b726a03adb551c70bb352f5a27b9b85"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-A-04-connect-s1/work/connect.py",
+      "change": "added",
+      "bytes": 104,
+      "sha256": "2e5d51380a8160d906d2eacc8655eceea5ce87abb7f0783a010a1521cf608216"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-12-str-enum-compare-s1/events-selected.jsonl",
+      "change": "added",
+      "bytes": 45409,
+      "sha256": "8c8bdc4ca98d9cdecf3bf22abbffdbc69addc7685a29c9a51de9bbcfeccb0358"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-12-str-enum-compare-s1/grade-repo/README.md",
+      "change": "added",
+      "bytes": 247,
+      "sha256": "85d6a4eeae759d98120fd5bf76e8881b7f5a9243960215b1953f24f2ce5ac17c"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-12-str-enum-compare-s1/grade-repo/access/__init__.py",
+      "change": "added",
+      "bytes": 33,
+      "sha256": "3ba20281901c826154dd9ea8925f57514b98543562373c504850b77fd64d6d87"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-12-str-enum-compare-s1/grade-repo/access/gate.py",
+      "change": "added",
+      "bytes": 548,
+      "sha256": "41f97062ee79bd82c904ba319eabdfefd9e313bd41138e3f280bf5c420d6ca82"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-12-str-enum-compare-s1/grade-repo/access/roles.py",
+      "change": "added",
+      "bytes": 260,
+      "sha256": "c5809f9f616593b449a0fd961edb361b4bc09f0456549447aee0ae896ece56fe"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-12-str-enum-compare-s1/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 208,
+      "sha256": "705e8519f0edcb3c495a078f305f45ebdd0bea8b930e51ee131e773c9d2a2476"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-12-str-enum-compare-s1/grade-repo/tests/test_gate.py",
+      "change": "added",
+      "bytes": 483,
+      "sha256": "9549826a3ddaa70aeaa67eb59a73a14733f62ec06b6ff2e13d13b31a83a28c25"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-12-str-enum-compare-s1/index.md",
+      "change": "added",
+      "bytes": 30848,
+      "sha256": "8a3cac831951c38f2ad6a1650ad9187053d22b83425eaad0700af2b7ebcebc33"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-12-str-enum-compare-s1/prompt.txt",
+      "change": "added",
+      "bytes": 581,
+      "sha256": "d12641dfaf01396af45a1a4be185056ab5b0c5a0d76692056147d93b2458f5af"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-12-str-enum-compare-s1/rec.json",
+      "change": "added",
+      "bytes": 2494,
+      "sha256": "6960ad06423efacf4e879b021c853cbf128bf52b0d66ea4d971c27fab21d01d4"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-12-str-enum-compare-s1/row.json",
+      "change": "added",
+      "bytes": 2403,
+      "sha256": "43bfea5595d3f4d49b3450274bb3817a319ab9c68903e007cd03f988629adc1f"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-12-str-enum-compare-s1/work/README.md",
+      "change": "added",
+      "bytes": 247,
+      "sha256": "85d6a4eeae759d98120fd5bf76e8881b7f5a9243960215b1953f24f2ce5ac17c"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-12-str-enum-compare-s1/work/access/__init__.py",
+      "change": "added",
+      "bytes": 33,
+      "sha256": "3ba20281901c826154dd9ea8925f57514b98543562373c504850b77fd64d6d87"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-12-str-enum-compare-s1/work/access/gate.py",
+      "change": "added",
+      "bytes": 548,
+      "sha256": "41f97062ee79bd82c904ba319eabdfefd9e313bd41138e3f280bf5c420d6ca82"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-12-str-enum-compare-s1/work/access/roles.py",
+      "change": "added",
+      "bytes": 260,
+      "sha256": "c5809f9f616593b449a0fd961edb361b4bc09f0456549447aee0ae896ece56fe"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-16-class-state-leak-s2/events-selected.jsonl",
+      "change": "added",
+      "bytes": 59116,
+      "sha256": "a24011017399489d17149f1bb1f86ac8a62698432a33ecb484c02de6dfabac56"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-16-class-state-leak-s2/grade-repo/README.md",
+      "change": "added",
+      "bytes": 64,
+      "sha256": "f42a0f6f1e5d939987f19e664b00fb8607f45e625be6357841a1b9b8f2012423"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-16-class-state-leak-s2/grade-repo/cart/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-16-class-state-leak-s2/grade-repo/cart/cart.py",
+      "change": "added",
+      "bytes": 378,
+      "sha256": "9cfafcf67ddb9c64e0eede3148b8d1d7de9de5bcfb951629aac5690440b3b5e9"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-16-class-state-leak-s2/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 224,
+      "sha256": "2ea49b053363e8c979733cbb6ba99b69e0b3b0e8efe5089ab35453ce37311284"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-16-class-state-leak-s2/grade-repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-16-class-state-leak-s2/grade-repo/tests/test_cart.py",
+      "change": "added",
+      "bytes": 279,
+      "sha256": "c375477d27d6b035e3b1f0ef5f629716f3639f58d7a62f079da5921eb98d587b"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-16-class-state-leak-s2/index.md",
+      "change": "added",
+      "bytes": 36105,
+      "sha256": "0b3aa574976c8cada1820ad0bc0f4671052ac3090348813d6e5c8d51ba71f637"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-16-class-state-leak-s2/prompt.txt",
+      "change": "added",
+      "bytes": 560,
+      "sha256": "db3361b20dd5a17dbef23aec3eb9fcf34ab9ae9008787a9749ef69522e126029"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-16-class-state-leak-s2/rec.json",
+      "change": "added",
+      "bytes": 4459,
+      "sha256": "808e7d647483701e822ce20fe40ba2a8c6933970f2c173309cad76be975684e9"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-16-class-state-leak-s2/row.json",
+      "change": "added",
+      "bytes": 4339,
+      "sha256": "93aad8c1ac4e268d8da9954d22fd9519d46375687d695216f1ced9c51105fd40"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-16-class-state-leak-s2/work/README.md",
+      "change": "added",
+      "bytes": 64,
+      "sha256": "f42a0f6f1e5d939987f19e664b00fb8607f45e625be6357841a1b9b8f2012423"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-16-class-state-leak-s2/work/cart/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-16-class-state-leak-s2/work/cart/cart.py",
+      "change": "added",
+      "bytes": 378,
+      "sha256": "9cfafcf67ddb9c64e0eede3148b8d1d7de9de5bcfb951629aac5690440b3b5e9"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s1/events-selected.jsonl",
+      "change": "added",
+      "bytes": 27045,
+      "sha256": "052c0020b2c9afa0dcc3379a20df076b9dbd3ab7be6184d5d2a37603a570c778"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s1/grade-repo/README.md",
+      "change": "added",
+      "bytes": 72,
+      "sha256": "0f32d2db4b163dcf31274c9806f996d7fe00700e97f16262d31cad32e4f46b06"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s1/grade-repo/plan/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s1/grade-repo/plan/model.py",
+      "change": "added",
+      "bytes": 419,
+      "sha256": "0ef9d521688d193424c1497b0724afeb91d07366c9f4ce5fb1d7f1174c7ace8d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s1/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 238,
+      "sha256": "69d07dac3f7989fd354c0f09c99cc33a8878feed4376034e1939d2dd164f5f47"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s1/grade-repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s1/grade-repo/tests/test_model.py",
+      "change": "added",
+      "bytes": 507,
+      "sha256": "b19b8e8e96a6aa155436f12ccc89e93e28a89a43a1d90da0df5f4b0b261c13b4"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s1/index.md",
+      "change": "added",
+      "bytes": 16761,
+      "sha256": "08f5a06f35f63713d1a7d2e87c8ecab95104fd23d4b1d83f1f7fdc7cd54d5e6d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s1/prompt.txt",
+      "change": "added",
+      "bytes": 569,
+      "sha256": "d7b91eafd6bc9b938b3467f7f6c64e8f6ecd451d96c42b48e419315fc96772c4"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s1/rec.json",
+      "change": "added",
+      "bytes": 1484,
+      "sha256": "68615c7645f9a6e351c66e49e26bc46032df8eece3573b64aa0227e6648f3a6e"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s1/row.json",
+      "change": "added",
+      "bytes": 1399,
+      "sha256": "fd364031309d83e92db210470b57346a3fe87a21191dbeeb129356eb1485b7d7"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s1/work/README.md",
+      "change": "added",
+      "bytes": 72,
+      "sha256": "0f32d2db4b163dcf31274c9806f996d7fe00700e97f16262d31cad32e4f46b06"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s1/work/plan/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s1/work/plan/model.py",
+      "change": "added",
+      "bytes": 419,
+      "sha256": "0ef9d521688d193424c1497b0724afeb91d07366c9f4ce5fb1d7f1174c7ace8d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s2/events-selected.jsonl",
+      "change": "added",
+      "bytes": 70933,
+      "sha256": "833c44ccd465f257c66f3110d92c826df02e52da11c054e4bc86fddbd520c6b9"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s2/grade-repo/README.md",
+      "change": "added",
+      "bytes": 72,
+      "sha256": "0f32d2db4b163dcf31274c9806f996d7fe00700e97f16262d31cad32e4f46b06"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s2/grade-repo/plan/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s2/grade-repo/plan/model.py",
+      "change": "added",
+      "bytes": 1548,
+      "sha256": "f754cab726074b03c8848ef90c7356efdeb2ca93bbb26a52601d212086d58eee"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s2/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 238,
+      "sha256": "69d07dac3f7989fd354c0f09c99cc33a8878feed4376034e1939d2dd164f5f47"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s2/grade-repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s2/grade-repo/tests/test_model.py",
+      "change": "added",
+      "bytes": 507,
+      "sha256": "b19b8e8e96a6aa155436f12ccc89e93e28a89a43a1d90da0df5f4b0b261c13b4"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s2/index.md",
+      "change": "added",
+      "bytes": 48569,
+      "sha256": "f3183c4249949fd77d265a7b0959e891b2cfc7ecc825a2cd4ec65564882291e8"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s2/prompt.txt",
+      "change": "added",
+      "bytes": 569,
+      "sha256": "d7b91eafd6bc9b938b3467f7f6c64e8f6ecd451d96c42b48e419315fc96772c4"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s2/rec.json",
+      "change": "added",
+      "bytes": 7633,
+      "sha256": "031fac7b72c8af5b6f340fb25d2c59abc157d44849230ad30926963c54b165b2"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s2/row.json",
+      "change": "added",
+      "bytes": 7511,
+      "sha256": "b61fcc0f0646012780b2843cf28da144a38399c9935be2c9e84b10f07ad9be41"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s2/work/README.md",
+      "change": "added",
+      "bytes": 72,
+      "sha256": "0f32d2db4b163dcf31274c9806f996d7fe00700e97f16262d31cad32e4f46b06"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s2/work/plan/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-26-plan-dataclass-port-s2/work/plan/model.py",
+      "change": "added",
+      "bytes": 1548,
+      "sha256": "f754cab726074b03c8848ef90c7356efdeb2ca93bbb26a52601d212086d58eee"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-27-snakecase-ingest-s1/events-selected.jsonl",
+      "change": "added",
+      "bytes": 36812,
+      "sha256": "27b76fab6e92e25c62c252d3ff8b9e3d1fb0af6dffc698282464ea1c3601e712"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-27-snakecase-ingest-s1/grade-repo/README.md",
+      "change": "added",
+      "bytes": 88,
+      "sha256": "4cf78c1c09a7ef99d5c5b3c9cf9835d926e307adb962712548cec8047343f35c"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-27-snakecase-ingest-s1/grade-repo/ingest/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-27-snakecase-ingest-s1/grade-repo/ingest/records.py",
+      "change": "added",
+      "bytes": 261,
+      "sha256": "8cb83de59f839e34ed4d94696ed92669f0375796793e6adff5bbb64511394f7e"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-27-snakecase-ingest-s1/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 247,
+      "sha256": "4b6ecd643f0e1a80d1d768603df1c9911ecf3568a83b27c7c918bebb0d53817b"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-27-snakecase-ingest-s1/grade-repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-27-snakecase-ingest-s1/grade-repo/tests/test_records.py",
+      "change": "added",
+      "bytes": 376,
+      "sha256": "301dfc914f713bffc99524978fdc4644a5d8d02991d2ebc1f0913a50c3c45565"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-27-snakecase-ingest-s1/index.md",
+      "change": "added",
+      "bytes": 26131,
+      "sha256": "87cd1bd53e3240c9e30cdb298561d0e6c5a976054051199ba10afeedc05c4bdb"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-27-snakecase-ingest-s1/prompt.txt",
+      "change": "added",
+      "bytes": 578,
+      "sha256": "66e70273bf159fd94bf2a3a912c320ccd9c446b60ad79e8e6421e5385708b22f"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-27-snakecase-ingest-s1/rec.json",
+      "change": "added",
+      "bytes": 1446,
+      "sha256": "16f10f38f77a14b5b33d5b02f598b67a03bc343b7aaa560a120941a4ddac6863"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-27-snakecase-ingest-s1/row.json",
+      "change": "added",
+      "bytes": 1363,
+      "sha256": "cb361e5c9e7e96a5fe2106728cd8c8b29870f90a97840476ccc9a55a06e00e25"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-27-snakecase-ingest-s1/work/README.md",
+      "change": "added",
+      "bytes": 88,
+      "sha256": "4cf78c1c09a7ef99d5c5b3c9cf9835d926e307adb962712548cec8047343f35c"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-27-snakecase-ingest-s1/work/ingest/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-27-snakecase-ingest-s1/work/ingest/records.py",
+      "change": "added",
+      "bytes": 261,
+      "sha256": "8cb83de59f839e34ed4d94696ed92669f0375796793e6adff5bbb64511394f7e"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-30-naive-datetime-compare-s2/events-selected.jsonl",
+      "change": "added",
+      "bytes": 46378,
+      "sha256": "d7d8a14b3dfb22acdc6ecfce9f38db7c8e9ab4e93f0e8534bbc9d8d8c87b62c2"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-30-naive-datetime-compare-s2/grade-repo/README.md",
+      "change": "added",
+      "bytes": 90,
+      "sha256": "142d19bd815326d78245d6ebb18e429e5521c0d3a9c39f7af1eec7820e434271"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-30-naive-datetime-compare-s2/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 246,
+      "sha256": "d05a27041212fc5d1e56312acb9617a67974d0ab8d73c9ee33f6f0ee744eb4bd"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-30-naive-datetime-compare-s2/grade-repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-30-naive-datetime-compare-s2/grade-repo/tests/test_tokens.py",
+      "change": "added",
+      "bytes": 558,
+      "sha256": "823dabebc4cfd5920e906eb48e1e5d1064b43f98c716a09070e6bb7f691b34e1"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-30-naive-datetime-compare-s2/grade-repo/tokens/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-30-naive-datetime-compare-s2/grade-repo/tokens/tokens.py",
+      "change": "added",
+      "bytes": 585,
+      "sha256": "10ffe74b928ca2db73e0e3fcc1e048ef758aa3414164041a590dd07cb46858fc"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-30-naive-datetime-compare-s2/index.md",
+      "change": "added",
+      "bytes": 27341,
+      "sha256": "b36078ea81ea4ec279013a582d1060ec30075f675a61be60e2ad220a3d2157ef"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-30-naive-datetime-compare-s2/prompt.txt",
+      "change": "added",
+      "bytes": 563,
+      "sha256": "e800a2bd1411d5065873595b53170bbb500d884823e8efb385d8f680594de857"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-30-naive-datetime-compare-s2/rec.json",
+      "change": "added",
+      "bytes": 4532,
+      "sha256": "740a2cc338b7518375c033bcec0082cb824428aa3e69a9c624c7b632c3358f05"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-30-naive-datetime-compare-s2/row.json",
+      "change": "added",
+      "bytes": 4429,
+      "sha256": "51451a8b80ad42ceca9ab46a21e4ed8e7a0d1cd2e8a6423b2dcc219d6b45d541"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-30-naive-datetime-compare-s2/work/README.md",
+      "change": "added",
+      "bytes": 90,
+      "sha256": "142d19bd815326d78245d6ebb18e429e5521c0d3a9c39f7af1eec7820e434271"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-30-naive-datetime-compare-s2/work/tokens/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-30-naive-datetime-compare-s2/work/tokens/tokens.py",
+      "change": "added",
+      "bytes": 585,
+      "sha256": "10ffe74b928ca2db73e0e3fcc1e048ef758aa3414164041a590dd07cb46858fc"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-33-serializer-contract-s1/events-selected.jsonl",
+      "change": "added",
+      "bytes": 82601,
+      "sha256": "c124774b43f655e44bb8002b605ead022ec4feb9b836244c224b52436e2b76df"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-33-serializer-contract-s1/grade-repo/README.md",
+      "change": "added",
+      "bytes": 100,
+      "sha256": "43a11448804be82bb8945aa4856bf7212791880cc3c995f20746b884519a1b27"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-33-serializer-contract-s1/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 252,
+      "sha256": "17df67714ac705728031bd351fe36b9bbbe05108b6ace5bb940d7639872b849f"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-33-serializer-contract-s1/grade-repo/serialize/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-33-serializer-contract-s1/grade-repo/serialize/base.py",
+      "change": "added",
+      "bytes": 456,
+      "sha256": "b17fecb751358dd40af007cb84d34c976547d8d08e6c1cbe740963003853a1da"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-33-serializer-contract-s1/grade-repo/serialize/json_ser.py",
+      "change": "added",
+      "bytes": 271,
+      "sha256": "cc201c7baf98d30a311f984b9a47c63637c7a4345c08ebf8a72a0fd7bc120a3a"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-33-serializer-contract-s1/grade-repo/serialize/pickle_ser.py",
+      "change": "added",
+      "bytes": 256,
+      "sha256": "369aada35cb6021c92277ee443739cbd025acd71e2839c3c37f4df58b345df26"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-33-serializer-contract-s1/grade-repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-33-serializer-contract-s1/grade-repo/tests/test_contract.py",
+      "change": "added",
+      "bytes": 825,
+      "sha256": "767fca8671d1dc37ee0dc948aea1ca3b9370b08ab769007903e0baa140af9a48"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-33-serializer-contract-s1/index.md",
+      "change": "added",
+      "bytes": 68969,
+      "sha256": "96bd31975db2438b3028d27a865114fc80ef81e7e4ebb866e8e131a3af876821"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-33-serializer-contract-s1/prompt.txt",
+      "change": "added",
+      "bytes": 794,
+      "sha256": "36ca37c2a2cf4ec53e4935388badba3b2b962cece51fd395522416072f845793"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-33-serializer-contract-s1/rec.json",
+      "change": "added",
+      "bytes": 1728,
+      "sha256": "ec6b8dd9d3d2068717c95fd05e291f5416b4978d6b6950fa23d295aebe0e36c6"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-33-serializer-contract-s1/row.json",
+      "change": "added",
+      "bytes": 1635,
+      "sha256": "8727001bf0b1ef813484650ed883041fb73395d03b6e90383d2f4e0cd4f3bd0b"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-33-serializer-contract-s1/work/README.md",
+      "change": "added",
+      "bytes": 100,
+      "sha256": "43a11448804be82bb8945aa4856bf7212791880cc3c995f20746b884519a1b27"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-33-serializer-contract-s1/work/serialize/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-33-serializer-contract-s1/work/serialize/base.py",
+      "change": "added",
+      "bytes": 456,
+      "sha256": "b17fecb751358dd40af007cb84d34c976547d8d08e6c1cbe740963003853a1da"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-33-serializer-contract-s1/work/serialize/json_ser.py",
+      "change": "added",
+      "bytes": 271,
+      "sha256": "cc201c7baf98d30a311f984b9a47c63637c7a4345c08ebf8a72a0fd7bc120a3a"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-33-serializer-contract-s1/work/serialize/pickle_ser.py",
+      "change": "added",
+      "bytes": 256,
+      "sha256": "369aada35cb6021c92277ee443739cbd025acd71e2839c3c37f4df58b345df26"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-34-expression-tokenizer-s1/events-selected.jsonl",
+      "change": "added",
+      "bytes": 44879,
+      "sha256": "c28d8f2c305cd227dd084598b39276af178f591ed920533cdf2f5d797f99e1a7"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-34-expression-tokenizer-s1/grade-repo/README.md",
+      "change": "added",
+      "bytes": 86,
+      "sha256": "94eb5f7673a3c6c73ecc45d07cea215000ca4326c451ab9625ad4080deb30d4a"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-34-expression-tokenizer-s1/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 251,
+      "sha256": "ecef9b8ae47c0932f0605f23f4219f0486af62563dce581630cfc2357265146a"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-34-expression-tokenizer-s1/grade-repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-34-expression-tokenizer-s1/grade-repo/tests/test_lexer.py",
+      "change": "added",
+      "bytes": 699,
+      "sha256": "ebd28353be392ffac70fb9283eb8e0ee3dd84e9928a4fb145ba299619cb520ff"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-34-expression-tokenizer-s1/grade-repo/tok/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-34-expression-tokenizer-s1/grade-repo/tok/lexer.py",
+      "change": "added",
+      "bytes": 477,
+      "sha256": "7939ab0cb783a4484cd192861f18d522a87bde5493522380449d028ebc6296fa"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-34-expression-tokenizer-s1/index.md",
+      "change": "added",
+      "bytes": 32818,
+      "sha256": "6078873cbaaef70ea73fcb6eb398601de2c638a28f1b3db86b68e0038aadf4dd"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-34-expression-tokenizer-s1/prompt.txt",
+      "change": "added",
+      "bytes": 661,
+      "sha256": "e10c613dac9abc4bc5539487c2681deb6d59836bd1826b4b21667f8e148612ee"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-34-expression-tokenizer-s1/rec.json",
+      "change": "added",
+      "bytes": 1606,
+      "sha256": "373a3cd4cde78603dc135089767fb45f18f1acd607a761aef553305aa9d49a45"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-34-expression-tokenizer-s1/row.json",
+      "change": "added",
+      "bytes": 1519,
+      "sha256": "9769b31b1a475d5be3c08423f4634842d776fff5f6950b9529140a4795267530"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-34-expression-tokenizer-s1/work/README.md",
+      "change": "added",
+      "bytes": 86,
+      "sha256": "94eb5f7673a3c6c73ecc45d07cea215000ca4326c451ab9625ad4080deb30d4a"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-34-expression-tokenizer-s1/work/tok/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-34-expression-tokenizer-s1/work/tok/lexer.py",
+      "change": "added",
+      "bytes": 477,
+      "sha256": "7939ab0cb783a4484cd192861f18d522a87bde5493522380449d028ebc6296fa"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-35-interval-merge-invariants-s1/events-selected.jsonl",
+      "change": "added",
+      "bytes": 123924,
+      "sha256": "5796b5ff57f21bf932825fc9199c064fa169cdb88d5abc84660941501e7b9a7f"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-35-interval-merge-invariants-s1/grade-repo/README.md",
+      "change": "added",
+      "bytes": 83,
+      "sha256": "e2141e0f1aad124e82499e8bb2ae15f153219d9ec760a101930636bf2a3e8d90"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-35-interval-merge-invariants-s1/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 258,
+      "sha256": "4eb85e34de8eab74dbd6442da4532915e00438649bc131ec6400f5d8f0648709"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-35-interval-merge-invariants-s1/grade-repo/spans/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-35-interval-merge-invariants-s1/grade-repo/spans/merge.py",
+      "change": "added",
+      "bytes": 924,
+      "sha256": "747e9395160b37e454d8330b3a036d5c91edb6c7618699f9ecfa0bd9c0ee75fe"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-35-interval-merge-invariants-s1/grade-repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-35-interval-merge-invariants-s1/grade-repo/tests/test_merge.py",
+      "change": "added",
+      "bytes": 605,
+      "sha256": "6bce941501b24fb6eec3cbb247c7a87c265f8953a07203c7dc7f0cbcbd06052f"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-35-interval-merge-invariants-s1/index.md",
+      "change": "added",
+      "bytes": 80843,
+      "sha256": "941457cb5a936bb0b61e521246e617005dd58a347f81765edcb534f331578129"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-35-interval-merge-invariants-s1/prompt.txt",
+      "change": "added",
+      "bytes": 591,
+      "sha256": "44d4886abd8f64e1db272664d439e80f3c5e53b84f4a46711b4bda302d5caf07"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-35-interval-merge-invariants-s1/rec.json",
+      "change": "added",
+      "bytes": 13513,
+      "sha256": "7748ca26228dc5e5fb20e5ea26bce8c31b05b17d31d291fa324d6ceb4f1f2d2e"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-35-interval-merge-invariants-s1/row.json",
+      "change": "added",
+      "bytes": 13350,
+      "sha256": "072491b3c84f15084dee9c81b57299627f2a74081b2a3f2bf46d72ed1249dbaf"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-35-interval-merge-invariants-s1/work/README.md",
+      "change": "added",
+      "bytes": 83,
+      "sha256": "e2141e0f1aad124e82499e8bb2ae15f153219d9ec760a101930636bf2a3e8d90"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-35-interval-merge-invariants-s1/work/spans/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-35-interval-merge-invariants-s1/work/spans/merge.py",
+      "change": "added",
+      "bytes": 924,
+      "sha256": "747e9395160b37e454d8330b3a036d5c91edb6c7618699f9ecfa0bd9c0ee75fe"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/pi-T-35-interval-merge-invariants-s1/work/test_merge.py",
+      "change": "added",
+      "bytes": 1388,
+      "sha256": "12731b6ca2d95b443d98cff1e523576b9e44f906d8f19edb3622d0fa71cca125"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/prior-investigation.md",
+      "change": "added",
+      "bytes": 27100,
+      "sha256": "66c6b1f0e63e5e94dd701c97e2d381a4c48a63d55c9fbec5b35c2d60cbb1d833"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/r2-full-A-05-zebra-puzzle-s1/grade-repo/pyproject.toml",
+      "change": "added",
+      "bytes": 201,
+      "sha256": "cc5884d380afa418a08d4c490e14179bbc0cae98fb249aeda3ecf8d6b93a0664"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/r2-full-A-05-zebra-puzzle-s1/grade-repo/zebra_puzzle.py",
+      "change": "added",
+      "bytes": 88,
+      "sha256": "1bd694e5574e7ad16cc86e35ca9ba27a6aef34393d3059e8d5ee331241b7bae9"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/r2-full-A-05-zebra-puzzle-s1/grade-repo/zebra_puzzle_test.py",
+      "change": "added",
+      "bytes": 515,
+      "sha256": "079d65e614c911f7e21ef19a1aa5d0d4bb2c69fba1bd86cb84e0f1f4e39efb90"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/r2-full-A-05-zebra-puzzle-s1/index.md",
+      "change": "added",
+      "bytes": 19129,
+      "sha256": "7da806b80484a4c00b95ccc086364b514bc196b70c90cfa70bce9f6696eb9df1"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/r2-full-A-05-zebra-puzzle-s1/payloads/L002/zebra_puzzle_test.py",
+      "change": "added",
+      "bytes": 326,
+      "sha256": "cf20728b87ac652360e72cf4de51198dcad4deade644e452770b578bc600e288"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/r2-full-A-05-zebra-puzzle-s1/payloads/L005/zebra_puzzle.py",
+      "change": "added",
+      "bytes": 88,
+      "sha256": "1bd694e5574e7ad16cc86e35ca9ba27a6aef34393d3059e8d5ee331241b7bae9"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/r2-full-A-05-zebra-puzzle-s1/payloads/L018/tests/test_zebra_puzzle.py",
+      "change": "added",
+      "bytes": 5154,
+      "sha256": "cc6332918d42130af7e62bdf4cac54f23e2975338351dfb6deb433a4fd9c4342"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/r2-full-A-05-zebra-puzzle-s1/row.json",
+      "change": "added",
+      "bytes": 54224,
+      "sha256": "e6dc0aea2714b9a78dbe7a48b77a6fc0953b331be668e01576ce0f502cf1a5a8"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/r2-full-A-05-zebra-puzzle-s1/trajectory.jsonl",
+      "change": "added",
+      "bytes": 180370,
+      "sha256": "075c85ab7cc98592b114fce7f841098b6c0a142ad0dc471a33ed79636704ecee"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/r2-full-A-05-zebra-puzzle-s1/work/zebra_puzzle.py",
+      "change": "added",
+      "bytes": 88,
+      "sha256": "1bd694e5574e7ad16cc86e35ca9ba27a6aef34393d3059e8d5ee331241b7bae9"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/r3-leaf-T-02-s1/run.json",
+      "change": "added",
+      "bytes": 27702,
+      "sha256": "e73a15db7d3ac2a94d5b1e2648047f69dec955c0146458534c532215564cbd00"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/r3-leaf-T-02-s1/work/catalog/__init__.py",
+      "change": "added",
+      "bytes": 44,
+      "sha256": "2254499c2b76cf04985cb8b13b78af5b71309b53dfaa54c8583359ea929a57f9"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/r3-leaf-T-02-s1/work/catalog/pagination.py",
+      "change": "added",
+      "bytes": 657,
+      "sha256": "b170494a92e3b361a0cc361901c0ac2e27c7fd962f77a7d6861e2f327f4b59e0"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/r3-tree-greedy-T-02-s1/run.json",
+      "change": "added",
+      "bytes": 14258,
+      "sha256": "7e92905660dd498fcaf8e0a0bac9a71794169c8efdf04922f55aec063b8e603f"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/r3-tree-greedy-T-02-s1/work/catalog/__init__.py",
+      "change": "added",
+      "bytes": 44,
+      "sha256": "2254499c2b76cf04985cb8b13b78af5b71309b53dfaa54c8583359ea929a57f9"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/r3-tree-greedy-T-02-s1/work/catalog/pagination.py",
+      "change": "added",
+      "bytes": 661,
+      "sha256": "eac07ddf5230caeb3ed2dad495e9d3da3fd0d62986cec6d68187cc132b7b0647"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/r3-tree-tournament-T-02-s1/run.json",
+      "change": "added",
+      "bytes": 31925,
+      "sha256": "f6a2a1c7927dbdb05f13ba04a2a7870738b0cb3d60e998491915a08c45a7aa57"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/r3-tree-tournament-T-02-s1/work/catalog/__init__.py",
+      "change": "added",
+      "bytes": 44,
+      "sha256": "2254499c2b76cf04985cb8b13b78af5b71309b53dfaa54c8583359ea929a57f9"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/r3-tree-tournament-T-02-s1/work/catalog/pagination.py",
+      "change": "added",
+      "bytes": 661,
+      "sha256": "eac07ddf5230caeb3ed2dad495e9d3da3fd0d62986cec6d68187cc132b7b0647"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/A-02-protein-translation/repo/protein_translation.py",
+      "change": "added",
+      "bytes": 31,
+      "sha256": "fa0181c5e94fdfa5a3ca0054d5cef0c80daf2f11753c84916b94dfed80186c95"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/A-02-protein-translation/repo/protein_translation_test.py",
+      "change": "added",
+      "bytes": 4724,
+      "sha256": "1d2899f791cabefa7ea2ba52e105bbb7b3e2a47d71babeff791ea7dd4d8ee0bb"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/A-02-protein-translation/request.md",
+      "change": "added",
+      "bytes": 1781,
+      "sha256": "03b99b5ad7115264c5e8784b3afaf4b491779de3029efced3045d1331503d0a4"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/A-03-book-store/repo/book_store.py",
+      "change": "added",
+      "bytes": 28,
+      "sha256": "5c22fe209f90b16dbbacff457199d0b14152b48616c875085c8ff1f6f7188ec2"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/A-03-book-store/repo/book_store_test.py",
+      "change": "added",
+      "bytes": 3495,
+      "sha256": "59204f1edbb004c2402cea2aa7d1389c5293766fae4ce5d79a83627970c7acf3"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/A-03-book-store/request.md",
+      "change": "added",
+      "bytes": 1948,
+      "sha256": "853cecccf65b3ff4fb8152bbb803024d0a9824cccb6caca2da8f4b35d304182f"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/A-04-connect/repo/connect.py",
+      "change": "added",
+      "bytes": 104,
+      "sha256": "2e5d51380a8160d906d2eacc8655eceea5ce87abb7f0783a010a1521cf608216"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/A-04-connect/repo/connect_test.py",
+      "change": "added",
+      "bytes": 3682,
+      "sha256": "901c80868737406b3aaf40b74a83aeb8f722e34ad0a22090931eccf8dcfcf548"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/A-04-connect/request.md",
+      "change": "added",
+      "bytes": 1376,
+      "sha256": "9403f3e7d7acced5d4509c812144ef37ea0ecb597c1193760ed1951c5af74fca"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/A-05-zebra-puzzle/repo/zebra_puzzle.py",
+      "change": "added",
+      "bytes": 58,
+      "sha256": "6916bddd73997faa6920d6ef41a6a9f593e65bac41252dedc19deb65df844c67"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/A-05-zebra-puzzle/repo/zebra_puzzle_test.py",
+      "change": "added",
+      "bytes": 515,
+      "sha256": "079d65e614c911f7e21ef19a1aa5d0d4bb2c69fba1bd86cb84e0f1f4e39efb90"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/A-05-zebra-puzzle/request.md",
+      "change": "added",
+      "bytes": 1505,
+      "sha256": "bfc4b9063c5c7ecb99d68424efee7c7004351d3207c8ee83a461a85c4ab5e8d4"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-12-str-enum-compare/repo/README.md",
+      "change": "added",
+      "bytes": 247,
+      "sha256": "85d6a4eeae759d98120fd5bf76e8881b7f5a9243960215b1953f24f2ce5ac17c"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-12-str-enum-compare/repo/access/__init__.py",
+      "change": "added",
+      "bytes": 33,
+      "sha256": "3ba20281901c826154dd9ea8925f57514b98543562373c504850b77fd64d6d87"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-12-str-enum-compare/repo/access/gate.py",
+      "change": "added",
+      "bytes": 548,
+      "sha256": "41f97062ee79bd82c904ba319eabdfefd9e313bd41138e3f280bf5c420d6ca82"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-12-str-enum-compare/repo/access/roles.py",
+      "change": "added",
+      "bytes": 260,
+      "sha256": "c5809f9f616593b449a0fd961edb361b4bc09f0456549447aee0ae896ece56fe"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-12-str-enum-compare/repo/tests/test_gate.py",
+      "change": "added",
+      "bytes": 483,
+      "sha256": "9549826a3ddaa70aeaa67eb59a73a14733f62ec06b6ff2e13d13b31a83a28c25"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-12-str-enum-compare/request.md",
+      "change": "added",
+      "bytes": 302,
+      "sha256": "41260386fb795c1308f96ef10806d126b2edb266771241689e8d105cefb8c2fa"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-16-class-state-leak/repo/README.md",
+      "change": "added",
+      "bytes": 64,
+      "sha256": "f42a0f6f1e5d939987f19e664b00fb8607f45e625be6357841a1b9b8f2012423"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-16-class-state-leak/repo/cart/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-16-class-state-leak/repo/cart/cart.py",
+      "change": "added",
+      "bytes": 250,
+      "sha256": "dd1cb70c433a6abb2496f373610b42a2029a44cbf2db46768fa74f457be32e31"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-16-class-state-leak/repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-16-class-state-leak/repo/tests/test_cart.py",
+      "change": "added",
+      "bytes": 279,
+      "sha256": "c375477d27d6b035e3b1f0ef5f629716f3639f58d7a62f079da5921eb98d587b"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-16-class-state-leak/request.md",
+      "change": "added",
+      "bytes": 281,
+      "sha256": "5ac40539b9c2f94df3eefcb444883fac4ef802496c841e357f965e9130f91201"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-26-plan-dataclass-port/repo/README.md",
+      "change": "added",
+      "bytes": 72,
+      "sha256": "0f32d2db4b163dcf31274c9806f996d7fe00700e97f16262d31cad32e4f46b06"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-26-plan-dataclass-port/repo/plan/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-26-plan-dataclass-port/repo/plan/model.py",
+      "change": "added",
+      "bytes": 419,
+      "sha256": "0ef9d521688d193424c1497b0724afeb91d07366c9f4ce5fb1d7f1174c7ace8d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-26-plan-dataclass-port/repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-26-plan-dataclass-port/repo/tests/test_model.py",
+      "change": "added",
+      "bytes": 507,
+      "sha256": "b19b8e8e96a6aa155436f12ccc89e93e28a89a43a1d90da0df5f4b0b261c13b4"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-26-plan-dataclass-port/request.md",
+      "change": "added",
+      "bytes": 290,
+      "sha256": "af214c05189744b6a60bc824028fad46f71dafa44ac689faf6514e9affe88c7a"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-27-snakecase-ingest/repo/README.md",
+      "change": "added",
+      "bytes": 88,
+      "sha256": "4cf78c1c09a7ef99d5c5b3c9cf9835d926e307adb962712548cec8047343f35c"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-27-snakecase-ingest/repo/ingest/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-27-snakecase-ingest/repo/ingest/records.py",
+      "change": "added",
+      "bytes": 261,
+      "sha256": "8cb83de59f839e34ed4d94696ed92669f0375796793e6adff5bbb64511394f7e"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-27-snakecase-ingest/repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-27-snakecase-ingest/repo/tests/test_records.py",
+      "change": "added",
+      "bytes": 376,
+      "sha256": "301dfc914f713bffc99524978fdc4644a5d8d02991d2ebc1f0913a50c3c45565"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-27-snakecase-ingest/request.md",
+      "change": "added",
+      "bytes": 299,
+      "sha256": "ce5bb68b84e664905a1999ea6c5d5e146a07ff6b84ffdea23921e1aafd84be18"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-30-naive-datetime-compare/repo/README.md",
+      "change": "added",
+      "bytes": 90,
+      "sha256": "142d19bd815326d78245d6ebb18e429e5521c0d3a9c39f7af1eec7820e434271"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-30-naive-datetime-compare/repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-30-naive-datetime-compare/repo/tests/test_tokens.py",
+      "change": "added",
+      "bytes": 558,
+      "sha256": "823dabebc4cfd5920e906eb48e1e5d1064b43f98c716a09070e6bb7f691b34e1"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-30-naive-datetime-compare/repo/tokens/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-30-naive-datetime-compare/repo/tokens/tokens.py",
+      "change": "added",
+      "bytes": 345,
+      "sha256": "266b7d6eb539eaa63c4a8e71a044903ce2e87657457b1b3c16530dd28e06fe30"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-30-naive-datetime-compare/request.md",
+      "change": "added",
+      "bytes": 284,
+      "sha256": "481f89a911e91558534965435407ff45429487c96e859557edf67c6f89d9b01d"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-33-serializer-contract/repo/README.md",
+      "change": "added",
+      "bytes": 100,
+      "sha256": "43a11448804be82bb8945aa4856bf7212791880cc3c995f20746b884519a1b27"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-33-serializer-contract/repo/serialize/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-33-serializer-contract/repo/serialize/base.py",
+      "change": "added",
+      "bytes": 456,
+      "sha256": "b17fecb751358dd40af007cb84d34c976547d8d08e6c1cbe740963003853a1da"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-33-serializer-contract/repo/serialize/json_ser.py",
+      "change": "added",
+      "bytes": 271,
+      "sha256": "cc201c7baf98d30a311f984b9a47c63637c7a4345c08ebf8a72a0fd7bc120a3a"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-33-serializer-contract/repo/serialize/pickle_ser.py",
+      "change": "added",
+      "bytes": 256,
+      "sha256": "369aada35cb6021c92277ee443739cbd025acd71e2839c3c37f4df58b345df26"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-33-serializer-contract/repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-33-serializer-contract/repo/tests/test_contract.py",
+      "change": "added",
+      "bytes": 825,
+      "sha256": "767fca8671d1dc37ee0dc948aea1ca3b9370b08ab769007903e0baa140af9a48"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-33-serializer-contract/request.md",
+      "change": "added",
+      "bytes": 515,
+      "sha256": "ea951a0e8129cda9aed512f313716e88a3bda348866a487f1e3d17b279bcea10"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-34-expression-tokenizer/repo/README.md",
+      "change": "added",
+      "bytes": 86,
+      "sha256": "94eb5f7673a3c6c73ecc45d07cea215000ca4326c451ab9625ad4080deb30d4a"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-34-expression-tokenizer/repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-34-expression-tokenizer/repo/tests/test_lexer.py",
+      "change": "added",
+      "bytes": 699,
+      "sha256": "ebd28353be392ffac70fb9283eb8e0ee3dd84e9928a4fb145ba299619cb520ff"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-34-expression-tokenizer/repo/tok/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-34-expression-tokenizer/repo/tok/lexer.py",
+      "change": "added",
+      "bytes": 477,
+      "sha256": "7939ab0cb783a4484cd192861f18d522a87bde5493522380449d028ebc6296fa"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-34-expression-tokenizer/request.md",
+      "change": "added",
+      "bytes": 382,
+      "sha256": "5e041ce8435911003c32d4bdbd553ff37e2cf1bc7f4f63e31c87ca2055ad6929"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-35-interval-merge-invariants/repo/README.md",
+      "change": "added",
+      "bytes": 83,
+      "sha256": "e2141e0f1aad124e82499e8bb2ae15f153219d9ec760a101930636bf2a3e8d90"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-35-interval-merge-invariants/repo/spans/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-35-interval-merge-invariants/repo/spans/merge.py",
+      "change": "added",
+      "bytes": 263,
+      "sha256": "860190031a33e72d4351b7cbef9c15800efe9f10f37138ddb74611a4ea0a96d1"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-35-interval-merge-invariants/repo/tests/__init__.py",
+      "change": "added",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-35-interval-merge-invariants/repo/tests/test_merge.py",
+      "change": "added",
+      "bytes": 605,
+      "sha256": "6bce941501b24fb6eec3cbb247c7a87c265f8953a07203c7dc7f0cbcbd06052f"
+    },
+    {
+      "path": ".scratch/29-close-audit/evidence/specs/T-35-interval-merge-invariants/request.md",
+      "change": "added",
+      "bytes": 312,
+      "sha256": "e54393a3c4370464846a1be1caa918c3e25628340b70d7ee355ace4dae7c2e9b"
+    },
+    {
+      "path": ".scratch/29-close-audit/final.diff",
+      "change": "added",
+      "bytes": 42144,
+      "sha256": "8f3c41ad2a69ed63b22b35d238b54a8681b3a18e1718c07b8a19c8904b8c5ded"
+    },
+    {
+      "path": ".scratch/29-close-audit/index_trajectories.py",
+      "change": "added",
+      "bytes": 5730,
+      "sha256": "6b00cb6be873d42fffc6ff40762434c3bcb8ce1a937187a869ff21adfcc86b2e"
+    },
+    {
+      "path": ".scratch/29-close-audit/manifest-supplement.json",
+      "change": "added",
+      "bytes": 2595,
+      "sha256": "5ae54a578d5a5d7cc5bc3ef04521a2bed871f17d086353ec6d87ec1a4b9e5a12"
+    },
+    {
+      "path": ".scratch/29-close-audit/manifest.json",
+      "change": "added",
+      "bytes": 93316,
+      "sha256": "a4756c02e7d41a8f82e7a5d2a69eb5e086ffc768f5c4e16412e4ce9d834f340d"
+    },
+    {
+      "path": ".scratch/29-close-audit/narrow_docs.py",
+      "change": "added",
+      "bytes": 21167,
+      "sha256": "e048aedb5f6fd1dc4d33d3f3c1c71d7f2faa9392c5bf2a6277405a1b1b417161"
+    },
+    {
+      "path": ".scratch/29-close-audit/outcomes-selected.json",
+      "change": "added",
+      "bytes": 207326,
+      "sha256": "e148ccaf1deba965094b7336f5b5b7539a6ebf267618d4d43fd3f254a2bc1c70"
+    },
+    {
+      "path": ".scratch/29-close-audit/pi-reconstruction.json",
+      "change": "added",
+      "bytes": 6550,
+      "sha256": "592a1951ea29f323dce9748378af1eb02198ac639dc85a050221f9c06563c409"
+    },
+    {
+      "path": ".scratch/29-close-audit/r3-observations.json",
+      "change": "added",
+      "bytes": 202376,
+      "sha256": "fb27c2896d7c3579be0ad2cd0359064b0de30b3c12269ff70281c2f8378c5767"
+    },
+    {
+      "path": ".scratch/29-close-audit/recompute_summary.py",
+      "change": "added",
+      "bytes": 4915,
+      "sha256": "145eace6ed9f2920d4efee83b7531476f3fb4a3c178bf63a75160a7be1d94a3a"
+    },
+    {
+      "path": ".scratch/29-close-audit/reconstruction-check.txt",
+      "change": "added",
+      "bytes": 78,
+      "sha256": "3bf0bbb5b620df085538979210dd8e69a48db416b6612d11d05ec72c429981cd"
+    },
+    {
+      "path": ".scratch/29-close-audit/reconstruction.json",
+      "change": "added",
+      "bytes": 22124,
+      "sha256": "a12c3a5c1d890793f6ac56c7831e38cbb2a8aac9cf8b82453662d639689c8b6c"
+    },
+    {
+      "path": ".scratch/29-close-audit/report.md",
+      "change": "added",
+      "bytes": 34236,
+      "sha256": "ecc1c0c5bad330c3235d26952487fafe83d775455e815f7fe96cdec28dc42c29"
+    },
+    {
+      "path": ".scratch/29-close-audit/review-contract.md",
+      "change": "added",
+      "bytes": 4839,
+      "sha256": "08ded1febcf0a9773822b4dd94242f04a591eb18d4d4843eb1e91cec37a5abf8"
+    },
+    {
+      "path": ".scratch/29-close-audit/review-fix.diff",
+      "change": "added",
+      "bytes": 3134,
+      "sha256": "6305e1cf47da50c7cd0259d755c80ddd49eb3b83d61cd7d1bffdbef9e870ec67"
+    },
+    {
+      "path": ".scratch/29-close-audit/revision-table.md",
+      "change": "added",
+      "bytes": 6138,
+      "sha256": "4c9bf25fb884808611143340f450a3c13c9c91d0be5250e7191ac56ea5117c0b"
+    },
+    {
+      "path": ".scratch/29-close-audit/run_checks.sh",
+      "change": "added",
+      "bytes": 3544,
+      "sha256": "60594fa092145a12ee3a5aa2babc977aa90ebab465d9cc068c36521e3d959209"
+    },
+    {
+      "path": ".scratch/29-close-audit/sample-map.json",
+      "change": "added",
+      "bytes": 1263,
+      "sha256": "e92ce25b03e6c94e5d8ca65e0c941cc33213f0a9dd6902c25a3dcca0f82e80af"
+    },
+    {
+      "path": ".scratch/29-close-audit/sample-router.md",
+      "change": "added",
+      "bytes": 4160,
+      "sha256": "0138066ca9b089903600715ccc463e9d1bf3b0a5119ebd563063321105ca5999"
+    },
+    {
+      "path": ".scratch/29-close-audit/samples.json",
+      "change": "added",
+      "bytes": 11481,
+      "sha256": "326f41fb120c1cc318523bc0211cc05a83476dc944caef25abfba8b7328b390b"
+    },
+    {
+      "path": ".scratch/29-close-audit/status.txt",
+      "change": "added",
+      "bytes": 41976,
+      "sha256": "6915a06b3ed2e7bdea14d4c3c9997e43223f94d3010b788ebc39d32de6802446"
+    },
+    {
+      "path": ".scratch/29-close-audit/summary-check.txt",
+      "change": "added",
+      "bytes": 597,
+      "sha256": "d24ac80ae839178038439bf35eff9c61a4b3f0ec6c9f94253bf9da4c59b1b48e"
+    },
+    {
+      "path": ".scratch/29-close-audit/summary-input-hashes.json",
+      "change": "added",
+      "bytes": 22527,
+      "sha256": "43c0b705337c5b2591abe548c58ca9a88126b136aeba47f7731371d69b82a85d"
+    },
+    {
+      "path": ".scratch/29-close-audit/terminal-events.json",
+      "change": "added",
+      "bytes": 16866,
+      "sha256": "e57e886d6caa39a0405487cf233b9a044d5c5300b3d2d70864f5e6195fe22f90"
+    },
+    {
+      "path": ".scratch/29-close-audit/ticket.md",
+      "change": "added",
+      "bytes": 8670,
+      "sha256": "d2cb1b260f233f0ee82a4d68fbecd0e9383c5554c46dab9bc2ac213af2e13a7f"
+    },
+    {
+      "path": ".scratch/29-close-audit/verify_evidence.py",
+      "change": "added",
+      "bytes": 8024,
+      "sha256": "f6376120b864d37a97e755fa5481eaff1a33b320db47bdecd4405b71b664dd81"
+    },
+    {
+      "path": "README.md",
+      "change": "modified",
+      "bytes": 10595,
+      "sha256": "eedb0d92a25a6bd73a12699d0bd6d3667f58f31a3367654a66162d391576a0d1"
+    },
+    {
+      "path": "docs/LEARNINGS.md",
+      "change": "modified",
+      "bytes": 20926,
+      "sha256": "507a6713506a729d4b63ef03905008d32f9ef65e94206437bf7d459b44eea789"
+    },
+    {
+      "path": "docs/ROADMAP.md",
+      "change": "modified",
+      "bytes": 7355,
+      "sha256": "ebdf95dfee88195286a89fa44206259063810eef3c83cdabf9beb06bb1b7d4ba"
+    },
+    {
+      "path": "docs/STATUS.md",
+      "change": "modified",
+      "bytes": 19576,
+      "sha256": "71074d806dc4444c7c56ec01d2c28dd22338a03680f238ab30d9510352d92f64"
+    }
+  ]
+}

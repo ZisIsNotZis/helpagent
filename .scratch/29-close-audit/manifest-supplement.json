@@ -1,0 +1,65 @@
+[
+  {
+    "source": "/tmp/wave1/final/r3/leaf/T-02-off-by-one-1/run.json",
+    "target": "evidence/r3-leaf-T-02-s1/run.json",
+    "sha256": "e73a15db7d3ac2a94d5b1e2648047f69dec955c0146458534c532215564cbd00",
+    "bytes": 27702,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/r3/leaf/T-02-off-by-one-1/work/catalog/__init__.py",
+    "target": "evidence/r3-leaf-T-02-s1/work/catalog/__init__.py",
+    "sha256": "2254499c2b76cf04985cb8b13b78af5b71309b53dfaa54c8583359ea929a57f9",
+    "bytes": 44,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/r3/leaf/T-02-off-by-one-1/work/catalog/pagination.py",
+    "target": "evidence/r3-leaf-T-02-s1/work/catalog/pagination.py",
+    "sha256": "b170494a92e3b361a0cc361901c0ac2e27c7fd962f77a7d6861e2f327f4b59e0",
+    "bytes": 657,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/r3/tree-greedy/T-02-off-by-one-1/run.json",
+    "target": "evidence/r3-tree-greedy-T-02-s1/run.json",
+    "sha256": "7e92905660dd498fcaf8e0a0bac9a71794169c8efdf04922f55aec063b8e603f",
+    "bytes": 14258,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/r3/tree-greedy/T-02-off-by-one-1/work/catalog/__init__.py",
+    "target": "evidence/r3-tree-greedy-T-02-s1/work/catalog/__init__.py",
+    "sha256": "2254499c2b76cf04985cb8b13b78af5b71309b53dfaa54c8583359ea929a57f9",
+    "bytes": 44,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/r3/tree-greedy/T-02-off-by-one-1/work/catalog/pagination.py",
+    "target": "evidence/r3-tree-greedy-T-02-s1/work/catalog/pagination.py",
+    "sha256": "eac07ddf5230caeb3ed2dad495e9d3da3fd0d62986cec6d68187cc132b7b0647",
+    "bytes": 661,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/r3/tree-tournament/T-02-off-by-one-1/run.json",
+    "target": "evidence/r3-tree-tournament-T-02-s1/run.json",
+    "sha256": "f6a2a1c7927dbdb05f13ba04a2a7870738b0cb3d60e998491915a08c45a7aa57",
+    "bytes": 31925,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/r3/tree-tournament/T-02-off-by-one-1/work/catalog/__init__.py",
+    "target": "evidence/r3-tree-tournament-T-02-s1/work/catalog/__init__.py",
+    "sha256": "2254499c2b76cf04985cb8b13b78af5b71309b53dfaa54c8583359ea929a57f9",
+    "bytes": 44,
+    "mode": "byte-copy"
+  },
+  {
+    "source": "/tmp/wave1/final/r3/tree-tournament/T-02-off-by-one-1/work/catalog/pagination.py",
+    "target": "evidence/r3-tree-tournament-T-02-s1/work/catalog/pagination.py",
+    "sha256": "eac07ddf5230caeb3ed2dad495e9d3da3fd0d62986cec6d68187cc132b7b0647",
+    "bytes": 661,
+    "mode": "byte-copy"
+  }
+]

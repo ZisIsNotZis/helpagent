@@ -1,0 +1,4 @@
+You are a coding agent. Work in the current directory (the project root) and satisfy the request below. Stay inside the current directory: do not read or write outside it. Make whatever code changes are needed and verify your work. When the request is satisfied, stop.
+
+Request:
+Customers are seeing each other's items: whatever one browser adds to its cart shows up in every other cart, and brand-new carts are not empty either. It started feeling like all carts share one list. Carts must be independent per customer; don't change how callers create a Cart.

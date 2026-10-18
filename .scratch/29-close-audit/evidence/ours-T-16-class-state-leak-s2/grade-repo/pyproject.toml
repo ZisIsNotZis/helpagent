@@ -1,0 +1,10 @@
+[project]
+name = "16classstateleak"
+version = "0.1.0"
+description = "Shopping cart with a state leak."
+requires-python = ">=3.10"
+dependencies = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

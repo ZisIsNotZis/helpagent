@@ -1,0 +1,25 @@
+24 samples; 275 retained files; 3870952 bytes
+ours-T-33-serializer-contract-s1 True /tmp/wave1/final/our-n5/lane2/none/results.jsonl:41
+pi-T-33-serializer-contract-s1 False /tmp/wave1/final/n9/pi-n9/seed1/lane4/results.jsonl:9
+ours-T-12-str-enum-compare-s1 True /tmp/wave1/final/our-n5/lane2/none/results.jsonl:16
+pi-T-12-str-enum-compare-s1 False /tmp/wave1/final/n9/pi-n9/seed1/lane3/results.jsonl:4
+ours-T-35-interval-merge-invariants-s1 False /tmp/wave1/final/our-n5/lane1/none/results.jsonl:36
+pi-T-35-interval-merge-invariants-s1 True /tmp/wave1/final/n9/pi-n9/seed1/lane4/results.jsonl:10
+ours-T-30-naive-datetime-compare-s2 False /tmp/wave1/final/our-n5/lane3/none/results.jsonl:32
+pi-T-30-naive-datetime-compare-s2 True /tmp/wave1/final/n9/pi-n9/seed2/lane4/results.jsonl:8
+ours-T-16-class-state-leak-s2 False /tmp/wave1/final/our-n5/lane4/none/results.jsonl:17
+pi-T-16-class-state-leak-s2 True /tmp/wave1/final/n9/pi-n9/seed2/lane2/results.jsonl:5
+ours-T-26-plan-dataclass-port-s1 False /tmp/wave1/final/our-n5/lane4/none/results.jsonl:31
+pi-T-26-plan-dataclass-port-s1 False /tmp/wave1/final/n9/pi-n9/seed1/lane2/results.jsonl:8
+ours-A-02-protein-translation-s1 False /tmp/wave1/final/our-n5/lane1/none/results.jsonl:41
+pi-A-02-protein-translation-s1 False /tmp/wave1/final/n9/pi-n9/seed1/lane2/results.jsonl:10
+ours-A-03-book-store-s1 False /tmp/wave1/final/our-n5/lane3/none/results.jsonl:46
+pi-A-03-book-store-s1 False /tmp/wave1/final/n9/pi-n9/seed1/lane3/results.jsonl:10
+ours-A-04-connect-s1 False /tmp/wave1/final/our-n5/lane4/none/results.jsonl:51
+pi-A-04-connect-s1 False /tmp/wave1/final/n9/pi-n9/seed1/lane1/results.jsonl:9
+ours-T-27-snakecase-ingest-s1 False /tmp/wave1/final/our-n5/lane4/none/results.jsonl:36
+pi-T-27-snakecase-ingest-s1 False /tmp/wave1/final/n9/pi-n9/seed1/lane4/results.jsonl:7
+ours-T-34-expression-tokenizer-s1 False /tmp/wave1/final/our-n5/lane1/none/results.jsonl:31
+pi-T-34-expression-tokenizer-s1 False /tmp/wave1/final/n9/pi-n9/seed1/lane1/results.jsonl:8
+pi-T-26-plan-dataclass-port-s2 True /tmp/wave1/final/n9/pi-n9/seed2/lane2/results.jsonl:8
+r2-full-A-05-zebra-puzzle-s1 False /tmp/wave1/final/r2/runs/c4/full/full/results.jsonl:28

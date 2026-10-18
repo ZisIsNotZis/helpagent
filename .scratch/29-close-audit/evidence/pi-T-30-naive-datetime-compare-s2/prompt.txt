@@ -1,0 +1,4 @@
+You are a coding agent. Work in the current directory (the project root) and satisfy the request below. Stay inside the current directory: do not read or write outside it. Make whatever code changes are needed and verify your work. When the request is satisfied, stop.
+
+Request:
+After the ops migration some callers hand us naive datetimes (no timezone) and the token check blows up comparing them against our tz-aware expiries. The service is tz-aware UTC everywhere. Make the expiry check tolerant of naive inputs by treating them as UTC; don't change issue().

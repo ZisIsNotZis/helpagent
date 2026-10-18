@@ -1,0 +1,1024 @@
+{
+  "owner": "parent session (ticket30 sole admission owner)",
+  "worker": "validation sole writer",
+  "unit": "ticket30-p1a-validation-job2-20261015.scope",
+  "authority": {
+    "receivedAt": "2026-10-15T16:43:19+08:00",
+    "userQuote": "\u6279\u51c6\uff0c\u6388\u6743\u4f60\u4f7f\u7528\u5176\u4ed6\u8d44\u6e90\uff0c\u90a3\u4e2a\u4f1a\u8bdd\u88ab\u6211\u5e72\u6389\u4e86",
+    "cpu": 1,
+    "memoryBytes": 1073741824,
+    "tasks": 64,
+    "gpu": false,
+    "commandSeconds": 600,
+    "reserveBytes": 17179869184
+  },
+  "state": "released-verified-stopped",
+  "events": [
+    {
+      "at": "2026-10-15T16:43:19+08:00",
+      "state": "reserved-not-enforced",
+      "note": "No test launch; one scope permitted, runtime binding pending."
+    },
+    {
+      "at": "2026-10-15T16:44:17+08:00",
+      "state": "binding-probe",
+      "note": {
+        "pid": 3337272,
+        "group": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope"
+      }
+    },
+    {
+      "at": "2026-10-15T16:44:20+08:00",
+      "state": "bound-awaiting-writer-verification",
+      "note": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope"
+    },
+    {
+      "at": "2026-10-15T16:44:38+08:00",
+      "state": "verified-admitted",
+      "note": "writer verified runtime-binding and systemd properties"
+    },
+    {
+      "at": "2026-10-15T16:44:38+08:00",
+      "state": "running-command",
+      "note": "setup"
+    },
+    {
+      "at": "2026-10-15T16:44:59+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "setup",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "pytest",
+          "-q",
+          "-p",
+          "no:warnings",
+          "tests/unit/test_own_test_setup.py"
+        ],
+        "expectedExit": 0,
+        "startedAt": "2026-10-15T16:44:38+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+          "tests/unit/test_own_test_setup.py": "7d805c6519ba0d9e863f2c863e456672588bc7adeb48fc260c75e1735fc4e4ea",
+          "tests/unit/test_v2_leaf.py": "1bc06d8c69a40d1a7016f0f9dfd24bc6bcd983dda3256be8e94053d6039c4cc4"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+        "pid": 3339210,
+        "exit": 1,
+        "endedAt": "2026-10-15T16:44:59+08:00",
+        "elapsedSeconds": 20.583095730980858,
+        "outputSha256": "1b3876c948f954b41a07f46549f066a4950f6c523acb23571adcf7fdbf007680"
+      }
+    },
+    {
+      "at": "2026-10-15T16:44:59+08:00",
+      "state": "proof-failed-awaiting-writer",
+      "note": "setup"
+    },
+    {
+      "at": "2026-10-15T16:45:57+08:00",
+      "state": "running-command",
+      "note": "parse-boundary"
+    },
+    {
+      "at": "2026-10-15T16:45:57+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "parse-boundary",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "python",
+          "-B",
+          ".scratch/30-harness-recovery/parse_boundary_probe.py"
+        ],
+        "expectedExit": 0,
+        "startedAt": "2026-10-15T16:45:57+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+          "tests/unit/test_own_test_setup.py": "7d805c6519ba0d9e863f2c863e456672588bc7adeb48fc260c75e1735fc4e4ea",
+          "tests/unit/test_v2_leaf.py": "1bc06d8c69a40d1a7016f0f9dfd24bc6bcd983dda3256be8e94053d6039c4cc4"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+        "pid": 3345071,
+        "exit": 0,
+        "endedAt": "2026-10-15T16:45:57+08:00",
+        "elapsedSeconds": 0.5029785250080749,
+        "outputSha256": "fdf580136c85d07b335ffb18ee39f843b66f4674f928212941a6b950ff635e48"
+      }
+    },
+    {
+      "at": "2026-10-15T16:45:57+08:00",
+      "state": "running-command",
+      "note": "leaf"
+    },
+    {
+      "at": "2026-10-15T16:46:16+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "leaf",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "pytest",
+          "-q",
+          "-p",
+          "no:warnings",
+          "tests/unit/test_v2_leaf.py"
+        ],
+        "expectedExit": 0,
+        "startedAt": "2026-10-15T16:45:57+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+          "tests/unit/test_own_test_setup.py": "7d805c6519ba0d9e863f2c863e456672588bc7adeb48fc260c75e1735fc4e4ea",
+          "tests/unit/test_v2_leaf.py": "1bc06d8c69a40d1a7016f0f9dfd24bc6bcd983dda3256be8e94053d6039c4cc4"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+        "pid": 3345152,
+        "exit": 1,
+        "endedAt": "2026-10-15T16:46:16+08:00",
+        "elapsedSeconds": 18.575832157977857,
+        "outputSha256": "fda4006973a3a0009dd5f626baa995c93483b347cbd8cb5f0365f0107b3b2efd"
+      }
+    },
+    {
+      "at": "2026-10-15T16:46:16+08:00",
+      "state": "proof-failed-awaiting-writer",
+      "note": "leaf"
+    },
+    {
+      "at": "2026-10-15T16:47:23+08:00",
+      "state": "running-command",
+      "note": "setup-final"
+    },
+    {
+      "at": "2026-10-15T16:47:44+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "setup-final",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "pytest",
+          "-q",
+          "-p",
+          "no:warnings",
+          "tests/unit/test_own_test_setup.py"
+        ],
+        "expectedExit": 0,
+        "startedAt": "2026-10-15T16:47:23+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+          "tests/unit/test_own_test_setup.py": "0579dcf0f6573a6fc4baf946fd3b47149cf49f8c5e8c61e330052e9a264a16cf",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+        "pid": 3349949,
+        "exit": 0,
+        "endedAt": "2026-10-15T16:47:44+08:00",
+        "elapsedSeconds": 20.5841133199865,
+        "outputSha256": "fa5b06574bf10afba892e2156c99ece0e8779b10204127dd87438db4c336ee82"
+      }
+    },
+    {
+      "at": "2026-10-15T16:47:44+08:00",
+      "state": "running-command",
+      "note": "leaf-final"
+    },
+    {
+      "at": "2026-10-15T16:48:03+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "leaf-final",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "pytest",
+          "-q",
+          "-p",
+          "no:warnings",
+          "tests/unit/test_v2_leaf.py"
+        ],
+        "expectedExit": 0,
+        "startedAt": "2026-10-15T16:47:44+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+          "tests/unit/test_own_test_setup.py": "0579dcf0f6573a6fc4baf946fd3b47149cf49f8c5e8c61e330052e9a264a16cf",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+        "pid": 3351322,
+        "exit": 0,
+        "endedAt": "2026-10-15T16:48:03+08:00",
+        "elapsedSeconds": 19.57894747296814,
+        "outputSha256": "9c43100de2ab9952c8e0742433a70b00e9c13a5b390687298defc1ba19d61a1e"
+      }
+    },
+    {
+      "at": "2026-10-15T16:48:03+08:00",
+      "state": "running-command",
+      "note": "project-final"
+    },
+    {
+      "at": "2026-10-15T16:49:33+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "project-final",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "pytest",
+          "-q",
+          "-p",
+          "no:warnings"
+        ],
+        "expectedExit": 0,
+        "startedAt": "2026-10-15T16:48:03+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+          "tests/unit/test_own_test_setup.py": "0579dcf0f6573a6fc4baf946fd3b47149cf49f8c5e8c61e330052e9a264a16cf",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+        "pid": 3352401,
+        "exit": 0,
+        "endedAt": "2026-10-15T16:49:33+08:00",
+        "elapsedSeconds": 90.05052151193377,
+        "outputSha256": "c91574914a9f7c7be92bb151d07566523efd0b113d53064cd63d00ebc284fc68"
+      }
+    },
+    {
+      "at": "2026-10-15T16:50:00+08:00",
+      "state": "running-command",
+      "note": "setup-classifier"
+    },
+    {
+      "at": "2026-10-15T16:50:02+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "setup-classifier",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "python",
+          "-B",
+          ".scratch/30-harness-recovery/negative_controls.py",
+          "setup-classifier"
+        ],
+        "expectedExit": 1,
+        "startedAt": "2026-10-15T16:50:00+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+          "tests/unit/test_own_test_setup.py": "0579dcf0f6573a6fc4baf946fd3b47149cf49f8c5e8c61e330052e9a264a16cf",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+        "pid": 3360375,
+        "exit": 1,
+        "endedAt": "2026-10-15T16:50:02+08:00",
+        "elapsedSeconds": 2.011482766014524,
+        "outputSha256": "db2eaad5ef7e8ca3c9a8a4f43ba251f7a27569dee4f23e81431b6a0fba21fcc0"
+      }
+    },
+    {
+      "at": "2026-10-15T16:50:02+08:00",
+      "state": "running-command",
+      "note": "old-frame-attribution"
+    },
+    {
+      "at": "2026-10-15T16:50:05+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "old-frame-attribution",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "python",
+          "-B",
+          ".scratch/30-harness-recovery/negative_controls.py",
+          "old-frame-attribution"
+        ],
+        "expectedExit": 1,
+        "startedAt": "2026-10-15T16:50:02+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+          "tests/unit/test_own_test_setup.py": "0579dcf0f6573a6fc4baf946fd3b47149cf49f8c5e8c61e330052e9a264a16cf",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+        "pid": 3360471,
+        "exit": 1,
+        "endedAt": "2026-10-15T16:50:05+08:00",
+        "elapsedSeconds": 2.5114770400105044,
+        "outputSha256": "aba0162affca3d540787836902078b27eed4b0c5595d7654063ce9edd85502fd"
+      }
+    },
+    {
+      "at": "2026-10-15T16:50:05+08:00",
+      "state": "running-command",
+      "note": "setup-preservation"
+    },
+    {
+      "at": "2026-10-15T16:50:06+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "setup-preservation",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "python",
+          "-B",
+          ".scratch/30-harness-recovery/negative_controls.py",
+          "setup-preservation"
+        ],
+        "expectedExit": 1,
+        "startedAt": "2026-10-15T16:50:05+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+          "tests/unit/test_own_test_setup.py": "0579dcf0f6573a6fc4baf946fd3b47149cf49f8c5e8c61e330052e9a264a16cf",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+        "pid": 3360502,
+        "exit": 1,
+        "endedAt": "2026-10-15T16:50:06+08:00",
+        "elapsedSeconds": 1.5072458729846403,
+        "outputSha256": "9cbfec4fe1c7fee993aa4abac25e4d3a637256bd80ab8f469a7acb430b7b975a"
+      }
+    },
+    {
+      "at": "2026-10-15T16:50:06+08:00",
+      "state": "running-command",
+      "note": "observation-auth"
+    },
+    {
+      "at": "2026-10-15T16:50:07+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "observation-auth",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "python",
+          "-B",
+          ".scratch/30-harness-recovery/negative_controls.py",
+          "observation-auth"
+        ],
+        "expectedExit": 1,
+        "startedAt": "2026-10-15T16:50:06+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+          "tests/unit/test_own_test_setup.py": "0579dcf0f6573a6fc4baf946fd3b47149cf49f8c5e8c61e330052e9a264a16cf",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+        "pid": 3360548,
+        "exit": 1,
+        "endedAt": "2026-10-15T16:50:07+08:00",
+        "elapsedSeconds": 1.0050264230230823,
+        "outputSha256": "a0bac585e30467ef48c57c8f2045bde2e37b71ca23c1e176be015b5cc75729fe"
+      }
+    },
+    {
+      "at": "2026-10-15T16:50:56+08:00",
+      "state": "running-command",
+      "note": "setup-checkpoint"
+    },
+    {
+      "at": "2026-10-15T16:51:16+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "setup-checkpoint",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "pytest",
+          "-q",
+          "-p",
+          "no:warnings",
+          "tests/unit/test_own_test_setup.py"
+        ],
+        "expectedExit": 0,
+        "startedAt": "2026-10-15T16:50:56+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+          "tests/unit/test_own_test_setup.py": "b12d27f8b7632389442f73c347eac9490131672d09fe10064abef6dd19f6abab",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+        "pid": 3361013,
+        "exit": 0,
+        "endedAt": "2026-10-15T16:51:16+08:00",
+        "elapsedSeconds": 20.584529979038052,
+        "outputSha256": "fa5b06574bf10afba892e2156c99ece0e8779b10204127dd87438db4c336ee82"
+      }
+    },
+    {
+      "at": "2026-10-15T16:51:16+08:00",
+      "state": "running-command",
+      "note": "project-checkpoint"
+    },
+    {
+      "at": "2026-10-15T16:52:24+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "project-checkpoint",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "pytest",
+          "-q",
+          "-p",
+          "no:warnings"
+        ],
+        "expectedExit": 0,
+        "startedAt": "2026-10-15T16:51:16+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+          "tests/unit/test_own_test_setup.py": "b12d27f8b7632389442f73c347eac9490131672d09fe10064abef6dd19f6abab",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+        "pid": 3361746,
+        "exit": 0,
+        "endedAt": "2026-10-15T16:52:24+08:00",
+        "elapsedSeconds": 67.78039880807046,
+        "outputSha256": "c91574914a9f7c7be92bb151d07566523efd0b113d53064cd63d00ebc284fc68"
+      }
+    },
+    {
+      "at": "2026-10-15T16:52:50+08:00",
+      "state": "running-command",
+      "note": "setup-classifier-checkpoint"
+    },
+    {
+      "at": "2026-10-15T16:52:51+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "setup-classifier-checkpoint",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "python",
+          "-B",
+          ".scratch/30-harness-recovery/negative_controls.py",
+          "setup-classifier"
+        ],
+        "expectedExit": 1,
+        "startedAt": "2026-10-15T16:52:50+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+          "tests/unit/test_own_test_setup.py": "b12d27f8b7632389442f73c347eac9490131672d09fe10064abef6dd19f6abab",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+        "pid": 3368293,
+        "exit": 1,
+        "endedAt": "2026-10-15T16:52:51+08:00",
+        "elapsedSeconds": 1.506885117967613,
+        "outputSha256": "0182022d178d7b98007f6db5f4c4fc09d306388418839c051c6671924c9f096b"
+      }
+    },
+    {
+      "at": "2026-10-15T16:52:51+08:00",
+      "state": "running-command",
+      "note": "old-frame-attribution-checkpoint"
+    },
+    {
+      "at": "2026-10-15T16:52:53+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "old-frame-attribution-checkpoint",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "python",
+          "-B",
+          ".scratch/30-harness-recovery/negative_controls.py",
+          "old-frame-attribution"
+        ],
+        "expectedExit": 1,
+        "startedAt": "2026-10-15T16:52:51+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+          "tests/unit/test_own_test_setup.py": "b12d27f8b7632389442f73c347eac9490131672d09fe10064abef6dd19f6abab",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+        "pid": 3368382,
+        "exit": 1,
+        "endedAt": "2026-10-15T16:52:53+08:00",
+        "elapsedSeconds": 2.0094039579853415,
+        "outputSha256": "aba0162affca3d540787836902078b27eed4b0c5595d7654063ce9edd85502fd"
+      }
+    },
+    {
+      "at": "2026-10-15T16:52:53+08:00",
+      "state": "running-command",
+      "note": "setup-preservation-checkpoint"
+    },
+    {
+      "at": "2026-10-15T16:52:55+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "setup-preservation-checkpoint",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "python",
+          "-B",
+          ".scratch/30-harness-recovery/negative_controls.py",
+          "setup-preservation"
+        ],
+        "expectedExit": 1,
+        "startedAt": "2026-10-15T16:52:53+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+          "tests/unit/test_own_test_setup.py": "b12d27f8b7632389442f73c347eac9490131672d09fe10064abef6dd19f6abab",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+        "pid": 3368398,
+        "exit": 1,
+        "endedAt": "2026-10-15T16:52:55+08:00",
+        "elapsedSeconds": 1.5099509760038927,
+        "outputSha256": "db0892e13246ebac59c1168d962c006dc8e06df8396259c8ea839f5569540c11"
+      }
+    },
+    {
+      "at": "2026-10-15T16:52:55+08:00",
+      "state": "running-command",
+      "note": "observation-auth-checkpoint"
+    },
+    {
+      "at": "2026-10-15T16:52:56+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "observation-auth-checkpoint",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "python",
+          "-B",
+          ".scratch/30-harness-recovery/negative_controls.py",
+          "observation-auth"
+        ],
+        "expectedExit": 1,
+        "startedAt": "2026-10-15T16:52:55+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+          "tests/unit/test_own_test_setup.py": "b12d27f8b7632389442f73c347eac9490131672d09fe10064abef6dd19f6abab",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+        "pid": 3368456,
+        "exit": 1,
+        "endedAt": "2026-10-15T16:52:56+08:00",
+        "elapsedSeconds": 1.0059139240765944,
+        "outputSha256": "ee0e11729072f744e91add9849e3e3b3ae83682279801088158b2dbb31518ee7"
+      }
+    },
+    {
+      "at": "2026-10-15T16:53:08+08:00",
+      "state": "running-command",
+      "note": "leaf-checkpoint"
+    },
+    {
+      "at": "2026-10-15T16:53:26+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "leaf-checkpoint",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "pytest",
+          "-q",
+          "-p",
+          "no:warnings",
+          "tests/unit/test_v2_leaf.py"
+        ],
+        "expectedExit": 0,
+        "startedAt": "2026-10-15T16:53:08+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+          "tests/unit/test_own_test_setup.py": "b12d27f8b7632389442f73c347eac9490131672d09fe10064abef6dd19f6abab",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-20261015-1642.scope",
+        "pid": 3368610,
+        "exit": 0,
+        "endedAt": "2026-10-15T16:53:26+08:00",
+        "elapsedSeconds": 18.07292649394367,
+        "outputSha256": "9c43100de2ab9952c8e0742433a70b00e9c13a5b390687298defc1ba19d61a1e"
+      }
+    },
+    {
+      "at": "2026-10-15T16:53:54+08:00",
+      "state": "runner-exiting-awaiting-outside-stop-proof",
+      "note": {
+        "pid": 3337272,
+        "payloadPids": []
+      }
+    },
+    {
+      "at": "2026-10-15T16:54:25+08:00",
+      "state": "released-verified-stopped",
+      "note": "stop-proof.json: all observed PID/start-time identities stopped, cgroup absent, systemd inactive/dead; no other jobs killed"
+    },
+    {
+      "at": "2026-10-15T16:58:08+08:00",
+      "state": "second-job-reserved-not-enforced",
+      "note": {
+        "parentAuthority": "Explicit supervisor approval for second sequential identical bundle, only terminal ownership reproduction/fix/revalidation; no user gate or quota expansion",
+        "firstJobReleasedEvidence": "stop-proof.json, scope-stop.txt",
+        "unit": "ticket30-p1a-validation-job2-20261015.scope",
+        "hostAvailableBytes": 114604220416
+      }
+    },
+    {
+      "at": "2026-10-15T16:58:48+08:00",
+      "state": "binding-probe",
+      "note": {
+        "pid": 3392182,
+        "group": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope"
+      }
+    },
+    {
+      "at": "2026-10-15T16:58:51+08:00",
+      "state": "bound-awaiting-writer-verification",
+      "note": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope"
+    },
+    {
+      "at": "2026-10-15T16:58:53+08:00",
+      "state": "verified-admitted",
+      "note": "writer verified runtime-binding and systemd properties"
+    },
+    {
+      "at": "2026-10-15T16:58:53+08:00",
+      "state": "running-command",
+      "note": "chain-reproduction"
+    },
+    {
+      "at": "2026-10-15T16:58:54+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "chain-reproduction",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "pytest",
+          "-q",
+          "-p",
+          "no:warnings",
+          "tests/unit/test_own_test_setup.py::test_failure_is_test_attributed_discards_chain_without_terminal_location"
+        ],
+        "expectedExit": 1,
+        "startedAt": "2026-10-15T16:58:53+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+          "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+        "pid": 3392702,
+        "exit": 1,
+        "endedAt": "2026-10-15T16:58:54+08:00",
+        "elapsedSeconds": 1.0059673050418496,
+        "outputSha256": "365b76889d151a787eb520258f53e6ea298026756926b4f3c2435e2269b473c0"
+      }
+    },
+    {
+      "at": "2026-10-15T16:59:27+08:00",
+      "state": "running-command",
+      "note": "chain-green"
+    },
+    {
+      "at": "2026-10-15T16:59:28+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "chain-green",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "pytest",
+          "-q",
+          "-p",
+          "no:warnings",
+          "tests/unit/test_own_test_setup.py::test_failure_is_test_attributed_discards_chain_without_terminal_location"
+        ],
+        "expectedExit": 0,
+        "startedAt": "2026-10-15T16:59:27+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "d61843420090a4962e170e3a61e0212c3f6b8b53010659204609cef9503bee45",
+          "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+        "pid": 3394005,
+        "exit": 0,
+        "endedAt": "2026-10-15T16:59:28+08:00",
+        "elapsedSeconds": 1.0050250649219379,
+        "outputSha256": "0805f24fab3bc97a855220b807990eb08655f7928a7f1ee2cb90d4d76acff7df"
+      }
+    },
+    {
+      "at": "2026-10-15T16:59:28+08:00",
+      "state": "running-command",
+      "note": "setup-checkpoint"
+    },
+    {
+      "at": "2026-10-15T16:59:49+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "setup-checkpoint",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "pytest",
+          "-q",
+          "-p",
+          "no:warnings",
+          "tests/unit/test_own_test_setup.py"
+        ],
+        "expectedExit": 0,
+        "startedAt": "2026-10-15T16:59:28+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "d61843420090a4962e170e3a61e0212c3f6b8b53010659204609cef9503bee45",
+          "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+        "pid": 3394047,
+        "exit": 0,
+        "endedAt": "2026-10-15T16:59:49+08:00",
+        "elapsedSeconds": 20.58402740699239,
+        "outputSha256": "1359df2ccf22d0f0b407f9f61121615a4ce6f75b85955a7ba2350a3084dca745"
+      }
+    },
+    {
+      "at": "2026-10-15T16:59:49+08:00",
+      "state": "running-command",
+      "note": "leaf-checkpoint"
+    },
+    {
+      "at": "2026-10-15T17:00:08+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "leaf-checkpoint",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "pytest",
+          "-q",
+          "-p",
+          "no:warnings",
+          "tests/unit/test_v2_leaf.py"
+        ],
+        "expectedExit": 0,
+        "startedAt": "2026-10-15T16:59:49+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "d61843420090a4962e170e3a61e0212c3f6b8b53010659204609cef9503bee45",
+          "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+        "pid": 3395858,
+        "exit": 0,
+        "endedAt": "2026-10-15T17:00:08+08:00",
+        "elapsedSeconds": 19.082637635059655,
+        "outputSha256": "9c43100de2ab9952c8e0742433a70b00e9c13a5b390687298defc1ba19d61a1e"
+      }
+    },
+    {
+      "at": "2026-10-15T17:00:08+08:00",
+      "state": "running-command",
+      "note": "project-checkpoint"
+    },
+    {
+      "at": "2026-10-15T17:01:18+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "project-checkpoint",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "pytest",
+          "-q",
+          "-p",
+          "no:warnings"
+        ],
+        "expectedExit": 0,
+        "startedAt": "2026-10-15T17:00:08+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "d61843420090a4962e170e3a61e0212c3f6b8b53010659204609cef9503bee45",
+          "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+        "pid": 3397484,
+        "exit": 0,
+        "endedAt": "2026-10-15T17:01:18+08:00",
+        "elapsedSeconds": 70.2835982789984,
+        "outputSha256": "f95d55a93cec55f2489bf27094bcbdd6a4a08d8c68b7369e08f2656a450cf038"
+      }
+    },
+    {
+      "at": "2026-10-15T17:01:41+08:00",
+      "state": "running-command",
+      "note": "setup-classifier-checkpoint"
+    },
+    {
+      "at": "2026-10-15T17:01:42+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "setup-classifier-checkpoint",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "python",
+          "-B",
+          ".scratch/30-harness-recovery/negative_controls.py",
+          "setup-classifier"
+        ],
+        "expectedExit": 1,
+        "startedAt": "2026-10-15T17:01:41+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "d61843420090a4962e170e3a61e0212c3f6b8b53010659204609cef9503bee45",
+          "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+        "pid": 3406488,
+        "exit": 1,
+        "endedAt": "2026-10-15T17:01:42+08:00",
+        "elapsedSeconds": 1.5098324760328978,
+        "outputSha256": "3b8450e9a4a9fe43ed848f6763e96ff336747f993faf2a213037d7ae9f7e3f2f"
+      }
+    },
+    {
+      "at": "2026-10-15T17:01:42+08:00",
+      "state": "running-command",
+      "note": "old-frame-attribution-checkpoint"
+    },
+    {
+      "at": "2026-10-15T17:01:45+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "old-frame-attribution-checkpoint",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "python",
+          "-B",
+          ".scratch/30-harness-recovery/negative_controls.py",
+          "old-frame-attribution"
+        ],
+        "expectedExit": 1,
+        "startedAt": "2026-10-15T17:01:42+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "d61843420090a4962e170e3a61e0212c3f6b8b53010659204609cef9503bee45",
+          "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+        "pid": 3406558,
+        "exit": 1,
+        "endedAt": "2026-10-15T17:01:45+08:00",
+        "elapsedSeconds": 2.0090641520218924,
+        "outputSha256": "aba0162affca3d540787836902078b27eed4b0c5595d7654063ce9edd85502fd"
+      }
+    },
+    {
+      "at": "2026-10-15T17:01:45+08:00",
+      "state": "running-command",
+      "note": "setup-preservation-checkpoint"
+    },
+    {
+      "at": "2026-10-15T17:01:46+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "setup-preservation-checkpoint",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "python",
+          "-B",
+          ".scratch/30-harness-recovery/negative_controls.py",
+          "setup-preservation"
+        ],
+        "expectedExit": 1,
+        "startedAt": "2026-10-15T17:01:45+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "d61843420090a4962e170e3a61e0212c3f6b8b53010659204609cef9503bee45",
+          "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+        "pid": 3406737,
+        "exit": 1,
+        "endedAt": "2026-10-15T17:01:46+08:00",
+        "elapsedSeconds": 1.5074958340264857,
+        "outputSha256": "77b7e64c04c01d250d0763eb0e262a3698152c7073f3f2d11ccc5bb652c3347c"
+      }
+    },
+    {
+      "at": "2026-10-15T17:01:46+08:00",
+      "state": "running-command",
+      "note": "observation-auth-checkpoint"
+    },
+    {
+      "at": "2026-10-15T17:01:47+08:00",
+      "state": "command-stopped",
+      "note": {
+        "name": "observation-auth-checkpoint",
+        "argv": [
+          "uv",
+          "run",
+          "--offline",
+          "--no-sync",
+          "python",
+          "-B",
+          ".scratch/30-harness-recovery/negative_controls.py",
+          "observation-auth"
+        ],
+        "expectedExit": 1,
+        "startedAt": "2026-10-15T17:01:46+08:00",
+        "sourceHashes": {
+          "harness/leaf.py": "d61843420090a4962e170e3a61e0212c3f6b8b53010659204609cef9503bee45",
+          "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+          "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+        },
+        "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+        "pid": 3406776,
+        "exit": 1,
+        "endedAt": "2026-10-15T17:01:47+08:00",
+        "elapsedSeconds": 1.0054446900030598,
+        "outputSha256": "3a382d6a9298adcf9d7b42980fdce57e67aa5ba7f14480c98998eed260128f18"
+      }
+    },
+    {
+      "at": "2026-10-15T17:14:16+08:00",
+      "state": "runner-exiting-awaiting-outside-stop-proof",
+      "note": {
+        "pid": 3392182,
+        "payloadPids": []
+      }
+    },
+    {
+      "at": "2026-10-15T17:14:58+08:00",
+      "state": "released-verified-stopped",
+      "note": "job2: validation-job2/stop-proof.json proves all observed PID/start-time identities stopped, cgroup absent/systemd inactive-dead; no other job killed. Both sequential parent-admitted jobs released."
+    }
+  ]
+}

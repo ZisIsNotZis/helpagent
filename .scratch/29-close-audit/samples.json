@@ -1,0 +1,386 @@
+[
+  {
+    "id": "ours-T-33-serializer-contract-s1",
+    "arm": "ours",
+    "seed": 1,
+    "task": "T-33-serializer-contract",
+    "actual": true,
+    "claimed": false,
+    "source_results": "/tmp/wave1/final/our-n5/lane2/none/results.jsonl",
+    "source_line": 41,
+    "source_run": "/tmp/wave1/final/our-n5/lane2/none/T-33-serializer-contract-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "trajectory.jsonl"
+    ]
+  },
+  {
+    "id": "pi-T-33-serializer-contract-s1",
+    "arm": "pi",
+    "seed": 1,
+    "task": "T-33-serializer-contract",
+    "actual": false,
+    "claimed": false,
+    "source_results": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/results.jsonl",
+    "source_line": 9,
+    "source_run": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-33-serializer-contract-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "prompt.txt",
+      "rec.json",
+      "events-selected.jsonl"
+    ]
+  },
+  {
+    "id": "ours-T-12-str-enum-compare-s1",
+    "arm": "ours",
+    "seed": 1,
+    "task": "T-12-str-enum-compare",
+    "actual": true,
+    "claimed": false,
+    "source_results": "/tmp/wave1/final/our-n5/lane2/none/results.jsonl",
+    "source_line": 16,
+    "source_run": "/tmp/wave1/final/our-n5/lane2/none/T-12-str-enum-compare-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "trajectory.jsonl"
+    ]
+  },
+  {
+    "id": "pi-T-12-str-enum-compare-s1",
+    "arm": "pi",
+    "seed": 1,
+    "task": "T-12-str-enum-compare",
+    "actual": false,
+    "claimed": false,
+    "source_results": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/results.jsonl",
+    "source_line": 4,
+    "source_run": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/T-12-str-enum-compare-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "prompt.txt",
+      "rec.json",
+      "events-selected.jsonl"
+    ]
+  },
+  {
+    "id": "ours-T-35-interval-merge-invariants-s1",
+    "arm": "ours",
+    "seed": 1,
+    "task": "T-35-interval-merge-invariants",
+    "actual": false,
+    "claimed": false,
+    "source_results": "/tmp/wave1/final/our-n5/lane1/none/results.jsonl",
+    "source_line": 36,
+    "source_run": "/tmp/wave1/final/our-n5/lane1/none/T-35-interval-merge-invariants-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "trajectory.jsonl"
+    ]
+  },
+  {
+    "id": "pi-T-35-interval-merge-invariants-s1",
+    "arm": "pi",
+    "seed": 1,
+    "task": "T-35-interval-merge-invariants",
+    "actual": true,
+    "claimed": true,
+    "source_results": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/results.jsonl",
+    "source_line": 10,
+    "source_run": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-35-interval-merge-invariants-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "prompt.txt",
+      "rec.json",
+      "events-selected.jsonl"
+    ]
+  },
+  {
+    "id": "ours-T-30-naive-datetime-compare-s2",
+    "arm": "ours",
+    "seed": 2,
+    "task": "T-30-naive-datetime-compare",
+    "actual": false,
+    "claimed": false,
+    "source_results": "/tmp/wave1/final/our-n5/lane3/none/results.jsonl",
+    "source_line": 32,
+    "source_run": "/tmp/wave1/final/our-n5/lane3/none/T-30-naive-datetime-compare-2",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "trajectory.jsonl"
+    ]
+  },
+  {
+    "id": "pi-T-30-naive-datetime-compare-s2",
+    "arm": "pi",
+    "seed": 2,
+    "task": "T-30-naive-datetime-compare",
+    "actual": true,
+    "claimed": true,
+    "source_results": "/tmp/wave1/final/n9/pi-n9/seed2/lane4/results.jsonl",
+    "source_line": 8,
+    "source_run": "/tmp/wave1/final/n9/pi-n9/seed2/lane4/T-30-naive-datetime-compare-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "prompt.txt",
+      "rec.json",
+      "events-selected.jsonl"
+    ]
+  },
+  {
+    "id": "ours-T-16-class-state-leak-s2",
+    "arm": "ours",
+    "seed": 2,
+    "task": "T-16-class-state-leak",
+    "actual": false,
+    "claimed": false,
+    "source_results": "/tmp/wave1/final/our-n5/lane4/none/results.jsonl",
+    "source_line": 17,
+    "source_run": "/tmp/wave1/final/our-n5/lane4/none/T-16-class-state-leak-2",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "trajectory.jsonl"
+    ]
+  },
+  {
+    "id": "pi-T-16-class-state-leak-s2",
+    "arm": "pi",
+    "seed": 2,
+    "task": "T-16-class-state-leak",
+    "actual": true,
+    "claimed": true,
+    "source_results": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/results.jsonl",
+    "source_line": 5,
+    "source_run": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-16-class-state-leak-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "prompt.txt",
+      "rec.json",
+      "events-selected.jsonl"
+    ]
+  },
+  {
+    "id": "ours-T-26-plan-dataclass-port-s1",
+    "arm": "ours",
+    "seed": 1,
+    "task": "T-26-plan-dataclass-port",
+    "actual": false,
+    "claimed": false,
+    "source_results": "/tmp/wave1/final/our-n5/lane4/none/results.jsonl",
+    "source_line": 31,
+    "source_run": "/tmp/wave1/final/our-n5/lane4/none/T-26-plan-dataclass-port-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "trajectory.jsonl"
+    ]
+  },
+  {
+    "id": "pi-T-26-plan-dataclass-port-s1",
+    "arm": "pi",
+    "seed": 1,
+    "task": "T-26-plan-dataclass-port",
+    "actual": false,
+    "claimed": false,
+    "source_results": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/results.jsonl",
+    "source_line": 8,
+    "source_run": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/T-26-plan-dataclass-port-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "prompt.txt",
+      "rec.json",
+      "events-selected.jsonl"
+    ]
+  },
+  {
+    "id": "ours-A-02-protein-translation-s1",
+    "arm": "ours",
+    "seed": 1,
+    "task": "A-02-protein-translation",
+    "actual": false,
+    "claimed": true,
+    "source_results": "/tmp/wave1/final/our-n5/lane1/none/results.jsonl",
+    "source_line": 41,
+    "source_run": "/tmp/wave1/final/our-n5/lane1/none/A-02-protein-translation-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "trajectory.jsonl"
+    ]
+  },
+  {
+    "id": "pi-A-02-protein-translation-s1",
+    "arm": "pi",
+    "seed": 1,
+    "task": "A-02-protein-translation",
+    "actual": false,
+    "claimed": false,
+    "source_results": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/results.jsonl",
+    "source_line": 10,
+    "source_run": "/tmp/wave1/final/n9/pi-n9/seed1/lane2/A-02-protein-translation-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "prompt.txt",
+      "rec.json",
+      "events-selected.jsonl"
+    ]
+  },
+  {
+    "id": "ours-A-03-book-store-s1",
+    "arm": "ours",
+    "seed": 1,
+    "task": "A-03-book-store",
+    "actual": false,
+    "claimed": false,
+    "source_results": "/tmp/wave1/final/our-n5/lane3/none/results.jsonl",
+    "source_line": 46,
+    "source_run": "/tmp/wave1/final/our-n5/lane3/none/A-03-book-store-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "trajectory.jsonl"
+    ]
+  },
+  {
+    "id": "pi-A-03-book-store-s1",
+    "arm": "pi",
+    "seed": 1,
+    "task": "A-03-book-store",
+    "actual": false,
+    "claimed": false,
+    "source_results": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/results.jsonl",
+    "source_line": 10,
+    "source_run": "/tmp/wave1/final/n9/pi-n9/seed1/lane3/A-03-book-store-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "prompt.txt",
+      "rec.json",
+      "events-selected.jsonl"
+    ]
+  },
+  {
+    "id": "ours-A-04-connect-s1",
+    "arm": "ours",
+    "seed": 1,
+    "task": "A-04-connect",
+    "actual": false,
+    "claimed": false,
+    "source_results": "/tmp/wave1/final/our-n5/lane4/none/results.jsonl",
+    "source_line": 51,
+    "source_run": "/tmp/wave1/final/our-n5/lane4/none/A-04-connect-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "trajectory.jsonl"
+    ]
+  },
+  {
+    "id": "pi-A-04-connect-s1",
+    "arm": "pi",
+    "seed": 1,
+    "task": "A-04-connect",
+    "actual": false,
+    "claimed": false,
+    "source_results": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/results.jsonl",
+    "source_line": 9,
+    "source_run": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/A-04-connect-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "prompt.txt",
+      "rec.json",
+      "events-selected.jsonl"
+    ]
+  },
+  {
+    "id": "ours-T-27-snakecase-ingest-s1",
+    "arm": "ours",
+    "seed": 1,
+    "task": "T-27-snakecase-ingest",
+    "actual": false,
+    "claimed": false,
+    "source_results": "/tmp/wave1/final/our-n5/lane4/none/results.jsonl",
+    "source_line": 36,
+    "source_run": "/tmp/wave1/final/our-n5/lane4/none/T-27-snakecase-ingest-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "trajectory.jsonl"
+    ]
+  },
+  {
+    "id": "pi-T-27-snakecase-ingest-s1",
+    "arm": "pi",
+    "seed": 1,
+    "task": "T-27-snakecase-ingest",
+    "actual": false,
+    "claimed": false,
+    "source_results": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/results.jsonl",
+    "source_line": 7,
+    "source_run": "/tmp/wave1/final/n9/pi-n9/seed1/lane4/T-27-snakecase-ingest-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "prompt.txt",
+      "rec.json",
+      "events-selected.jsonl"
+    ]
+  },
+  {
+    "id": "ours-T-34-expression-tokenizer-s1",
+    "arm": "ours",
+    "seed": 1,
+    "task": "T-34-expression-tokenizer",
+    "actual": false,
+    "claimed": false,
+    "source_results": "/tmp/wave1/final/our-n5/lane1/none/results.jsonl",
+    "source_line": 31,
+    "source_run": "/tmp/wave1/final/our-n5/lane1/none/T-34-expression-tokenizer-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "trajectory.jsonl"
+    ]
+  },
+  {
+    "id": "pi-T-34-expression-tokenizer-s1",
+    "arm": "pi",
+    "seed": 1,
+    "task": "T-34-expression-tokenizer",
+    "actual": false,
+    "claimed": false,
+    "source_results": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/results.jsonl",
+    "source_line": 8,
+    "source_run": "/tmp/wave1/final/n9/pi-n9/seed1/lane1/T-34-expression-tokenizer-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "prompt.txt",
+      "rec.json",
+      "events-selected.jsonl"
+    ]
+  },
+  {
+    "id": "pi-T-26-plan-dataclass-port-s2",
+    "arm": "pi",
+    "seed": 2,
+    "task": "T-26-plan-dataclass-port",
+    "actual": true,
+    "claimed": true,
+    "source_results": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/results.jsonl",
+    "source_line": 8,
+    "source_run": "/tmp/wave1/final/n9/pi-n9/seed2/lane2/T-26-plan-dataclass-port-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "prompt.txt",
+      "rec.json",
+      "events-selected.jsonl"
+    ]
+  },
+  {
+    "id": "r2-full-A-05-zebra-puzzle-s1",
+    "arm": "r2-full",
+    "seed": 1,
+    "task": "A-05-zebra-puzzle",
+    "actual": false,
+    "claimed": true,
+    "source_results": "/tmp/wave1/final/r2/runs/c4/full/full/results.jsonl",
+    "source_line": 28,
+    "source_run": "/tmp/wave1/final/r2/runs/c4/full/full/A-05-zebra-puzzle-1",
+    "revision": "45ebb32f1be0977b9149057da3a80ee93ce22840",
+    "artifacts": [
+      "trajectory.jsonl"
+    ]
+  }
+]

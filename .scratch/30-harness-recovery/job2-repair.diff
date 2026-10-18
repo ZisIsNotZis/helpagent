@@ -1,0 +1,33 @@
+--- job1/harness/leaf.py
++++ job2/harness/leaf.py
+@@ -3718,6 +3718,11 @@
+             captured = False
+         elif re.match(r"^-{3,} Captured ", line):
+             captured = True
++        elif not captured and line.strip() in (
++            "During handling of the above exception, another exception occurred:",
++            "The above exception was the direct cause of the following exception:",
++        ):
++            current = None  # earlier ownership cannot survive a missing final location
+         elif not captured and (match := terminal.fullmatch(line)):
+             current = (match.group("path").lstrip("./"), match.group("exception"))
+     if current is not None:
+--- job1/tests/unit/test_own_test_setup.py
++++ job2/tests/unit/test_own_test_setup.py
+@@ -215,6 +215,16 @@
+      f"{SOURCE_PATH}:2: NameError: source failure"),
+ ], ids=["assertion-message", "captured-output", "chained-exception", "source-owner"])
+ def test_failure_is_test_attributed_requires_the_actual_terminal_exception(failure):
++    assert not failure_is_test_attributed(failure, TEST_PATH, (SOURCE_PATH,))
++
++
++@pytest.mark.parametrize("separator", [
++    "During handling of the above exception, another exception occurred:",
++    "The above exception was the direct cause of the following exception:",
++], ids=["handling", "direct-cause"])
++def test_failure_is_test_attributed_discards_chain_without_terminal_location(separator):
++    failure = (f"{TEST_PATH}:4: NameError: earlier test fault\n{separator}\n"
++               "E   ValueError: final exception has no retained terminal location")
+     assert not failure_is_test_attributed(failure, TEST_PATH, (SOURCE_PATH,))
+ 
+ 

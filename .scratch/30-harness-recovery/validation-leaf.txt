@@ -1,0 +1,31 @@
+warning: `VIRTUAL_ENV=/home/z/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+.................................F...................................... [ 22%]
+........................................................................ [ 45%]
+........................................................................ [ 68%]
+........................................................................ [ 91%]
+..........................                                               [100%]
+=================================== FAILURES ===================================
+___________ test_self_test_transport_error_is_not_recorded_as_a_red ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-z/pytest-1166/test_self_test_transport_error0')
+
+    def test_self_test_transport_error_is_not_recorded_as_a_red(tmp_path):
+        """red=True is only emitted for an OBSERVED red; a transport error leaves no
+        bogus target behind and stops honestly."""
+        spec = make_spec()
+        stage(tmp_path, spec.files)
+        model = FakeModelRunner({"write_test": [SELF_TEST]})
+        out = run_leaf_sync(model, spec, tmp_path,
+                            Budget(calls=5, deadline_ts=_FAR_FUTURE),
+                            run_tests=ScriptedTests([transport()]))
+    
+        assert out.claimed is False
+>       assert out.stop_reason == "self-test"
+E       AssertionError: assert 'self-test-unverified' == 'self-test'
+E         
+E         - self-test
+E         + self-test-unverified
+
+tests/unit/test_v2_leaf.py:994: AssertionError
+=========================== short test summary info ============================
+FAILED tests/unit/test_v2_leaf.py::test_self_test_transport_error_is_not_recorded_as_a_red

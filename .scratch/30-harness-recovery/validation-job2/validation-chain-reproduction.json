@@ -1,0 +1,27 @@
+{
+  "name": "chain-reproduction",
+  "argv": [
+    "uv",
+    "run",
+    "--offline",
+    "--no-sync",
+    "pytest",
+    "-q",
+    "-p",
+    "no:warnings",
+    "tests/unit/test_own_test_setup.py::test_failure_is_test_attributed_discards_chain_without_terminal_location"
+  ],
+  "expectedExit": 1,
+  "startedAt": "2026-10-15T16:58:53+08:00",
+  "sourceHashes": {
+    "harness/leaf.py": "c37e51e5450fcfb85dbb4adc8b75018147f9449400432f1545f0b0ae99772d86",
+    "tests/unit/test_own_test_setup.py": "861ce6f93d48ee56e425e0a935e6485a6a68146165321efbcc6467072693395d",
+    "tests/unit/test_v2_leaf.py": "bbf93da680cc922b9beedb791869e41745f1af2322730e63ac721b1212942731"
+  },
+  "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/ticket30-p1a-validation-job2-20261015.scope",
+  "pid": 3392702,
+  "exit": 1,
+  "endedAt": "2026-10-15T16:58:54+08:00",
+  "elapsedSeconds": 1.0059673050418496,
+  "outputSha256": "365b76889d151a787eb520258f53e6ea298026756926b4f3c2435e2269b473c0"
+}

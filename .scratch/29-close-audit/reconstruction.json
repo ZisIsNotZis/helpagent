@@ -1,0 +1,695 @@
+[
+  {
+    "id": "ours-T-33-serializer-contract-s1",
+    "writes": [
+      {
+        "trajectory_line": 13,
+        "path": "serialize/json_ser.py",
+        "sha256": "276d190635cb726f35853dabada02f44d3c1b13f7ec23196b430522c9f4a72e9",
+        "payload_line": 12,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 14,
+        "path": "serialize/pickle_ser.py",
+        "sha256": "36c18f9e929d839d6d545a1503bb991831934af3e596b51f39797398e2310028",
+        "payload_line": 12,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 16,
+        "path": "serialize/base.py",
+        "sha256": "b17fecb751358dd40af007cb84d34c976547d8d08e6c1cbe740963003853a1da",
+        "payload_line": 12,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 19,
+        "path": "serialize/__init__.py",
+        "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "payload_line": 12,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 23,
+        "path": "README.md",
+        "sha256": "43a11448804be82bb8945aa4856bf7212791880cc3c995f20746b884519a1b27",
+        "payload_line": 12,
+        "payload_matches": true
+      }
+    ],
+    "finals": [
+      {
+        "path": "serialize/__init__.py",
+        "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "matching_write_lines": [
+          19
+        ],
+        "graded_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "work_equals_graded": false
+      },
+      {
+        "path": "serialize/base.py",
+        "sha256": "b17fecb751358dd40af007cb84d34c976547d8d08e6c1cbe740963003853a1da",
+        "matching_write_lines": [
+          16
+        ],
+        "graded_sha256": "b17fecb751358dd40af007cb84d34c976547d8d08e6c1cbe740963003853a1da",
+        "work_equals_graded": true
+      },
+      {
+        "path": "serialize/json_ser.py",
+        "sha256": "276d190635cb726f35853dabada02f44d3c1b13f7ec23196b430522c9f4a72e9",
+        "matching_write_lines": [
+          13
+        ],
+        "graded_sha256": "276d190635cb726f35853dabada02f44d3c1b13f7ec23196b430522c9f4a72e9",
+        "work_equals_graded": true
+      },
+      {
+        "path": "serialize/pickle_ser.py",
+        "sha256": "36c18f9e929d839d6d545a1503bb991831934af3e596b51f39797398e2310028",
+        "matching_write_lines": [
+          14
+        ],
+        "graded_sha256": "36c18f9e929d839d6d545a1503bb991831934af3e596b51f39797398e2310028",
+        "work_equals_graded": true
+      },
+      {
+        "path": "test_serialize.py",
+        "sha256": "1cad90b27404be8ca071ffe85639807aedd84d6ef35a06cc4986467d9a75b69c",
+        "matching_write_lines": [],
+        "graded_sha256": null,
+        "work_equals_graded": false
+      }
+    ]
+  },
+  {
+    "id": "ours-T-12-str-enum-compare-s1",
+    "writes": [
+      {
+        "trajectory_line": 9,
+        "path": "access/gate.py",
+        "sha256": "62dff31b50c569a255e89b8705d4bc3005abba0a726f5c5b41d14462d32d8adf",
+        "payload_line": 8,
+        "payload_matches": true
+      }
+    ],
+    "finals": [
+      {
+        "path": "access/__init__.py",
+        "sha256": "3ba20281901c826154dd9ea8925f57514b98543562373c504850b77fd64d6d87",
+        "matching_write_lines": [],
+        "graded_sha256": "3ba20281901c826154dd9ea8925f57514b98543562373c504850b77fd64d6d87",
+        "work_equals_graded": true
+      },
+      {
+        "path": "access/gate.py",
+        "sha256": "62dff31b50c569a255e89b8705d4bc3005abba0a726f5c5b41d14462d32d8adf",
+        "matching_write_lines": [
+          9
+        ],
+        "graded_sha256": "62dff31b50c569a255e89b8705d4bc3005abba0a726f5c5b41d14462d32d8adf",
+        "work_equals_graded": true
+      },
+      {
+        "path": "access/roles.py",
+        "sha256": "c5809f9f616593b449a0fd961edb361b4bc09f0456549447aee0ae896ece56fe",
+        "matching_write_lines": [],
+        "graded_sha256": "c5809f9f616593b449a0fd961edb361b4bc09f0456549447aee0ae896ece56fe",
+        "work_equals_graded": true
+      }
+    ]
+  },
+  {
+    "id": "ours-T-35-interval-merge-invariants-s1",
+    "writes": [
+      {
+        "trajectory_line": 7,
+        "path": "spans/merge.py",
+        "sha256": "6781dfcbdaf2b39306a3d4228dac528c1167143b6e80609942d409586be3ef8c",
+        "payload_line": 6,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 16,
+        "path": "spans/merge.py",
+        "sha256": "fe1f19644975c943d504735b6039cc0e97a1b0e3e8bb224503af1d54cf98c66e",
+        "payload_line": 15,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 22,
+        "path": "spans/merge.py",
+        "sha256": "fe1f19644975c943d504735b6039cc0e97a1b0e3e8bb224503af1d54cf98c66e",
+        "payload_line": 20,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 28,
+        "path": "spans/merge.py",
+        "sha256": "568190b13b170e977d85e1ba051c20b864c321bbe6211b647c5f9c214deec3dc",
+        "payload_line": 27,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 34,
+        "path": "spans/merge.py",
+        "sha256": "6289ddf47a9a6e00e70b5e052ee47d2f70b8a64bb6bf39e8176f464c62ce599d",
+        "payload_line": 33,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 40,
+        "path": "spans/merge.py",
+        "sha256": "f5a5acc1a285e7ab7c5a094b54a6d89d9f3d7bdffa639401876cf801bf49a293",
+        "payload_line": 39,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 46,
+        "path": "spans/merge.py",
+        "sha256": "1023fbc71598c8e55afdce6ce7ce1cb316b48089232a2350f5eb0bdf248e8ed4",
+        "payload_line": 45,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 52,
+        "path": "spans/merge.py",
+        "sha256": "399e8d6a0256c4ba26855da19414072f0e0c39fd5b8444bad4dd677bbe443168",
+        "payload_line": 51,
+        "payload_matches": true
+      }
+    ],
+    "finals": [
+      {
+        "path": "spans/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matching_write_lines": [],
+        "graded_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "work_equals_graded": true
+      },
+      {
+        "path": "spans/merge.py",
+        "sha256": "399e8d6a0256c4ba26855da19414072f0e0c39fd5b8444bad4dd677bbe443168",
+        "matching_write_lines": [
+          52
+        ],
+        "graded_sha256": "399e8d6a0256c4ba26855da19414072f0e0c39fd5b8444bad4dd677bbe443168",
+        "work_equals_graded": true
+      },
+      {
+        "path": "spans/test_merge.py",
+        "sha256": "9f7b2e1032f066cec0b8611d1916fbb763ec233729dbf81cdef074cd8f5e4aaa",
+        "matching_write_lines": [],
+        "graded_sha256": null,
+        "work_equals_graded": false
+      }
+    ]
+  },
+  {
+    "id": "ours-T-30-naive-datetime-compare-s2",
+    "writes": [
+      {
+        "trajectory_line": 14,
+        "path": "tokens/tokens.py",
+        "sha256": "4558d22bcb724703aa853d3ef290992df914ae7971134ce9153a75454737eff7",
+        "payload_line": 13,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 30,
+        "path": "tokens/tokens.py",
+        "sha256": "4558d22bcb724703aa853d3ef290992df914ae7971134ce9153a75454737eff7",
+        "payload_line": 28,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 42,
+        "path": "tokens/tokens.py",
+        "sha256": "4af3dc7d5344fe4ea240c6a0b3f70ba3e77d3021e9cf519fbfd1277077d72438",
+        "payload_line": 41,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 54,
+        "path": "tokens/tokens.py",
+        "sha256": "bb50e335b9b0265bb108144c0b69d7f575e263d5022874701d6e78ce3a94131d",
+        "payload_line": 53,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 66,
+        "path": "tokens/tokens.py",
+        "sha256": "038692a2c90daa12511c253767d6eda82ff6aab3c7b807b0f1f17be1d3c129c3",
+        "payload_line": 65,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 79,
+        "path": "tokens/tokens.py",
+        "sha256": "9cc3a3dd8a6e13349bf1ca4f912a54cbcc1fc88d93a446cc5ee8f543ef754274",
+        "payload_line": 78,
+        "payload_matches": true
+      }
+    ],
+    "finals": [
+      {
+        "path": "tokens/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matching_write_lines": [],
+        "graded_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "work_equals_graded": true
+      },
+      {
+        "path": "tokens/tokens.py",
+        "sha256": "9cc3a3dd8a6e13349bf1ca4f912a54cbcc1fc88d93a446cc5ee8f543ef754274",
+        "matching_write_lines": [
+          79
+        ],
+        "graded_sha256": "9cc3a3dd8a6e13349bf1ca4f912a54cbcc1fc88d93a446cc5ee8f543ef754274",
+        "work_equals_graded": true
+      }
+    ]
+  },
+  {
+    "id": "ours-T-16-class-state-leak-s2",
+    "writes": [
+      {
+        "trajectory_line": 7,
+        "path": "cart/cart.py",
+        "sha256": "c302c53493adef5639abbbfe2b5e3cf37bc8a4665158e9107f9cd20c2b55d5bc",
+        "payload_line": 6,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 16,
+        "path": "cart/cart.py",
+        "sha256": "8171a419e76354d87aad1f518109127131640e980bb5544f88a3a0fb9bf12c7d",
+        "payload_line": 15,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 22,
+        "path": "cart/cart.py",
+        "sha256": "8171a419e76354d87aad1f518109127131640e980bb5544f88a3a0fb9bf12c7d",
+        "payload_line": 20,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 28,
+        "path": "cart/cart.py",
+        "sha256": "c302c53493adef5639abbbfe2b5e3cf37bc8a4665158e9107f9cd20c2b55d5bc",
+        "payload_line": 27,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 34,
+        "path": "cart/cart.py",
+        "sha256": "c302c53493adef5639abbbfe2b5e3cf37bc8a4665158e9107f9cd20c2b55d5bc",
+        "payload_line": 33,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 40,
+        "path": "cart/cart.py",
+        "sha256": "c302c53493adef5639abbbfe2b5e3cf37bc8a4665158e9107f9cd20c2b55d5bc",
+        "payload_line": 39,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 46,
+        "path": "cart/cart.py",
+        "sha256": "c302c53493adef5639abbbfe2b5e3cf37bc8a4665158e9107f9cd20c2b55d5bc",
+        "payload_line": 45,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 52,
+        "path": "cart/cart.py",
+        "sha256": "c302c53493adef5639abbbfe2b5e3cf37bc8a4665158e9107f9cd20c2b55d5bc",
+        "payload_line": 51,
+        "payload_matches": true
+      }
+    ],
+    "finals": [
+      {
+        "path": "cart/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matching_write_lines": [],
+        "graded_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "work_equals_graded": true
+      },
+      {
+        "path": "cart/cart.py",
+        "sha256": "c302c53493adef5639abbbfe2b5e3cf37bc8a4665158e9107f9cd20c2b55d5bc",
+        "matching_write_lines": [
+          7,
+          28,
+          34,
+          40,
+          46,
+          52
+        ],
+        "graded_sha256": "c302c53493adef5639abbbfe2b5e3cf37bc8a4665158e9107f9cd20c2b55d5bc",
+        "work_equals_graded": true
+      },
+      {
+        "path": "test_cart.py",
+        "sha256": "b083a55e26d592d6024e579e03af57e2bb04eed066df4a25b9b93fd1ed5a9e80",
+        "matching_write_lines": [],
+        "graded_sha256": null,
+        "work_equals_graded": false
+      }
+    ]
+  },
+  {
+    "id": "ours-T-26-plan-dataclass-port-s1",
+    "writes": [
+      {
+        "trajectory_line": 13,
+        "path": "plan/model.py",
+        "sha256": "cf0cf2a54f8df6d8a0f5fe2c8422ecaacf60a7397b8e1c5769e6a8406b977683",
+        "payload_line": 12,
+        "payload_matches": true
+      }
+    ],
+    "finals": [
+      {
+        "path": "plan/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matching_write_lines": [],
+        "graded_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "work_equals_graded": true
+      },
+      {
+        "path": "plan/model.py",
+        "sha256": "cf0cf2a54f8df6d8a0f5fe2c8422ecaacf60a7397b8e1c5769e6a8406b977683",
+        "matching_write_lines": [
+          13
+        ],
+        "graded_sha256": "cf0cf2a54f8df6d8a0f5fe2c8422ecaacf60a7397b8e1c5769e6a8406b977683",
+        "work_equals_graded": true
+      },
+      {
+        "path": "test_plan.py",
+        "sha256": "aab403da0cf7ddd6d5a55dbdec4b0b2986849d4e7984f75cd6c2ad502c191c0d",
+        "matching_write_lines": [],
+        "graded_sha256": null,
+        "work_equals_graded": false
+      }
+    ]
+  },
+  {
+    "id": "ours-A-02-protein-translation-s1",
+    "writes": [
+      {
+        "trajectory_line": 7,
+        "path": "protein_translation.py",
+        "sha256": "5a6fe84d0982e6763a7f53498dd1708722f492d3a1d43e8ad94906c19c5ce110",
+        "payload_line": 6,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 17,
+        "path": "protein_translation.py",
+        "sha256": "5a6fe84d0982e6763a7f53498dd1708722f492d3a1d43e8ad94906c19c5ce110",
+        "payload_line": 15,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 23,
+        "path": "protein_translation.py",
+        "sha256": "cebed312ddeeaed040f4c0f96716c76e2a7593763ee72bd941d6ec183bc065f4",
+        "payload_line": 22,
+        "payload_matches": true
+      }
+    ],
+    "finals": [
+      {
+        "path": "protein_translation.py",
+        "sha256": "cebed312ddeeaed040f4c0f96716c76e2a7593763ee72bd941d6ec183bc065f4",
+        "matching_write_lines": [
+          23
+        ],
+        "graded_sha256": "cebed312ddeeaed040f4c0f96716c76e2a7593763ee72bd941d6ec183bc065f4",
+        "work_equals_graded": true
+      },
+      {
+        "path": "test_protein_translation.py",
+        "sha256": "ab8862f36dff6d5ef5f86c0932cef400502e4d1f8896f1e0d1ec69bc43ce7790",
+        "matching_write_lines": [],
+        "graded_sha256": null,
+        "work_equals_graded": false
+      }
+    ]
+  },
+  {
+    "id": "ours-A-03-book-store-s1",
+    "writes": [
+      {
+        "trajectory_line": 7,
+        "path": "book_store.py",
+        "sha256": "ec3c4d4fb02e20f8ea2f9516a0f4d04133256210facc03e4436c870004777802",
+        "payload_line": 6,
+        "payload_matches": true
+      }
+    ],
+    "finals": [
+      {
+        "path": "book_store.py",
+        "sha256": "ec3c4d4fb02e20f8ea2f9516a0f4d04133256210facc03e4436c870004777802",
+        "matching_write_lines": [
+          7
+        ],
+        "graded_sha256": "ec3c4d4fb02e20f8ea2f9516a0f4d04133256210facc03e4436c870004777802",
+        "work_equals_graded": true
+      },
+      {
+        "path": "test_book_store.py",
+        "sha256": "50b82e670d6fcdc60da34780df05665235c468762d35e2a6d311973f3ee0bc1d",
+        "matching_write_lines": [],
+        "graded_sha256": null,
+        "work_equals_graded": false
+      }
+    ]
+  },
+  {
+    "id": "ours-A-04-connect-s1",
+    "writes": [
+      {
+        "trajectory_line": 12,
+        "path": "connect.py",
+        "sha256": "5214cb570152ecd2e7c2b891afa1d226cf72501f9c24f4145dd5b240177854fa",
+        "payload_line": 11,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 21,
+        "path": "connect.py",
+        "sha256": "236d3af889c62ebdf95fda4de6b33b26268ecb7460b2e0988b336c21dd95849f",
+        "payload_line": 20,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 30,
+        "path": "connect.py",
+        "sha256": "f9eadeab4b7e7eec97d566e3cd6e42920f3f40027df5acaed9b3b11cc02ea068",
+        "payload_line": 29,
+        "payload_matches": true
+      }
+    ],
+    "finals": [
+      {
+        "path": "connect.py",
+        "sha256": "f9eadeab4b7e7eec97d566e3cd6e42920f3f40027df5acaed9b3b11cc02ea068",
+        "matching_write_lines": [
+          30
+        ],
+        "graded_sha256": "f9eadeab4b7e7eec97d566e3cd6e42920f3f40027df5acaed9b3b11cc02ea068",
+        "work_equals_graded": true
+      },
+      {
+        "path": "test_connect.py",
+        "sha256": "e82174f25a1d6fc9f19c46cfad619f75dcf217a7ef996bd6f4625f1ff6656057",
+        "matching_write_lines": [],
+        "graded_sha256": null,
+        "work_equals_graded": false
+      }
+    ]
+  },
+  {
+    "id": "ours-T-27-snakecase-ingest-s1",
+    "writes": [
+      {
+        "trajectory_line": 7,
+        "path": "ingest/records.py",
+        "sha256": "7c229808a630360715c26c9f74d0ce4d4d30005c0d2a78378f8b81b97cf19702",
+        "payload_line": 6,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 17,
+        "path": "ingest/records.py",
+        "sha256": "336d5fee76c885ff475bca7643f2b0916c42bed25ce903cf51dfc60438f67645",
+        "payload_line": 16,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 24,
+        "path": "ingest/records.py",
+        "sha256": "d14a3936f753328b0ba6b94732193d28eb8bbf5a6601621e3b4a4b4ed1e029d2",
+        "payload_line": 23,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 31,
+        "path": "ingest/records.py",
+        "sha256": "e00261c2a946cc28ee3a787a89da5c18d344cbfecebf48500b9d9af273e16f5a",
+        "payload_line": 30,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 36,
+        "path": "ingest/records.py",
+        "sha256": "22374d832a568e595b7349d8b4054317d4d3821d8c895a3a698647da10a16ae5",
+        "payload_line": 35,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 43,
+        "path": "ingest/records.py",
+        "sha256": "88e78b580a61a88b2f732d78144ca7a333d9993dacec2b269cad29111ed89b3b",
+        "payload_line": 42,
+        "payload_matches": true
+      }
+    ],
+    "finals": [
+      {
+        "path": "ingest/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matching_write_lines": [],
+        "graded_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "work_equals_graded": true
+      },
+      {
+        "path": "ingest/records.py",
+        "sha256": "88e78b580a61a88b2f732d78144ca7a333d9993dacec2b269cad29111ed89b3b",
+        "matching_write_lines": [
+          43
+        ],
+        "graded_sha256": "88e78b580a61a88b2f732d78144ca7a333d9993dacec2b269cad29111ed89b3b",
+        "work_equals_graded": true
+      },
+      {
+        "path": "test_records.py",
+        "sha256": "67e32b4d9e0e5207d85492b46662265fa79693ca104f8c865680f81ec367908b",
+        "matching_write_lines": [],
+        "graded_sha256": null,
+        "work_equals_graded": false
+      }
+    ]
+  },
+  {
+    "id": "ours-T-34-expression-tokenizer-s1",
+    "writes": [
+      {
+        "trajectory_line": 7,
+        "path": "tok/lexer.py",
+        "sha256": "b51ef633b014bd99f2002d6e71dcf5f7f9afd0570b241773c629f2d8047532e8",
+        "payload_line": 6,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 16,
+        "path": "tok/lexer.py",
+        "sha256": "e155dcdc9bc64c3d20bf2a1ef8e6158df547296bbff8310e406bfa67885e0129",
+        "payload_line": 15,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 23,
+        "path": "tok/lexer.py",
+        "sha256": "4c028fe7efbe8c9a20f85156f943b08b8dda39bf166f4ddcc94597095f1a1c5d",
+        "payload_line": 22,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 28,
+        "path": "tok/lexer.py",
+        "sha256": "b51ef633b014bd99f2002d6e71dcf5f7f9afd0570b241773c629f2d8047532e8",
+        "payload_line": 27,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 34,
+        "path": "tok/lexer.py",
+        "sha256": "5632fc4696959a60b5cd2e35a7638e7d5f736955ad31041945fa9c4b53ebd9a9",
+        "payload_line": 33,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 39,
+        "path": "tok/lexer.py",
+        "sha256": "c5e2b0588fd0c3eb5c880de870ff761fc6a2c3e1f8e3680c3e13cd8bb5375836",
+        "payload_line": 38,
+        "payload_matches": true
+      },
+      {
+        "trajectory_line": 47,
+        "path": "tok/lexer.py",
+        "sha256": "38a3096c4a79513b11d8d0b910ad792b2477a507a9d483ea52f475af555c40cf",
+        "payload_line": 46,
+        "payload_matches": true
+      }
+    ],
+    "finals": [
+      {
+        "path": "test_lexer.py",
+        "sha256": "1758905cff44d4d6394dbf7c830e5fa3ced7d14df4920587bee384001b95e269",
+        "matching_write_lines": [],
+        "graded_sha256": null,
+        "work_equals_graded": false
+      },
+      {
+        "path": "tok/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matching_write_lines": [],
+        "graded_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "work_equals_graded": true
+      },
+      {
+        "path": "tok/lexer.py",
+        "sha256": "38a3096c4a79513b11d8d0b910ad792b2477a507a9d483ea52f475af555c40cf",
+        "matching_write_lines": [
+          47
+        ],
+        "graded_sha256": "38a3096c4a79513b11d8d0b910ad792b2477a507a9d483ea52f475af555c40cf",
+        "work_equals_graded": true
+      }
+    ]
+  },
+  {
+    "id": "r2-full-A-05-zebra-puzzle-s1",
+    "writes": [
+      {
+        "trajectory_line": 6,
+        "path": "zebra_puzzle.py",
+        "sha256": "1bd694e5574e7ad16cc86e35ca9ba27a6aef34393d3059e8d5ee331241b7bae9",
+        "payload_line": 5,
+        "payload_matches": true
+      }
+    ],
+    "finals": [
+      {
+        "path": "zebra_puzzle.py",
+        "sha256": "1bd694e5574e7ad16cc86e35ca9ba27a6aef34393d3059e8d5ee331241b7bae9",
+        "matching_write_lines": [
+          6
+        ],
+        "graded_sha256": "1bd694e5574e7ad16cc86e35ca9ba27a6aef34393d3059e8d5ee331241b7bae9",
+        "work_equals_graded": true
+      }
+    ]
+  }
+]

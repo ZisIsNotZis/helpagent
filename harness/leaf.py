@@ -3696,26 +3696,127 @@ def _same_path(a: str, b: str) -> bool:
     return a == b or a.endswith("/" + b) or b.endswith("/" + a)
 
 
+def _terminal_pytest_exceptions(failure_text: str) -> tuple[tuple[str, str], ...]:
+    """Read the terminating exception/location of each pytest failure traceback.
+
+    Exception names inside assertion messages, source lines or captured output are not
+    exception types. In a chained traceback only its final exception owns the failure.
+    Truncated output without a terminal location supplies no deterministic attribution.
+    """
+    terminal = re.compile(
+        r"^(?P<path>[^\s:()]+\.py):\d+: (?P<exception>[A-Za-z_][\w.]*)(?::.*)?$")
+    out: list[tuple[str, str]] = []
+    current: tuple[str, str] | None = None
+    captured = False
+    for line in (failure_text or "").splitlines():
+        if re.match(r"^={3,} (?:short test summary|warnings summary)", line):
+            break
+        if re.match(r"^_{3,} .+ _{3,}$", line):
+            if current is not None:
+                out.append(current)
+            current = None
+            captured = False
+        elif re.match(r"^-{3,} Captured ", line):
+            captured = True
+        elif not captured and line.strip() in (
+            "During handling of the above exception, another exception occurred:",
+            "The above exception was the direct cause of the following exception:",
+        ):
+            current = None  # earlier ownership cannot survive a missing final location
+        elif not captured and (match := terminal.fullmatch(line)):
+            current = (match.group("path").lstrip("./"), match.group("exception"))
+    if current is not None:
+        out.append(current)
+    return tuple(out)
+
+
 def failure_is_test_attributed(
     failure_text: str, test_path: str | None, source_paths: Sequence[str],
 ) -> bool:
-    """D2 (wave 1): the recorded traceback proves the run's OWN TEST is at fault.
+    """Credit a terminating test-local name fault, never exception-name prose.
 
-    True when the failure names at least one frame in the run's own test file and NO frame
-    in a changed non-test source file. Deterministic from the failure text — it is the
-    fact the deterministic filter can credit even when the judge's prose does not name the
-    test (T-07: an unparameterised assertion the harness kept re-running while it churned
-    the correct source draft).
+    Assertion-only frames cannot prove the oracle wrong. Missing imported source APIs
+    likewise remain ambiguous; the terminal exception must actually be a name fault in
+    the test, not a source exception or an earlier exception caught by the test.
     """
     if not test_path:
         return False
-    frames = _failure_frame_paths(failure_text)
-    if not frames:
-        return False
-    if not any(_same_path(frame, test_path) for frame in frames):
-        return False
     sources = {path for path in source_paths if not is_test_path(path)}
-    return not any(any(_same_path(frame, source) for source in sources) for frame in frames)
+    return any(exception in ("NameError", "UnboundLocalError")
+               and _same_path(path, test_path)
+               and not any(_same_path(path, source) for source in sources)
+               for path, exception in _terminal_pytest_exceptions(failure_text))
+
+
+def _own_test_observation_state(result: Any) -> tuple[str, str]:
+    """Authenticate the current observation separately from setup classification."""
+    gate = getattr(result, "gate", None)
+    if (getattr(result, "policy_blocked", False) or _exit_code(result) is None
+            or getattr(result, "verdict", "") == "transport_error"):
+        return "unverified", "test execution unavailable or blocked"
+    if gate is None:
+        return "unverified", "no current machine-readable test report"
+    if gate.process_exit is None:
+        return "unverified", "test process completion was not observed"
+    if not gate.observed or gate.structural_anomaly:
+        return "unverified", f"{gate.anomaly}: {gate.detail}"
+    return "authenticated", ""
+
+
+def _setup_repair_preservation_problem(original: str, replacement: str) -> str:
+    """Permit import setup edits only; preserve all parseable non-import structure.
+
+    This is a syntactic guard, not a semantic oracle: even an import can change meaning.
+    Unparseable originals cannot establish preservation and therefore fail closed.
+    """
+    class WithoutImports(ast.NodeTransformer):
+        def visit_Import(self, node: ast.Import) -> None:
+            return None
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            return None
+
+    try:
+        before = ast.parse(original)
+    except SyntaxError:
+        return "original test is unparseable; behavioral-check preservation is unknown"
+    try:
+        after = ast.parse(replacement)
+    except SyntaxError:
+        return "setup replacement is unparseable"
+    if ast.dump(WithoutImports().visit(before)) != ast.dump(WithoutImports().visit(after)):
+        return "setup-only repair changed existing non-import behavioral-check structure"
+    return ""
+
+
+def _own_test_setup_problem(
+    test_path: str, content: str, result: Any, source_paths: Sequence[str],
+) -> tuple[str, str]:
+    """A definite test syntax/name/fixture fault; unknown ownership stays unclassified.
+
+    Consume the authenticated gate plus output tails: shaped excerpts alone discard
+    traceback locations. Collection/import errors in source are not proof of bad tests.
+    """
+    gate = getattr(result, "gate", None)
+    if gate is None or not gate.observed or gate.structural_anomaly or gate.green:
+        return "", ""
+    try:
+        ast.parse(content, filename=test_path)
+    except SyntaxError as exc:
+        return "syntax", f"{test_path}:{exc.lineno}: {exc.msg}"
+    # Prefer complete output to shaped excerpts, which can omit the owning location or
+    # mix captured text into traceback snippets. Do not splice copies of one traceback.
+    failure = "\n".join(filter(None, (getattr(result, "stdout_tail", ""),
+                                     getattr(result, "stderr_tail", ""))))
+    if not failure:
+        failure = "\n".join(getattr(result, "excerpts", []))
+    if failure_is_test_attributed(failure, test_path, source_paths):
+        return "name", failure
+    if (gate.n_errors and any(nid.startswith(test_path + "::") for nid in gate.failed_ids)
+            and re.search(r"fixture '[^']+' not found", failure)
+            and not _failure_names_a_source_frame(failure, test_path, source_paths)):
+        return "fixture", failure
+    return "", ""
 
 
 def _failure_names_a_source_frame(
@@ -3875,7 +3976,7 @@ def _judge_incoherence(verdict: JudgeVerdict, request: JudgeRequest) -> str:
     ``implementation_wrong`` whose reason names only a test/assertion and no source is
     likewise incoherent. D3 (wave 1) extends the rule to ``spec_wrong``: a spec verdict
     whose own reason names a source defect, or that is reached while the observed failure
-    has no frame in the changed source (and at least one frame in the own test), is a
+    proves a test-local missing name rather than an evaluated behavior, is a
     self-contradiction — the judge named a code defect and still blamed the spec (T-35's
     3-call spec bubble). Returns the ``judge_incoherent: ...`` record text.
     """
@@ -3914,9 +4015,8 @@ def apply_judge_filter(verdict: JudgeVerdict, request: JudgeRequest) -> JudgeVer
     verdict = normalize_judge_labels(verdict)
     labels = judge_labels(verdict)
     env_broken = verdict.environment_broken
-    # D2 (wave 1): the recorded traceback can prove the run's OWN TEST is at fault even
-    # when the judge's prose does not name it (T-07: an unparameterised SQL assertion the
-    # harness kept re-running while it churned the correct source draft).
+    # Only a test-local setup fault can override the judge deterministically. A
+    # returned-value assertion without a source frame is not proof of a bad oracle.
     test_attributed = failure_is_test_attributed(
         request.failure, request.test_path or None, tuple(request.files))
     # D3 (wave 1): an incoherent ``spec_wrong`` (its own reason names a source defect, or
@@ -5802,24 +5902,33 @@ def _self_test_problem(env: Any, spec: LeafSpec, workdir: Path) -> tuple[str, st
 
 async def _repair_test(
     model: Any, spec: LeafSpec, workdir: Path, self_test: str,
-    last_excerpts: Sequence[str], previous: Any,
+    last_excerpts: Sequence[str], previous: Any, *, setup_fault: bool = False,
 ) -> Any:
     repair_request = (
         "Your own test is red; the failure was attributed to the TEST. Rewrite the "
         "complete test file from scratch so it correctly pins the goal. Reply with the "
         "new content. It must still FAIL on arrival against the current source."
     )
-    return await _request_write(
-        model,
-        {
-            "goal": spec.goal,
-            "acceptance_criteria": "\n".join(f"- {a}" for a in spec.acs),
-            "current_test": _read(workdir, self_test),
-            "failure_output": "\n".join(last_excerpts),
-            "prior_claim": getattr(previous, "comment", ""),
-        },
-        repair_request,
-    )
+    artifacts = {
+        "goal": spec.goal,
+        "acceptance_criteria": "\n".join(f"- {a}" for a in spec.acs),
+        "current_test": _read(workdir, self_test),
+        "failure_output": "\n".join(last_excerpts),
+        "prior_claim": getattr(previous, "comment", ""),
+    }
+    if setup_fault:
+        repair_request = (
+            "Your test could not evaluate the goal because of a syntax/import/setup "
+            "fault. Make import-only setup edits in the complete test file; all "
+            "non-import AST structure (assertions, control flow, helpers and fixture "
+            "signatures) must remain unchanged. If that cannot repair it, return blocked. "
+            "Use the visible interfaces/source for import paths. The replacement will be run "
+            "again on pristine source; a setup error is not a behavioral red."
+        )
+        artifacts["current_test_path"] = self_test
+        artifacts["interfaces"] = "\n".join(spec.interfaces)
+        artifacts["repo_files"] = json.dumps(_source_view(spec), ensure_ascii=False)
+    return await _request_write(model, artifacts, repair_request)
 
 
 # ---------------------------------------------------------------------------
@@ -6737,8 +6846,8 @@ async def run_leaf(
                     "\n".join(last_excerpts), self_test,
                     tuple(set(spec.files) | set(baseline))))
             if first_test_attributed:
-                # D3 (wave 1): a spec bubble ends the node, so a FIRST-attempt bubble from a
-                # failure that lives entirely in the run's own test is premature (T-35 was
+                # A spec bubble ends the node, so a FIRST-attempt bubble from a
+                # test-local setup failure is premature (T-35 was
                 # abandoned after one attempt); keep implementing so the judge can be
                 # consulted again on a real attempt. A failure with a changed-source frame
                 # may still bubble immediately.
@@ -6916,9 +7025,9 @@ async def run_leaf(
         """
         nonlocal last_gate
         gate = getattr(res, "gate", None)
+        last_gate = gate
         if gate is None:
             return None
-        last_gate = gate
         if gate.structural_anomaly:
             emit("gate_report_anomaly", anomaly=gate.anomaly, detail=gate.detail,
                  report=gate.report_path, process_exit=gate.process_exit)
@@ -8204,6 +8313,93 @@ async def run_leaf(
         last_excerpts = excerpts_of(rres)
         return True
 
+    setup_repair_attempted = False
+
+    def stop_own_test_preflight(path: str, detail: str, *, unverified: bool = False) -> None:
+        """Retain the artifact but clear every active own-test evidence pointer."""
+        nonlocal self_test, last_gate, last_excerpts, own_test_report
+        nonlocal own_test_discriminating, own_test_symptom_ids
+        refusals.append(f"{path}: own-test preflight stopped ({detail})")
+        emit("self_test_unverified" if unverified else "self_test_invalid", path=path,
+             anomaly="observation-unverified" if unverified else "test-setup", detail=detail)
+        self_test = None
+        last_gate = None
+        own_test_report = None
+        own_test_discriminating = []
+        own_test_symptom_ids = []
+        last_excerpts = [detail]
+        if budget.expired(clock()):
+            stop("handover", "deadline", "deadline")
+        else:
+            reason = "self-test-unverified" if unverified else "self-test-invalid"
+            stop("honest-failure", reason, reason)
+
+    async def validate_own_test_setup(res: Any) -> Any | None:
+        """Authenticate before classifying; repair setup once without rewriting checks.
+
+        A missing/anomalous observation is not a clean setup check. Replacement checks
+        must preserve parseable non-import structure and be authentically re-observed
+        before they can become a behavioral target. Unknown preservation stops uncertain.
+        """
+        nonlocal last_excerpts, setup_repair_attempted
+        if self_test is None:
+            return res
+        path = self_test
+        observation_state, detail = _own_test_observation_state(res)
+        if observation_state != "authenticated":
+            stop_own_test_preflight(path, detail, unverified=True)
+            return None
+        original = _read(workdir, path)
+        layer, detail = _own_test_setup_problem(path, original, res, tuple(spec.files))
+        if not layer:
+            return res
+        emit("self_test_setup_invalid", path=path, layer=layer, detail=detail)
+        last_excerpts = [f"own-test {layer} fault (not behavior evidence): {detail}"]
+        problem = _setup_repair_preservation_problem(original, original)
+        if problem:
+            detail = problem
+        elif setup_repair_attempted:
+            detail = "shared setup-only repair cap exhausted"
+        elif not can_afford(1):
+            detail = "no calls remain for setup-only repair"
+        elif budget.expired(clock()):
+            detail = "deadline expired before setup-only repair"
+        else:
+            setup_repair_attempted = True
+            repaired, failure = await request_bounded(
+                partial(_repair_test, model, spec, workdir, path, last_excerpts, None,
+                        setup_fault=True),
+                "self-test-setup-repair", retries=0)
+            if budget.expired(clock()):
+                detail = "deadline expired during setup-only repair"
+            elif (failure or getattr(repaired, "status", "") != "ok"
+                  or _env_path(repaired) != path or not getattr(repaired, "content", "")
+                  or repaired.content == original):
+                detail = "setup-only repair unavailable, unchanged or named a different path"
+            elif (problem := _setup_repair_preservation_problem(original, repaired.content)):
+                detail = problem
+                emit("self_test_setup_repair_rejected", path=path, detail=detail)
+            elif (problem := write_self_test(path, repaired.content)):
+                detail = problem
+            else:
+                res = await _maybe_await(tests, workdir)
+                _record_test_run("own-test-setup-repair", res)
+                record_gate(res)
+                observation_state, detail = _own_test_observation_state(res)
+                if observation_state != "authenticated":
+                    stop_own_test_preflight(path, detail, unverified=True)
+                    return None
+                layer, detail = _own_test_setup_problem(
+                    path, repaired.content, res, tuple(spec.files))
+                if not layer:
+                    emit("self_test_setup_rechecked", path=path, observed=True,
+                         observation_state=observation_state)
+                    return res
+                emit("self_test_setup_invalid", path=path, layer=layer,
+                     detail=detail, after_repair=True)
+        stop_own_test_preflight(path, detail)
+        return None
+
     # ---- deadline before the first call (an already-expired budget writes nothing)
     if budget.expired(clock()):
         stop("handover", "deadline", "deadline")
@@ -8259,7 +8455,10 @@ async def run_leaf(
         if verification_basis == "test":
             res = await _maybe_await(tests, workdir)
             _record_test_run("own-test", res)
-            gate = record_gate(res)
+            record_gate(res)
+            res = await validate_own_test_setup(res)
+            if res is None:
+                return finish()
             if _is_green(res):
                 # A test that passes on arrival does not exercise the failure. Re-ask ONCE
                 # with that evidence; never emit red=True without having observed a red.
@@ -8302,17 +8501,10 @@ async def run_leaf(
                         self_test = normalized
                         res = await _maybe_await(tests, workdir)
                         _record_test_run("own-test-reask", res)
-                        gate = record_gate(res)
-            if verification_basis == "test" and (
-                    _exit_code(res) is None or (gate is not None and not gate.observed)):
-                # We could not trust an observation of the run's own tests: a transport
-                # error / sandbox block, or a gate report that is missing or holds no
-                # testcase. Nothing may be recorded as a red, so no target is kept.
-                emit("self_test_unverified", path=self_test, reason="tests did not run")
-                (workdir / self_test).unlink(missing_ok=True)
-                self_test = None
-                stop("honest-failure", "self-test-unverified", "self-test")
-                return finish()
+                        record_gate(res)
+                        res = await validate_own_test_setup(res)
+                        if res is None:
+                            return finish()
             green_rewritten = False
             if verification_basis == "test" and _is_green(res):
                 # The one re-ask was green too: no red target. Ticket 19 A: consult the

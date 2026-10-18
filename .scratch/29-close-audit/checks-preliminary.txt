@@ -1,0 +1,11 @@
+2026-10-15T12:46:46+08:00
+$ python3 -B .scratch/29-close-audit/verify_evidence.py --check-sources
+PASS retained byte hashes: 284; in-memory corruption negative control rejected
+PASS literal source_write identity: 50; final work/graded hashes verified separately
+PASS pi text-operation replay: 12 runs; source payloads reconstruct retained work; shell commands not rerun
+PASS bounded outcome shape: 550 unique rows, 25/task/arm; R3 70/arm and 52 unclaimed pristine failures/tree arm
+Traceback (most recent call last):
+  File "/home/z/vibe/helpagent/.scratch/29-close-audit/verify_evidence.py", line 114, in <module>
+    assert 1<=int(start)<=end<=count,(filename,p,start,end,count)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ('report.md', PosixPath('/home/z/vibe/helpagent/.scratch/29-close-audit/evidence/pi-T-12-str-enum-compare-s1/grade-repo/access/gate.py'), '21', 21, 20)
