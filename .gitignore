@@ -8,6 +8,10 @@ __pycache__/
 # Records (run.json / results.jsonl / *.log) stay on disk for inspection.
 bench/runs/*
 !bench/runs/evidence/
+# Declared home for the wave-1 campaign archives: 28 150 files, 724 MB, which git cannot hold.
+# Owner: this project's node. Verify with bench/manifests/wave1-final.sha256 before trusting any
+# number in docs/STATUS.md; the command is in AGENTS.md.
+bench/runs/wave1/
 
 # Common local caches and temporary workspaces
 node_modules/
