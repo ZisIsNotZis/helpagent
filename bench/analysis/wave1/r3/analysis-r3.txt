@@ -1,0 +1,41 @@
+leaf             runs=70  mean_calls=14.4  mean_wall_s=175  false_success=0
+tree-greedy      runs=70  mean_calls=31.6  mean_wall_s=408  false_success=4
+tree-tournament  runs=70  mean_calls=35.2  mean_wall_s=498  false_success=3
+tree-greedy      decomposition_fired_runs=3  forced_leaf_nodes=3  how_cases={'forced-leaf': 6, 'fallback-leaf-How': 12, 'leaf-How': 137, 'failed-How': 1, 'decomposed-How': 3}
+tree-tournament  decomposition_fired_runs=9  forced_leaf_nodes=1  how_cases={'leaf-How': 142, 'fallback-leaf-How': 22, 'decomposed-How': 9, 'forced-leaf': 3, 'failed-How': 1}
+
+=== tree-greedy vs leaf ===
+DECOMPOSABLE           n_tasks=9 mean_d=-0.444 95%CI=[-0.733,-0.178] tree-only-fix=0 leaf-only-fix=20 McNemar_p=0.000 false_success_d=+0.067 (CI [+0.000,+0.156])
+    T-31-parameter-threading           leaf=1.00 tree=0.00 d=-1.00
+    T-33-serializer-contract           leaf=1.00 tree=0.00 d=-1.00
+    T-28-plugin-registry-scaffold      leaf=0.20 tree=0.00 d=-0.20
+    T-21-swallowed-corruption          leaf=0.80 tree=0.20 d=-0.60
+    T-34-expression-tokenizer          leaf=0.00 tree=0.00 d=+0.00
+    T-32-sliding-window-limiter        leaf=0.00 tree=0.00 d=+0.00
+    T-03-wrong-comparison              leaf=0.80 tree=0.60 d=-0.20
+    T-11-wrong-exception-type          leaf=1.00 tree=1.00 d=+0.00
+    T-12-str-enum-compare              leaf=1.00 tree=0.00 d=-1.00
+FORCED-LEAF (overhead) n_tasks=5 mean_d=-0.520 95%CI=[-0.920,-0.120] tree-only-fix=1 leaf-only-fix=14 McNemar_p=0.001 false_success_d=+0.040 (CI [+0.000,+0.120])
+    T-14-add-export-sorting            leaf=0.60 tree=0.60 d=+0.00
+    T-26-plan-dataclass-port           leaf=0.00 tree=0.00 d=+0.00
+    T-02-off-by-one                    leaf=1.00 tree=0.00 d=-1.00
+    T-20-average-truncation            leaf=1.00 tree=0.40 d=-0.60
+    T-06-tz-naive-compare              leaf=1.00 tree=0.00 d=-1.00
+
+=== tree-tournament vs leaf ===
+DECOMPOSABLE           n_tasks=9 mean_d=-0.422 95%CI=[-0.689,-0.178] tree-only-fix=2 leaf-only-fix=21 McNemar_p=0.000 false_success_d=+0.067 (CI [+0.000,+0.156])
+    T-31-parameter-threading           leaf=1.00 tree=0.00 d=-1.00
+    T-33-serializer-contract           leaf=1.00 tree=0.20 d=-0.80
+    T-28-plugin-registry-scaffold      leaf=0.20 tree=0.00 d=-0.20
+    T-21-swallowed-corruption          leaf=0.80 tree=0.40 d=-0.40
+    T-34-expression-tokenizer          leaf=0.00 tree=0.00 d=+0.00
+    T-32-sliding-window-limiter        leaf=0.00 tree=0.00 d=+0.00
+    T-03-wrong-comparison              leaf=0.80 tree=0.40 d=-0.40
+    T-11-wrong-exception-type          leaf=1.00 tree=1.00 d=+0.00
+    T-12-str-enum-compare              leaf=1.00 tree=0.00 d=-1.00
+FORCED-LEAF (overhead) n_tasks=5 mean_d=-0.520 95%CI=[-0.800,-0.240] tree-only-fix=1 leaf-only-fix=14 McNemar_p=0.001 false_success_d=+0.000 (CI [+0.000,+0.000])
+    T-14-add-export-sorting            leaf=0.60 tree=0.20 d=-0.40
+    T-26-plan-dataclass-port           leaf=0.00 tree=0.00 d=+0.00
+    T-02-off-by-one                    leaf=1.00 tree=0.20 d=-0.80
+    T-20-average-truncation            leaf=1.00 tree=0.60 d=-0.40
+    T-06-tz-naive-compare              leaf=1.00 tree=0.00 d=-1.00

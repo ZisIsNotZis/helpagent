@@ -19,9 +19,10 @@ re-measures, runs a model, or needs a server: this node spends `idle-compute` an
 ### Milestones, owed to root
 
 **M0 — the campaign's evidence secured and the takeover recorded.** Decided by one observation:
-`sha256sum -c` run from the declared home against the committed manifest returns `28000+` OK
+`sha256sum -c` run from the declared home against the committed manifest returns 53 270 `OK`
 lines and zero `FAILED`, and the report naming the home, the manifest, the command and that
-result is in root's mail. Spent: `idle-compute`, local copy and hashing.
+result is in root's mail. Spent: `idle-compute`, local copy and hashing. **Reached** — the
+observation is in the evidence pointers below; the report is WP-0.4.
 
 **M1 — a citable preprint whose every decisive number is recomputable from the repository
 alone.** Decided by one observation: on a clean clone at the frozen tag, one command with no
@@ -40,38 +41,58 @@ start, because its continuation needs a person's authorisation that no node belo
 
 | id | package | state |
 | --- | --- | --- |
-| WP-0.1 | Copy `/tmp/wave1/final/{n25,r2,r3}` to the declared home `bench/runs/wave1/final/` | running |
-| WP-0.2 | Hash every file; commit the manifest and the analysis scripts | queued behind WP-0.1 |
-| WP-0.3 | Record the taken-over state (this document, `STATUS.md` route) | running |
-| WP-0.4 | Handover report to root | queued behind WP-0.2 |
+| WP-0.1 | Copy `/tmp/wave1/` to the declared home `bench/runs/wave1/` | done — `rsync -a`, 53 270 files, 1 996 009 173 bytes, two runs, exit 0 |
+| WP-0.2 | Hash every file; commit the manifest and the analysis scripts | done — `bench/manifests/wave1.sha256`, `bench/analysis/wave1/` |
+| WP-0.3 | Record the taken-over state (this document, `STATUS.md` route) | done |
+| WP-0.4 | Handover report to root | done |
 | WP-1.1 | Answer-independent half of M1: protocol, results and limits sections, which no pending answer can move | queued, starts when M1 is released |
 | WP-1.2 | The reproduce entry point; its shape is exactly what the second open answer decides | blocked on the answer |
 
-### In flight, as of the first turn
+### What was in flight, and how it landed
 
-WP-0.1 is `cp -a` of the three directories into `bench/runs/wave1/final/`, run detached behind
-`bench/runs/wave1-copy.log`, because a copy of 28 150 files is not work for a turn. What would
-prove it: the destination holding the same 28 150 regular files, with no symlink and no hard
-link in the source to begin with, and per-file hashes equal on both sides. WP-0.2 then writes
-`bench/manifests/wave1-final.sha256` from the **destination** — the durable copy is the truth
-from that moment — and proves the copy by comparing it against a manifest of the source: equal
-line counts and an empty `diff`. The scripts are lifted out of the same trees into
-`bench/analysis/wave1/`, so their hashes equal their manifest entries by construction, and the
-equality is checked rather than assumed. WP-0.3 and WP-0.4 land after those two, in that order.
-If this session dies mid-copy, the resume point is to remove the partial home and re-run the
-same `cp -a`; nothing committed depends on a partial tree.
+The copy was widened past the three directories the contract named, because the analyzers read
+more than those three: `analyze_n25.py:40-43` opens `our-n5`, `n9` and `n17` as well, since
+seeds 1..17 of the R1 head-to-head predate the `n25` wave. That is not an optimisation, it is
+the difference between an interval and a silent wrong answer — `read_jsonl` returns `[]` for a
+root that is missing, so with `n17` absent the same script prints `delta +0.06`, `CI
+[−3.35, +3.71]` over 680 rows instead of `−0.320` / `[−3.520, +3.080]` over 1000, and raises
+nothing. So the declared home is the whole `/tmp/wave1` root, and the observable that catches a
+short home is the row count (1000 per arm for R1), which is why `recompute_n25.py` checks it
+before it compares anything.
+
+Proven, in this order. The copy: `rsync -a --numeric-ids /tmp/wave1/ bench/runs/wave1/`,
+`total size is 1 996 009 173`, exit 0, run twice (the first run carried only `n25`, `r2`, `r3`,
+the second the rest of the root; rsync skips what is already equal). Equality of the copy with
+its source, measured rather than assumed: `sha256sum` over both trees, sorted, and `diff` of
+the two lists — empty, 53 270 lines each; the source-side list is kept at
+`bench/runs/wave1-src-manifest.sha256` (untracked, so the equality stays re-checkable while
+`/tmp` survives, and is deletable when it does not). Durability: `sha256sum -c` from the home
+returned 53 270 `OK` and 0 `FAILED`, exit 0. And usability, which is the part a hash cannot
+promise: all three verdicts recompute from the home — see the evidence pointers below.
 
 ## Current facts
 
-**Secured.** The declared home is `bench/runs/wave1/final/`, inside this checkout, holding
-`n25/`, `r2/` and `r3/` with the same relative layout as the temporary source, so the analysis
-scripts resolve their inputs unchanged. `git` cannot hold 724 MB, so the home is not tracked;
-the `.gitignore` entry `bench/runs/*` already covers it and names raw run output as its owner,
-and the manifest below is what makes it verifiable rather than merely present. Verification is
-`sha256sum -c`, not an exit code: the manifest is `bench/manifests/wave1-final.sha256`, one line
-per file, paths relative to the home. The analysis scripts also have a tracked home —
-`bench/analysis/wave1/` — so a fresh session finds what computes the intervals without mounting
-the 724 MB, and their hashes equal the manifest's entries for the same files.
+**Secured.** The declared home is `bench/runs/wave1/`, inside this checkout, a byte-for-byte
+mirror of `/tmp/wave1/`: 53 270 files, 1 996 009 173 bytes, including `final/{n25,r2,r3}` and
+the three roots the R1 analysis also reads. The layout is the source's, so the analysis
+scripts resolve their arms unchanged. `git` cannot hold 2.0 GB, so the home is not tracked;
+`bench/runs/*` already ignored it and now names it (`bench/runs/wave1/`, owner: this node).
+What makes it evidence rather than merely present is `bench/manifests/wave1.sha256`: 53 270
+lines, one per file, paths relative to the home, and `sha256sum -c` against it returns 53 270
+`OK`, 0 `FAILED`, exit 0. The analysis scripts have a tracked home too —
+`bench/analysis/wave1/{final,n25,r2,r3}/`, 36 files, 252 KB — so a fresh session finds what
+computes the intervals without mounting the 2 GB; `verify_home.py` checks each of those 36
+against the manifest entry of the file it came from, and all 36 match.
+
+**Recomputable from the home, measured for all three verdicts.** R1: `recompute_n25.py` runs
+the campaign's own `analyze_n25.py` with its four roots pointed at the home and gets
+`24.640` / `24.960` / `−0.320` / `[−3.520, +3.080]` over 1000 rows per arm, equal to the
+recorded `analysis-n25-final.json`. R2: `r2_analyze.py --glob
+'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl'` reproduces `analysis.txt` and
+`analysis.json` byte-identically. R3: `R3=bench/runs/wave1/final/r3 analyze.py` reproduces
+`analysis-r3.txt` byte-identically (`leaf 47/70` in the arm table's 70 runs, `tree-greedy`
+`14/70`, `tree-tournament` `15/70`, McNemar `p ≤ 0.001`). So the three verdicts no longer
+depend on a temporary path for anything a reader needs to check.
 
 **Taken over, as found.** HEAD `73cc4d9` plus root's mail commit `bf0fed7`; working tree clean
 before this node's first write; no git tag; `bench/runs/evidence/` (802 files, 5.4 MB) is the
@@ -99,10 +120,16 @@ assumption.
 
 | what | where |
 | --- | --- |
-| declared home for the campaign bytes (724 MB, untracked, verify by hash) | `bench/runs/wave1/final/{n25,r2,r3}` |
-| hash manifest over that home (28 150 files) | `bench/manifests/wave1-final.sha256` |
-| verify command | `cd bench/runs/wave1/final && sha256sum -c ../../../manifests/wave1-final.sha256` |
-| analysis scripts, tracked copy | `bench/analysis/wave1/{n25,r2,r3}/`, plus `final-analyze.py` |
+| declared home for the campaign bytes (2.0 GB, 53 270 files, untracked, verify by hash) | `bench/runs/wave1/` |
+| hash manifest over that home | `bench/manifests/wave1.sha256` |
+| verify the home (rehash every file, check the 36 analysis copies) | `python3 bench/analysis/wave1/verify_home.py` → `ok 53270 mismatch 0 missing 0 analysis-copies-ok 36 analysis-copies-bad 0`, exit 0 |
+| verify with the standard tool instead | `cd bench/runs/wave1 && sha256sum -c ../../manifests/wave1.sha256` → 53 270 OK, 0 FAILED |
+| recompute R1 from the home (`−0.320`, `[−3.520, +3.080]`) | `python3 bench/analysis/wave1/recompute_n25.py` |
+| recompute R2 from the home | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl' --out /tmp/r2.json --text /tmp/r2.txt` |
+| recompute R3 from the home | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| analysis scripts, tracked copy (36 files) | `bench/analysis/wave1/{final,n25,r2,r3}/` |
+| source-side hash list taken at copy time (untracked, expires with `/tmp`) | `bench/runs/wave1-src-manifest.sha256` |
+| copy and verification logs | `bench/runs/wave1-copy.log`, `-copy-full.log`, `-hash.log`, `-verify.log` (ignored, owner: this node) |
 | three verdicts, every decisive number | `docs/STATUS.md` §2–§7 |
 | negative results and retractions | `FINDINGS.md` §3–§4 |
 | the preprint's own intent and acceptance | `docs/paper-plan.md` |

@@ -1,0 +1,4 @@
+lane1 A-05-zebra-puzzle,T-34-expression-tokenizer,T-25-chunked-helper,T-17-log-hour-format,T-11-wrong-exception-type,A-02-protein-translation,T-01-ttl-seconds-ms,T-19-slug-separator,T-21-swallowed-corruption,T-35-interval-merge-invariants
+lane2 T-14-add-export-sorting,T-33-serializer-contract,T-28-plugin-registry-scaffold,T-07-f-string-sql,T-24-json-report-flag,T-12-str-enum-compare,T-09-add-rate-limit-hook,T-23-stack-is-empty,T-10-port-dict-keys-view
+lane3 T-03-wrong-comparison,A-03-book-store,T-08-add-cache-invalidation,T-30-naive-datetime-compare,T-32-sliding-window-limiter,T-04-missing-default,T-13-add-retry-backoff,T-06-tz-naive-compare,T-31-parameter-threading,T-20-average-truncation
+lane4 T-26-plan-dataclass-port,T-27-snakecase-ingest,T-29-prerelease-version-parsing,A-04-connect,T-02-off-by-one,A-01-word-count,T-16-class-state-leak,T-05-mutable-default,T-22-case-sort-order,T-15-stale-registry-entry,T-18-env-config-precedence

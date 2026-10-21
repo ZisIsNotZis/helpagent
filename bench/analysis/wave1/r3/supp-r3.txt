@@ -1,0 +1,49 @@
+== per-task mechanism firing (decomposed-How runs out of 5 seeds) ==
+task                               group        greedy    tourn  how_case mixes (greedy | tournament)
+T-31-parameter-threading           DECOMP            1        3  {'leaf-How': 11, 'fallback-leaf-How': 1, 'decomposed-How': 1} | {'decomposed-How': 3, 'leaf-How': 12}
+T-33-serializer-contract           DECOMP            1        1  {'leaf-How': 11, 'fallback-leaf-How': 3, 'decomposed-How': 1} | {'leaf-How': 9, 'fallback-leaf-How': 4, 'decomposed-How': 1}
+T-28-plugin-registry-scaffold      DECOMP            0        0  {'leaf-How': 10} | {'leaf-How': 12}
+T-21-swallowed-corruption          DECOMP            0        0  {'leaf-How': 11} | {'leaf-How': 10, 'fallback-leaf-How': 2}
+T-34-expression-tokenizer          DECOMP            0        0  {'leaf-How': 12} | {'leaf-How': 10}
+T-32-sliding-window-limiter        DECOMP            1        4  {'leaf-How': 9, 'fallback-leaf-How': 1, 'decomposed-How': 1} | {'leaf-How': 9, 'decomposed-How': 4, 'failed-How': 1}
+T-03-wrong-comparison              DECOMP            0        0  {'leaf-How': 9} | {'leaf-How': 10, 'fallback-leaf-How': 1}
+T-11-wrong-exception-type          DECOMP            0        1  {'leaf-How': 6} | {'decomposed-How': 1, 'leaf-How': 9}
+T-12-str-enum-compare              DECOMP            0        0  {'leaf-How': 12, 'failed-How': 1} | {'leaf-How': 14, 'fallback-leaf-How': 1}
+T-14-add-export-sorting            FORCED            0        0  {'leaf-How': 6, 'forced-leaf': 3} | {'leaf-How': 11, 'forced-leaf': 1}
+T-26-plan-dataclass-port           FORCED            0        0  {'leaf-How': 13, 'forced-leaf': 2} | {'leaf-How': 11, 'forced-leaf': 1, 'fallback-leaf-How': 2}
+T-02-off-by-one                    FORCED            0        0  {'forced-leaf': 1, 'fallback-leaf-How': 7, 'leaf-How': 5} | {'leaf-How': 4, 'fallback-leaf-How': 9}
+T-20-average-truncation            FORCED            0        0  {'leaf-How': 10} | {'leaf-How': 11, 'forced-leaf': 1}
+T-06-tz-naive-compare              FORCED            0        0  {'leaf-How': 12} | {'leaf-How': 10, 'fallback-leaf-How': 3}
+
+== guard: allocation.forced nodes and forced-leaf how_case, per task ==
+  T-14-add-export-sorting            tree-greedy      forced-leaf-case runs=3/5  forced-nodes=2
+  T-14-add-export-sorting            tree-tournament  forced-leaf-case runs=1/5  forced-nodes=1
+  T-26-plan-dataclass-port           tree-greedy      forced-leaf-case runs=2/5  forced-nodes=0
+  T-26-plan-dataclass-port           tree-tournament  forced-leaf-case runs=1/5  forced-nodes=0
+  T-02-off-by-one                    tree-greedy      forced-leaf-case runs=1/5  forced-nodes=1
+  T-02-off-by-one                    tree-tournament  forced-leaf-case runs=0/5  forced-nodes=0
+  T-20-average-truncation            tree-greedy      forced-leaf-case runs=0/5  forced-nodes=0
+  T-20-average-truncation            tree-tournament  forced-leaf-case runs=1/5  forced-nodes=0
+  T-06-tz-naive-compare              tree-greedy      forced-leaf-case runs=0/5  forced-nodes=0
+  T-06-tz-naive-compare              tree-tournament  forced-leaf-case runs=0/5  forced-nodes=0
+
+== fired-subset delta (tasks where the arm's mechanism actually decomposed) ==
+tree-greedy: tasks with >=1 decomposed-How run: 3 -> ['T-31-parameter-threading', 'T-33-serializer-contract', 'T-32-sliding-window-limiter']
+    T-31-parameter-threading           leaf=1.00 tree-greedy=0.00
+    T-33-serializer-contract           leaf=1.00 tree-greedy=0.00
+    T-32-sliding-window-limiter        leaf=0.00 tree-greedy=0.00
+tree-tournament: tasks with >=1 decomposed-How run: 4 -> ['T-31-parameter-threading', 'T-33-serializer-contract', 'T-32-sliding-window-limiter', 'T-11-wrong-exception-type']
+    T-31-parameter-threading           leaf=1.00 tree-tournament=0.00
+    T-33-serializer-contract           leaf=1.00 tree-tournament=0.20
+    T-32-sliding-window-limiter        leaf=0.00 tree-tournament=0.00
+    T-11-wrong-exception-type          leaf=1.00 tree-tournament=1.00
+
+== cost ==
+leaf             runs=70 actual=47/70 claimed=8/70 false_success=0 mean_calls=14.4 total_calls=1009 mean_wall_s=175 total_wall_s=12231
+tree-greedy      runs=70 actual=14/70 claimed=18/70 false_success=4 mean_calls=31.6 total_calls=2214 mean_wall_s=408 total_wall_s=28558
+tree-tournament  runs=70 actual=15/70 claimed=18/70 false_success=3 mean_calls=35.2 total_calls=2465 mean_wall_s=498 total_wall_s=34826
+
+== leaf token capture (tree arms have no trajectory.jsonl) ==
+leaf             trajectory.jsonl present in 70/70 runs
+tree-greedy      trajectory.jsonl present in 0/70 runs
+tree-tournament  trajectory.jsonl present in 0/70 runs

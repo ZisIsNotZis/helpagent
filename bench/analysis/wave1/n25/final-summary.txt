@@ -1,0 +1,27 @@
+{
+ "nmax": 25,
+ "our_seed_min_per_task": 25,
+ "pi_seed_min_per_task": 25,
+ "delta": {
+  "delta_tasks": -0.32,
+  "lo95": -3.52,
+  "hi95": 3.08,
+  "a_mean_tasks": 24.64,
+  "b_mean_tasks": 24.96,
+  "n_tasks": 40
+ },
+ "false_success_delta": {
+  "delta_tasks": -1.56,
+  "lo95": -3.16,
+  "hi95": -0.20000000000000004,
+  "a_mean_tasks": 0.88,
+  "b_mean_tasks": 2.44,
+  "n_tasks": 40
+ },
+ "verdict": "INCONCLUSIVE",
+ "beat_strict_lo95_gt_0": false,
+ "ours_actual": "616/1000",
+ "pi_actual": "624/1000",
+ "ours_false_success": "22/1000",
+ "pi_false_success": "61/1000"
+}

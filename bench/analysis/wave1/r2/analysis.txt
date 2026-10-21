@@ -1,0 +1,46 @@
+R2 ladder over 600 runs; bootstrap seed 20261013, 10000 resamples over the 40 tasks
+
+arm                  runs  actual        claimed       false-succ    tok/task calls/task
+dev-only (raw)        120   70/120  58.3%    0/120   0.0%     0 (  0.0%)      1198      1.0
++own-test             120   66/120  55.0%    0/120   0.0%     0 (  0.0%)      8480      5.5
++own-test+IV          120   65/120  54.2%    1/120   0.8%     0 (  0.0%)     10570      6.6
++own-test+review      120   71/120  59.2%   54/120  45.0%    10 (  8.3%)     12696      9.1
+full                  120   77/120  64.2%   28/120  23.3%     1 (  0.8%)     18894     12.9
+
+arm quadrants (true-success/honest-failure/missed-success/false-success)
+  dev-only (raw)       0/50/70/0
+  +own-test            0/54/66/0
+  +own-test+IV         1/55/64/0
+  +own-test+review     44/39/27/10
+  full                 27/42/50/1
+
+incremental contribution (with - without), paired per task, 40 tasks
+pair                                          stage                          d_actual[95% CI]        d_claimed        d_false[95% CI]   McNemar p
+own-test-only - dev-only                     own test                       -1.33 [-5.67,+3.00]  +0.00          +0.00 [+0.00,+0.00]  0.549
+own-iv - own-test-only                       independent test (on top of own test) -0.33 [-3.00,+2.33]  +0.33          +0.00 [+0.00,+0.00]  1.000
+own-review - own-test-only                   review (on top of own test)    +1.67 [-1.33,+5.33]  +18.00          +3.33 [+1.00,+6.33]  1.000
+full - own-iv                                review (on top of own test + IV) +4.00 [+1.33,+7.00]  +9.00          +0.33 [+0.00,+1.00]  0.012
+full - own-review                            independent test (on top of own test + review) +2.00 [-0.67,+4.67]  -8.67          -3.00 [-5.67,-1.00]  0.388
+full - dev-only                              all three stages together      +2.33 [-0.33,+5.33]  +9.33          +0.33 [+0.00,+1.00]  0.344
+
+stage signal quality (verdict joined to the external grader)
+  dev-only (raw)
+    iv: {'runs_where_iv_ran': 0, 'iv_approved': 0, 'iv_approved_grader_failed(false-approve)': 0, 'iv_blocked': 0, 'iv_blocked_grader_passed(false-block)': 0, 'claimed_on_iv': 0, 'claimed_on_iv_grader_failed(false-approve)': 0}
+    review: {'runs_where_review_ran': 0, 'claimed_on_review': 0, 'claimed_on_review_grader_failed(false-approve)': 0}
+    own_test: {'runs_with_self_test': 0, 'claimed_on_own_test': 0, 'claimed_on_own_test_grader_failed(false-approve)': 0}
+  +own-test
+    iv: {'runs_where_iv_ran': 0, 'iv_approved': 0, 'iv_approved_grader_failed(false-approve)': 0, 'iv_blocked': 0, 'iv_blocked_grader_passed(false-block)': 0, 'claimed_on_iv': 0, 'claimed_on_iv_grader_failed(false-approve)': 0}
+    review: {'runs_where_review_ran': 0, 'claimed_on_review': 0, 'claimed_on_review_grader_failed(false-approve)': 0}
+    own_test: {'runs_with_self_test': 101, 'claimed_on_own_test': 0, 'claimed_on_own_test_grader_failed(false-approve)': 0}
+  +own-test+IV
+    iv: {'runs_where_iv_ran': 40, 'iv_approved': 5, 'iv_approved_grader_failed(false-approve)': 1, 'iv_blocked': 35, 'iv_blocked_grader_passed(false-block)': 12, 'claimed_on_iv': 1, 'claimed_on_iv_grader_failed(false-approve)': 0}
+    review: {'runs_where_review_ran': 0, 'claimed_on_review': 0, 'claimed_on_review_grader_failed(false-approve)': 0}
+    own_test: {'runs_with_self_test': 109, 'claimed_on_own_test': 0, 'claimed_on_own_test_grader_failed(false-approve)': 0}
+  +own-test+review
+    iv: {'runs_where_iv_ran': 0, 'iv_approved': 0, 'iv_approved_grader_failed(false-approve)': 0, 'iv_blocked': 0, 'iv_blocked_grader_passed(false-block)': 0, 'claimed_on_iv': 0, 'claimed_on_iv_grader_failed(false-approve)': 0}
+    review: {'runs_where_review_ran': 64, 'claimed_on_review': 54, 'claimed_on_review_grader_failed(false-approve)': 10}
+    own_test: {'runs_with_self_test': 108, 'claimed_on_own_test': 0, 'claimed_on_own_test_grader_failed(false-approve)': 0}
+  full
+    iv: {'runs_where_iv_ran': 110, 'iv_approved': 18, 'iv_approved_grader_failed(false-approve)': 1, 'iv_blocked': 92, 'iv_blocked_grader_passed(false-block)': 57, 'claimed_on_iv': 19, 'claimed_on_iv_grader_failed(false-approve)': 1}
+    review: {'runs_where_review_ran': 72, 'claimed_on_review': 25, 'claimed_on_review_grader_failed(false-approve)': 1}
+    own_test: {'runs_with_self_test': 103, 'claimed_on_own_test': 0, 'claimed_on_own_test_grader_failed(false-approve)': 0}

@@ -1,0 +1,416 @@
+{
+ "nmax": 25,
+ "paired_tasks": 40,
+ "our_seed_min_per_task": 25,
+ "pi_seed_min_per_task": 25,
+ "ours_actual_true": 616,
+ "ours_n_runs": 1000,
+ "pi_actual_true": 624,
+ "pi_n_runs": 1000,
+ "ours_claimed_true": 224,
+ "pi_claimed_true": 647,
+ "ours_false_success_true": 22,
+ "pi_false_success_true": 61,
+ "ours_seed_totals": [
+  [
+   1,
+   26
+  ],
+  [
+   2,
+   24
+  ],
+  [
+   3,
+   25
+  ],
+  [
+   4,
+   27
+  ],
+  [
+   5,
+   23
+  ],
+  [
+   6,
+   26
+  ],
+  [
+   7,
+   24
+  ],
+  [
+   8,
+   26
+  ],
+  [
+   9,
+   25
+  ],
+  [
+   10,
+   24
+  ],
+  [
+   11,
+   24
+  ],
+  [
+   12,
+   24
+  ],
+  [
+   13,
+   27
+  ],
+  [
+   14,
+   24
+  ],
+  [
+   15,
+   24
+  ],
+  [
+   16,
+   26
+  ],
+  [
+   17,
+   24
+  ],
+  [
+   18,
+   23
+  ],
+  [
+   19,
+   25
+  ],
+  [
+   20,
+   24
+  ],
+  [
+   21,
+   23
+  ],
+  [
+   22,
+   26
+  ],
+  [
+   23,
+   23
+  ],
+  [
+   24,
+   24
+  ],
+  [
+   25,
+   25
+  ]
+ ],
+ "pi_seed_totals": [
+  [
+   1,
+   24
+  ],
+  [
+   2,
+   24
+  ],
+  [
+   3,
+   23
+  ],
+  [
+   4,
+   23
+  ],
+  [
+   5,
+   24
+  ],
+  [
+   6,
+   28
+  ],
+  [
+   7,
+   23
+  ],
+  [
+   8,
+   26
+  ],
+  [
+   9,
+   27
+  ],
+  [
+   10,
+   27
+  ],
+  [
+   11,
+   27
+  ],
+  [
+   12,
+   26
+  ],
+  [
+   13,
+   25
+  ],
+  [
+   14,
+   22
+  ],
+  [
+   15,
+   27
+  ],
+  [
+   16,
+   26
+  ],
+  [
+   17,
+   26
+  ],
+  [
+   18,
+   30
+  ],
+  [
+   19,
+   21
+  ],
+  [
+   20,
+   25
+  ],
+  [
+   21,
+   24
+  ],
+  [
+   22,
+   21
+  ],
+  [
+   23,
+   25
+  ],
+  [
+   24,
+   25
+  ],
+  [
+   25,
+   25
+  ]
+ ],
+ "ours_seed_total_mean": 24.64,
+ "ours_seed_total_sd": 1.2206555615733703,
+ "pi_seed_total_mean": 24.96,
+ "pi_seed_total_sd": 2.1501937897160186,
+ "ours_tokens_per_task_mean": 18916.382,
+ "ours_wall_per_task_mean": 99.8272,
+ "pi_wall_per_task_mean": 125.3788,
+ "delta": {
+  "delta_tasks": -0.32,
+  "lo95": -3.52,
+  "hi95": 3.08,
+  "a_mean_tasks": 24.64,
+  "b_mean_tasks": 24.96,
+  "n_tasks": 40
+ },
+ "false_success_delta": {
+  "delta_tasks": -1.56,
+  "lo95": -3.16,
+  "hi95": -0.20000000000000004,
+  "a_mean_tasks": 0.88,
+  "b_mean_tasks": 2.44,
+  "n_tasks": 40
+ },
+ "M": 3.0,
+ "verdict": "INCONCLUSIVE",
+ "beat_strict_lo95_gt_0": false,
+ "per_task_actual": {
+  "ours": {
+   "T-01-ttl-seconds-ms": 1.0,
+   "T-11-wrong-exception-type": 1.0,
+   "T-17-log-hour-format": 0.88,
+   "T-19-slug-separator": 1.0,
+   "T-21-swallowed-corruption": 1.0,
+   "T-25-chunked-helper": 1.0,
+   "T-34-expression-tokenizer": 0.0,
+   "T-35-interval-merge-invariants": 0.04,
+   "A-02-protein-translation": 0.0,
+   "A-05-zebra-puzzle": 0.0,
+   "T-07-f-string-sql": 0.92,
+   "T-09-add-rate-limit-hook": 0.96,
+   "T-10-port-dict-keys-view": 1.0,
+   "T-12-str-enum-compare": 0.96,
+   "T-14-add-export-sorting": 0.72,
+   "T-23-stack-is-empty": 1.0,
+   "T-24-json-report-flag": 0.08,
+   "T-28-plugin-registry-scaffold": 0.28,
+   "T-33-serializer-contract": 0.92,
+   "T-03-wrong-comparison": 0.92,
+   "T-04-missing-default": 1.0,
+   "T-06-tz-naive-compare": 1.0,
+   "T-08-add-cache-invalidation": 0.8,
+   "T-13-add-retry-backoff": 0.04,
+   "T-20-average-truncation": 1.0,
+   "T-30-naive-datetime-compare": 0.6,
+   "T-31-parameter-threading": 1.0,
+   "T-32-sliding-window-limiter": 0.08,
+   "A-03-book-store": 0.0,
+   "T-02-off-by-one": 1.0,
+   "T-05-mutable-default": 0.4,
+   "T-15-stale-registry-entry": 0.96,
+   "T-16-class-state-leak": 0.68,
+   "T-18-env-config-precedence": 0.6,
+   "T-22-case-sort-order": 0.92,
+   "T-26-plan-dataclass-port": 0.08,
+   "T-27-snakecase-ingest": 0.0,
+   "T-29-prerelease-version-parsing": 0.76,
+   "A-01-word-count": 0.04,
+   "A-04-connect": 0.0
+  },
+  "pi": {
+   "T-14-add-export-sorting": 0.88,
+   "T-15-stale-registry-entry": 0.92,
+   "T-17-log-hour-format": 0.8,
+   "T-19-slug-separator": 1.0,
+   "T-20-average-truncation": 1.0,
+   "T-21-swallowed-corruption": 0.84,
+   "T-32-sliding-window-limiter": 0.0,
+   "T-34-expression-tokenizer": 0.0,
+   "A-04-connect": 0.0,
+   "A-05-zebra-puzzle": 0.04,
+   "T-03-wrong-comparison": 0.92,
+   "T-04-missing-default": 1.0,
+   "T-07-f-string-sql": 1.0,
+   "T-09-add-rate-limit-hook": 0.68,
+   "T-16-class-state-leak": 1.0,
+   "T-18-env-config-precedence": 0.64,
+   "T-25-chunked-helper": 0.8,
+   "T-26-plan-dataclass-port": 0.4,
+   "T-28-plugin-registry-scaffold": 0.4,
+   "A-02-protein-translation": 0.0,
+   "T-02-off-by-one": 0.96,
+   "T-08-add-cache-invalidation": 0.88,
+   "T-11-wrong-exception-type": 1.0,
+   "T-12-str-enum-compare": 0.24,
+   "T-22-case-sort-order": 1.0,
+   "T-23-stack-is-empty": 1.0,
+   "T-29-prerelease-version-parsing": 0.48,
+   "T-31-parameter-threading": 0.84,
+   "A-01-word-count": 0.16,
+   "A-03-book-store": 0.0,
+   "T-01-ttl-seconds-ms": 0.96,
+   "T-05-mutable-default": 0.68,
+   "T-06-tz-naive-compare": 0.96,
+   "T-10-port-dict-keys-view": 1.0,
+   "T-13-add-retry-backoff": 0.24,
+   "T-24-json-report-flag": 0.4,
+   "T-27-snakecase-ingest": 0.0,
+   "T-30-naive-datetime-compare": 1.0,
+   "T-33-serializer-contract": 0.04,
+   "T-35-interval-merge-invariants": 0.8
+  }
+ },
+ "per_task_false_success": {
+  "ours": {
+   "T-01-ttl-seconds-ms": 0.0,
+   "T-11-wrong-exception-type": 0.0,
+   "T-17-log-hour-format": 0.0,
+   "T-19-slug-separator": 0.0,
+   "T-21-swallowed-corruption": 0.0,
+   "T-25-chunked-helper": 0.0,
+   "T-34-expression-tokenizer": 0.0,
+   "T-35-interval-merge-invariants": 0.04,
+   "A-02-protein-translation": 0.28,
+   "A-05-zebra-puzzle": 0.04,
+   "T-07-f-string-sql": 0.0,
+   "T-09-add-rate-limit-hook": 0.0,
+   "T-10-port-dict-keys-view": 0.0,
+   "T-12-str-enum-compare": 0.0,
+   "T-14-add-export-sorting": 0.0,
+   "T-23-stack-is-empty": 0.0,
+   "T-24-json-report-flag": 0.0,
+   "T-28-plugin-registry-scaffold": 0.0,
+   "T-33-serializer-contract": 0.0,
+   "T-03-wrong-comparison": 0.0,
+   "T-04-missing-default": 0.0,
+   "T-06-tz-naive-compare": 0.0,
+   "T-08-add-cache-invalidation": 0.0,
+   "T-13-add-retry-backoff": 0.0,
+   "T-20-average-truncation": 0.0,
+   "T-30-naive-datetime-compare": 0.0,
+   "T-31-parameter-threading": 0.0,
+   "T-32-sliding-window-limiter": 0.08,
+   "A-03-book-store": 0.0,
+   "T-02-off-by-one": 0.0,
+   "T-05-mutable-default": 0.0,
+   "T-15-stale-registry-entry": 0.0,
+   "T-16-class-state-leak": 0.0,
+   "T-18-env-config-precedence": 0.36,
+   "T-22-case-sort-order": 0.0,
+   "T-26-plan-dataclass-port": 0.0,
+   "T-27-snakecase-ingest": 0.04,
+   "T-29-prerelease-version-parsing": 0.0,
+   "A-01-word-count": 0.04,
+   "A-04-connect": 0.0
+  },
+  "pi": {
+   "T-14-add-export-sorting": 0.12,
+   "T-15-stale-registry-entry": 0.0,
+   "T-17-log-hour-format": 0.0,
+   "T-19-slug-separator": 0.0,
+   "T-20-average-truncation": 0.0,
+   "T-21-swallowed-corruption": 0.04,
+   "T-32-sliding-window-limiter": 0.2,
+   "T-34-expression-tokenizer": 0.0,
+   "A-04-connect": 0.0,
+   "A-05-zebra-puzzle": 0.08,
+   "T-03-wrong-comparison": 0.0,
+   "T-04-missing-default": 0.0,
+   "T-07-f-string-sql": 0.0,
+   "T-09-add-rate-limit-hook": 0.04,
+   "T-16-class-state-leak": 0.0,
+   "T-18-env-config-precedence": 0.08,
+   "T-25-chunked-helper": 0.16,
+   "T-26-plan-dataclass-port": 0.04,
+   "T-28-plugin-registry-scaffold": 0.56,
+   "A-02-protein-translation": 0.2,
+   "T-02-off-by-one": 0.0,
+   "T-08-add-cache-invalidation": 0.0,
+   "T-11-wrong-exception-type": 0.0,
+   "T-12-str-enum-compare": 0.36,
+   "T-22-case-sort-order": 0.0,
+   "T-23-stack-is-empty": 0.0,
+   "T-29-prerelease-version-parsing": 0.0,
+   "T-31-parameter-threading": 0.04,
+   "A-01-word-count": 0.04,
+   "A-03-book-store": 0.0,
+   "T-01-ttl-seconds-ms": 0.0,
+   "T-05-mutable-default": 0.0,
+   "T-06-tz-naive-compare": 0.04,
+   "T-10-port-dict-keys-view": 0.0,
+   "T-13-add-retry-backoff": 0.0,
+   "T-24-json-report-flag": 0.2,
+   "T-27-snakecase-ingest": 0.08,
+   "T-30-naive-datetime-compare": 0.0,
+   "T-33-serializer-contract": 0.04,
+   "T-35-interval-merge-invariants": 0.12
+  }
+ }
+}
