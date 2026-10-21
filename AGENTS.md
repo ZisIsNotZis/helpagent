@@ -28,9 +28,13 @@ observation is in the evidence pointers below; the report is WP-0.4.
 alone.** Decided by one observation: on a clean clone at the frozen tag, one command with no
 model server and no network prints `24.640`, `24.960`, `−0.320`, `[−3.520, +3.080]`, `47/70`,
 `14/70` and the R2 rows, and that output equals the table in the paper; and `git tag` names the
-measurement revision. Gated on two answers that are already above this node (order; what
-reproduce may cost) — they decide whether M1 runs now, and which half of its hardest item
-(committed projection versus re-run) the acceptance is written against.
+measurement revision. **Accepted and released by root on 2026-10-21, in exactly that wording;
+this node is on it now.** The order question does not gate it: protocol, results, limits and
+the traceability table are worth writing before the answer, because the paper is written
+whichever way the order goes and only its framing changes. "What reproduce may cost" is settled
+here by measurement rather than by the answer: the projection is built over the committed
+rows and its size and fidelity are reported; if the tables cannot be regenerated without the
+2 GB home, that finding *is* the answer and is reported rather than papered over.
 
 **Not on this roadmap:** the recovery line (P1a frozen at the exhausted two-review cap,
 `docs/ROADMAP.md:32`, `.scratch/30-harness-recovery/blocked-checkpoint.md`). It becomes a
@@ -46,8 +50,10 @@ start, because its continuation needs a person's authorisation that no node belo
 | WP-0.3 | Record the taken-over state (this document, `STATUS.md` route) | done |
 | WP-0.4 | Handover report to root | done |
 | WP-0.5 | Traceability seed: which number comes from which command, and which are not yet re-derived | done — `bench/analysis/wave1/NUMBERS.md` |
-| WP-1.1 | Answer-independent half of M1: protocol, results and limits sections, which no pending answer can move | queued, starts when M1 is released |
-| WP-1.2 | The reproduce entry point; its shape is exactly what the second open answer decides | blocked on the answer |
+| WP-1.1 | Paper draft: problem, protocol, results 1–3, negative results and retractions, external-validity boundary, reproduce section | dispatched 2026-10-21 |
+| WP-1.2 | Reproduce entry point over a committed projection, inputs asserted, no network and no model | dispatched 2026-10-21 |
+| WP-1.3 | Freeze the measurement revision as a tag; integration check that the paper's table equals the command's output | this node |
+| WP-1.4 | Handover report to root naming M1, its command and the decision needed | this node |
 
 ### What was in flight, and how it landed
 
@@ -105,17 +111,38 @@ says so, and this node agrees on the evidence: the analyzers plus the secured ro
 the numbers). Publication — a DOI, a push, a tag — is a `cost` act above this node and is not
 taken here.
 
+**Granted, and what it is.** Root granted the authoring package on 2026-10-21: the spend is
+`tokens` against this level's model budget plus `idle-compute` wall-clock, not metered money, so
+no grant is outstanding for it and no package waits on one. The grant covers this node and the
+workers it dispatches; it does not cover a push, a DOI or a rented device.
+
+**The reproduce interface, fixed here so that two workers cannot diverge.** One command at the
+repository root, `python3 reproduce.py`, run from a clean clone: it needs no `/tmp`, no model
+server and no network, and it must not require the untracked 2 GB home. It prints one
+`key value` line per decisive number (`r1_a_mean_tasks 24.640`, `r1_delta_tasks -0.320`,
+`r1_lo95 -3.520`, `r1_hi95 3.080`, `r3_leaf 47/70`, `r3_tree_greedy 14/70`, and the R2 rows),
+and exits 0 only when every printed value equals the value recorded at campaign time. The paper
+quotes these keys verbatim, so the acceptance is a diff and not a reading.
+
+**A short home fails loudly, by construction.** The n17 trap found on takeover is a requirement
+on the entry point, not a note: a missing root, a zero-row file and a short sample each stop the
+run with a named line naming the input and the count it wanted, before any number is printed.
+The paper's boundary section states this, because a reproduction that reports parity after
+reading an empty directory is worse than no reproduction.
+
 **Open, raised and waiting above (do not restate, wait for mail).** Two questions were raised
 to the person before this node existed and are not repeated here: the order between the
 preprint and the frozen recovery line (`mail/` of root, `2026-10-21-helpagent-order.md`), and
 what "reproduce" is allowed to cost — a committed projection or a re-run
-(`2026-10-21-helpagent-reproduce.md`). M1's start and M1's hardest acceptance line both hang on
-them.
+(`2026-10-21-helpagent-reproduce.md`). Neither gates M1 any more: the authoring package runs in
+either order, and the projection's measured cost is reported as the answer to the second rather
+than waited on. Their answers still arrive in `mail/` and still move what this node does next.
 
 **Open, this node's own.** Whether the committed projection is small enough to make
 "recomputable from the repository alone" true on a machine that has never seen `/tmp` — that is
-the measurement `docs/paper-plan.md` asks for and it is not taken yet. Nothing here closes it by
-assumption.
+the measurement `docs/paper-plan.md` asks for. WP-1.2 takes it: the projection is built over the
+committed rows and both its size and its fidelity (every analyzer reproducing its recorded
+output from the projection alone) are reported. Nothing here closes it by assumption.
 
 ## Evidence pointers
 
