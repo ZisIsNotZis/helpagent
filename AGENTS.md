@@ -45,6 +45,7 @@ start, because its continuation needs a person's authorisation that no node belo
 | WP-0.2 | Hash every file; commit the manifest and the analysis scripts | done — `bench/manifests/wave1.sha256`, `bench/analysis/wave1/` |
 | WP-0.3 | Record the taken-over state (this document, `STATUS.md` route) | done |
 | WP-0.4 | Handover report to root | done |
+| WP-0.5 | Traceability seed: which number comes from which command, and which are not yet re-derived | done — `bench/analysis/wave1/NUMBERS.md` |
 | WP-1.1 | Answer-independent half of M1: protocol, results and limits sections, which no pending answer can move | queued, starts when M1 is released |
 | WP-1.2 | The reproduce entry point; its shape is exactly what the second open answer decides | blocked on the answer |
 
@@ -127,6 +128,7 @@ assumption.
 | recompute R1 from the home (`−0.320`, `[−3.520, +3.080]`) | `python3 bench/analysis/wave1/recompute_n25.py` |
 | recompute R2 from the home | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl' --out /tmp/r2.json --text /tmp/r2.txt` |
 | recompute R3 from the home | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| every number above, the command that re-derives it, and the gaps not yet re-derived | `bench/analysis/wave1/NUMBERS.md` |
 | analysis scripts, tracked copy (36 files) | `bench/analysis/wave1/{final,n25,r2,r3}/` |
 | source-side hash list taken at copy time (untracked, expires with `/tmp`) | `bench/runs/wave1-src-manifest.sha256` |
 | copy and verification logs | `bench/runs/wave1-copy.log`, `-copy-full.log`, `-hash.log`, `-verify.log` (ignored, owner: this node) |
