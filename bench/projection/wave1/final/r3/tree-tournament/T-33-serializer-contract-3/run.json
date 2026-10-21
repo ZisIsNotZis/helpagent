@@ -1,0 +1,1 @@
+{"actual": false, "calls": 47, "claimed": false, "nodes": {"candidates": [{"how_case": "fallback-leaf-How"}, {"how_case": "decomposed-How"}, {"how_case": "leaf-How"}]}, "run_wall_s": 740.7, "task": "T-33-serializer-contract"}

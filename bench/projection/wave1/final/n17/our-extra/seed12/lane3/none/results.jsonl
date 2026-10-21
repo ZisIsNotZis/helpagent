@@ -1,0 +1,10 @@
+{"actual": true, "claimed": false, "run_idx": 1, "run_wall_s": 120.1, "task": "T-03-wrong-comparison", "total_tokens": 26089, "wall_s": 120.058}
+{"actual": true, "claimed": false, "run_idx": 1, "run_wall_s": 69.9, "task": "T-04-missing-default", "total_tokens": 18004, "wall_s": 69.936}
+{"actual": true, "claimed": false, "run_idx": 1, "run_wall_s": 146.5, "task": "T-06-tz-naive-compare", "total_tokens": 33212, "wall_s": 146.473}
+{"actual": false, "claimed": false, "run_idx": 1, "run_wall_s": 160.3, "task": "T-08-add-cache-invalidation", "total_tokens": 35786, "wall_s": 160.308}
+{"actual": false, "claimed": false, "run_idx": 1, "run_wall_s": 93.1, "task": "T-13-add-retry-backoff", "total_tokens": 19863, "wall_s": 93.139}
+{"actual": true, "claimed": false, "run_idx": 1, "run_wall_s": 53.9, "task": "T-20-average-truncation", "total_tokens": 12079, "wall_s": 53.875}
+{"actual": false, "claimed": false, "run_idx": 1, "run_wall_s": 115.0, "task": "T-30-naive-datetime-compare", "total_tokens": 26139, "wall_s": 114.979}
+{"actual": true, "claimed": false, "run_idx": 1, "run_wall_s": 72.2, "task": "T-31-parameter-threading", "total_tokens": 16117, "wall_s": 72.213}
+{"actual": false, "claimed": true, "run_idx": 1, "run_wall_s": 74.7, "task": "T-32-sliding-window-limiter", "total_tokens": 24824, "wall_s": 74.678}
+{"actual": false, "claimed": false, "run_idx": 1, "run_wall_s": 153.8, "task": "A-03-book-store", "total_tokens": 43914, "wall_s": 153.812}

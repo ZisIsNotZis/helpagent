@@ -1,0 +1,10 @@
+{"actual": false, "claimed": true, "task": "T-14-add-export-sorting", "wall_s": 257.2}
+{"actual": true, "claimed": true, "task": "T-15-stale-registry-entry", "wall_s": 93.7}
+{"actual": true, "claimed": true, "task": "T-17-log-hour-format", "wall_s": 57.0}
+{"actual": true, "claimed": true, "task": "T-19-slug-separator", "wall_s": 41.1}
+{"actual": true, "claimed": true, "task": "T-20-average-truncation", "wall_s": 60.0}
+{"actual": true, "claimed": true, "task": "T-21-swallowed-corruption", "wall_s": 95.8}
+{"actual": false, "claimed": true, "task": "T-32-sliding-window-limiter", "wall_s": 262.8}
+{"actual": false, "claimed": false, "task": "T-34-expression-tokenizer", "wall_s": 158.5}
+{"actual": false, "claimed": false, "task": "A-04-connect", "wall_s": 128.9}
+{"actual": false, "claimed": false, "task": "A-05-zebra-puzzle", "wall_s": 140.7}

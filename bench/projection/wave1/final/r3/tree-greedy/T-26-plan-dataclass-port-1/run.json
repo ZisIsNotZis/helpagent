@@ -1,0 +1,1 @@
+{"actual": false, "calls": 48, "claimed": false, "nodes": {"candidates": [{"how_case": "leaf-How"}, {"how_case": "leaf-How"}, {"how_case": "leaf-How"}]}, "run_wall_s": 922.2, "task": "T-26-plan-dataclass-port"}

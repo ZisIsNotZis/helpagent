@@ -1,0 +1,1 @@
+{"actual": true, "calls": 46, "claimed": true, "nodes": {"candidates": [{"how_case": "leaf-How"}, {"how_case": "leaf-How"}, {"how_case": "fallback-leaf-How"}]}, "run_wall_s": 616.6, "task": "T-21-swallowed-corruption"}

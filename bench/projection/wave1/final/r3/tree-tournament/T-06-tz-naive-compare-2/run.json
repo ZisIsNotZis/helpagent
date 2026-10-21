@@ -1,0 +1,1 @@
+{"actual": false, "calls": 48, "claimed": false, "nodes": {"candidates": [{"how_case": "leaf-How"}, {"how_case": "fallback-leaf-How"}, {"how_case": "fallback-leaf-How"}]}, "run_wall_s": 548.3, "task": "T-06-tz-naive-compare"}

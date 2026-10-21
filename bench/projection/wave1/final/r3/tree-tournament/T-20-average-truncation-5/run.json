@@ -1,0 +1,1 @@
+{"actual": true, "calls": 28, "claimed": true, "nodes": {"candidates": [{"how_case": "leaf-How"}, {"how_case": "leaf-How"}, {"how_case": "leaf-How"}]}, "run_wall_s": 217.4, "task": "T-20-average-truncation"}

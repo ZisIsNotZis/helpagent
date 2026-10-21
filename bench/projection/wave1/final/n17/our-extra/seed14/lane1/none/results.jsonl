@@ -1,0 +1,10 @@
+{"actual": true, "claimed": true, "run_idx": 1, "run_wall_s": 58.6, "task": "T-01-ttl-seconds-ms", "total_tokens": 9162, "wall_s": 58.549}
+{"actual": true, "claimed": false, "run_idx": 1, "run_wall_s": 84.2, "task": "T-11-wrong-exception-type", "total_tokens": 19196, "wall_s": 84.183}
+{"actual": true, "claimed": false, "run_idx": 1, "run_wall_s": 75.6, "task": "T-17-log-hour-format", "total_tokens": 14381, "wall_s": 75.61}
+{"actual": true, "claimed": true, "run_idx": 1, "run_wall_s": 29.5, "task": "T-19-slug-separator", "total_tokens": 6293, "wall_s": 29.463}
+{"actual": true, "claimed": true, "run_idx": 1, "run_wall_s": 61.2, "task": "T-21-swallowed-corruption", "total_tokens": 12916, "wall_s": 61.202}
+{"actual": true, "claimed": true, "run_idx": 1, "run_wall_s": 29.4, "task": "T-25-chunked-helper", "total_tokens": 5309, "wall_s": 29.37}
+{"actual": false, "claimed": false, "run_idx": 1, "run_wall_s": 125.0, "task": "T-34-expression-tokenizer", "total_tokens": 21190, "wall_s": 125.035}
+{"actual": false, "claimed": false, "run_idx": 1, "run_wall_s": 152.6, "task": "T-35-interval-merge-invariants", "total_tokens": 24030, "wall_s": 152.58}
+{"actual": false, "claimed": false, "run_idx": 1, "run_wall_s": 138.3, "task": "A-02-protein-translation", "total_tokens": 27570, "wall_s": 138.254}
+{"actual": false, "claimed": false, "run_idx": 1, "run_wall_s": 193.8, "task": "A-05-zebra-puzzle", "total_tokens": 31313, "wall_s": 193.837}

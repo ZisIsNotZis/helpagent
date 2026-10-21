@@ -1,0 +1,10 @@
+{"actual": false, "claimed": false, "task": "T-01-ttl-seconds-ms", "wall_s": 185.0}
+{"actual": true, "claimed": true, "task": "T-05-mutable-default", "wall_s": 122.0}
+{"actual": true, "claimed": true, "task": "T-06-tz-naive-compare", "wall_s": 111.0}
+{"actual": true, "claimed": true, "task": "T-10-port-dict-keys-view", "wall_s": 41.8}
+{"actual": true, "claimed": false, "task": "T-13-add-retry-backoff", "wall_s": 155.5}
+{"actual": false, "claimed": false, "task": "T-24-json-report-flag", "wall_s": 173.5}
+{"actual": false, "claimed": false, "task": "T-27-snakecase-ingest", "wall_s": 143.3}
+{"actual": true, "claimed": true, "task": "T-30-naive-datetime-compare", "wall_s": 94.7}
+{"actual": false, "claimed": false, "task": "T-33-serializer-contract", "wall_s": 256.4}
+{"actual": true, "claimed": true, "task": "T-35-interval-merge-invariants", "wall_s": 200.6}

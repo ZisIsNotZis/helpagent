@@ -1,0 +1,11 @@
+{"actual": true, "claimed": false, "run_idx": 1, "run_wall_s": 72.3, "task": "T-02-off-by-one", "total_tokens": 17817, "wall_s": 72.272}
+{"actual": false, "claimed": false, "run_idx": 1, "run_wall_s": 61.2, "task": "T-05-mutable-default", "total_tokens": 15201, "wall_s": 61.244}
+{"actual": true, "claimed": true, "run_idx": 1, "run_wall_s": 30.4, "task": "T-15-stale-registry-entry", "total_tokens": 6186, "wall_s": 30.369}
+{"actual": true, "claimed": true, "run_idx": 1, "run_wall_s": 38.6, "task": "T-16-class-state-leak", "total_tokens": 7954, "wall_s": 38.582}
+{"actual": false, "claimed": true, "run_idx": 1, "run_wall_s": 61.7, "task": "T-18-env-config-precedence", "total_tokens": 11878, "wall_s": 61.687}
+{"actual": true, "claimed": true, "run_idx": 1, "run_wall_s": 22.8, "task": "T-22-case-sort-order", "total_tokens": 4535, "wall_s": 22.843}
+{"actual": false, "claimed": false, "run_idx": 1, "run_wall_s": 85.6, "task": "T-26-plan-dataclass-port", "total_tokens": 16595, "wall_s": 85.602}
+{"actual": false, "claimed": false, "run_idx": 1, "run_wall_s": 75.8, "task": "T-27-snakecase-ingest", "total_tokens": 17712, "wall_s": 75.779}
+{"actual": true, "claimed": true, "run_idx": 1, "run_wall_s": 32.1, "task": "T-29-prerelease-version-parsing", "total_tokens": 6468, "wall_s": 32.079}
+{"actual": false, "claimed": false, "run_idx": 1, "run_wall_s": 124.4, "task": "A-01-word-count", "total_tokens": 18707, "wall_s": 124.448}
+{"actual": false, "claimed": false, "run_idx": 1, "run_wall_s": 149.7, "task": "A-04-connect", "total_tokens": 24036, "wall_s": 149.68}

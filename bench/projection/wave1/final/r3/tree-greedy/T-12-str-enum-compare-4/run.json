@@ -1,0 +1,1 @@
+{"actual": false, "calls": 47, "claimed": false, "nodes": {"candidates": [{"how_case": "leaf-How"}, {"how_case": "leaf-How"}, {"how_case": "leaf-How"}]}, "run_wall_s": 510.4, "task": "T-12-str-enum-compare"}

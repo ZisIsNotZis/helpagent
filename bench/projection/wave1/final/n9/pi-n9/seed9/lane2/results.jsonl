@@ -1,0 +1,10 @@
+{"actual": true, "claimed": false, "task": "T-03-wrong-comparison", "wall_s": 161.3}
+{"actual": true, "claimed": true, "task": "T-04-missing-default", "wall_s": 47.0}
+{"actual": true, "claimed": true, "task": "T-07-f-string-sql", "wall_s": 164.3}
+{"actual": true, "claimed": true, "task": "T-09-add-rate-limit-hook", "wall_s": 197.9}
+{"actual": true, "claimed": true, "task": "T-16-class-state-leak", "wall_s": 42.7}
+{"actual": true, "claimed": true, "task": "T-18-env-config-precedence", "wall_s": 105.1}
+{"actual": true, "claimed": true, "task": "T-25-chunked-helper", "wall_s": 36.6}
+{"actual": true, "claimed": true, "task": "T-26-plan-dataclass-port", "wall_s": 130.3}
+{"actual": false, "claimed": true, "task": "T-28-plugin-registry-scaffold", "wall_s": 59.0}
+{"actual": false, "claimed": false, "task": "A-02-protein-translation", "wall_s": 75.0}

@@ -14,9 +14,10 @@ It does five things in a temporary directory, never in this working tree:
 2. Runs `python3 reproduce.py` inside the clone, with a clean environment, and requires exit 0.
 3. Requires every `key value` line it printed to appear on one line of the paper's sources,
    which is how "the output equals the paper's table" stops being a reading and becomes a diff.
-4. Requires the run to fail loudly: with one projection file deleted, with one truncated to
-   zero rows, and with an R1 arm short of its row count, each must exit non-zero AND name the
-   input it was missing. A silent short-home result is the trap this project already fell into.
+4. Requires the run to fail loudly: with one projection record deleted, with one truncated to
+   zero rows, and with one short of the rows an arm needs, each must exit non-zero AND name the
+   input it was missing, printing no number first. A silent short-home result is the trap this
+   project already fell into.
 5. Prints one summary line and exits 0 only if all of the above hold.
 
 Read-only with respect to this working tree; it writes only into a `mktemp -d`.
@@ -89,26 +90,36 @@ def main(argv: list[str]) -> int:
                 failures.append(f"paper does not quote {k} {v} on a single line")
 
         # loud failure: three ways of starving the run, each must be named, not averaged over
-        proj = sorted((clone / "bench" / "projection").rglob("*"))
-        files = [p for p in proj if p.is_file()]
-        if not files:
-            failures.append("no bench/projection/* files to starve the run with")
+        proj = sorted(p for p in (clone / "bench" / "projection" / "wave1" / "final").rglob("*")
+                      if p.is_file() and (p.name == "results.jsonl" or p.name == "run.json"))
+        if not proj:
+            failures.append("no bench/projection/wave1/final/* records to starve the run with")
         else:
-            cases = [("missing", lambda p: p.unlink()),
-                     ("zero-rows", lambda p: p.write_text(""))]
-            for label, mutate in cases:
-                work = tmp / f"case-{label}"
+            rows_file = next((p for p in proj if p.name == "results.jsonl"), proj[0])
+
+            def drop_rows(path: Path) -> None:
+                keep = path.read_text(encoding="utf-8").splitlines()[:-5]
+                path.write_text("\n".join(keep) + "\n", encoding="utf-8")
+
+            cases = [("missing", "missing", lambda p: p.unlink()),
+                     ("zero-rows", "empty", lambda p: p.write_text("")),
+                     ("short sample", "short", drop_rows)]
+            for label, keyword, mutate in cases:
+                work = tmp / f"case-{keyword}"
                 shutil.copytree(clone, work)
-                victim = sorted((work / "bench" / "projection").rglob("*"))
-                victim = [p for p in victim if p.is_file()][0]
+                victim = work / "bench" / "projection" / "wave1" / "final" / rows_file.relative_to(
+                    clone / "bench" / "projection" / "wave1" / "final")
                 mutate(victim)
                 got = run([sys.executable, "reproduce.py"], cwd=work, env=env)
+                said = (got.stderr + got.stdout).strip()
                 if got.returncode == 0:
                     failures.append(f"{label}: reproduce.py exited 0 on a starved tree")
-                elif not (got.stderr + got.stdout).strip():
+                elif not said:
                     failures.append(f"{label}: failed with no named line")
-                elif label not in (got.stderr + got.stdout) and victim.name not in (got.stderr + got.stdout):
-                    failures.append(f"{label}: failure line names neither the case nor {victim.name}")
+                elif keyword not in said.lower() and victim.name not in said:
+                    failures.append(f"{label}: failure line names neither {keyword!r} nor {victim.name}")
+                elif parse_keys(got.stdout):
+                    failures.append(f"{label}: printed numbers before failing")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

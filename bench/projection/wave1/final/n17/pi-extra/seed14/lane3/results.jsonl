@@ -1,0 +1,10 @@
+{"actual": true, "claimed": true, "task": "T-02-off-by-one", "wall_s": 131.6}
+{"actual": true, "claimed": false, "task": "T-08-add-cache-invalidation", "wall_s": 76.4}
+{"actual": true, "claimed": true, "task": "T-11-wrong-exception-type", "wall_s": 30.3}
+{"actual": false, "claimed": true, "task": "T-12-str-enum-compare", "wall_s": 176.7}
+{"actual": true, "claimed": true, "task": "T-22-case-sort-order", "wall_s": 33.3}
+{"actual": true, "claimed": true, "task": "T-23-stack-is-empty", "wall_s": 111.8}
+{"actual": true, "claimed": true, "task": "T-29-prerelease-version-parsing", "wall_s": 66.4}
+{"actual": true, "claimed": true, "task": "T-31-parameter-threading", "wall_s": 246.3}
+{"actual": false, "claimed": false, "task": "A-01-word-count", "wall_s": 125.9}
+{"actual": false, "claimed": false, "task": "A-03-book-store", "wall_s": 124.6}

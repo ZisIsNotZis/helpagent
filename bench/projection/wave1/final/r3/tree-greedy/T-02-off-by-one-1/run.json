@@ -1,0 +1,1 @@
+{"actual": false, "calls": 46, "claimed": false, "nodes": {"allocation": {"forced": true}, "candidates": [{"how_case": "forced-leaf"}, {"how_case": "fallback-leaf-How"}, {"how_case": "fallback-leaf-How"}]}, "run_wall_s": 657.4, "task": "T-02-off-by-one"}

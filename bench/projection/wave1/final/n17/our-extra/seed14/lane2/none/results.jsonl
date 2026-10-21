@@ -1,0 +1,9 @@
+{"actual": true, "claimed": false, "run_idx": 1, "run_wall_s": 66.9, "task": "T-07-f-string-sql", "total_tokens": 11835, "wall_s": 66.878}
+{"actual": true, "claimed": false, "run_idx": 1, "run_wall_s": 172.7, "task": "T-09-add-rate-limit-hook", "total_tokens": 20858, "wall_s": 172.681}
+{"actual": true, "claimed": false, "run_idx": 1, "run_wall_s": 46.7, "task": "T-10-port-dict-keys-view", "total_tokens": 9337, "wall_s": 46.688}
+{"actual": true, "claimed": false, "run_idx": 1, "run_wall_s": 77.6, "task": "T-12-str-enum-compare", "total_tokens": 15279, "wall_s": 77.641}
+{"actual": true, "claimed": true, "run_idx": 1, "run_wall_s": 58.1, "task": "T-14-add-export-sorting", "total_tokens": 11460, "wall_s": 58.119}
+{"actual": true, "claimed": false, "run_idx": 1, "run_wall_s": 49.2, "task": "T-23-stack-is-empty", "total_tokens": 11607, "wall_s": 49.211}
+{"actual": false, "claimed": false, "run_idx": 1, "run_wall_s": 71.0, "task": "T-24-json-report-flag", "total_tokens": 16162, "wall_s": 70.968}
+{"actual": false, "claimed": false, "run_idx": 1, "run_wall_s": 83.1, "task": "T-28-plugin-registry-scaffold", "total_tokens": 18307, "wall_s": 83.09}
+{"actual": true, "claimed": true, "run_idx": 1, "run_wall_s": 86.5, "task": "T-33-serializer-contract", "total_tokens": 14908, "wall_s": 86.466}

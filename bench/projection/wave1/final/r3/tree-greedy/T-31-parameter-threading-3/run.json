@@ -1,0 +1,1 @@
+{"actual": false, "calls": 39, "claimed": false, "nodes": {"candidates": [{"how_case": "leaf-How"}, {"how_case": "fallback-leaf-How"}, {"how_case": "decomposed-How"}], "children": [{}]}, "run_wall_s": 992.7, "task": "T-31-parameter-threading"}

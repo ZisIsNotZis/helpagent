@@ -1,0 +1,1 @@
+{"actual": false, "calls": 39, "claimed": false, "nodes": {"candidates": [{"how_case": "leaf-How"}, {"how_case": "leaf-How"}, {"how_case": "leaf-How"}]}, "run_wall_s": 739.0, "task": "T-32-sliding-window-limiter"}

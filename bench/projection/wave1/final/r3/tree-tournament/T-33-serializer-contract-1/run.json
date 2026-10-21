@@ -1,0 +1,1 @@
+{"actual": true, "calls": 23, "claimed": true, "nodes": {"candidates": [{"how_case": "leaf-How"}, {"how_case": "fallback-leaf-How"}]}, "run_wall_s": 310.2, "task": "T-33-serializer-contract"}
