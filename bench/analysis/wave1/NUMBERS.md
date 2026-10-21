@@ -1,15 +1,33 @@
 # Numbers and how to get them back
 
-Every decisive number the paper will quote, the command that recomputes it from the declared
-home `bench/runs/wave1/`, and the line that command must print. All commands run from the
-repository root and start no model and no network. This is the seed of the preprint's reproduce
-section, not that section: it covers what has been re-derived from the secured bytes, and it
-names what has not.
+Every decisive number the paper will quote, the command that recomputes it, and the line that
+command must print. All commands run from the repository root; none starts a model and none
+opens a network. This file is the one home for the number → command mapping; the paper's
+reproduce section and `AGENTS.md` point here rather than restating it.
+
+## One command (the form the paper quotes)
+
+    python3 reproduce.py
+
+It runs the campaign's own analyzers over the committed projection
+`bench/projection/wave1/final/` — 472 files, 2 810 rows, 523 499 bytes (57 561 gzipped), cut
+from the 62 MiB of inputs the analyzers read out of the home. It needs no `/tmp`, no model
+server, no network, and not the untracked 2 GB home; it prints one `key value` line per number
+below and exits 0 only when every value equals the record committed beside its analyzer. A
+missing record, a zero-row record or a short sample stops it with a named line before any number
+is printed (`bench/projection/README.md` says what a projection row is, and what it cannot show).
+
+Rebuilding the projection from the home is a maintainer recipe, not part of the reproduce path:
+`python3 bench/projection/build_projection.py --check`. The per-analyzer commands below remain
+the deeper form, for reading how one number is computed rather than for checking it.
 
 ## Verified from the home
 
-| number, where it is quoted | command | expected |
-| --- | --- | --- |
+Each row's `reproduce.py` key is the one the paper quotes; the command in the middle column is
+the same computation without the entry point.
+
+| number, where it is quoted | `reproduce.py` key | command | expected |
+| --- | --- | --- | --- |
 | R1 `24.640` vs `24.960`, delta `−0.320`, CI `[−3.520, +3.080]` (`docs/STATUS.md` §2–§3, `docs/paper-plan.md:17`) | `python3 bench/analysis/wave1/recompute_n25.py` | `rows per arm from the home: 1000` and five `ok` lines, `a_mean_tasks +24.640`, `b_mean_tasks +24.960`, `delta_tasks -0.320`, `lo95 -3.520`, `hi95 +3.080` |
 | R2 arm table, stage contributions, quadrants, cost (`docs/STATUS.md` §4–§5) | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl' --out /tmp/r2.json --text /tmp/r2.txt && diff /tmp/r2.txt bench/analysis/wave1/r2/analysis.txt` | `diff` empty — the recomputed text is byte-identical to the record committed beside it |
 | R2 the same in JSON | `diff <(python3 -m json.tool /tmp/r2.json) <(python3 -m json.tool bench/analysis/wave1/r2/analysis.json)` | `diff` empty |
@@ -36,6 +54,21 @@ fine.
   length stops and context-size errors, unclean wall-clock. The rows exist under
   `bench/runs/wave1/final/{n17,pi-probe,our-wallclock}` and the bounded audit is
   `.scratch/29-close-audit/report.md`; no recompute command is pinned yet.
+
+## Recorded limitations of the reproduce path
+
+- `analysis.json`'s `stop_reasons` orders ties by set-iteration order, so a fresh run can differ
+  from the recorded file under some `PYTHONHASHSEED` values while matching under others. The
+  entry point therefore compares R2's text **bytes** and its JSON **parsed**; no printed number
+  depends on the ordering. This is a gap in byte-identity, not in the arithmetic, and it is
+  recorded rather than smoothed over.
+- `r3/supp.py` hardcodes `/tmp/wave1/final/r3` on line 7; the entry point replaces that one
+  literal and asserts the replacement matched exactly once, so a future edit stops the run with
+  `unreadable input:` instead of silently reading `/tmp`.
+- The projection proves the analyzers were fed the campaign's values. It does not carry why a
+  row came out as it did — the transcript, ledger and test source of a single run stay in the
+  home under `bench/manifests/wave1.sha256`, and a reader following one number back to its
+  provenance needs that home.
 
 ## The trap this table exists to prevent
 
