@@ -12,10 +12,12 @@
 
 - 研究战役已跑到预注册终点并给出判定，目标"未达成或未判定"，不是被证伪；产品 CLI 不存在。（`docs/STATUS.md:4`）
 - 后续的 M1「harness 与测试流程恢复」里程碑只做到 P1a，状态为 **BLOCKED / INCOMPLETE**（两次独立审查额度已用尽），P1b 与 P2–P5 未开始，M1 未通过；M2 未获授权。（`docs/ROADMAP.md:32`）
-- 该状态的最后落盘时间：commit `999ea9a`，2026-10-19（`git log`）。M1 目前无活跃工作者的记录在仓内。
+- 该状态的原始落盘时间：commit `999ea9a`，2026-10-19；此后 `73cc4d9` 以 `docs/paper-plan.md` 把本仓交给接手的 agent，"写论文"成为最新意图，与恢复线的次序仍未定。
+- **当前状态以 `AGENTS.md` 为准**（接手的节点文档：roadmap、已决事实、未决问题、证据指针）。战役字节原先只存在于 `/tmp/wave1`，现已复制到仓内声明位置 `bench/runs/wave1/`，由 `bench/manifests/wave1.sha256` 校验；`git` 装不下 2.0 GB，所以那里的东西不被跟踪、只被哈希。
 
 ## 最新进展落在哪个文件
 
+- 现场状态、roadmap、未决问题：`AGENTS.md`（接手节点的文档，从这里开始）。
 - 测得的最终位置与全部数字：`docs/STATUS.md`（每条结论的原始出处见 `FINDINGS.md`）。
 - 可复用/不可复用的提炼与负结果表：`docs/LEARNINGS.md`。
 - 切片与验收判定的最终结论、M1 阻塞状态：`docs/ROADMAP.md`。
