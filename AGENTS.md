@@ -36,6 +36,14 @@ here by measurement rather than by the answer: the projection is built over the 
 rows and its size and fidelity are reported; if the tables cannot be regenerated without the
 2 GB home, that finding *is* the answer and is reported rather than papered over.
 
+**Reached, in that wording.** `python3 bench/checks/m1_acceptance.py` clones this repository at
+tag `preprint-v1` into a temporary directory, runs the one command there with no untracked home
+present, requires each printed key to be quoted on one line of `docs/paper/`, and requires three
+starved trees to fail loudly; it exits 0 and prints `m1 acceptance: OK`. The tags: `wave1-measurement`
+names the measurement revision `45ebb32`, `preprint-v1` names the revision the check runs at.
+What M1 does not deliver, and does not claim, is publication — a DOI, a push or an arXiv
+submission is a `cost` act above this node and is not taken here.
+
 **Not on this roadmap:** the recovery line (P1a frozen at the exhausted two-review cap,
 `docs/ROADMAP.md:32`, `.scratch/30-harness-recovery/blocked-checkpoint.md`). It becomes a
 milestone here only if the order answer puts it first; until then it is not this node's work to
@@ -50,10 +58,10 @@ start, because its continuation needs a person's authorisation that no node belo
 | WP-0.3 | Record the taken-over state (this document, `STATUS.md` route) | done |
 | WP-0.4 | Handover report to root | done |
 | WP-0.5 | Traceability seed: which number comes from which command, and which are not yet re-derived | done — `bench/analysis/wave1/NUMBERS.md` |
-| WP-1.1 | Paper draft: problem, protocol, results 1–3, negative results and retractions, external-validity boundary, reproduce section | dispatched 2026-10-21 |
+| WP-1.1 | Paper draft: problem, protocol, results 1–3, negative results and retractions, external-validity boundary, reproduce section | done — `docs/paper/`, 8 sections + `numbers.md` (97 rows, 26 marked unknown) |
 | WP-1.2 | Reproduce entry point over a committed projection, inputs asserted, no network and no model | done — `reproduce.py`, `bench/projection/` (472 files, 2 810 rows, 523 499 bytes) |
-| WP-1.3 | Freeze the measurement revision as a tag; integration check that the paper's table equals the command's output | this node |
-| WP-1.4 | Handover report to root naming M1, its command and the decision needed | this node |
+| WP-1.3 | Freeze the measurement revision as a tag; integration check that the paper's table equals the command's output | done — `wave1-measurement`, `preprint-v1`, `bench/checks/m1_acceptance.py` |
+| WP-1.4 | Handover report to root naming M1, its command and the decision needed | done — the report in `mail/` |
 
 ### What was in flight, and how it landed
 
@@ -76,6 +84,21 @@ the two lists — empty, 53 270 lines each; the source-side list is kept at
 `/tmp` survives, and is deletable when it does not). Durability: `sha256sum -c` from the home
 returned 53 270 `OK` and 0 `FAILED`, exit 0. And usability, which is the part a hash cannot
 promise: all three verdicts recompute from the home — see the evidence pointers below.
+
+Landed this advance: two packages ran in parallel into disjoint paths and were integrated here —
+the paper (`docs/paper/`, WP-1.1) and the entry point (`reproduce.py` with `bench/projection/`,
+WP-1.2). Four things the integration repaired rather than noted. The acceptance checker written
+before the package landed starved the tree by deleting `bench/projection/README.md`, a file no
+analyzer reads, so it would have failed a healthy tree: found by the package, fixed here, and its
+victims are now records under `bench/projection/wave1/final/` with the short-sample case added.
+`bench/analysis/wave1/NUMBERS.md` had a four-column header over three-cell rows, broken by this
+node in the act that made the key a column and repaired in the same advance. `docs/paper-plan.md:22`
+claimed "sixteen negative results" where `FINDINGS.md` §三 holds nine rows and §四 three; the
+count is deleted and the sections are named, because a row count is derived and a derived
+number stored by hand drifts. And the paper's citations to this document by line number became
+section references, so editing this file cannot silently invalidate the paper; its references
+into `docs/STATUS.md` and `FINDINGS.md`, which this advance did not touch, stay as line numbers
+and are resolved by `docs/paper/check_citations.py`.
 
 ## Current facts
 
@@ -163,6 +186,14 @@ it is now measured rather than proposed, so the question no longer blocks anythi
 
 | what | where |
 | --- | --- |
+| the preprint, section by section, with its index | `docs/paper/README.md` |
+| every number the paper uses, its `file:line` source and the command that re-derives it (97 rows; 26 marked unknown with the gap named) | `docs/paper/numbers.md` |
+| resolve the paper's citations and its Numbers table (fails loudly on a moved line or a number with no command) | `python3 docs/paper/check_citations.py` → `citations resolved N unresolved 0`, exit 0 (N is printed, not stored) |
+| M1's deciding observation as an exit code: clone at the tag, one command, paper must quote every key, starved trees must fail loudly | `python3 bench/checks/m1_acceptance.py` |
+| recompute every decisive number from committed rows, no home, no `/tmp`, no model, no network | `python3 reproduce.py` |
+| what a projection row is, which fields it keeps, what it cannot show | `bench/projection/README.md` |
+| rebuild or re-check the projection against the home (maintainer recipe; needs the home) | `python3 bench/projection/build_projection.py --check` |
+| projection fidelity to the home it was cut from | `python3 bench/analysis/wave1/fix/verify_projection.py` → `ok files=472 rows=2810 mismatches=0` |
 | declared home for the campaign bytes (2.0 GB, 53 270 files, untracked, verify by hash) | `bench/runs/wave1/` |
 | hash manifest over that home | `bench/manifests/wave1.sha256` |
 | verify the home (rehash every file, check the 36 analysis copies) | `python3 bench/analysis/wave1/verify_home.py` → `ok 53270 mismatch 0 missing 0 analysis-copies-ok 36 analysis-copies-bad 0`, exit 0 |
@@ -186,7 +217,8 @@ lands), then this file. The law this node runs under is `/home/z/vibe/agent-poli
 it is read once and not copied here.
 
 **Continue** from the roadmap above. The tree is committed at every hand-over, so the next
-session's first question is only whether mail in `mail/` has changed the order of work.
+session's first question is only whether mail in `mail/` has changed the order of work. The
+preprint is `docs/paper/README.md`; the command that proves it is `python3 bench/checks/m1_acceptance.py`.
 
 **Where things differ from the general convention.** The decisive evidence is *not* in git —
 the home above, verified by the manifest, is the highest rung `git` cannot reach. Mail for this

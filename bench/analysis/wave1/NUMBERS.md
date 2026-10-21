@@ -28,15 +28,16 @@ the same computation without the entry point.
 
 | number, where it is quoted | `reproduce.py` key | command | expected |
 | --- | --- | --- | --- |
-| R1 `24.640` vs `24.960`, delta `−0.320`, CI `[−3.520, +3.080]` (`docs/STATUS.md` §2–§3, `docs/paper-plan.md:17`) | `python3 bench/analysis/wave1/recompute_n25.py` | `rows per arm from the home: 1000` and five `ok` lines, `a_mean_tasks +24.640`, `b_mean_tasks +24.960`, `delta_tasks -0.320`, `lo95 -3.520`, `hi95 +3.080` |
-| R2 arm table, stage contributions, quadrants, cost (`docs/STATUS.md` §4–§5) | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl' --out /tmp/r2.json --text /tmp/r2.txt && diff /tmp/r2.txt bench/analysis/wave1/r2/analysis.txt` | `diff` empty — the recomputed text is byte-identical to the record committed beside it |
-| R2 the same in JSON | `diff <(python3 -m json.tool /tmp/r2.json) <(python3 -m json.tool bench/analysis/wave1/r2/analysis.json)` | `diff` empty |
-| R3 `leaf 47/70` vs `tree-greedy 14/70` vs `tree-tournament 15/70`, McNemar `p ≤ 0.001`, per-corpus-item deltas (`docs/STATUS.md` §2, §5) | `H=$(pwd)/bench/runs/wave1/final/r3; sed "s|/tmp/wave1/final/r3|$H|" bench/analysis/wave1/r3/supp.py > /tmp/supp_home.py && python3 /tmp/supp_home.py \| diff - bench/analysis/wave1/r3/supp-r3.txt` | `diff` empty — line 42 reads `leaf runs=70 actual=47/70 claimed=8/70 false_success=0 …` |
-| R3 arm calls and wall-clock, decomposition-fired counts, per-item rates (`docs/STATUS.md` §5) | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py \| diff - bench/analysis/wave1/r3/analysis-r3.txt` | `diff` empty — `leaf runs=70 mean_calls=14.4 mean_wall_s=175`, `tree-greedy … mean_calls=31.6 mean_wall_s=408` |
-| the copy itself, all 53 270 files | `python3 bench/analysis/wave1/verify_home.py` | `ok 53270  mismatch 0  missing 0  analysis-copies-ok 36  analysis-copies-bad 0`, exit 0 |
+| R1 `24.640` vs `24.960`, delta `−0.320`, CI `[−3.520, +3.080]` (`docs/STATUS.md` §2–§3, `docs/paper-plan.md:17`) | `r1_a_mean_tasks`, `r1_b_mean_tasks`, `r1_delta_tasks`, `r1_lo95`, `r1_hi95`, `r1_rows_per_arm` | `python3 bench/analysis/wave1/recompute_n25.py` | `rows per arm from the home: 1000` and five `ok` lines, `a_mean_tasks +24.640`, `b_mean_tasks +24.960`, `delta_tasks -0.320`, `lo95 -3.520`, `hi95 +3.080` |
+| R2 arm table, stage contributions, quadrants, cost (`docs/STATUS.md` §4–§5) | `r2_arm_*`, `r2_full_minus_own_iv_*`, `r2_full_minus_own_review_*` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl' --out /tmp/r2.json --text /tmp/r2.txt && diff /tmp/r2.txt bench/analysis/wave1/r2/analysis.txt` | `diff` empty — the recomputed text is byte-identical to the record committed beside it |
+| R2 the same in JSON (compared parsed, not byte-wise — see the limitations below) | — | `diff <(python3 -m json.tool /tmp/r2.json) <(python3 -m json.tool bench/analysis/wave1/r2/analysis.json)` | `diff` empty |
+| R3 `leaf 47/70` vs `tree-greedy 14/70` vs `tree-tournament 15/70`, McNemar `p ≤ 0.001`, per-corpus-item deltas (`docs/STATUS.md` §2, §5) | `r3_leaf`, `r3_tree_greedy`, `r3_tree_tournament` | `H=$(pwd)/bench/runs/wave1/final/r3; sed "s|/tmp/wave1/final/r3|$H|" bench/analysis/wave1/r3/supp.py > /tmp/supp_home.py && python3 /tmp/supp_home.py \| diff - bench/analysis/wave1/r3/supp-r3.txt` | `diff` empty — line 42 reads `leaf runs=70 actual=47/70 claimed=8/70 false_success=0 …` |
+| R3 arm calls and wall-clock, decomposition-fired counts, per-item rates (`docs/STATUS.md` §5) | `r3_leaf_mean_calls`, `r3_tree_greedy_mean_calls` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py \| diff - bench/analysis/wave1/r3/analysis-r3.txt` | `diff` empty — `leaf runs=70 mean_calls=14.4 mean_wall_s=175`, `tree-greedy … mean_calls=31.6 mean_wall_s=408` |
+| the copy itself, all 53 270 files | — | `python3 bench/analysis/wave1/verify_home.py` | `ok 53270  mismatch 0  missing 0  analysis-copies-ok 36  analysis-copies-bad 0`, exit 0 |
 
-`sed` is needed in the R3 `supp.py` line because that script hardcodes `/tmp/wave1/final/r3`
-on line 7; rewriting it to take a path is part of the reproduce entry point, not of this table.
+`sed` is needed in the R3 `supp.py` line because that script hardcodes `/tmp/wave1/final/r3`;
+`reproduce.py` replaces that one literal under an exactly-once assertion, so the deeper form
+below still shows the literal.
 
 ## Not verified from the home
 
