@@ -51,7 +51,7 @@ start, because its continuation needs a person's authorisation that no node belo
 | WP-0.4 | Handover report to root | done |
 | WP-0.5 | Traceability seed: which number comes from which command, and which are not yet re-derived | done — `bench/analysis/wave1/NUMBERS.md` |
 | WP-1.1 | Paper draft: problem, protocol, results 1–3, negative results and retractions, external-validity boundary, reproduce section | dispatched 2026-10-21 |
-| WP-1.2 | Reproduce entry point over a committed projection, inputs asserted, no network and no model | dispatched 2026-10-21 |
+| WP-1.2 | Reproduce entry point over a committed projection, inputs asserted, no network and no model | done — `reproduce.py`, `bench/projection/` (472 files, 2 810 rows, 523 499 bytes) |
 | WP-1.3 | Freeze the measurement revision as a tag; integration check that the paper's table equals the command's output | this node |
 | WP-1.4 | Handover report to root naming M1, its command and the decision needed | this node |
 
@@ -101,6 +101,21 @@ recorded `analysis-n25-final.json`. R2: `r2_analyze.py --glob
 `14/70`, `tree-tournament` `15/70`, McNemar `p ≤ 0.001`). So the three verdicts no longer
 depend on a temporary path for anything a reader needs to check.
 
+**Recomputable from the repository alone, measured.** `python3 reproduce.py` prints 21
+`key value` lines and exits 0 in 4.4 s on a tree with no `bench/runs` at all. It feeds the
+campaign's own analyzers from `bench/projection/wave1/final/` — 472 files, 2 810 rows, 523 499
+bytes raw, 57 561 gzipped, cut from the 62 MiB of inputs the analyzers read — and compares every
+value against the record committed beside its analyzer before it prints one line. Fidelity of
+the projection to the home it was cut from: `python3 bench/analysis/wave1/fix/verify_projection.py`
+returns `ok files=472 rows=2810 mismatches=0`, and one flipped `actual` in a copy returns
+`mismatches=1`, exit 1. Loud failure, three ways, each exiting 1 with zero stdout lines: a
+deleted record (`missing input: … file not found`), a zero-row record (`empty input: … 0 rows
+read`), a short sample (`short sample: R1 arm a (ours) seed 20 — 35 rows, wanted 40 … arm a
+then has 995 of 1000`). Two limits are recorded rather than smoothed: R2's `analysis.json` is
+compared parsed, not byte-wise, because its `stop_reasons` ties depend on set-iteration order;
+and `r3/supp.py`'s one `/tmp` literal is replaced under an exactly-once assertion so a future
+edit stops the run instead of silently reading a temporary path.
+
 **Taken over, as found.** HEAD `73cc4d9` plus root's mail commit `bf0fed7`; working tree clean
 before this node's first write; no git tag; `bench/runs/evidence/` (802 files, 5.4 MB) is the
 only tracked run evidence and it predates the final campaign, newest `20261006`. The whole
@@ -138,11 +153,11 @@ what "reproduce" is allowed to cost — a committed projection or a re-run
 either order, and the projection's measured cost is reported as the answer to the second rather
 than waited on. Their answers still arrive in `mail/` and still move what this node does next.
 
-**Open, this node's own.** Whether the committed projection is small enough to make
-"recomputable from the repository alone" true on a machine that has never seen `/tmp` — that is
-the measurement `docs/paper-plan.md` asks for. WP-1.2 takes it: the projection is built over the
-committed rows and both its size and its fidelity (every analyzer reproducing its recorded
-output from the projection alone) are reported. Nothing here closes it by assumption.
+**Closed, this node's own — what "reproduce" may cost.** It costs 0.5 MB of committed rows, not
+2 GB: the decisive numbers recompute from `bench/projection/wave1/final/` with no home, no
+`/tmp`, no model and no network, in under five seconds, and every number is gated against the
+record the campaign committed. The committed projection was the option the open question named;
+it is now measured rather than proposed, so the question no longer blocks anything.
 
 ## Evidence pointers
 
