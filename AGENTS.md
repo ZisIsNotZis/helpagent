@@ -40,8 +40,8 @@ rows and its size and fidelity are reported; if the tables cannot be regenerated
 tag `preprint-v1` into a temporary directory, runs the one command there with no untracked home
 present, requires each printed key to be quoted on one line of `docs/paper/`, and requires three
 starved trees to fail loudly; it exits 0 and prints `m1 acceptance: OK`. The tags: `wave1-measurement`
-names the measurement revision `45ebb32`, `preprint-v1` names the revision the check runs at.
-What M1 does not deliver, and does not claim, is publication — a DOI, a push or an arXiv
+names the measurement revision `45ebb32`, `preprint-v1` (`93ead45`) names the revision the check
+runs at. What M1 does not deliver, and does not claim, is publication — a DOI, a push or an arXiv
 submission is a `cost` act above this node and is not taken here.
 
 **Not on this roadmap:** the recovery line (P1a frozen at the exhausted two-review cap,
@@ -61,7 +61,7 @@ start, because its continuation needs a person's authorisation that no node belo
 | WP-1.1 | Paper draft: problem, protocol, results 1–3, negative results and retractions, external-validity boundary, reproduce section | done — `docs/paper/`, 8 sections + `numbers.md` (97 rows, 26 marked unknown) |
 | WP-1.2 | Reproduce entry point over a committed projection, inputs asserted, no network and no model | done — `reproduce.py`, `bench/projection/` (472 files, 2 810 rows, 523 499 bytes) |
 | WP-1.3 | Freeze the measurement revision as a tag; integration check that the paper's table equals the command's output | done — `wave1-measurement`, `preprint-v1`, `bench/checks/m1_acceptance.py` |
-| WP-1.4 | Handover report to root naming M1, its command and the decision needed | done — the report in `mail/` |
+| WP-1.4 | Handover report to root naming M1, its command and the decision needed | done — `mail/2026-10-21-helpagent-m1.md` |
 
 ### What was in flight, and how it landed
 
