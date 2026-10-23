@@ -4,7 +4,7 @@
 
 # Whatever the harness bought: a pre-registered measurement of a program-shaped coding harness on a small local model, with its negative results kept
 
-Draft for reading, not a publication: no DOI, no submission, no push.
+A preprint, public in the repository that holds it: no DOI and no arXiv submission yet.
 Every decisive number below was measured once, on revision `45ebb32`, and re-derives from the
 repository alone with `python3 reproduce.py` (§8).
 

@@ -44,8 +44,9 @@ tag `preprint-v1` into a temporary directory, runs the one command there with no
 present, requires each printed key to be quoted on one line of `docs/paper/`, and requires three
 starved trees to fail loudly; it exits 0 and prints `m1 acceptance: OK`. The tags: `wave1-measurement`
 names the measurement revision `45ebb32`, `preprint-v1` (`93ead45`) names the revision the check
-runs at. What M1 does not deliver, and does not claim, is publication — a DOI, a push or an arXiv
-submission is a `cost` act above this node and is not taken here.
+runs at. What M1 does not deliver, and does not claim, is publication — a DOI or an arXiv
+submission is a `cost` act above this node and is not taken here. The push has since been taken
+above this node (2026-10-23), so the preprint is public; the DOI is not.
 
 **Not on this roadmap:** the recovery line (P1a frozen at the exhausted two-review cap,
 `docs/ROADMAP.md:32`, `.scratch/30-harness-recovery/blocked-checkpoint.md`). The order answer
@@ -152,7 +153,15 @@ project's decisive numbers hang on three archived verdicts recorded in `docs/STA
 **Decided.** No new experiment is needed for M1 (the repo's own `docs/paper-plan.md:36-38`
 says so, and this node agrees on the evidence: the analyzers plus the secured rows recompute
 the numbers). Publication — a DOI, a push, a tag — is a `cost` act above this node and is not
-taken here.
+taken here; the push was taken above it, and the state is in the next paragraph.
+
+**Published, and what is still the person's.** Root made the repository public and pushed it on
+2026-10-23; read then with `git ls-remote origin` (`refs/heads/master` = `af963b3`) and
+`curl -s https://api.github.com/repos/ZisIsNotZis/helpagent` (`"private": false`, HTTP 200
+unauthenticated, no token spent). So the preprint is publicly readable at the current revision,
+and it says so on its face (`docs/paper/preprint.md`, `docs/paper/README.md`). What is still
+the person's: a DOI deposit and any arXiv submission, which this node does not take. This node
+publishes nothing further — no DOI, no second public surface — and a tag is not a publication.
 
 **Granted, and what it is.** Root granted the authoring package on 2026-10-21: the spend is
 `tokens` against this level's model budget plus `idle-compute` wall-clock, not metered money, so

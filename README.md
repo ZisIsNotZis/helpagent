@@ -1,5 +1,10 @@
 # helpagent
 
+**The write-up is [`docs/paper/preprint.md`](docs/paper/preprint.md)** — the whole campaign as one
+paper: abstract, protocol, three verdicts, the negative results and retractions, the limits, and
+a numbers appendix. It is public here and has no DOI yet. `python3 reproduce.py` re-derives every
+decisive number in it from committed rows, with no model, no network and no campaign archive.
+
 A research harness that wraps a small local model in a conventional software-engineering
 process, and measures the result honestly.
 

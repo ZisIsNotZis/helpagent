@@ -16,6 +16,10 @@ verdicts — parity **INCONCLUSIVE** (`docs/STATUS.md:28`), verification **partl
 stated** (`docs/STATUS.md:29`), the tree bundle **NEGATIVE** (`docs/STATUS.md:30`) — with the
 protocol and the losing half of the record as the contribution.
 
+The paper is public in this repository and has no DOI yet; the DOI waits for the person. The
+revision to cite is this repository's current one, not the tag — see [What this draft is
+not](#what-this-draft-is-not).
+
 ## Sections
 
 | file | kind | what it holds |
@@ -32,8 +36,9 @@ protocol and the losing half of the record as the contribution.
 | [`08-reproduce.md`](08-reproduce.md) | authored | one command, its keys verbatim, and how it fails loudly |
 | [`numbers.md`](numbers.md) | authored | the single home for every number: Number, Value, Source, Command |
 
-Page budget: `docs/paper-plan.md:32` asks for a paper of the stated length; the source is
-markdown and the count of words is reported in the acceptance of this draft, not estimated here.
+Page budget: `docs/paper-plan.md:33` asks for a paper of eight to twelve pages; this render is
+longer than that plan. The word count is printed by `python3 docs/paper/build_preprint.py` and is
+not stored here, so it cannot drift away from the render it counts.
 
 ## How to check the draft
 
@@ -62,11 +67,15 @@ reading. A green run means the draft's numbers point where it says they point.
 
 ## What this draft is not
 
-Not a published paper. No DOI, no submission, no remote this node has written to: the
-publication act is above this node (`AGENTS.md`, and the summary of what it would take is in
-`mail/2026-10-23-helpagent-paper-first.md`). Tag `preprint-v1` freezes the revision
-`bench/checks/m1_acceptance.py` checks the sections at; freezing a revision is not publishing it,
-and it does not contain the §7 limit or this index, which are later than the tag. Not a re-measurement: the numbers were measured once, on revision
+**Not a paper with a DOI.** The repository that holds it is public and the preprint is pushed to
+it: `origin/master` names this revision, read on 2026-10-23. The DOI and any arXiv submission are
+above this node and wait for the person; the three separate acts and what each costs are in
+`mail/2026-10-23-helpagent-paper-first.md`. **The revision to cite is this repository's current
+one.** Tag `preprint-v1` freezes only the revision `bench/checks/m1_acceptance.py` runs its
+numbers check at, and it is older than this index: it holds the eight sections' first draft plus
+`numbers.md`, and it does **not** hold `00-abstract.md`, the one-file render, the builder,
+§5's clause about the routing heuristic or §7's paragraph about it. A reader who checks out the
+tag gets the acceptance revision, not the paper. Not a re-measurement: the numbers were measured once, on revision
 `45ebb32` (`docs/STATUS.md:6`), and this draft re-derives them from committed bytes. Not a
 success narrative: where the campaign failed to establish something, the sentence says
 failed to establish.
