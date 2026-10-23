@@ -24,6 +24,10 @@ What it checks, in the order it runs:
 command that re-derives it is a gap the draft must name, and this script keeps the count
 visible.
 
+``preprint.md`` is not scanned here: it is a render of the files above, so its sentences are
+the same sentences, and the thing worth checking about a render is that it is current —
+``build_preprint.py --check`` does that.
+
 Fails one line per problem, names the file and line, and prints
 ``citations resolved N unresolved M`` last. Exit 0 only when M is 0. No network, no model.
 """
@@ -37,6 +41,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 PAPER = Path(__file__).resolve().parent
 NUMBERS = PAPER / "numbers.md"
+# The render is derived from these sources; `build_preprint.py --check` guards it. Scanning it
+# here would check the same sentences twice and inflate the resolved count with its own copies.
+RENDER = PAPER / "preprint.md"
 NUMBERS_TABLE = REPO / "bench" / "analysis" / "wave1" / "NUMBERS.md"
 AGENTS = REPO / "AGENTS.md"
 ENTRY = REPO / "reproduce.py"
@@ -251,6 +258,8 @@ def check_numbers(printed: dict[str, str], have_entry: bool) -> None:
 
 def walk_refs() -> None:
     for md in sorted(PAPER.glob("*.md")):
+        if md.name == RENDER.name:
+            continue
         for lineno, line in enumerate(read_lines(md), start=1):
             for m in REF.finditer(line):
                 ref = m.group(0).replace(" ", "")
@@ -285,7 +294,7 @@ def prose_numerals() -> None:
         if len(cells) == 4:
             table.update(q.lstrip("+-").replace(",", "") for q in quantities(cells[1]))
     for md in sorted(PAPER.glob("*.md")):
-        if md.name == NUMBERS.name:
+        if md.name in (NUMBERS.name, RENDER.name):
             continue
         text = "\n".join(read_lines(md))
         text = re.sub(r"```.*?```", " ", text, flags=re.S)
