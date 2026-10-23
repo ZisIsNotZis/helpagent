@@ -162,6 +162,9 @@ unauthenticated, no token spent). So the preprint is publicly readable at the cu
 and it says so on its face (`docs/paper/preprint.md`, `docs/paper/README.md`). What is still
 the person's: a DOI deposit and any arXiv submission, which this node does not take. This node
 publishes nothing further — no DOI, no second public surface — and a tag is not a publication.
+The two frozen tags are on the remote as well (`git ls-remote --tags origin` names
+`preprint-v1` and `wave1-measurement`, read 2026-10-23), so the revision `m1_acceptance.py`
+checks is reachable by a reader, not only by this clone.
 
 **Granted, and what it is.** Root granted the authoring package on 2026-10-21: the spend is
 `tokens` against this level's model budget plus `idle-compute` wall-clock, not metered money, so
