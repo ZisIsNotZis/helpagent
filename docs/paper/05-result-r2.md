@@ -48,13 +48,17 @@ stopping and delivery together, so each contrast is a net workflow effect
   p=`0.34` (`docs/STATUS.md:100`). The requirement R2 was written to test is therefore not met
   as stated (`docs/STATUS.md:29`).
 
-Two readings hold this section together. First, these are workflow effects, not measurements of
+Three readings hold this section together. First, these are workflow effects, not measurements of
 information content: a stage that changes the code path can change the outcome without any
 signal in it (`docs/STATUS.md:85`). Second, agreement is not proof: both internal verifiers can
 share one misreading and certify a wrong fix, and the final audit found a run where the
 independent test and the review jointly approved an answer the grader failed
 (`docs/STATUS.md:143`). The external grader is the only correctness arbiter
-(`docs/STATUS.md:189`).
+(`docs/STATUS.md:189`). Third, the p-values are descriptive rather than confirmatory: five paired
+contrasts on three metrics with no multiplicity correction, three repeats per task, stage costs
+that are not matched, and a server restarted mid-campaign, so an unseen configuration drift would
+be undetectable (`docs/STATUS.md:100`). A reader should treat each p-value as one unadjusted
+contrast among several, which is why this section reports the intervals beside them.
 
 ## The cost, which is unfavourable
 

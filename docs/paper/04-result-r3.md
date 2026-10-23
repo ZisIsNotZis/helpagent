@@ -1,6 +1,6 @@
 # 4. R3 — decomposition: the leaf beats both tree arms, and the scope of that negative
 
-This is the campaign's clearest single point. The question: does planning a task as a tree of
+This is the campaign's best-powered result: a paired, pre-registered comparison whose every interval falls on the same side of zero. The question: does planning a task as a tree of
 child candidates, and delivering the winner, fix more tasks than a single monolithic leaf with
 the same budget?
 
@@ -55,8 +55,8 @@ worth reading in full, because the headline number is easy to over-read:
   splitting (`docs/STATUS.md:123`);
 - the tree merges only closed, claimed candidates, whereas the leaf also delivers unclaimed
   code (`docs/STATUS.md:123`), so the delivery rule alone can produce the difference;
-- both tree arms delivered pristine Python source on all `52` unclaimed failures, and the leaf
-  passed `39` unclaimed runs (`docs/STATUS.md:123`);
+- both tree arms delivered pristine Python source on all `52` unclaimed failures of each arm —
+  a per-arm count, not a total — and the leaf passed `39` unclaimed runs (`docs/STATUS.md:123`);
 - the deleted tree candidates cannot establish how many of them were correct
   (`docs/STATUS.md:123`).
 
@@ -71,7 +71,7 @@ This is also why the paper does not call the tree "harmful" without its scope: i
 *as a bundle, here*. A reader who takes "decomposition loses" away from this section has taken
 away a claim the experiment does not support.
 
-## Why this is the strongest point
+## Why this result carries the most weight
 
 The other two requirements end in a verdict that admits its own uncertainty: INCONCLUSIVE, and
 partly. This one ends in a paired comparison where every interval clears zero on the same side,

@@ -5,8 +5,12 @@ lives. Everything above is true inside it and may be false outside it.
 
 ## The boundary
 
-**One model, one revision, one corpus.** Every number in this paper was measured with one
-quantised 4B model on llama.cpp, on one revision (`45ebb32`), on one corpus of `40` tasks. No
+**One model, one revision, one corpus.** Every verdict number in this paper was measured with
+one quantised 4B model on llama.cpp, on one revision (`45ebb32`), on one corpus of `40` tasks. Two
+kinds of number sit outside that sentence and say so where they occur: the starting position in
+§3 (`24/40` against `27/40`) was measured on the earlier revision `6b224f5`, and the nine rows of
+§6 were measured on earlier revisions, one of them at a smaller context and not re-measured at
+the final one. No
 claim is made about other models, other corpora, other languages or real repositories
 (`docs/STATUS.md:209`). The model is small by current standards; a stronger model could erase
 the reliability advantage measured here or change the sign of the structure results, and neither
@@ -41,14 +45,31 @@ Nothing independent judges that decision, and in a stage contrast a routing erro
 That bounds the reading of §5 and not its numbers: solved and false success are the external grader's verdict, and the claim column is the harness's own claim compared against that verdict (§2), so the ablation's arms, costs and claim gate stand as measured — while §5's null about the own-test loop cannot be read as evidence that test feedback carries no information, because the feedback it carried was routed by this heuristic.
 No repair of the heuristic is validated in this repository, so this question stays open rather than settled.
 
+**The baseline ran under a per-turn output cap, and some of its runs ended on it.** The baseline
+is driven with its per-turn output capped at `8192` tokens, a quarter of the server's window, so
+that the rest of the window stays available to the tool transcript (`bench/pi_baseline.py:71`).
+The bounded audit found baseline samples that stopped at that cap or reported the context size
+exceeded before any code write, while the driver-level counters record no timeout
+(`docs/STATUS.md:39`). "No crashes and no timeouts" therefore does not mean every baseline
+inference completed: how many of its failed runs this cost is unrecorded, and the parity number
+does not exclude a baseline loss from it.
+
+**The remaining false successes are on the plain green path.** At the end of the campaign they
+come from runs whose own test was green, whose independent test was green and whose review
+approved, and which the grader then failed; the rules that close the review route are not fully
+applied to that green route (`docs/STATUS.md:206`). Two of the campaign's stated goals are
+therefore not met as written: zero false successes was not reached (`2.2`% in the head-to-head, and the full
+ablation arm still produced a false success), and not every final failure has a deviation-point explanation
+(`docs/STATUS.md:100`). "A claim gate buys honesty" means it made lying measurable, not that it
+removed it.
+
 **Some quantities are unmeasured, and are recorded as unknown.** The baseline's token count is
 partly unmeasured, because its driver carries no token counters, so its cost figure is not
 recomputable from the final rows (`docs/STATUS.md:128`). Wall-clock is unclean and not
-comparable across arms (`docs/STATUS.md:131`). The baseline's retained samples contain length
-stops and explicit context-size errors before any code write, and the bounded audit leaves their
-runtime cause unknown (`docs/STATUS.md:39`). The interval-width projection that carries
-§3's argument has no committed command that re-derives it; the numbers table records
-those rows as unknown with the gap named rather than filled.
+comparable across arms (`docs/STATUS.md:131`). Every quantity that carries §3's argument now
+re-derives (`python3 reproduce.py`); the baseline's token count, the wall-clock subset and the
+size of the truncation above do not, and the numbers table records each as unknown with its gap
+named.
 
 ## Non-conclusions
 

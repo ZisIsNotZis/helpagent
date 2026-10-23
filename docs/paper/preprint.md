@@ -26,11 +26,11 @@ repository alone with `python3 reproduce.py` (§8).
 A coding harness is a bet that a program wrapped around a language model buys capability the same model driving a free-form CLI does not have, and this paper reports one campaign that tried to settle the bet and could not.
 The conditions are fixed and narrow: one quantised `4B` model on llama.cpp, one corpus of `40` seeded tasks, one blind external grader that never enters the run loop, and a decision rule written down before the data were read.
 The result is three verdicts and no victory.
-Capability parity against a mature agent CLI is **INCONCLUSIVE** at the pre-registered margin — a paired difference of `-0.320` tasks with a `95`% task-clustered interval of `[-3.520, +3.080]` — and the interval's width is set by task heterogeneity, so more seeds would not have resolved it.
-The verification ladder is **partly** informative and costs about twice the baseline's tokens: a claim gate buys honesty, and the correctness contrasts are mostly unresolved.
+Capability parity against a mature agent CLI is **INCONCLUSIVE** at the pre-registered margin — a paired difference of `-0.320` tasks with a `95`% task-clustered interval of `[-3.520, +3.080]` — and the interval's width is set by task heterogeneity, so more seeds alone are not projected to resolve it.
+The verification ladder is **partly** informative and costs about twice the token count recorded for the baseline, whose own count is only partly measured (§5): the claim gate makes lying measurable, and the correctness contrasts are mostly unresolved.
 The harness's tree-of-children bundle is **NEGATIVE** on this corpus, fixing `47/70` runs as a monolithic leaf against `14/70` as a tree, while costing `2.2` to `2.4` times the calls.
-The methodological contribution is the protocol plus the losing half of the record: nine plausible designs that measured worse, three claims withdrawn with the reason each died, and the boundary inside which every number holds.
-Every decisive number re-derives from the repository alone with one command, `python3 reproduce.py`, from committed rows, with no model, no network and no campaign archive; §8 states how that path fails loudly when its input is starved, because a reproduction that reports parity after reading an empty directory is worse than none.
+The methodological contribution is the protocol plus the losing half of the record: nine plausible designs that did not help, three claims withdrawn with the reason each died, and the boundary inside which every number holds.
+Every number the three verdicts turn on re-derives from the repository alone with one command, `python3 reproduce.py`, from committed rows, with no model, no network and no campaign archive, and §8 states how that path fails loudly when its input is starved, because a reproduction that reports parity after reading an empty directory is worse than none; the appendix names row by row the numbers no committed command re-derives, rather than calling them re-derived.
 Nothing here describes a tool anyone can run: the product CLI the research was for was never built.
 
 ## 1. The problem: how a harness's "improvement" gets falsified
@@ -257,9 +257,13 @@ capability goal is impossible (`docs/STATUS.md:61`). It is also the reason the n
 design work is a power question — a task set whose between-task heterogeneity is smaller
 relative to the effect — rather than a seed-count question (`docs/ROADMAP.md:83`).
 
-The widths and the variance share above are the only decisive numbers in this paper that no
-committed command currently re-derives; they are recorded as unknown in the numbers table with
-the gap named (`numbers.md`), not filled in.
+Every number in this paragraph re-derives from the committed rows, and none of it is taken on
+trust: `python3 reproduce.py` prints the widths at `N=17` and `N=25`, the smallest width over that
+sweep (`6.43`), the half-width, the variance share, the asymptotic width and the estimate the rule
+would need, and it stops if that recomputation disagrees with the sentence recording them
+(`docs/STATUS.md:57`). The derivation runs the campaign's own analyzer at each `N` over the
+projection and splits the variance of the paired per-task differences at `N=25`
+(`bench/analysis/wave1/n25/interval_widths.py`).
 
 ### The number this result replaced, and the one it could silently become
 
@@ -282,16 +286,18 @@ entry point in §8 asserts row counts before it prints anything.
 On the same runs, the harness's false-success rate — the run claimed success and the grader
 failed the work — was `22/1000` against the mature CLI's `61/1000` (`docs/STATUS.md:45`), a
 task-clustered difference of `-1.56` tasks with interval `[-3.16, -0.20]`
-(`docs/STATUS.md:140`). This is the one axis where the harness is measurably ahead, and it is
-narrower than it looks: the baseline's claimed column is not comparable, because the mature CLI
-has no claim gate and its "claimed" is a regular expression over its final message
-(`docs/STATUS.md:145`). Only actual correctness and false success are comparable across the
-arms (`docs/STATUS.md:147`). The advantage is also not a moat: it is a property of a design
+(`docs/STATUS.md:141`). This is the one axis where our claim gate is measurably ahead, and it is
+narrower than it looks: a false success is `claimed and not actual`, and the baseline's claimed
+column is not comparable, because the mature CLI has no claim gate and its "claimed" is a regular
+expression over its final message (`docs/STATUS.md:145`). So the interval measures a difference
+between two claim mechanisms — our gate against that regex — not a difference between the
+harnesses' honesty, and the regex's own error rate is unmeasured. Only actual correctness is
+directly comparable across the arms (`docs/STATUS.md:147`). The advantage is also not a moat: it is a property of a design
 that is straightforward to add to any agent (`docs/LEARNINGS.md:213`).
 
 ## 4. R3 — decomposition: the leaf beats both tree arms, and the scope of that negative
 
-This is the campaign's clearest single point. The question: does planning a task as a tree of
+This is the campaign's best-powered result: a paired, pre-registered comparison whose every interval falls on the same side of zero. The question: does planning a task as a tree of
 child candidates, and delivering the winner, fix more tasks than a single monolithic leaf with
 the same budget?
 
@@ -346,8 +352,8 @@ worth reading in full, because the headline number is easy to over-read:
   splitting (`docs/STATUS.md:123`);
 - the tree merges only closed, claimed candidates, whereas the leaf also delivers unclaimed
   code (`docs/STATUS.md:123`), so the delivery rule alone can produce the difference;
-- both tree arms delivered pristine Python source on all `52` unclaimed failures, and the leaf
-  passed `39` unclaimed runs (`docs/STATUS.md:123`);
+- both tree arms delivered pristine Python source on all `52` unclaimed failures of each arm —
+  a per-arm count, not a total — and the leaf passed `39` unclaimed runs (`docs/STATUS.md:123`);
 - the deleted tree candidates cannot establish how many of them were correct
   (`docs/STATUS.md:123`).
 
@@ -362,7 +368,7 @@ This is also why the paper does not call the tree "harmful" without its scope: i
 *as a bundle, here*. A reader who takes "decomposition loses" away from this section has taken
 away a claim the experiment does not support.
 
-### Why this is the strongest point
+### Why this result carries the most weight
 
 The other two requirements end in a verdict that admits its own uncertainty: INCONCLUSIVE, and
 partly. This one ends in a paired comparison where every interval clears zero on the same side,
@@ -420,13 +426,17 @@ stopping and delivery together, so each contrast is a net workflow effect
   p=`0.34` (`docs/STATUS.md:100`). The requirement R2 was written to test is therefore not met
   as stated (`docs/STATUS.md:29`).
 
-Two readings hold this section together. First, these are workflow effects, not measurements of
+Three readings hold this section together. First, these are workflow effects, not measurements of
 information content: a stage that changes the code path can change the outcome without any
 signal in it (`docs/STATUS.md:85`). Second, agreement is not proof: both internal verifiers can
 share one misreading and certify a wrong fix, and the final audit found a run where the
 independent test and the review jointly approved an answer the grader failed
 (`docs/STATUS.md:143`). The external grader is the only correctness arbiter
-(`docs/STATUS.md:189`).
+(`docs/STATUS.md:189`). Third, the p-values are descriptive rather than confirmatory: five paired
+contrasts on three metrics with no multiplicity correction, three repeats per task, stage costs
+that are not matched, and a server restarted mid-campaign, so an unseen configuration drift would
+be undetectable (`docs/STATUS.md:100`). A reader should treat each p-value as one unadjusted
+contrast among several, which is why this section reports the intervals beside them.
 
 ### The cost, which is unfavourable
 
@@ -523,8 +533,8 @@ Three properties make the record reusable rather than confessional.
    precondition is a precondition and not a courtesy (§2).
 
 The corpus of negatives also bounds the positive results. When the strongest point of the paper
-is that a bundle lost (§4), the reader can see that the same campaign recorded nine other
-losing designs and still declined to generalise from them (`docs/STATUS.md:184`). The discipline
+is that a bundle lost (§4), the reader can see that the same campaign recorded nine designs
+that lost or gained nothing, one of them the tree bundle of §4 and still declined to generalise from them (`docs/STATUS.md:184`). The discipline
 is uniform: measure, bound the conclusion, keep the row.
 
 ## 7. Limits and non-conclusions: the external-validity boundary
@@ -534,8 +544,12 @@ lives. Everything above is true inside it and may be false outside it.
 
 ### The boundary
 
-**One model, one revision, one corpus.** Every number in this paper was measured with one
-quantised 4B model on llama.cpp, on one revision (`45ebb32`), on one corpus of `40` tasks. No
+**One model, one revision, one corpus.** Every verdict number in this paper was measured with
+one quantised 4B model on llama.cpp, on one revision (`45ebb32`), on one corpus of `40` tasks. Two
+kinds of number sit outside that sentence and say so where they occur: the starting position in
+§3 (`24/40` against `27/40`) was measured on the earlier revision `6b224f5`, and the nine rows of
+§6 were measured on earlier revisions, one of them at a smaller context and not re-measured at
+the final one. No
 claim is made about other models, other corpora, other languages or real repositories
 (`docs/STATUS.md:209`). The model is small by current standards; a stronger model could erase
 the reliability advantage measured here or change the sign of the structure results, and neither
@@ -570,14 +584,31 @@ Nothing independent judges that decision, and in a stage contrast a routing erro
 That bounds the reading of §5 and not its numbers: solved and false success are the external grader's verdict, and the claim column is the harness's own claim compared against that verdict (§2), so the ablation's arms, costs and claim gate stand as measured — while §5's null about the own-test loop cannot be read as evidence that test feedback carries no information, because the feedback it carried was routed by this heuristic.
 No repair of the heuristic is validated in this repository, so this question stays open rather than settled.
 
+**The baseline ran under a per-turn output cap, and some of its runs ended on it.** The baseline
+is driven with its per-turn output capped at `8192` tokens, a quarter of the server's window, so
+that the rest of the window stays available to the tool transcript (`bench/pi_baseline.py:71`).
+The bounded audit found baseline samples that stopped at that cap or reported the context size
+exceeded before any code write, while the driver-level counters record no timeout
+(`docs/STATUS.md:39`). "No crashes and no timeouts" therefore does not mean every baseline
+inference completed: how many of its failed runs this cost is unrecorded, and the parity number
+does not exclude a baseline loss from it.
+
+**The remaining false successes are on the plain green path.** At the end of the campaign they
+come from runs whose own test was green, whose independent test was green and whose review
+approved, and which the grader then failed; the rules that close the review route are not fully
+applied to that green route (`docs/STATUS.md:206`). Two of the campaign's stated goals are
+therefore not met as written: zero false successes was not reached (`2.2`% in the head-to-head, and the full
+ablation arm still produced a false success), and not every final failure has a deviation-point explanation
+(`docs/STATUS.md:100`). "A claim gate buys honesty" means it made lying measurable, not that it
+removed it.
+
 **Some quantities are unmeasured, and are recorded as unknown.** The baseline's token count is
 partly unmeasured, because its driver carries no token counters, so its cost figure is not
 recomputable from the final rows (`docs/STATUS.md:128`). Wall-clock is unclean and not
-comparable across arms (`docs/STATUS.md:131`). The baseline's retained samples contain length
-stops and explicit context-size errors before any code write, and the bounded audit leaves their
-runtime cause unknown (`docs/STATUS.md:39`). The interval-width projection that carries
-§3's argument has no committed command that re-derives it; the numbers table records
-those rows as unknown with the gap named rather than filled.
+comparable across arms (`docs/STATUS.md:131`). Every quantity that carries §3's argument now
+re-derives (`python3 reproduce.py`); the baseline's token count, the wall-clock subset and the
+size of the truncation above do not, and the numbers table records each as unknown with its gap
+named.
 
 ### Non-conclusions
 
@@ -646,13 +677,17 @@ The six keys the node document names by hand, with the values this paper quotes:
 | `r3_leaf` | `47/70` |
 | `r3_tree_greedy` | `14/70` |
 
-The entry point prints more than those six, and the paper uses them: `r1_b_mean_tasks`,
-`r1_rows_per_arm`, `r3_tree_tournament`, the two R3 call means, the five R2 arm totals, and the
-R2 contrasts (`r2_full_minus_own_iv_correctness`, `r2_full_minus_own_iv_ci`,
-`r2_full_minus_own_iv_p`, `r2_full_minus_own_review_claimed`,
+The entry point prints more than those six, and the paper uses every one of them: the baseline's
+mean, the row count, the shortfall against the margin, the interval-width quantities of §3
+(`r1_width_n17`, `r1_width_n25`, `r1_width_min`, `r1_half_width`, `r1_within_share_pct`,
+`r1_asymptotic_width`, `r1_needed_estimate`), `r3_tree_tournament`, the two R3 call means, the
+five R2 arm totals, and the R2 contrasts (`r2_full_minus_own_iv_correctness`,
+`r2_full_minus_own_iv_ci`, `r2_full_minus_own_iv_p`, `r2_full_minus_own_review_claimed`,
 `r2_full_minus_own_review_false`). The node document delegates the R2 rows to the entry point in
 the same sentence (`AGENTS.md` §Current facts); the exact key list is what the program prints, and the
-numbers table carries every one of them.
+numbers table carries every one of them. A key named on the command line selects that line —
+`python3 reproduce.py r1_delta_tasks` prints one line — and a key the program does not print is
+refused with the list of keys it does.
 
 ### Expected output
 
@@ -665,6 +700,14 @@ r1_delta_tasks -0.320
 r1_lo95 -3.520
 r1_hi95 3.080
 r1_rows_per_arm 1000
+r1_shortfall_tasks 0.520
+r1_width_n17 6.53
+r1_width_n25 6.60
+r1_width_min 6.43
+r1_half_width 3.3
+r1_within_share_pct 8.7
+r1_asymptotic_width 6.3
+r1_needed_estimate 0.3
 r3_leaf 47/70
 r3_tree_greedy 14/70
 r3_tree_tournament 15/70
@@ -742,7 +785,9 @@ One row per number. `Source` is a `file:line` in this repository (a cell may cit
 line); `Command` is one of four forms, and the choice of form is part of the claim:
 
 1. **A printed key**, `python3 reproduce.py <key>` — the number is printed by the entry point,
-   byte for byte.
+   which refuses a key it does not print. Where the entry point formats the same quantity
+differently from this table (a signed delta, a bracketed interval, a rounded share), the row's
+   value is that quantity written the way the paper writes it, and the key still names it.
 2. **The bare entry point**, `python3 reproduce.py` — the number is a field of a record the entry
    point compares in full, so a mismatch stops the run, but it is not one of the printed keys.
 3. **An analyzer command from the traceability table** `bench/analysis/wave1/NUMBERS.md` — the
@@ -765,7 +810,7 @@ secured but whose recompute command has never been run is "recorded as unknown, 
 | R1, bootstrap resamples | `20000` | `docs/STATUS.md:50` | `python3 bench/analysis/wave1/recompute_n25.py` |
 | R1, bootstrap seed | `20261013` | `docs/STATUS.md:49` | `python3 bench/analysis/wave1/recompute_n25.py` |
 | R1, margin of the pre-registered rule, tasks | `M=3` | `docs/STATUS.md:51` | `python3 reproduce.py` |
-| R1, shortfall against the margin, tasks | `0.520` | `docs/STATUS.md:52` | `python3 reproduce.py r1_lo95` |
+| R1, shortfall against the margin, tasks | `0.520` | `docs/STATUS.md:52` | `python3 reproduce.py r1_shortfall_tasks` |
 | R1, seeds per arm | `25` | `docs/STATUS.md:38` | `python3 reproduce.py` |
 | R1, run rows per arm | `1000` | `docs/STATUS.md:38` | `python3 reproduce.py r1_rows_per_arm` |
 | corpus size, tasks | `40` | `docs/STATUS.md:18` | `python3 reproduce.py` |
@@ -773,89 +818,93 @@ secured but whose recompute command has never been run is "recorded as unknown, 
 | R1, baseline: runs solved | `624/1000` | `docs/STATUS.md:43` | `python3 reproduce.py` |
 | R1, ours: false successes | `22/1000` | `docs/STATUS.md:45` | `python3 reproduce.py` |
 | R1, baseline: false successes | `61/1000` | `docs/STATUS.md:45` | `python3 reproduce.py` |
-| R1, false-success difference, tasks | `-1.56` | `docs/STATUS.md:140` | `python3 reproduce.py` |
-| R1, false-success difference, interval | `[-3.16, -0.20]` | `docs/STATUS.md:140` | `python3 reproduce.py` |
-| R1 interval width: half-width, tasks | `3.3` | `docs/STATUS.md:57` | `unknown` |
-| R1 interval width: full width at the frozen intermediate N | `6.53` | `docs/STATUS.md:58` | `unknown` |
-| R1 interval width: full width at the final N | `6.60` | `docs/STATUS.md:58` | `unknown` |
-| R1 interval width: seeds spanned by the flat range | `17`, `25` | `docs/STATUS.md:58` | `unknown` |
-| R1 interval width: within-seed share of variance, percent | `8.7%` | `docs/STATUS.md:60` | `unknown` |
-| R1 interval width: asymptotic projection, tasks | `6.3` | `docs/STATUS.md:60` | `unknown` |
-| R1, point estimate needed for ACHIEVED, tasks | `0.3` | `docs/STATUS.md:61` | `unknown` |
+| R1, false-success difference, tasks | `-1.56` | `docs/STATUS.md:141` | `python3 reproduce.py` |
+| R1, false-success difference, interval | `[-3.16, -0.20]` | `docs/STATUS.md:141` | `python3 reproduce.py` |
+| R1 interval width: half-width, tasks | `3.3` | `docs/STATUS.md:58` | `python3 reproduce.py r1_half_width` |
+| R1 interval width: full width at the frozen intermediate N | `6.53` | `docs/STATUS.md:58` | `python3 reproduce.py r1_width_n17` |
+| R1 interval width: full width at the final N | `6.60` | `docs/STATUS.md:58` | `python3 reproduce.py r1_width_n25` |
+| R1 interval width: smallest full width over the N=17..25 sweep | `6.43` | `bench/analysis/wave1/n25/interval-widths.json:77` | `python3 reproduce.py r1_width_min` |
+| R1 interval width: seeds spanned by the flat range | `17`, `25` | `docs/STATUS.md:38`, `docs/STATUS.md:58` | `unknown` |
+| R1 interval width: within-seed share of variance, percent | `8.7%` | `docs/STATUS.md:60` | `python3 reproduce.py r1_within_share_pct` |
+| R1 interval width: asymptotic projection, tasks | `6.3` | `docs/STATUS.md:61` | `python3 reproduce.py r1_asymptotic_width` |
+| R1, point estimate needed for ACHIEVED, tasks | `0.3` | `docs/STATUS.md:61` | `python3 reproduce.py r1_needed_estimate` |
 | R1, starting position on the earlier revision | `24/40`, `27/40` | `docs/STATUS.md:64` | `unknown` |
-| R1, the short-input trap: delta over a starved input | `0.06` | `bench/analysis/wave1/NUMBERS.md:76` | `unknown` |
-| R1, the short-input trap: interval over a starved input | `[-3.35, 3.71]` | `bench/analysis/wave1/NUMBERS.md:76` | `unknown` |
-| R1, the short-input trap: rows read | `680` | `bench/analysis/wave1/NUMBERS.md:76` | `unknown` |
+| R1, the short-input trap: delta over a starved input | `0.06` | `bench/analysis/wave1/NUMBERS.md:77` | `unknown` |
+| R1, the short-input trap: interval over a starved input | `[-3.35, 3.71]` | `bench/analysis/wave1/NUMBERS.md:77` | `unknown` |
+| R1, the short-input trap: rows read | `680` | `bench/analysis/wave1/NUMBERS.md:78` | `unknown` |
 | R3, leaf: runs solved | `47/70` | `docs/STATUS.md:109` | `python3 reproduce.py r3_leaf` |
 | R3, tree-greedy: runs solved | `14/70` | `docs/STATUS.md:110` | `python3 reproduce.py r3_tree_greedy` |
 | R3, tree-tournament: runs solved | `15/70` | `docs/STATUS.md:111` | `python3 reproduce.py r3_tree_tournament` |
-| R3, claimed runs per arm | `8/70`, `18/70` | `docs/STATUS.md:109`, `docs/STATUS.md:111` | `H=$(pwd)/bench/runs/wave1/final/r3; sed "s\|/tmp/wave1/final/r3\|$H\|" bench/analysis/wave1/r3/supp.py > /tmp/supp_home.py && python3 /tmp/supp_home.py \| diff - bench/analysis/wave1/r3/supp-r3.txt` |
-| R3, false successes per arm | `0`, `4`, `3` | `docs/STATUS.md:109`, `docs/STATUS.md:110`, `docs/STATUS.md:111` | `H=$(pwd)/bench/runs/wave1/final/r3; sed "s\|/tmp/wave1/final/r3\|$H\|" bench/analysis/wave1/r3/supp.py > /tmp/supp_home.py && python3 /tmp/supp_home.py \| diff - bench/analysis/wave1/r3/supp-r3.txt` |
+| R3, claimed runs per arm | `8/70`, `18/70` | `docs/STATUS.md:109`, `docs/STATUS.md:111` | `H=$(pwd)/bench/projection/wave1/final/r3; sed "s\|/tmp/wave1/final/r3\|$H\|" bench/analysis/wave1/r3/supp.py > /tmp/supp_home.py && python3 /tmp/supp_home.py \| diff - bench/analysis/wave1/r3/supp-r3.txt` |
+| R3, false successes per arm | `0`, `4`, `3` | `docs/STATUS.md:109`, `docs/STATUS.md:110`, `docs/STATUS.md:111` | `H=$(pwd)/bench/projection/wave1/final/r3; sed "s\|/tmp/wave1/final/r3\|$H\|" bench/analysis/wave1/r3/supp.py > /tmp/supp_home.py && python3 /tmp/supp_home.py \| diff - bench/analysis/wave1/r3/supp-r3.txt` |
 | R3, leaf: mean calls per task | `14.4` | `docs/STATUS.md:109` | `python3 reproduce.py r3_leaf_mean_calls` |
 | R3, tree-greedy: mean calls per task | `31.6` | `docs/STATUS.md:110` | `python3 reproduce.py r3_tree_greedy_mean_calls` |
-| R3, tree-tournament: mean calls per task | `35.2` | `docs/STATUS.md:111` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| R3, mean wall clock per run | `175`, `408`, `498` | `docs/STATUS.md:109`, `docs/STATUS.md:110`, `docs/STATUS.md:111` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| R3, runs per arm | `70` | `docs/STATUS.md:104` | `python3 reproduce.py r3_leaf` |
-| R3, design: tasks, arms, seeds, runs | `14`, `3`, `5`, `210` | `docs/STATUS.md:104` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| R3, tree-greedy vs leaf on decomposable tasks: mean delta | `-0.444` | `docs/STATUS.md:117` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| R3, tree-greedy vs leaf on decomposable tasks: interval | `[-0.733, -0.178]` | `docs/STATUS.md:117` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| R3, tree-only and leaf-only fixes, decomposable | `0`, `20` | `docs/STATUS.md:117` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| R3, tree-greedy vs leaf on forced-leaf tasks: mean delta | `-0.520` | `docs/STATUS.md:118` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| R3, tree-greedy vs leaf on forced-leaf tasks: interval | `[-0.920, -0.120]` | `docs/STATUS.md:118` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| R3, tree-only and leaf-only fixes, forced-leaf | `1`, `14` | `docs/STATUS.md:118` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| R3, tree-tournament vs leaf on decomposable tasks: mean delta | `-0.422` | `docs/STATUS.md:119` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| R3, tree-tournament vs leaf on decomposable tasks: interval | `[-0.689, -0.178]` | `docs/STATUS.md:119` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| R3, tree-tournament vs leaf on decomposable tasks: tree-only and leaf-only fixes | `2`, `21` | `docs/STATUS.md:119` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| R3, tree-tournament vs leaf on forced-leaf tasks: interval | `[-0.800, -0.240]` | `docs/STATUS.md:120` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| R3, exact McNemar p, four comparisons | `0.000`, `0.001` | `docs/STATUS.md:117`, `docs/STATUS.md:118` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| R3, decomposition fired: greedy, runs | `3/70` | `docs/STATUS.md:122` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| R3, decomposition fired: greedy, decomposable tasks | `3/9` | `docs/STATUS.md:122` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| R3, decomposition fired: tournament, runs | `9/70` | `docs/STATUS.md:122` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| R3, decomposition fired: tournament, decomposable tasks | `4/9` | `docs/STATUS.md:122` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| R3, cost: call ratio of the tree arms | `2.2`, `2.4` | `docs/STATUS.md:122` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| R3, cost: wall-clock ratio of the tree arms | `2.3`, `2.9` | `docs/STATUS.md:122` | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, tree-tournament: mean calls per task | `35.2` | `docs/STATUS.md:111` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, mean wall clock per run | `175`, `408`, `498` | `docs/STATUS.md:109`, `docs/STATUS.md:110`, `docs/STATUS.md:111` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, runs per arm | `70` | `docs/STATUS.md:109` | `python3 reproduce.py r3_leaf` |
+| R3, design: tasks, arms, seeds, runs | `14`, `3`, `5`, `210` | `docs/STATUS.md:104` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, tree-greedy vs leaf on decomposable tasks: mean delta | `-0.444` | `docs/STATUS.md:117` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, tree-greedy vs leaf on decomposable tasks: interval | `[-0.733, -0.178]` | `docs/STATUS.md:117` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, tree-only and leaf-only fixes, decomposable | `0`, `20` | `docs/STATUS.md:117` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, tree-greedy vs leaf on forced-leaf tasks: mean delta | `-0.520` | `docs/STATUS.md:118` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, tree-greedy vs leaf on forced-leaf tasks: interval | `[-0.920, -0.120]` | `docs/STATUS.md:118` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, tree-only and leaf-only fixes, forced-leaf | `1`, `14` | `docs/STATUS.md:118` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, tree-tournament vs leaf on decomposable tasks: mean delta | `-0.422` | `docs/STATUS.md:119` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, tree-tournament vs leaf on decomposable tasks: interval | `[-0.689, -0.178]` | `docs/STATUS.md:119` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, tree-tournament vs leaf on decomposable tasks: tree-only and leaf-only fixes | `2`, `21` | `docs/STATUS.md:119` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, tree-tournament vs leaf on forced-leaf tasks: mean delta | `-0.520` | `docs/STATUS.md:120` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, tree-tournament vs leaf on forced-leaf tasks: tree-only and leaf-only fixes | `1`, `14` | `docs/STATUS.md:120` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, tree-tournament vs leaf on forced-leaf tasks: interval | `[-0.800, -0.240]` | `docs/STATUS.md:120` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, exact McNemar p, four comparisons | `0.000`, `0.001` | `docs/STATUS.md:117`, `docs/STATUS.md:118`, `docs/STATUS.md:119`, `docs/STATUS.md:120` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, decomposition fired: greedy, runs | `3/70` | `docs/STATUS.md:122` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, decomposition fired: greedy, decomposable tasks | `3/9` | `docs/STATUS.md:122` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, decomposition fired: tournament, runs | `9/70` | `docs/STATUS.md:122` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, decomposition fired: tournament, decomposable tasks | `4/9` | `docs/STATUS.md:122` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, cost: call ratio of the tree arms | `2.2`, `2.4` | `docs/STATUS.md:122` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
+| R3, cost: wall-clock ratio of the tree arms | `2.3`, `2.9` | `docs/STATUS.md:122` | `R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
 | R3, cost: token ratio of the tree arms | `1.85` | `docs/STATUS.md:122` | `unknown` |
 | R3, unclaimed failures delivered by both tree arms | `52` | `docs/STATUS.md:123` | `unknown` |
 | R3, unclaimed runs the leaf passed | `39` | `docs/STATUS.md:123` | `unknown` |
-| R2, design: arms, repeats, runs | `5`, `3`, `600` | `docs/STATUS.md:74` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl'` |
-| R2, bootstrap resamples | `10000` | `bench/analysis/wave1/r2/analysis.txt:1` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl'` |
+| R2, design: arms, repeats, runs | `5`, `3`, `600` | `docs/STATUS.md:74` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/projection/wave1/final/r2/runs/*/*/*/results.jsonl'` |
+| R2, bootstrap resamples | `10000` | `bench/analysis/wave1/r2/analysis.txt:1` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/projection/wave1/final/r2/runs/*/*/*/results.jsonl'` |
 | R2, A0 development only: runs solved | `70/120` | `docs/STATUS.md:79` | `python3 reproduce.py r2_arm_dev_only` |
 | R2, A1 own test: runs solved | `66/120` | `docs/STATUS.md:80` | `python3 reproduce.py r2_arm_own_test` |
 | R2, A2 own test + independent test: runs solved | `65/120` | `docs/STATUS.md:81` | `python3 reproduce.py r2_arm_own_iv` |
 | R2, A3 own test + review: runs solved | `71/120` | `docs/STATUS.md:82` | `python3 reproduce.py r2_arm_own_review` |
 | R2, A4 full: runs solved | `77/120` | `docs/STATUS.md:83` | `python3 reproduce.py r2_arm_full` |
-| R2, claimed runs per arm | `0`, `1`, `54`, `28` | `docs/STATUS.md:79`, `docs/STATUS.md:81`, `docs/STATUS.md:82`, `docs/STATUS.md:83` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl'` |
-| R2, false successes per arm | `0`, `10`, `1` | `docs/STATUS.md:79`, `docs/STATUS.md:82`, `docs/STATUS.md:83` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl'` |
-| R2, calls per task per arm | `1.01`, `5.54`, `6.63`, `9.13`, `12.86` | `docs/STATUS.md:79`, `docs/STATUS.md:80`, `docs/STATUS.md:81`, `docs/STATUS.md:82`, `docs/STATUS.md:83` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl'` |
-| R2, tokens per task per arm | `1198`, `8480`, `10570`, `12696`, `18894` | `docs/STATUS.md:79`, `docs/STATUS.md:80`, `docs/STATUS.md:81`, `docs/STATUS.md:82`, `docs/STATUS.md:83` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl'` |
-| R2, own-test contrast: delta, interval, p | `-1.33`, `[-5.67, +3.00]`, `0.549` | `docs/STATUS.md:89` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl'` |
-| R2, review without independent test: false-success delta, interval, p | `+3.33`, `[+1.00, +6.33]`, `0.031` | `docs/STATUS.md:91` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl'` |
+| R2, claimed runs per arm | `0`, `1`, `54`, `28` | `docs/STATUS.md:79`, `docs/STATUS.md:81`, `docs/STATUS.md:82`, `docs/STATUS.md:83` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/projection/wave1/final/r2/runs/*/*/*/results.jsonl'` |
+| R2, false successes per arm | `0`, `10`, `1` | `docs/STATUS.md:79`, `docs/STATUS.md:82`, `docs/STATUS.md:83` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/projection/wave1/final/r2/runs/*/*/*/results.jsonl'` |
+| R2, calls per task per arm | `1.01`, `5.54`, `6.63`, `9.13`, `12.86` | `docs/STATUS.md:79`, `docs/STATUS.md:80`, `docs/STATUS.md:81`, `docs/STATUS.md:82`, `docs/STATUS.md:83` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/projection/wave1/final/r2/runs/*/*/*/results.jsonl'` |
+| R2, tokens per task per arm | `1198`, `8480`, `10570`, `12696`, `18894` | `docs/STATUS.md:79`, `docs/STATUS.md:80`, `docs/STATUS.md:81`, `docs/STATUS.md:82`, `docs/STATUS.md:83` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/projection/wave1/final/r2/runs/*/*/*/results.jsonl'` |
+| R2, own-test contrast: delta, interval, p | `-1.33`, `[-5.67, +3.00]`, `0.549` | `docs/STATUS.md:89` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/projection/wave1/final/r2/runs/*/*/*/results.jsonl'` |
+| R2, review without independent test: false-success delta, interval, p | `+3.33`, `[+1.00, +6.33]`, `0.031` | `docs/STATUS.md:91` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/projection/wave1/final/r2/runs/*/*/*/results.jsonl'` |
 | R2, review with independent test: correctness delta | `+4.00` | `docs/STATUS.md:92` | `python3 reproduce.py r2_full_minus_own_iv_correctness` |
 | R2, review with independent test: correctness interval | `[+1.33, +7.00]` | `docs/STATUS.md:92` | `python3 reproduce.py r2_full_minus_own_iv_ci` |
 | R2, review with independent test: correctness p | `0.012` | `docs/STATUS.md:92` | `python3 reproduce.py r2_full_minus_own_iv_p` |
-| R2, independent test with review present: correctness delta, interval, p | `+2.00`, `[-0.67, +4.67]`, `0.388` | `docs/STATUS.md:93` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl'` |
+| R2, independent test with review present: correctness delta, interval, p | `+2.00`, `[-0.67, +4.67]`, `0.388` | `docs/STATUS.md:93` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/projection/wave1/final/r2/runs/*/*/*/results.jsonl'` |
 | R2, independent test with review present: claim delta | `-8.67` | `docs/STATUS.md:98` | `python3 reproduce.py r2_full_minus_own_review_claimed` |
-| R2, independent test with review present: claim p | `0.0009` | `docs/STATUS.md:98` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl'` |
-| R2, independent test with review present: false-success delta and interval | `-3.00`, `[-5.67, -1.00]` | `docs/STATUS.md:98` | `python3 reproduce.py r2_full_minus_own_review_false` |
-| R2, independent test withheld approval: runs and grader passes | `92/110`, `57` | `docs/STATUS.md:98` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl'` |
-| R2, full stack minus development only: delta, interval, p | `+2.33`, `[-0.33, +5.33]`, `0.34` | `docs/STATUS.md:100` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl'` |
-| R2, own-test loop cost multiples: tokens, wall | `7`, `6.6` | `docs/STATUS.md:97` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl'` |
-| cost, ours: tokens per task | `18.9k` | `docs/STATUS.md:127` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl'` |
+| R2, independent test with review present: claim p | `0.0009` | `docs/STATUS.md:98` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/projection/wave1/final/r2/runs/*/*/*/results.jsonl'` |
+| R2, independent test with review present: false-success delta, interval and p | `-3.00`, `[-5.67, -1.00]`, `0.031` | `docs/STATUS.md:98` | `python3 reproduce.py r2_full_minus_own_review_false` |
+| R2, independent test withheld approval: runs and grader passes | `92/110`, `57` | `docs/STATUS.md:98` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/projection/wave1/final/r2/runs/*/*/*/results.jsonl'` |
+| R2, full stack minus development only: delta, interval, p | `+2.33`, `[-0.33, +5.33]`, `0.34` | `docs/STATUS.md:100` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/projection/wave1/final/r2/runs/*/*/*/results.jsonl'` |
+| R2, own-test loop cost multiples: tokens, wall | `7`, `6.6` | `docs/STATUS.md:97` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/projection/wave1/final/r2/runs/*/*/*/results.jsonl'` |
+| cost, ours: tokens per task | `18.9k` | `docs/STATUS.md:127` | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/projection/wave1/final/r2/runs/*/*/*/results.jsonl'` |
 | cost, baseline: tokens per task | `9k` | `docs/STATUS.md:127` | `unknown` |
+| the baseline's per-turn output cap, tokens | `8192` | `bench/pi_baseline.py:71` | `unknown` |
 | cost, single-lane wall subset: tasks, ours, baseline | `8`, `31.0`, `47.5` | `docs/STATUS.md:133` | `unknown` |
 | retracted token headline | `-31.3%` | `docs/STATUS.md:136` | `unknown` |
 
 ### The unknowns, and how each gap would be closed
 
-- **R1 interval-width projection** (`3.3`, `6.53`, `6.60`, `8.7%`, `6.3`, `0.3`, `17`..`25`):
-  the sentence is generated into the campaign's own renderer
-  (`bench/analysis/wave1/n25/assemble.py:55`) at campaign time, and the per-N interval widths
-  are not a field of any committed record. To close it, the widths for each N would have to be
-  computed from the per-seed totals in `bench/analysis/wave1/n25/analysis-n25-final.json:14` and
-  committed as a record beside the analyzer.
 - **R1 starting position** (`24/40`, `27/40`): measured on the earlier revision `6b224f5`,
   whose rows are not in the projection. It is a historical fact, cited to the record that
   states it, and not re-derived here.
+- **The interval-width quantities are no longer in this list**: `r1_half_width`,
+  `r1_width_n17`, `r1_width_n25`, `r1_width_min`, `r1_within_share_pct`,
+  `r1_asymptotic_width` and `r1_needed_estimate` are printed by `python3 reproduce.py`, derived
+  by `bench/analysis/wave1/n25/interval_widths.py` from the projection, recorded in
+  `bench/analysis/wave1/n25/interval-widths.json`, and checked digit for digit against the
+  sentence that states them (`docs/STATUS.md:57-61`) on every run.
 - **The short-input trap** (`0.06`, `[-3.35, 3.71]`, `680`): the entry point refuses a starved
   input instead of reproducing the wrong experiment (`reproduce.py:116`), so the trap's numbers
   are quoted from the traceability table and are not a reproduced output.
@@ -869,6 +918,10 @@ secured but whose recompute command has never been run is "recorded as unknown, 
 - **cost, baseline tokens per task** (`9k`): the baseline's driver carries no token counters
   (`docs/STATUS.md:128`), so the figure comes from the recorded reference and is not
   recomputable from the final rows.
+- **the baseline's per-turn output cap** (`8192`): a configuration constant in the driver that
+  produced the baseline rows, not a measurement. The code is its own evidence
+  (`bench/pi_baseline.py:71`); no command derives it, and no record counts how many baseline runs
+  ended on it.
 - **cost, single-lane wall subset** (`8` tasks, `31.0`, `47.5` s/task): the arms were not
   measured under the same concurrency (`docs/STATUS.md:131`), so the subset is indicative and
   the clean comparison is outstanding (`docs/STATUS.md:134`).

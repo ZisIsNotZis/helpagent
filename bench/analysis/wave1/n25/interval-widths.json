@@ -1,0 +1,86 @@
+{
+ "source": "bench/projection/wave1/final",
+ "n": {
+  "17": {
+   "delta": -0.2941,
+   "lo95": -3.4706,
+   "hi95": 3.0588,
+   "width": 6.53,
+   "runs": 680,
+   "verdict": "INCONCLUSIVE"
+  },
+  "18": {
+   "delta": -0.6667,
+   "lo95": -3.8889,
+   "hi95": 2.6667,
+   "width": 6.56,
+   "runs": 720,
+   "verdict": "INCONCLUSIVE"
+  },
+  "19": {
+   "delta": -0.4211,
+   "lo95": -3.6316,
+   "hi95": 2.9474,
+   "width": 6.58,
+   "runs": 760,
+   "verdict": "INCONCLUSIVE"
+  },
+  "20": {
+   "delta": -0.45,
+   "lo95": -3.65,
+   "hi95": 2.95,
+   "width": 6.6,
+   "runs": 800,
+   "verdict": "INCONCLUSIVE"
+  },
+  "21": {
+   "delta": -0.4762,
+   "lo95": -3.6667,
+   "hi95": 2.9048,
+   "width": 6.57,
+   "runs": 840,
+   "verdict": "INCONCLUSIVE"
+  },
+  "22": {
+   "delta": -0.2273,
+   "lo95": -3.3636,
+   "hi95": 3.1364,
+   "width": 6.5,
+   "runs": 880,
+   "verdict": "INCONCLUSIVE"
+  },
+  "23": {
+   "delta": -0.3043,
+   "lo95": -3.4348,
+   "hi95": 3.0,
+   "width": 6.43,
+   "runs": 920,
+   "verdict": "INCONCLUSIVE"
+  },
+  "24": {
+   "delta": -0.3333,
+   "lo95": -3.5,
+   "hi95": 3.0417,
+   "width": 6.54,
+   "runs": 960,
+   "verdict": "INCONCLUSIVE"
+  },
+  "25": {
+   "delta": -0.32,
+   "lo95": -3.52,
+   "hi95": 3.08,
+   "width": 6.6,
+   "runs": 1000,
+   "verdict": "INCONCLUSIVE"
+  }
+ },
+ "width_min": 6.43,
+ "width_max": 6.6,
+ "half_width_at_n25": 3.3,
+ "within_share_pct": 8.7,
+ "asymptotic_width": 6.3,
+ "needed_estimate": 0.3,
+ "verdicts": [
+  "INCONCLUSIVE"
+ ]
+}

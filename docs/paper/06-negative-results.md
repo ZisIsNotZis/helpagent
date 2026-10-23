@@ -62,6 +62,6 @@ Three properties make the record reusable rather than confessional.
    precondition is a precondition and not a courtesy (§2).
 
 The corpus of negatives also bounds the positive results. When the strongest point of the paper
-is that a bundle lost (§4), the reader can see that the same campaign recorded nine other
-losing designs and still declined to generalise from them (`docs/STATUS.md:184`). The discipline
+is that a bundle lost (§4), the reader can see that the same campaign recorded nine designs
+that lost or gained nothing, one of them the tree bundle of §4 and still declined to generalise from them (`docs/STATUS.md:184`). The discipline
 is uniform: measure, bound the conclusion, keep the row.

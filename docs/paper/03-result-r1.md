@@ -49,9 +49,13 @@ capability goal is impossible (`docs/STATUS.md:61`). It is also the reason the n
 design work is a power question — a task set whose between-task heterogeneity is smaller
 relative to the effect — rather than a seed-count question (`docs/ROADMAP.md:83`).
 
-The widths and the variance share above are the only decisive numbers in this paper that no
-committed command currently re-derives; they are recorded as unknown in the numbers table with
-the gap named (`numbers.md`), not filled in.
+Every number in this paragraph re-derives from the committed rows, and none of it is taken on
+trust: `python3 reproduce.py` prints the widths at `N=17` and `N=25`, the smallest width over that
+sweep (`6.43`), the half-width, the variance share, the asymptotic width and the estimate the rule
+would need, and it stops if that recomputation disagrees with the sentence recording them
+(`docs/STATUS.md:57`). The derivation runs the campaign's own analyzer at each `N` over the
+projection and splits the variance of the paired per-task differences at `N=25`
+(`bench/analysis/wave1/n25/interval_widths.py`).
 
 ## The number this result replaced, and the one it could silently become
 
@@ -74,9 +78,11 @@ entry point in §8 asserts row counts before it prints anything.
 On the same runs, the harness's false-success rate — the run claimed success and the grader
 failed the work — was `22/1000` against the mature CLI's `61/1000` (`docs/STATUS.md:45`), a
 task-clustered difference of `-1.56` tasks with interval `[-3.16, -0.20]`
-(`docs/STATUS.md:140`). This is the one axis where the harness is measurably ahead, and it is
-narrower than it looks: the baseline's claimed column is not comparable, because the mature CLI
-has no claim gate and its "claimed" is a regular expression over its final message
-(`docs/STATUS.md:145`). Only actual correctness and false success are comparable across the
-arms (`docs/STATUS.md:147`). The advantage is also not a moat: it is a property of a design
+(`docs/STATUS.md:141`). This is the one axis where our claim gate is measurably ahead, and it is
+narrower than it looks: a false success is `claimed and not actual`, and the baseline's claimed
+column is not comparable, because the mature CLI has no claim gate and its "claimed" is a regular
+expression over its final message (`docs/STATUS.md:145`). So the interval measures a difference
+between two claim mechanisms — our gate against that regex — not a difference between the
+harnesses' honesty, and the regex's own error rate is unmeasured. Only actual correctness is
+directly comparable across the arms (`docs/STATUS.md:147`). The advantage is also not a moat: it is a property of a design
 that is straightforward to add to any agent (`docs/LEARNINGS.md:213`).

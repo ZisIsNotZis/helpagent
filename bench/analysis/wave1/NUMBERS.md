@@ -78,3 +78,21 @@ for a path that is not there. With `n17` missing it prints `delta +0.06`, `CI [�
 over 680 rows instead of `−0.320` / `[−3.520, +3.080]` over 1000, and raises nothing. So a short
 home does not fail loudly, it reports a different experiment — and that difference is the
 headline. Any recompute must assert its row count before it asserts anything else.
+
+## The same analyzers over the committed projection (no home needed)
+
+The preprint's appendix points at these, so a reader on a clean clone can re-derive every row
+without the 2 GB home. Each is the analyzer above with its input repointed at
+`bench/projection/wave1/final/`; each prints or diffs to the same bytes as its home run, because
+the projection carries every field the analyzers read (`bench/projection/README.md`). Verified
+2026-10-23: `analyze.py` and `supp.py` diff empty against `analysis-r3.txt` / `supp-r3.txt`, and
+`r2_analyze.py` diffs empty against `analysis.txt`.
+
+```
+R3=bench/projection/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py
+H=$(pwd)/bench/projection/wave1/final/r3; sed "s|/tmp/wave1/final/r3|$H|" bench/analysis/wave1/r3/supp.py > /tmp/supp_home.py && python3 /tmp/supp_home.py | diff - bench/analysis/wave1/r3/supp-r3.txt
+python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/projection/wave1/final/r2/runs/*/*/*/results.jsonl'
+```
+
+`python3 bench/analysis/wave1/recompute_n25.py` stays home-based: it asserts its row counts
+before it compares, so a short home stops it instead of reporting another experiment.

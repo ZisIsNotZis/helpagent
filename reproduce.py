@@ -14,6 +14,12 @@ the record committed beside it before a single number is printed:
   R3  bench/analysis/wave1/r3/analyze.py        vs  r3/analysis-r3.txt   (bytes)
       bench/analysis/wave1/r3/supp.py           vs  r3/supp-r3.txt       (bytes)
 
+The `r1_width_*`, `r1_half_width`, `r1_within_share_pct`, `r1_asymptotic_width` and
+`r1_needed_estimate` keys are one further R1 derivation: the same analyzer at N=17 and N=25, plus
+a variance decomposition of the paired per-task differences at N=25. They have no JSON record of
+their own; their criterion is the sentence that states them in `docs/STATUS.md` §3, which is read
+here and compared digit for digit, so a record and a recomputation cannot drift apart silently.
+
 Exit 0 only when every printed value equals the value recorded at campaign time. A missing
 input, a zero-row input or a short sample stops the run with one named line naming the input
 and the count it wanted, before any number is printed: the campaign's readers return `[]` for
@@ -26,10 +32,13 @@ import ast
 import contextlib
 import io
 import json
+import math
 import re
+import statistics
 import subprocess
 import sys
 import tempfile
+from collections import defaultdict
 from pathlib import Path
 
 sys.dont_write_bytecode = True  # the analyzers are read-only inputs; importing one must not
@@ -133,6 +142,65 @@ def compute_r1() -> dict:
         raise Fail("R1 recomputed from the projection differs from "
                    f"{rel(ANALYSIS / 'n25' / 'analysis-n25-final.json')} in {differing}")
     return res
+
+
+def compute_widths() -> dict:
+    """§3's interval-width argument, derived and gated against the record that states it.
+
+    The campaign recorded these quantities as a sentence in `docs/STATUS.md` §3 and never as a
+    record of their own, so the draft used to list them as numbers no command re-derives. They
+    are one analyzer run per N plus a variance decomposition; `interval_widths.py` in the
+    campaign's analysis directory owns the arithmetic and `interval-widths.json` its digits.
+    This function recomputes, requires the committed record to agree, and requires the record's
+    sentence in `docs/STATUS.md` to agree digit for digit — a record and a recomputation cannot
+    drift apart without stopping the run.
+    """
+    sys.path.insert(0, str(ANALYSIS / "n25"))
+    import interval_widths as iw  # the derivation, kept beside the analyzer it runs
+
+    got = iw.compute()
+    record = ANALYSIS / "n25" / "interval-widths.json"
+    if not record.is_file():
+        raise Fail(f"missing input: {rel(record)} — file not found, wanted the width derivation")
+    recorded = json.loads(record.read_text(encoding="utf-8"))
+    if recorded != got:
+        differing = sorted(k for k in set(recorded) | set(got) if recorded.get(k) != got.get(k))
+        raise Fail(f"width derivation differs from {rel(record)} in {differing}")
+    if got["verdicts"] != ["INCONCLUSIVE"]:
+        raise Fail(f"width sweep no longer returns one verdict over N=17..25: {got['verdicts']}")
+    stated = width_sentence()
+    recomputed = [f"{got['half_width_at_n25']:.1f}", f"{got['n']['17']['width']:.2f}",
+                  f"{got['n']['25']['width']:.2f}", f"{got['within_share_pct']:.1f}",
+                  f"{got['asymptotic_width']:.1f}", f"{got['needed_estimate']:.1f}"]
+    if stated != recomputed:
+        raise Fail(f"R1 widths: recomputed {recomputed} but docs/STATUS.md §3 states {stated}")
+    return got
+
+
+def width_sentence() -> list[str]:
+    """The six numbers `docs/STATUS.md` §3 states for the width argument, in its order.
+
+    The campaign's own statement is the criterion, so it is read rather than trusted: the
+    paragraph is found by its opening words and every backticked quantity in it is taken.
+    """
+    path = REPO / "docs" / "STATUS.md"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    start = next((i for i, ln in enumerate(lines)
+                  if "did not resolve it" in ln and "Why N=" in ln), None)
+    if start is None:
+        raise Fail(f"unreadable record: {rel(path)} no longer states why N did not resolve it")
+    para: list[str] = []
+    for ln in lines[start:]:
+        if not ln.strip() and para:
+            break
+        para.append(ln)
+    tokens = re.findall(r"`([^`]+)`", " ".join(para))
+    stated = [t.strip("~+%") for t in tokens if re.fullmatch(r"[~+]?\d+(?:\.\d+)?%?", t)]
+    if len(stated) != 6:
+        raise Fail(f"unreadable record: {rel(path)} states {len(stated)} width numbers, "
+                   f"wanted 6 (half-width, width at N=17, width at N=25, within share, "
+                   f"asymptotic width, estimate needed): {stated}")
+    return stated
 
 
 def _norm(value: object) -> object:
@@ -283,6 +351,7 @@ def main() -> int:
         preflight_r1()
 
         r1 = compute_r1()
+        widths = compute_widths()
         with tempfile.TemporaryDirectory() as tmp:
             r2 = compute_r2(Path(tmp))
         r3_text = compute_r3()
@@ -309,6 +378,14 @@ def main() -> int:
             ("r1_lo95", f"{d1['lo95']:.3f}"),
             ("r1_hi95", f"{d1['hi95']:.3f}"),
             ("r1_rows_per_arm", f"{r1['ours_n_runs']}"),
+            ("r1_shortfall_tasks", f"{-d1['lo95'] - 3.0:.3f}"),
+            ("r1_width_n17", f"{widths['n']['17']['width']:.2f}"),
+            ("r1_width_n25", f"{widths['n']['25']['width']:.2f}"),
+            ("r1_width_min", f"{widths['width_min']:.2f}"),
+            ("r1_half_width", f"{widths['half_width_at_n25']:.1f}"),
+            ("r1_within_share_pct", f"{widths['within_share_pct']:.1f}"),
+            ("r1_asymptotic_width", f"{widths['asymptotic_width']:.1f}"),
+            ("r1_needed_estimate", f"{widths['needed_estimate']:.1f}"),
             ("r3_leaf", f"{counts['leaf'][0]}/{counts['leaf'][1]}"),
             ("r3_tree_greedy", f"{counts['tree-greedy'][0]}/{counts['tree-greedy'][1]}"),
             ("r3_tree_tournament", f"{counts['tree-tournament'][0]}/{counts['tree-tournament'][1]}"),
@@ -329,6 +406,15 @@ def main() -> int:
     except Fail as exc:
         print(f"reproduce: {exc}", file=sys.stderr)
         return 1
+    wanted = sys.argv[1:]
+    if wanted:
+        known = {key for key, _ in lines}
+        missing = [key for key in wanted if key not in known]
+        if missing:
+            print(f"reproduce: unknown key: {', '.join(missing)} — printed keys are "
+                  f"{', '.join(sorted(known))}", file=sys.stderr)
+            return 1
+        lines = [(key, value) for key, value in lines if key in wanted]
     for key, value in lines:
         print(f"{key} {value}")
     return 0

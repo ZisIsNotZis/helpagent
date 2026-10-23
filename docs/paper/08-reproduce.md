@@ -28,13 +28,17 @@ The six keys the node document names by hand, with the values this paper quotes:
 | `r3_leaf` | `47/70` |
 | `r3_tree_greedy` | `14/70` |
 
-The entry point prints more than those six, and the paper uses them: `r1_b_mean_tasks`,
-`r1_rows_per_arm`, `r3_tree_tournament`, the two R3 call means, the five R2 arm totals, and the
-R2 contrasts (`r2_full_minus_own_iv_correctness`, `r2_full_minus_own_iv_ci`,
-`r2_full_minus_own_iv_p`, `r2_full_minus_own_review_claimed`,
+The entry point prints more than those six, and the paper uses every one of them: the baseline's
+mean, the row count, the shortfall against the margin, the interval-width quantities of §3
+(`r1_width_n17`, `r1_width_n25`, `r1_width_min`, `r1_half_width`, `r1_within_share_pct`,
+`r1_asymptotic_width`, `r1_needed_estimate`), `r3_tree_tournament`, the two R3 call means, the
+five R2 arm totals, and the R2 contrasts (`r2_full_minus_own_iv_correctness`,
+`r2_full_minus_own_iv_ci`, `r2_full_minus_own_iv_p`, `r2_full_minus_own_review_claimed`,
 `r2_full_minus_own_review_false`). The node document delegates the R2 rows to the entry point in
 the same sentence (`AGENTS.md` §Current facts); the exact key list is what the program prints, and the
-numbers table carries every one of them.
+numbers table carries every one of them. A key named on the command line selects that line —
+`python3 reproduce.py r1_delta_tasks` prints one line — and a key the program does not print is
+refused with the list of keys it does.
 
 ## Expected output
 
@@ -47,6 +51,14 @@ r1_delta_tasks -0.320
 r1_lo95 -3.520
 r1_hi95 3.080
 r1_rows_per_arm 1000
+r1_shortfall_tasks 0.520
+r1_width_n17 6.53
+r1_width_n25 6.60
+r1_width_min 6.43
+r1_half_width 3.3
+r1_within_share_pct 8.7
+r1_asymptotic_width 6.3
+r1_needed_estimate 0.3
 r3_leaf 47/70
 r3_tree_greedy 14/70
 r3_tree_tournament 15/70

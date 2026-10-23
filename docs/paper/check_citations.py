@@ -112,7 +112,7 @@ def resolve(ref: str, where: str) -> None:
         fail(f"{where}: {path}:{first}{'-' + last if last else ''} is outside the file ({len(lines)} lines)")
         return None
     counts["resolved"] += 1
-    return lines
+    return lines[first - 1:limit]
 
 
 counts = {"resolved": 0, "unknown": 0, "rows": 0, "printed_key": 0, "record": 0, "analyzer": 0}
