@@ -72,6 +72,24 @@ is a changed hypothesis, not a renamed package. I did not touch P1b or P2–P5, 
 did not re-measure anything: this was idle machine time, no model ran, so the price is zero metered
 spend.
 
+**What publishing would actually take, and what would be permanent.** Three acts, each
+separable: make a repository public — an `origin` remote already exists at
+`git@github.com:ZisIsNotZis/helpagent.git` and this clone holds no tracking refs, so whether any of
+this tree is visible there is unverified and I did not look; deposit the paper for a DOI, which
+`docs/paper-plan.md` names as Zenodo plus a repository tag; and optionally arXiv, which the same
+plan declines to promise because a new submitter needs endorsement. What becomes public is the
+tracked tree and its whole history: the eight sections and the numbers appendix, the harness
+source, the corpus, the 0.5 MB projection that makes every number checkable, the licence
+(AGPL-3.0, with the five Exercism anchors keeping their own MIT notice), and also the internal
+record — `mail/`, the `.scratch/` campaign evidence with model transcripts, and the author name and
+address in every commit. What stays private is the 2 GB evidence home: it is untracked, so a
+reader re-derives the numbers from the projection instead of inspecting raw runs. What cannot be
+withdrawn after it happens: a minted DOI resolves forever — Zenodo restricts or tombstones a
+record, it does not delete it — an arXiv withdrawal stays visible with its abstract, and a pushed
+commit is cloned and mirrored within minutes, so rewriting history afterwards does not reach
+copies. The only genuinely reversible step is the first, which is why making a repository public
+and minting a DOI are two decisions and not one.
+
 Effort of answering: reading four evidence lines and naming whether publication proceeds —
 minutes. If no answer comes I stop here: the preprint stands at `preprint-v1`, P1a stands frozen,
 and the only remaining act is one this node cannot take.
