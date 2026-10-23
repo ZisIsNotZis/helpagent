@@ -197,7 +197,8 @@ it is now measured rather than proposed, so the question no longer blocks anythi
 
 | what | where |
 | --- | --- |
-| the preprint, section by section, with its index | `docs/paper/README.md` |
+| the preprint as one file a person reads end to end | `docs/paper/preprint.md` (a render; built and checked by `python3 docs/paper/build_preprint.py [--check]`) |
+| the preprint's abstract, sections and index of kinds | `docs/paper/00-abstract.md`, `docs/paper/README.md` |
 | every number the paper uses, its `file:line` source and the command that re-derives it (97 rows; 26 marked unknown with the gap named) | `docs/paper/numbers.md` |
 | resolve the paper's citations and its Numbers table (fails loudly on a moved line or a number with no command) | `python3 docs/paper/check_citations.py` → `citations resolved N unresolved 0`, exit 0 (N is printed, not stored) |
 | M1's deciding observation as an exit code: clone at the tag, one command, paper must quote every key, starved trees must fail loudly | `python3 bench/checks/m1_acceptance.py` |
@@ -231,7 +232,9 @@ it is read once and not copied here.
 
 **Continue** from the roadmap above. The tree is committed at every hand-over, so the next
 session's first question is only whether mail in `mail/` has changed the order of work. The
-preprint is `docs/paper/README.md`; the command that proves it is `python3 bench/checks/m1_acceptance.py`.
+preprint is one file, `docs/paper/preprint.md` — abstract to numbers appendix — with
+`docs/paper/README.md` as its index and read order; `python3 docs/paper/build_preprint.py --check`
+proves the render is current, and `python3 bench/checks/m1_acceptance.py` proves the numbers are.
 
 **Where things differ from the general convention.** The decisive evidence is *not* in git —
 the home above, verified by the manifest, is the highest rung `git` cannot reach. Mail for this
