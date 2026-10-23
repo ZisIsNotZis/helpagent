@@ -35,6 +35,12 @@ Missed success — a run that fixes the task and cannot verify it — is the str
 the quality axis (`docs/STATUS.md:198`). The review tier is measured, not proven
 (`docs/STATUS.md:200`).
 
+**The harness's own attribution of a red check is a heuristic, and no number here rests on it.**
+When a check goes red, the measured revision decides from the parsed pytest failure text whether the run's own test or the source it edited is at fault, and the run writes both the test and any output that parsing can read — the heuristic is in this repository today (`harness/leaf.py:3733`) and the measured revision `45ebb32` carries it.
+Nothing independent judges that decision, and in a stage contrast a routing error and a useless signal look the same.
+That bounds the reading of §5 and not its numbers: solved and false success are the external grader's verdict, and the claim column is the harness's own claim compared against that verdict (§2), so the ablation's arms, costs and claim gate stand as measured — while §5's null about the own-test loop cannot be read as evidence that test feedback carries no information, because the feedback it carried was routed by this heuristic.
+No repair of the heuristic is validated in this repository, so this question stays open rather than settled.
+
 **Some quantities are unmeasured, and are recorded as unknown.** The baseline's token count is
 partly unmeasured, because its driver carries no token counters, so its cost figure is not
 recomputable from the final rows (`docs/STATUS.md:128`). Wall-clock is unclean and not

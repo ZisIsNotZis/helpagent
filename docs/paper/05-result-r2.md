@@ -36,7 +36,8 @@ stopping and delivery together, so each contrast is a net workflow effect
 - **The own-test loop has no detected net correctness gain:** `-1.33` tasks with interval
   `[-5.67, +3.00]`, p=`0.549` (`docs/STATUS.md:89`). The interval includes both losses and
   gains, so this is not proof of zero information, and not proof of equivalence
-  (`docs/STATUS.md:97`).
+  (`docs/STATUS.md:97`) — and the routing that feedback took inside the loop is a heuristic
+  in its own right, so the null does not settle what test feedback carries (§7).
 - **The independent test's own correctness effect is unresolved** — `+2.00` with interval
   `[-0.67, +4.67]`, p=`0.388` (`docs/STATUS.md:93`).
 - **Review without the independent test raises false successes** by `+3.33` with interval
