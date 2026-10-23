@@ -9,10 +9,13 @@ ending. The order of its work follows from one asymmetry: the bytes behind every
 number sit on `/tmp/wave1/final`, a path one reboot erases, while the writing can be restarted
 at any hour from documents that are already committed. So durability comes before authorship —
 the evidence is copied to a declared home and hashed on the first day, before a sentence of the
-preprint exists — and authorship in turn waits on two answers that sit above this node (whether
-the preprint or the frozen recovery line runs first, and what "reproduce" is allowed to cost),
-because each one changes what the next milestone is rather than how it is worded. Nothing here
-re-measures, runs a model, or needs a server: this node spends `idle-compute` and writes.
+preprint exists — and authorship in turn waited on two questions above this node (whether the
+preprint or the frozen recovery line runs first, and what "reproduce" is allowed to cost), each
+of which changed what the next milestone is rather than how it is worded. Both are answered now:
+the second by measurement (the projection), the first by the person on 2026-10-23, in their rule
+that a 短板 is repaired only if the paper needs it — and the paper does not need P1a, as the
+`Current facts` entry below shows file by file. Nothing here re-measures, runs a model, or needs
+a server: this node spends `idle-compute` and writes.
 
 ## Roadmap
 
@@ -45,9 +48,11 @@ runs at. What M1 does not deliver, and does not claim, is publication — a DOI,
 submission is a `cost` act above this node and is not taken here.
 
 **Not on this roadmap:** the recovery line (P1a frozen at the exhausted two-review cap,
-`docs/ROADMAP.md:32`, `.scratch/30-harness-recovery/blocked-checkpoint.md`). It becomes a
-milestone here only if the order answer puts it first; until then it is not this node's work to
-start, because its continuation needs a person's authorisation that no node below can lend.
+`docs/ROADMAP.md:32`, `.scratch/30-harness-recovery/blocked-checkpoint.md`). The order answer
+arrived on 2026-10-23 and does not put it first: the person's rule repairs a 短板 only when the
+paper's own claims, numbers or commands need it, and the `Current facts` entry below shows they
+need nothing P1a touches. So the recovery line stays where it is — frozen, authorised to no node
+below root — and the paper path is the one this node took.
 
 ### Work packages
 
@@ -168,13 +173,19 @@ run with a named line naming the input and the count it wanted, before any numbe
 The paper's boundary section states this, because a reproduction that reports parity after
 reading an empty directory is worse than no reproduction.
 
-**Open, raised and waiting above (do not restate, wait for mail).** Two questions were raised
-to the person before this node existed and are not repeated here: the order between the
-preprint and the frozen recovery line (`mail/` of root, `2026-10-21-helpagent-order.md`), and
-what "reproduce" is allowed to cost — a committed projection or a re-run
-(`2026-10-21-helpagent-reproduce.md`). Neither gates M1 any more: the authoring package runs in
-either order, and the projection's measured cost is reported as the answer to the second rather
-than waited on. Their answers still arrive in `mail/` and still move what this node does next.
+**Answered above, and applied here: the paper goes first, because P1a is not one of its tools (2026-10-23).**
+The person answered the paper-or-repair question with a rule rather than a choice, and the rule is this node's to apply: "we can't wait for research done, so it's fix the 短板 first before doing more research; if tool needed to write paper, fix that, otherwise do paper first".
+The rule turns on one question — do the preprint's claims, numbers or reproduce commands need the repair — and on this tree the answer is no, file by file:
+
+- **Every number the draft uses re-derives without the harness.** Each row of `docs/paper/numbers.md` names one of four commands: a printed key of `python3 reproduce.py` (`docs/paper/numbers.md:21-25`, `:51-53`, `:84-88`), the bare entry point, an analyzer under `bench/analysis/wave1/`, or `unknown` with the gap named. None of them executes `harness/`.
+- **The entry point imports no harness module, and neither do the four scripts it runs.** `reproduce.py` uses the standard library and executes the campaign's own analyzers (`reproduce.py:78`, `:176`, `:229`, `:245`); `analyze_n25.py`, `r2_analyze.py`, `r3/analyze.py` and `r3/supp.py` import nothing outside it. `r2_lane.py` names `harness.leaf` in a docstring, and it is the driver that *produced* the rows, not something the entry point runs.
+- **The draft cites no harness source line.** `grep -rn 'harness/' docs/paper/ reproduce.py` prints no line. The files it does cite (`docs/STATUS.md`, `FINDINGS.md`, `docs/LEARNINGS.md`, `bench/analysis/wave1/`, `bench/external_score.py`, `bench/corpus/README.md`, `docs/ROADMAP.md`, `docs/paper-plan.md`) and the files P1a changed (`harness/leaf.py`, `tests/unit/test_own_test_setup.py`, `tests/unit/test_v2_leaf.py` at `999ea9a`) intersect in nothing: `comm -12` over the two basename lists prints empty.
+- **The counterexample the final review blocked on cannot be inside the measured revision.** `git show 45ebb32:harness/leaf.py | grep -c '_terminal_pytest_exceptions\|_own_test_setup_problem'` prints `0`: the captured-output boundary, the counterfeit-heading route and the setup-repair classifier are code this node's campaign never ran.
+
+So the 短板 for the preprint is not P1a, and the path taken is the paper's.
+One coupling is real and is disclosed rather than repaired: at the measured revision the harness decides whether a red check blames the run's own test or its source by parsing pytest failure text the run can influence (the same heuristic is in this repository today, `harness/leaf.py:3733`; `45ebb32` carries it), and `docs/paper/07-limits.md` now says what that bounds, which is the reading of §5 and not its numbers — the arbiter there is the external grader, not the harness.
+What this decision does not do: it does not spend the repair cycle the person's answer made available (that cycle stays unspent, and P1a stays BLOCKED at its two-review cap, `docs/ROADMAP.md:32`); it does not re-open M2; and it does not publish — a push, a DOI or a submission is still above this node.
+The state, in two commands: `python3 bench/checks/m1_acceptance.py` prints `m1 acceptance: OK` and exits 0, and `python3 docs/paper/check_citations.py` prints `citations resolved 411 unresolved 0` and exits 0.
 
 **Closed, this node's own — what "reproduce" may cost.** It costs 0.5 MB of committed rows, not
 2 GB: the decisive numbers recompute from `bench/projection/wave1/final/` with no home, no
@@ -209,6 +220,8 @@ it is now measured rather than proposed, so the question no longer blocks anythi
 | negative results and retractions | `FINDINGS.md` §3–§4 |
 | the preprint's own intent and acceptance | `docs/paper-plan.md` |
 | recovery line, frozen | `docs/ROADMAP.md:32`, `.scratch/30-harness-recovery/blocked-checkpoint.md` |
+| why the preprint does not wait on P1a, re-checkable in two commands | `grep -rn 'harness/' docs/paper/ reproduce.py` → 0 lines; `comm -12 <(grep -rhoE '[A-Za-z0-9_./-]+\.(md\|py)' docs/paper/*.md \| sed 's\|.*/\|\|' \| sort -u) <(git show --name-only --format= 999ea9a -- harness tests \| sed 's\|.*/\|\|' \| sort -u)` → empty |
+| the decision itself, the person's words and what it cost | `mail/2026-10-23-helpagent-paper-first.md` |
 
 ## Entrance
 

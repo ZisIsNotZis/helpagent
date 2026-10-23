@@ -12,7 +12,7 @@
 
 - 研究战役已跑到预注册终点并给出判定，目标"未达成或未判定"，不是被证伪；产品 CLI 不存在。（`docs/STATUS.md:4`）
 - 后续的 M1「harness 与测试流程恢复」里程碑只做到 P1a，状态为 **BLOCKED / INCOMPLETE**（两次独立审查额度已用尽），P1b 与 P2–P5 未开始，M1 未通过；M2 未获授权。（`docs/ROADMAP.md:32`）
-- 该状态的原始落盘时间：commit `999ea9a`，2026-10-19；此后 `73cc4d9` 以 `docs/paper-plan.md` 把本仓交给接手的 agent，"写论文"成为最新意图，与恢复线的次序仍未定。
+- 该状态的原始落盘时间：commit `999ea9a`，2026-10-19；此后 `73cc4d9` 以 `docs/paper-plan.md` 把本仓交给接手的 agent，"写论文"成为最新意图。**次序已定**：2026-10-23 人用一条规则回答（论文要用的工具坏了才先修，否则先写论文），本节点据此判定 preprint 不依赖 P1a，走论文路径；逐文件证据在 `AGENTS.md`（Current facts），决定记录在 `mail/2026-10-23-helpagent-paper-first.md`。
 - **当前状态以 `AGENTS.md` 为准**（接手的节点文档：roadmap、已决事实、未决问题、证据指针）。战役字节原先只存在于 `/tmp/wave1`，现已复制到仓内声明位置 `bench/runs/wave1/`，由 `bench/manifests/wave1.sha256` 校验；`git` 装不下 2.0 GB，所以那里的东西不被跟踪、只被哈希。
 - **接手后的进展**：preprint 草稿写在 `docs/paper/`（八节 + 数字表）；`python3 reproduce.py` 用仓内 0.5 MB 投影复算全部决定性数字（21 个 key，无网络、无模型、不需要 2 GB home）；`python3 bench/checks/m1_acceptance.py` 在 tag `preprint-v1` 上验证“干净克隆 + 一条命令”这一判定。里程碑 M1 达成；**发布（DOI、push、arXiv）不在本节点权限内**，仍需人授权。
 
@@ -27,7 +27,8 @@
 
 ## 下一步
 
-按 `docs/ROADMAP.md:32` 与 `docs/LEARNINGS.md:229`（§8）已写明的次序，无人接手时不下任何新判定：
+次序已由 2026-10-23 人的规则定下（论文路径），下一步只剩三件，越界的一件在人手里：
 
-1. P1a 需要新的假设或记录为 blocker（两次无新证据的尝试后不得再修）；P1b → P2 → P3 → P4 → P5 → M1 用户闸门，之后才谈 M2。（`docs/ROADMAP.md:32`）
-2. 研究侧仍未做：更有统计功效的语料、产品 CLI（V6）、改进 prompt 的基线臂、干净单通道 wall-clock 对比、forced-leaf 阈值扫描。（`docs/ROADMAP.md:81-90`）
+1. 发布这一步在人手里：preprint 停在 tag `preprint-v1`，push／DOI／投稿本节点不取。（`mail/2026-10-23-helpagent-paper-first.md`）
+2. P1a 未被本次判定动用：人给的那一轮修复授权仍未花，P1a 维持 BLOCKED（两次审查额度已用尽）；它若再启动，需要的是新假设，不是改名。（`docs/ROADMAP.md:32`、`.scratch/30-harness-recovery/blocked-checkpoint.md`）
+3. 研究侧仍未做：更有统计功效的语料、产品 CLI（V6）、改进 prompt 的基线臂、干净单通道 wall-clock 对比、forced-leaf 阈值扫描。（`docs/ROADMAP.md:81-90`）
