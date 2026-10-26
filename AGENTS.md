@@ -64,7 +64,7 @@ below root — and the paper path is the one this node took.
 | WP-0.3 | Record the taken-over state (this document, `STATUS.md` route) | done |
 | WP-0.4 | Handover report to root | done |
 | WP-0.5 | Traceability seed: which number comes from which command, and which are not yet re-derived | done — `bench/analysis/wave1/NUMBERS.md` |
-| WP-1.1 | Paper draft: problem, protocol, results 1–3, negative results and retractions, external-validity boundary, reproduce section | done — `docs/paper/`, 8 sections + `numbers.md` (97 rows, 26 marked unknown) |
+| WP-1.1 | Paper draft: problem, protocol, results 1–3, negative results and retractions, external-validity boundary, reproduce section | done — `docs/paper/`, 8 sections + `numbers.md`, whose row and unknown counts are printed by `docs/paper/check_citations.py` rather than stored |
 | WP-1.2 | Reproduce entry point over a committed projection, inputs asserted, no network and no model | done — `reproduce.py`, `bench/projection/` (472 files, 2 810 rows, 523 499 bytes) |
 | WP-1.3 | Freeze the measurement revision as a tag; integration check that the paper's table equals the command's output | done — `wave1-measurement`, `preprint-v1`, `bench/checks/m1_acceptance.py` |
 | WP-1.4 | Handover report to root naming M1, its command and the decision needed | done — `mail/2026-10-21-helpagent-m1.md` |
@@ -211,7 +211,7 @@ it is now measured rather than proposed, so the question no longer blocks anythi
 | --- | --- |
 | the preprint as one file a person reads end to end | `docs/paper/preprint.md` (a render; built and checked by `python3 docs/paper/build_preprint.py [--check]`) |
 | the preprint's abstract, sections and index of kinds | `docs/paper/00-abstract.md`, `docs/paper/README.md` |
-| every number the paper uses, its `file:line` source and the command that re-derives it (97 rows; 26 marked unknown with the gap named) | `docs/paper/numbers.md` |
+| every number the paper uses, its `file:line` source and the command that re-derives it; the row count and the `unknown` rows are printed by the checker, and every unknown names its gap | `docs/paper/numbers.md` |
 | resolve the paper's citations and its Numbers table (fails loudly on a moved line or a number with no command) | `python3 docs/paper/check_citations.py` → `citations resolved N unresolved 0`, exit 0 (N is printed, not stored) |
 | M1's deciding observation as an exit code: clone at the tag, one command, paper must quote every key, starved trees must fail loudly | `python3 bench/checks/m1_acceptance.py` |
 | recompute every decisive number from committed rows, no home, no `/tmp`, no model, no network | `python3 reproduce.py` |
