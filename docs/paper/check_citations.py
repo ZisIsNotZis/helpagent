@@ -5,12 +5,17 @@
 
 What it checks, in the order it runs:
 
-1. Every ``path:line`` reference anywhere in ``docs/paper/*.md`` (and ``path:line-line``
-   ranges) names a file that exists in this repository and a line number that the file has.
+1. Every reference in ``docs/paper/*.md`` resolves. Three forms are accepted:
+   - ``path:line`` (and ``path:line-line``) — a line number that the file has;
+   - ``path#anchor`` — the slug of a heading in that file (see ``slug``), which is the
+     preferred form everywhere outside the numbers table, because a heading survives an edit
+     that shifts lines and a line number does not;
+   - ``path §Heading`` — the heading text itself, still accepted from older prose.
 2. Every row of every ``Number | Value | Source | Command`` table in ``numbers.md``:
    - the ``Source`` cell carries at least one reference and every reference resolves;
-   - each numeric value in the ``Value`` cell appears on at least one cited line (so a value
-     cannot drift away from the line that is supposed to carry it);
+   - each numeric value in the ``Value`` cell appears in the text a citation covers — the
+     cited lines, or the whole body of the cited section (so a value cannot drift away from
+     the place that is supposed to carry it);
    - the ``Command`` cell is one of: a key printed by ``reproduce.py``, the bare entry point
      ``python3 reproduce.py`` (the value is then a field of a record the entry point compares in
      full), a command recorded in ``bench/analysis/wave1/NUMBERS.md``, or ``unknown``;
@@ -45,17 +50,27 @@ NUMBERS = PAPER / "numbers.md"
 # here would check the same sentences twice and inflate the resolved count with its own copies.
 RENDER = PAPER / "preprint.md"
 NUMBERS_TABLE = REPO / "bench" / "analysis" / "wave1" / "NUMBERS.md"
-AGENTS = REPO / "AGENTS.md"
 ENTRY = REPO / "reproduce.py"
 
 # A file reference: path:line or path:line-line. The path is kept permissive and then resolved.
 REF = re.compile(r"([A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:md|py|json|txt|sha256|toml|cfg))\s*:\s*(\d+)(?:\s*-\s*(\d+))?")
+# A heading anchor: path#slug. The slug is the heading lowercased with every run of characters
+# that is not a letter, digit or space collapsed to one hyphen (`slug` below). A heading can be
+# rewritten and the anchor either follows it or fails here; a line number would have gone
+# silently wrong instead.
+ANCHOR = re.compile(r"([A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:md|py|json|txt|sha256|toml|cfg))#([a-z0-9][a-z0-9-]*)")
 # A quantity in prose: not inside an identifier, a path, a citation, a section sign or a range.
 NUM = re.compile(r"(?<![\w./:\-–—§])(\d+(?:[.,]\d+)*(?:/\d+)?)(?![\w./\-])")
 # A section reference: path §Heading — resolved by heading, so editing the file cannot rot it.
 SECTION = re.compile(r"([A-Za-z0-9_][A-Za-z0-9_./-]*\.md)`?\s*§\s*([A-Za-z][A-Za-z ]+)")
 # Section cross references, exit statuses: not quantities.
 NOT_A_QUANTITY = re.compile(r"§\s*\d+|exit(?:s|ed)?[ =:]*\d+|\bexit code \d+")
+
+
+def slug(heading: str) -> str:
+    """The anchor a heading carries: lowercase, non-alphanumerics collapsed to one hyphen."""
+    text = re.sub(r"^#+\s*", "", heading).strip().lower()
+    return re.sub(r"[^a-z0-9]+", "-", text).strip("-")
 
 problems: list[str] = []
 
@@ -91,6 +106,52 @@ def read_lines(path: Path) -> list[str]:
         return path.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
         return []
+
+
+def sections(path: Path) -> list[tuple[int, int, str]]:
+    """Every heading in the file as (first line, last line, slug), the body being the lines up to
+    the next heading of the same or a higher level. Line numbers are 1-based and inclusive."""
+    lines = read_lines(path)
+    heads: list[tuple[int, int, str]] = []
+    fence = False
+    for i, line in enumerate(lines, start=1):
+        if re.match(r"^\s*(```|~~~)", line):
+            fence = not fence
+            continue
+        m = None if fence else re.match(r"^(#+)\s+(.*)$", line)
+        if m:
+            heads.append((i, len(m.group(1)), slug(m.group(2))))
+    out = []
+    for idx, (start, level, name) in enumerate(heads):
+        end = len(lines)
+        for later_start, later_level, _ in heads[idx + 1:]:
+            if later_level <= level:
+                end = later_start - 1
+                break
+        out.append((start, end, name))
+    return out
+
+
+def resolve_anchor(ref: str, where: str) -> list[str] | None:
+    m = ANCHOR.fullmatch(ref.strip())
+    if not m:
+        fail(f"{where}: not a path#anchor reference: {ref!r}")
+        return None
+    path, name = m.group(1), m.group(2)
+    target = REPO / path
+    if not target.is_file():
+        fail(f"{where}: no such file: {path}")
+        return None
+    hits = [s for s in sections(target) if s[2] == name]
+    if not hits:
+        fail(f"{where}: {path} has no heading with anchor #{name}")
+        return None
+    if len(hits) > 1:
+        fail(f"{where}: {path} has {len(hits)} headings with anchor #{name}; a heading must be unique")
+        return None
+    lines = read_lines(target)
+    counts["resolved"] += 1
+    return lines[hits[0][0] - 1:hits[0][1]]
 
 
 def resolve(ref: str, where: str) -> None:
@@ -196,13 +257,17 @@ def check_numbers(printed: dict[str, str], have_entry: bool) -> None:
         number, value, source, command = cells
         where = f"numbers.md [{number[:48]}]"
         # 1. sources resolve, and carry the value
-        cited = re.findall(r"[A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:md|py|json|txt|sha256|toml|cfg):\d+(?:-\d+)?", source)
+        cited = re.findall(r"[A-Za-z0-9_][A-Za-z0-9_./-]*\."
+                           r"(?:md|py|json|txt|sha256|toml|cfg)(?::\d+(?:-\d+)?|#[a-z0-9][a-z0-9-]*)",
+                           source)
         if not cited:
             fail(f"{where}: Source cell cites nothing: {source!r}")
         lines: list[str] = []
         for ref in cited:
-            got = resolve(ref, where)
-            lines.extend(got or [])
+            if "#" in ref:
+                lines.extend(resolve_anchor(ref, where) or [])
+            else:
+                lines.extend(resolve(ref, where) or [])
         flat = norm(" ".join(lines))
         for token in numerals(value):
             token = token.replace(",", "")
@@ -264,6 +329,8 @@ def walk_refs() -> None:
             for m in REF.finditer(line):
                 ref = m.group(0).replace(" ", "")
                 resolve(ref, f"{md.name}:{lineno}")
+            for m in ANCHOR.finditer(line):
+                resolve_anchor(m.group(0), f"{md.name}:{lineno}")
             for m in SECTION.finditer(line):
                 resolve_section(m.group(1), m.group(2), f"{md.name}:{lineno}")
 
@@ -298,6 +365,7 @@ def prose_numerals() -> None:
             continue
         text = "\n".join(read_lines(md))
         text = re.sub(r"```.*?```", " ", text, flags=re.S)
+        text = ANCHOR.sub(" ", text)
         text = NOT_A_QUANTITY.sub(" ", text)
         for lineno, line in enumerate(text.splitlines(), start=1):
             for token in numerals(line):
@@ -309,18 +377,21 @@ def prose_numerals() -> None:
 def main() -> int:
     printed, have_entry = entry_point()
     if have_entry:
-        agents_text = "\n".join(read_lines(AGENTS))
-        named = sorted({k for k in re.findall(r"\b(r[123]_[a-z0-9_]+)\b", agents_text)
-                        if re.search(re.escape(k) + r"\s+[-+\d./]", agents_text)})
+        # A key named in the paper's prose must be a key the entry point prints, and a value
+        # written beside it must be the value it prints: prose cannot name a number the
+        # entry point does not produce.
+        paper_text = "\n".join("\n".join(read_lines(md)) for md in sorted(PAPER.glob("*.md"))
+                               if md.name not in (NUMBERS.name, RENDER.name))
+        named = sorted(set(re.findall(r"\b(r[123]_[a-z0-9_]+)\b", paper_text)))
         if not named:
-            fail("AGENTS.md: names no reproduce key, so the paper's keys cannot be exactly its keys")
+            fail("the paper names no reproduce key, so the output cannot be exactly its table")
         for key in named:
             if key not in printed:
-                fail(f"AGENTS.md: names the key {key!r}, which reproduce.py does not print")
+                fail(f"the paper names the key {key!r}, which reproduce.py does not print")
             else:
-                for value in re.findall(re.escape(key) + r"\s+([-+\d/.]+)", agents_text):
+                for value in re.findall(re.escape(key) + r"\s+([-+\d/.]+)", paper_text):
                     if norm(value) not in quantities(printed[key]) and norm(value) != norm(printed[key]):
-                        fail(f"AGENTS.md: states {key} {value}, reproduce.py prints {printed[key]}")
+                        fail(f"the paper states {key} {value}, reproduce.py prints {printed[key]}")
     walk_refs()
     check_numbers(printed, have_entry)
     prose_numerals()
