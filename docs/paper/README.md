@@ -1,8 +1,8 @@
 # A citable preprint of the helpagent campaign — index and read order
 
 Kind: router. Owner: M1 of the helpagent node (`AGENTS.md`).
-This is not a result document: every number it uses is owned by `docs/STATUS.md`, `FINDINGS.md`
-and `bench/analysis/wave1/NUMBERS.md`, and the paper points at them.
+This is not a result document: every number it uses is owned by `docs/2_GOAL.md`,
+`docs/8_DETAIL.md` and `bench/analysis/wave1/NUMBERS.md`, and the paper points at them.
 
 **Open [`preprint.md`](preprint.md) to read the paper.** It is the whole draft in one file —
 title, abstract, eight sections and the numbers appendix — and it is a *render*: `python3
@@ -12,8 +12,8 @@ it; read `preprint.md` when you want to read the paper.
 
 The claims themselves are the abstract ([`00-abstract.md`](00-abstract.md)), stated once there
 and nowhere else: one `4B` model, one corpus of `40` tasks, one external blind grader, and three
-verdicts — parity **INCONCLUSIVE** (`docs/STATUS.md:28`), verification **partly and not as
-stated** (`docs/STATUS.md:29`), the tree bundle **NEGATIVE** (`docs/STATUS.md:30`) — with the
+verdicts — parity **INCONCLUSIVE** (`docs/2_GOAL.md#the-three-requirements-and-their-verdicts`), verification **partly and not as
+stated** (`docs/2_GOAL.md#the-three-requirements-and-their-verdicts`), the tree bundle **NEGATIVE** (`docs/2_GOAL.md#the-three-requirements-and-their-verdicts`) — with the
 protocol and the losing half of the record as the contribution.
 
 The paper is public in this repository and has no DOI yet; the DOI waits for the person. The
@@ -36,7 +36,7 @@ not](#what-this-draft-is-not).
 | [`08-reproduce.md`](08-reproduce.md) | authored | one command, its keys verbatim, and how it fails loudly |
 | [`numbers.md`](numbers.md) | authored | the single home for every number: Number, Value, Source, Command |
 
-Page budget: `docs/paper-plan.md:33` asks for a paper of eight to twelve pages; this render is
+Page budget: `docs/5_PRODUCT.md#read-order` asks for a paper of eight to twelve pages; this render is
 longer than that plan. The word count is printed by `python3 docs/paper/build_preprint.py` and is
 not stored here, so it cannot drift away from the render it counts.
 
@@ -70,12 +70,12 @@ reading. A green run means the draft's numbers point where it says they point.
 **Not a paper with a DOI.** The repository that holds it is public and the preprint is pushed to
 it: `origin/master` names this revision, read on 2026-10-23. The DOI and any arXiv submission are
 above this node and wait for the person; the three separate acts and what each costs are in
-`mail/2026-10-23-helpagent-paper-first.md`. **The revision to cite is this repository's current
+`docs/5_PRODUCT.md#published-and-what-is-owed-to-the-person`. **The revision to cite is this repository's current
 one.** Tag `preprint-v1` freezes only the revision `bench/checks/m1_acceptance.py` runs its
 numbers check at, and it is older than this index: it holds the eight sections' first draft plus
 `numbers.md`, and it does **not** hold `00-abstract.md`, the one-file render, the builder,
 §5's clause about the routing heuristic or §7's paragraph about it. A reader who checks out the
 tag gets the acceptance revision, not the paper. Not a re-measurement: the numbers were measured once, on revision
-`45ebb32` (`docs/STATUS.md:6`), and this draft re-derives them from committed bytes. Not a
+`45ebb32` (`docs/2_GOAL.md#known-limits`), and this draft re-derives them from committed bytes. Not a
 success narrative: where the campaign failed to establish something, the sentence says
 failed to establish.

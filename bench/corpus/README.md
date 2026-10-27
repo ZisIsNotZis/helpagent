@@ -28,7 +28,7 @@ T-01-ttl-seconds-ms/
 
 Written as a real user would write it: symptom first, hunches allowed, no file paths or
 symbol names given away. This is the string the run's intake step receives verbatim
-(see the flow (see docs/FLOW.md) §2 Step 1).
+(see `docs/6_FLOW.md` §2, step 1).
 
 ## `checks.py` — deterministic checks (DESIGN §6)
 

@@ -7,7 +7,7 @@ the same budget?
 ## The result
 
 `210` runs: `14` tasks, `3` arms, `5` seeds, `70` runs per arm, paired by `(task, seed)`, with
-the decision rule fixed before any outcome was read (`docs/STATUS.md:104`).
+the decision rule fixed before any outcome was read (`docs/2_GOAL.md#r3-decomposition-and-multi-approach`).
 
 | arm | runs solved | claimed | false success | mean calls/task | mean wall s/run |
 | --- | --- | --- | --- | --- | --- |
@@ -16,7 +16,7 @@ the decision rule fixed before any outcome was read (`docs/STATUS.md:104`).
 | tree-tournament | `15/70` | `18/70` | `3` | `35.2` | `498` |
 
 Every paired comparison points the same way, with the interval's upper bound below zero
-(`docs/STATUS.md:115`):
+(`docs/2_GOAL.md#r3-decomposition-and-multi-approach`):
 
 | comparison | mean delta | 95% CI | tree-only / leaf-only fixes | McNemar p |
 | --- | --- | --- | --- | --- |
@@ -26,15 +26,15 @@ Every paired comparison points the same way, with the interval's upper bound bel
 | tree-tournament vs leaf, forced-leaf tasks | `-0.520` | `[-0.800, -0.240]` | `1` / `14` | `0.001` |
 
 The pre-registered rule returns NEGATIVE for both tree arms, because every decomposition-related
-interval has an upper bound below zero (`docs/STATUS.md:122`). The tree also costs more while
+interval has an upper bound below zero (`docs/2_GOAL.md#r3-decomposition-and-multi-approach`). The tree also costs more while
 fixing less: `2.2` to `2.4` times the calls, `2.3` to `2.9` times the wall clock and at least
-`1.85` times the tokens, for one third of the leaf's grader passes (`docs/STATUS.md:122`).
+`1.85` times the tokens, for one third of the leaf's grader passes (`docs/2_GOAL.md#r3-decomposition-and-multi-approach`).
 
 ## Did the mechanism even fire?
 
 A negative result is only informative if the thing being tested ran. Decomposition fired in
 `3/70` runs on `3/9` decomposable tasks in the greedy arm, and in `9/70` runs on `4/9`
-decomposable tasks in the tournament arm (`docs/STATUS.md:122`). That establishes that
+decomposable tasks in the tournament arm (`docs/2_GOAL.md#r3-decomposition-and-multi-approach`). That establishes that
 splitting sometimes happened; it does not establish causal isolation, because the arms differ
 in more than splitting.
 
@@ -42,30 +42,30 @@ in more than splitting.
 `-0.520` delta on tasks where splitting is not applicable at all is consistent with a
 bundle-level cost — extra calls, extra budget spent on planning, and a delivery rule that
 withholds unclaimed work — rather than with a penalty specific to decomposition. This is an
-inference from `docs/STATUS.md:118` and `docs/STATUS.md:123`, not an isolated measurement; the
+inference from `docs/2_GOAL.md#r3-decomposition-and-multi-approach` and `docs/2_GOAL.md#r3-decomposition-and-multi-approach`, not an isolated measurement; the
 campaign did not run the design that would separate the two.
 
 ## The scope of the negative — what this does not say
 
 **The current tree bundle is worse here; decomposition, field refinement and structural
-superiority in general are not refuted** (`docs/STATUS.md:123`). The reasons are specific and
+superiority in general are not refuted** (`docs/2_GOAL.md#r3-decomposition-and-multi-approach`). The reasons are specific and
 worth reading in full, because the headline number is easy to over-read:
 
 - the bundle changes planning and specification rewriting, budget and delivery as well as
-  splitting (`docs/STATUS.md:123`);
+  splitting (`docs/2_GOAL.md#r3-decomposition-and-multi-approach`);
 - the tree merges only closed, claimed candidates, whereas the leaf also delivers unclaimed
-  code (`docs/STATUS.md:123`), so the delivery rule alone can produce the difference;
+  code (`docs/2_GOAL.md#r3-decomposition-and-multi-approach`), so the delivery rule alone can produce the difference;
 - both tree arms delivered pristine Python source on all `52` unclaimed failures of each arm —
-  a per-arm count, not a total — and the leaf passed `39` unclaimed runs (`docs/STATUS.md:123`);
+  a per-arm count, not a total — and the leaf passed `39` unclaimed runs (`docs/2_GOAL.md#r3-decomposition-and-multi-approach`);
 - the deleted tree candidates cannot establish how many of them were correct
-  (`docs/STATUS.md:123`).
+  (`docs/2_GOAL.md#r3-decomposition-and-multi-approach`).
 
 So the honest sentence is: an intervention intended to raise capability lowered it by about
 two thirds of the leaf's passes on this corpus, this model and this bundle, and the experiment
 does not attribute the loss to decomposition. The test that would — splitting and field
 refinement isolated from planning, budget and delivery — is recorded as future work, not as
-done (`docs/ROADMAP.md:88`), and the forced-leaf thresholds were never swept
-(`docs/LEARNINGS.md:225`).
+done (`docs/0_ROADMAP.md#not-on-this-roadmap`), and the forced-leaf thresholds were never swept
+(`docs/5_PRODUCT.md#what-does-not-transfer`).
 
 This is also why the paper does not call the tree "harmful" without its scope: it was harmful
 *as a bundle, here*. A reader who takes "decomposition loses" away from this section has taken

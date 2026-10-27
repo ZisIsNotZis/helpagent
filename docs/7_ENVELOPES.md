@@ -1,20 +1,20 @@
-# ENVELOPE SCHEMAS — Grammar-Target Output Contracts for Every `llm_step`
+# INFERRED
 
-Companion to DESIGN §4.2/§4.7. One schema per `llm_step` type.
+Companion to `docs/6_ARCHITECTURE.md`. One schema per `llm_step` type.
 These are the structured envelopes a ≤4B model returns via grammar-constrained decoding
-(llama.cpp GBNF / `json_schema`). Kernel-side validation duties live in **KERNEL_API.md** —
-this doc names *what* must be validated; KERNEL_API.md owns *how*.
+(llama.cpp GBNF / `json_schema`). Kernel-side validation duties live in **`docs/7_INTERFACE.md`** —
+this doc names *what* must be validated; `docs/7_INTERFACE.md` owns *how*.
 
 ## 0. Base conventions (fixed — every envelope extends this, no variations)
 
 ```python
 class Envelope(Base):
     status: Literal["ok","failed","blocked","unable"]
-    comment: str                      # self-summary, ≤2 lines (DESIGN §4.2 mandatory field)
+    comment: str                      # self-summary, ≤2 lines (`docs/6_ARCHITECTURE.md` mandatory field)
     unable_reason: str | None         # REQUIRED iff status=="unable"
 ```
 
-**`unable` semantics (DESIGN §2.2):** `unable` is a legal value of every envelope's
+**`unable` semantics (`docs/6_ARCHITECTURE.md`):** `unable` is a legal value of every envelope's
 *top-level* `status` only — never mid-generation inside a nested enum or list. The grammar
 branches on `status`: the `ok` branch requires the payload fields; the `unable` branch
 requires `unable_reason` and forbids payload fields (one grammar alternative each). A needed
@@ -25,7 +25,7 @@ pattern, or a reference to something the harness injected (candidate-cut ids, AC
 paths inside the declared boundary). Free strings appear only where the harness executes or
 re-checks the content anyway (code bodies, sandboxed probe commands).
 
-**Forms, not JSON (DESIGN §4.2):** the model never sees "produce JSON matching schema X".
+**Forms, not JSON (`docs/6_ARCHITECTURE.md`):** the model never sees "produce JSON matching schema X".
 The runner renders a pre-labeled fill-in form with examples inline. Forms below show the
 rendered shape (short filled example); `[ ]` marks an enum choice the model fills, `-` a
 list slot.
@@ -115,7 +115,7 @@ child 1:
   leaf:        [x]    est_rounds: [4]
 ```
 
-**Kernel validates (KERNEL_API.md: DAG rules):** `seam_id` ∈ proposed candidates; est_rounds
+**Kernel validates (`docs/7_INTERFACE.md` §4.1: DAG rules):** `seam_id` ∈ proposed candidates; est_rounds
 range; leaf count within per-class config; resulting I/O edges → DAG (orphans/cycles → findings,
 not stall). **`what`/`why` are reference-checked** — the enum-first rule (§0) applied to the two
 free strings: any file path or symbol they name must appear in the injected candidate scope or
@@ -182,9 +182,9 @@ why there is no repetition upward.
 before it is frozen — `weakens_gate` is precisely the subjective-inflation check
 (`check_kind: "subjective"` where a deterministic check is feasible), and `meaning_preserved`
 catches ACs that restate nothing in the spec. Authoring a gate is a gate-defining act, so
-proposer≠decider (DESIGN §4.8) covers it, not just later changes.
+proposer≠decider (`docs/6_ARCHITECTURE.md`) covers it, not just later changes.
 
-**Kernel validates (KERNEL_API.md: AC map):** ids unique + pattern; every `check_kind !=
+**Kernel validates (`docs/7_INTERFACE.md` §4.2: AC map):** ids unique + pattern; every `check_kind !=
 "subjective"` resolves to ≥1 executable check later; subjective entries must carry
 `check_hint` (feeds the judge panel); **a leaf's map is non-empty; an internal node's entries
 each resolve to a descendant check or an existing command at close time.** Budget: ~500 tok at 10 ACs.
@@ -217,7 +217,7 @@ answers "where do boundary files come from": the LEAF BOUNDARY comes from the se
 (repo-index module map, injected into expand); the spec may narrow it, never widen — kernel checks ⊆. -->
 
 **Kernel validates:** `files_touched` ⊆ seam file scope (the leaf boundary — narrowing only);
-interface names resolve in symbol DB (ground-truth check, DESIGN §2.3). Budget: **~800 tok.**
+interface names resolve in symbol DB (ground-truth check, `docs/6_ARCHITECTURE.md`). Budget: **~800 tok.**
 Split rule: if interfaces > 5, re-invoke per section, harness stitches.
 
 ## 8. `spec_review` — E1 artifact reviewed fresh-context
@@ -259,7 +259,7 @@ class TestCase(Base):
 ```python
 class WriteTest(Envelope):
     file_path: str                 # within test map's scope
-    content: str                   # complete file (whole-file, never diffs — DESIGN §4.7)
+    content: str                   # complete file (whole-file, never diffs — `docs/6_ARCHITECTURE.md`)
 ```
 
 **Kernel validates:** path scope; tree-sitter parse on arrival; check pipeline on write.
@@ -303,7 +303,7 @@ common case, and the router acts on whichever sides have entries (code → imple
 test → fix ticket, spec → gate review), so both/all route in one verdict. -->
 
 **Kernel validates:** each problem's evidence non-empty; any low-confidence problem triggers
-best-of-N resample (DESIGN §4.7) before routing. Budget: ~300 tok.
+best-of-N resample (`docs/6_ARCHITECTURE.md`) before routing. Budget: ~300 tok.
 
 ## 13. `identify_bugs` — D0 merged question: `{bugs: [...] | []}` union
 
@@ -419,7 +419,7 @@ class JudgeAspect(Envelope):
     evidence: str                  # ≤3 lines — must cite the diff/artifact, not restate the AC
 ```
 
-**Kernel validates (KERNEL_API.md: gate):** `target_ac_id` ∈ map; evidence non-empty on
+**Kernel validates (`docs/7_INTERFACE.md` §4.3: gate):** `target_ac_id` ∈ map; evidence non-empty on
 fail; panel disagreement recorded + weighted; closure is procedural — the model flags, the
 gate decides. Budget: ~200 tok each; panel runs in parallel.
 
@@ -438,8 +438,8 @@ summarizes ground truth. Budget: ~300 tok.
 
 ## 20. `gate_decide` — propose ≠ decide: validate the REASON, not the change
 
-Decides three proposal classes with one schema: AC/test/tree-structure **changes** (DESIGN
-§4.8), **initial AC maps** from `draft_acs` (§6 — authoring a gate is gate-defining), and
+Decides three proposal classes with one schema: AC/test/tree-structure **changes** (`docs/6_ARCHITECTURE.md`),
+**initial AC maps** from `draft_acs` (§6 — authoring a gate is gate-defining), and
 memory/lesson promotions where a reason must be validated.
 
 ```python
@@ -453,7 +453,7 @@ class GateDecide(Envelope):
 
 **Kernel validates:** `decision==reject` ⇒ explanation non-empty; `weakens_gate==True` ⇒
 decision must be `reject` (grammar pair — gate-easing proposals are structurally suspect,
-DESIGN §4.8). Budget: ~250 tok.
+`docs/6_ARCHITECTURE.md`). Budget: ~250 tok.
 
 ## 21. `propose_growth` — D9: subtree proposal, gated by proposer≠decider
 
@@ -470,14 +470,14 @@ class ProposeGrowth(Envelope):
     reason: str                    # ≤4 lines — what the reviewer will validate
 ```
 
-**Kernel validates (KERNEL_API.md: ledger):** every `evidence_refs` entry resolves in the
+**Kernel validates (`docs/7_INTERFACE.md` §4.5: ledger):** every `evidence_refs` entry resolves in the
 ledger; accepted proposals execute via the standard tree-edit cascade (done parent reopens,
 AC map re-runs) — the harness authors nothing. Budget: ~400 tok.
 
 ## 22. `lesson` — I6: memory-store fill-in form (embedded via §15, or standalone step)
 
 Topic key is 1–6 normalized AND-terms (deterministic matcher — exact term presence);
-provenance is mandatory (governance pipeline, DESIGN §4.4).
+provenance is mandatory (governance pipeline, `docs/6_ARCHITECTURE.md`).
 
 ```python
 class Lesson(Base):
@@ -500,7 +500,7 @@ governance as provisional. Budget: ~120 tok.
 
 ---
 
-## 23. `plan_node` — node tree: one fused decompose+specify call (DESIGN §10.1–§10.2)
+## 23. `plan_node` — node tree: one fused decompose+specify call (`docs/6_ARCHITECTURE.md`)
 
 The fused per-node call of the budgeted tree (ticket 18). ONE call both DECOMPOSES (the
 `children` list) and SPECIFIES (the node's own goal/behavior/files/ACs) so the per-node
@@ -554,7 +554,7 @@ claim). The old single `verification_policy` enum is gone; a record that already
 maps to the lists (``test`` = tests only, ``review`` = reviews only, ``either`` = both,
 ``none`` = neither). The lists + reason are recorded on every node's run record; a runtime
 PLAN UPDATE that DROPS the test plan and relies on the planned reviews (or reports that no
-evidence route remains) is recorded when a node gives up on its test (see DESIGN §10.4).
+evidence route remains) is recorded when a node gives up on its test (see `docs/6_ARCHITECTURE.md`).
 
 ```text
 plan_node:
@@ -600,10 +600,10 @@ crashes and never silently produces a child. Budget: ~500 tok.
 | Medium ≤800 tok | task_card, expand, draft_acs, test_plan, identify_bugs, write_spec, plan_node, how_list | — | no risk |
 | **Ceiling-risk** | write_test (~2.5k) | — | the only content-emitting schema left; one case per call; overflow → file split-window (never truncate) |
 
-Every code-carrying schema declares its split path in advance (§4.2 bounded artifacts;
+Every code-carrying schema declares its split path in advance (`docs/6_ARCHITECTURE.md` bounded artifacts;
 overflow triggers the path, never truncates).
 
-## 25. Cross-cutting validation split (details in KERNEL_API.md)
+## 25. Cross-cutting validation split (details in `docs/7_INTERFACE.md` §3)
 
 - **Grammar-enforced at decode:** enums, patterns (ac_id/case_id/keywords/topic_key),
   list caps, conditional requirements (unable_reason, blocked_kind, ok⇒issues==[]).
@@ -611,7 +611,7 @@ overflow triggers the path, never truncates).
   files ⊆ declared boundary), DAG/AC-map rules, ledger provenance, check pipeline on
   writes, best-of-N resample on low-confidence judges.
 - **Script-owned:** which envelope to request, retry/re-split routing, aspect config —
-  scripts never author or alter schemas (§4.2: schemas are selected from this library).
+  scripts never author or alter schemas (`docs/6_ARCHITECTURE.md`: schemas are selected from this library).
 
 ---
 
@@ -667,8 +667,7 @@ why + anti-boilerplate + anti-restatement + concrete-artifact checks
 
 ---
 
-## 28. `how_list` — the How axis: N approaches for one node, best first (ticket 20
-step 2a)
+## 28. `how_list` — the How axis: N approaches for one node, best first (ticket 20 step 2a)
 
 The FIRST planning step of a node. Instead of planning one decomposition directly, the
 node lists the candidate APPROACHES (the diversity axis) IN PRIORITY ORDER: each How is
@@ -704,7 +703,7 @@ carries both `text` and `reason` (the REQUIRED-sentinel guard on `HowEntry` — 
 model does not inherit `Envelope`'s). The harness assigns `HOW-<i>` and rank `i` from the
 list order and fills `prior` from the rank. The prior is a SCHEDULER HINT only —
 success is decided only by hard evidence (tests / integration verification). Budget: ~250
-tok. See KERNEL_API §10 for the selection function, the manager loop, and candidate
+tok. See `docs/7_INTERFACE.md` §10 for the selection function, the manager loop, and candidate
 isolation.
 
 **Wired (step 2b):** the tree runner plans How-first — ONE `how_list` call, one candidate
@@ -715,8 +714,7 @@ the scoring contract.
 
 ---
 
-## 29. `manager_decision` — the node's managing call: ONE decision + reason (ticket 20
-step 2b-ii)
+## 29. `manager_decision` — the node's managing call: ONE decision + reason (ticket 20 step 2b-ii)
 
 The `failure → manager` loop. When a How fails or exhausts, the node's MANAGING CALL
 receives the node's STRUCTURED RECORD — no chat history and no conversation: the How list

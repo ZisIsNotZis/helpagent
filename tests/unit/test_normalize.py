@@ -1,4 +1,4 @@
-"""Parameter-layer tolerance (DESIGN §4.7, owner policy 2026-09-17).
+"""Parameter-layer tolerance (docs/6_ARCHITECTURE.md §4.7, owner policy 2026-09-17).
 
 Pin the contract: intent-legible near-misses (case slips, known aliases) are
 normalized deterministically before validation with a ledger counter; unknown
@@ -58,7 +58,7 @@ def test_nested_containers_are_reached():
 
 
 def test_alias_registry_is_schema_drift_guarded():
-    """Canonicals must point into the schema Literals (ENVELOPE_SCHEMAS §0/§2/§6).
+    """Canonicals must point into the schema Literals (docs/7_ENVELOPES.md §0/§2/§6).
     If a schema enum changes, this set is the reconciliation point."""
     from harness.normalize import ENUM_CANONICALS
 

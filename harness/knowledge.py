@@ -1,4 +1,4 @@
-"""Injection-first knowledge pack (DESIGN §4.4, owner decision 2026-09-17:
+"""Injection-first knowledge pack (docs/6_ARCHITECTURE.md §4.4, owner decision 2026-09-17:
 injection-first, the model never self-initiates lookups).
 
 Deterministic lookups over the task repo, rendered into ONE bounded artifact the
@@ -10,7 +10,7 @@ composer injects into implement-step inputs:
   remedy promised; multi-file fixes fail when a caller is forgotten, T-31).
 - CONSTANTS: module-level assignments (FP-7 — values live in constants).
 
-Everything here is harness lookup (DESIGN §2.1: never the model's job) and
+Everything here is harness lookup (docs/6_ARCHITECTURE.md §2.1: never the model's job) and
 bounded: the rendered block is capped, biggest sections first-come-first-served.
 """
 

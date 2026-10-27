@@ -1,4 +1,4 @@
-"""LlamaServerRunner — the real model runner (DESIGN §4.7 Model Interface, §8 M1).
+"""LlamaServerRunner — the real model runner (docs/6_ARCHITECTURE.md §4.7 Model Interface, §8 M1).
 
 Protocol parity with FakeModelRunner: ``async complete(request)``
 returns the *raw decoded output* — here, the envelope JSON string exactly as the
@@ -24,7 +24,7 @@ Metrics: llama.cpp reports token usage and KV-cache timings per call
 (``usage.prompt_tokens/completion_tokens``, ``timings.cache_n/prompt_n``). They are
 exposed as ``last_metrics`` (most recent call) / ``last_metrics_list`` (one entry per
 call of the last ``complete_n``) and folded into the kernel's ``llm_invocation``
-ledger note by llm_step — counters only, never content (KERNEL_API §5).
+ledger note by llm_step — counters only, never content (docs/7_INTERFACE.md §5).
 """
 
 from __future__ import annotations
@@ -42,8 +42,8 @@ from pydantic.json_schema import PydanticJsonSchemaWarning
 from harness.envelopes import SCHEMAS
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8833"
-MAX_TOKENS = 3000  # the 3k output ceiling (ENVELOPE_SCHEMAS §24)
-TRANSPORT_ATTEMPTS = 2  # DESIGN §4.7: cheap retries are a local-GPU property
+MAX_TOKENS = 3000  # the 3k output ceiling (docs/7_ENVELOPES.md §24)
+TRANSPORT_ATTEMPTS = 2  # docs/6_ARCHITECTURE.md §4.7: cheap retries are a local-GPU property
 
 
 class TransportError(Exception):
@@ -176,7 +176,7 @@ class LlamaServerRunner:
             "completion_tokens": int(usage.get("completion_tokens") or 0),
             "cache_n": cache_n,
             "prompt_n": prompt_n,
-            # KV-cache reuse rate over the prompt (DESIGN §9.11 measured dimension)
+            # KV-cache reuse rate over the prompt (docs/6_ARCHITECTURE.md §9.11 measured dimension)
             "cache_hit": round(cache_n / prompt_n, 4) if prompt_n else 0.0,
         }
 
@@ -206,9 +206,9 @@ class LlamaServerRunner:
         ) from last_exc
 
     async def complete_n(self, request: Any, n: int) -> list[str]:
-        """N raw candidates for best-of-N (DESIGN §4.7: sample 3–5, deterministic
+        """N raw candidates for best-of-N (docs/6_ARCHITECTURE.md §4.7: sample 3–5, deterministic
         checker selects). Sequential on purpose — one local GPU, one slot; parallel
-        peers thrash the KV cache (DESIGN §4.1 cache note)."""
+        peers thrash the KV cache (docs/6_ARCHITECTURE.md §4.1 cache note)."""
         outs: list[str] = []
         for _ in range(max(1, n)):
             outs.append(await self.complete(request))

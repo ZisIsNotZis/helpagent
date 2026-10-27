@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Blind v2 tree driver — stage source-only, run the budgeted tree, score externally.
 
-Owner direction 2026-09-29 (DESIGN §6/§10). The corpus tests are the GRADER: they never
+Owner direction 2026-09-29 (docs/6_ARCHITECTURE.md §6/§10). The corpus tests are the GRADER: they never
 enter the run. This driver is the tree analogue of ``bench/v2_leaf.py``:
 
 1. stages the task's *source-only* projection into a workdir (``stage_blind``),
@@ -11,7 +11,7 @@ enter the run. This driver is the tree analogue of ``bench/v2_leaf.py``:
 3. scores whatever the run produced on a OWN pristine copy via
    :func:`bench.external_score.external_score`,
 4. prints the two facts that matter — what the run CLAIMED and what the grader FOUND —
-   plus the resulting quadrant (DESIGN §10.8), and
+   plus the resulting quadrant (docs/6_ARCHITECTURE.md §10.8), and
 5. persists one run record with the node tree, per-node budgets, stop reasons, the split
    history, and every integration verdict.
 
@@ -226,7 +226,7 @@ def node_record(outcome: NodeOutcome, *, diluted: bool = False) -> dict:
         "node": outcome.node_id,
         "claimed": outcome.claimed,
         "stop_reason": outcome.stop_reason,
-        #: FLOW §1.5 S5 (P1c): the node's explicit three-state verdict (+ parked/user).
+        #: docs/6_FLOW.md §1.5 S5 (P1c): the node's explicit three-state verdict (+ parked/user).
         "state": outcome.state,
         "calls": outcome.calls,
         "wall_s": outcome.wall_s,
@@ -372,7 +372,7 @@ def _verification_tally(outcome: NodeOutcome) -> tuple[int, int]:
 
 
 def _leaf_deviations(outcome: NodeOutcome) -> list:
-    """Every write deviation recorded by any leaf in the tree (FLOW §6, P1a)."""
+    """Every write deviation recorded by any leaf in the tree (docs/6_FLOW.md §6, P1a)."""
     devs = list(outcome.leaf.deviations) if outcome.leaf is not None else []
     for child in outcome.children:
         devs.extend(_leaf_deviations(child))
@@ -430,7 +430,7 @@ def build_record(task_id: str, goal: str, outcome: TreeOutcome, *, withheld: lis
         },
         "nodes": node_record(outcome.root, diluted=diluted),
         "produced": sorted(produced),
-        # FLOW §6 (P1a): every write an off-plan leaf made (never refused) and the
+        # docs/6_FLOW.md §6 (P1a): every write an off-plan leaf made (never refused) and the
         # restores applied to the produced repository BEFORE grading.
         "deviations": [dataclasses.asdict(d) for d in (deviations or [])],
         "deviation_restores": list(deviation_restores or []),
@@ -480,7 +480,7 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
         run_outdir=out_dir, manager=manager, how_explore=how_explore))
     wall = round(time.monotonic() - started, 1)
 
-    # FLOW §6 (P1a): restore every recorded leaf write deviation before grading, so the
+    # docs/6_FLOW.md §6 (P1a): restore every recorded leaf write deviation before grading, so the
     # grader sees the same bytes it saw when off-plan writes were refused.
     deviations = _leaf_deviations(outcome.root)
     produced = produced_files(workdir)

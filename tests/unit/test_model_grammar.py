@@ -1,4 +1,4 @@
-"""Grammar conversion (DESIGN §4.7): every envelope schema must compile to a
+"""Grammar conversion (docs/6_ARCHITECTURE.md §4.7): every envelope schema must compile to a
 json_schema llama.cpp can turn into a GBNF grammar, and the §0 two-alternative
 grammar must be mirrored EXACTLY — the grammar branches on status like the kernel's
 validators do (harness/envelopes._grammar_branch; ticket 01 "remaining risk" +

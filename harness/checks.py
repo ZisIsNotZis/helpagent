@@ -1,12 +1,12 @@
-"""Check pipeline + the ``check_write`` primitive (DESIGN §4.5, KERNEL_API §3.4 — M3).
+"""Check pipeline + the ``check_write`` primitive (docs/6_ARCHITECTURE.md §4.5, docs/7_INTERFACE.md §3.4 — M3).
 
 The kernel-owned work-tree write path: every model-implication file mutation goes
 through :func:`check_write`, which applies the §4.5 ladder — formatter → autofixer
 (≤2 passes, survivor rule) → tree-sitter parse → project-wide type check → rule
 library → intent check tier 1 — auto-fixes the trivial, and rolls back what cannot
-stand. Reliability gates cost (DESIGN §2.7, owner decision 2026-09-17).
+stand. Reliability gates cost (docs/6_ARCHITECTURE.md §2.7, owner decision 2026-09-17).
 
-Verdict semantics (KERNEL_API §3.4 reading, recorded as the M3 DECISION):
+Verdict semantics (docs/7_INTERFACE.md §3.4 reading, recorded as the M3 DECISION):
 
 - ``rolled_back`` (ok=False): parse survivor (the work tree must never hold a
   non-parsing file — parse repair belongs to the §4.7 generation-time path) or an
@@ -25,12 +25,12 @@ Slice boundaries (ticket 03, none silent):
   M4 session runner); the rule library consumes test output via
   :func:`diagnose_test_output`, which the script calls after running its suite.
 - Rollback is exact byte-restore (per-file restore is precise for whole-file v1);
-  harness-git reset stays kernel-internal per KERNEL_API §4.5 DECISION.
+  harness-git reset stays kernel-internal per docs/7_INTERFACE.md §4.5 DECISION.
 
 Type-check scoping: the
 baseline is computed pre-write and findings are diffed at FINDING level — a caller
 broken in an untouched file survives, pre-existing untouched-file noise never
-blocks. The cheaper touched-files-only scoping is unsound (DESIGN §4.5) and the
+blocks. The cheaper touched-files-only scoping is unsound (docs/6_ARCHITECTURE.md §4.5) and the
 config type rejects it structurally.
 """
 
@@ -68,7 +68,7 @@ AutofixFn = Callable[[Path, str, int], Awaitable[tuple[bool, list["CheckFinding"
 
 class CheckConfig(BaseModel):
     """Pipeline configuration. ``scope_mode`` deliberately has ONE legal value:
-    touched-files-only type scoping is unsound (DESIGN §4.5 — whole-file rewrites
+    touched-files-only type scoping is unsound (docs/6_ARCHITECTURE.md §4.5 — whole-file rewrites
     break callers in untouched files), so a config attempting invocation-level
     scoping is a validation error, not a runtime footgun."""
 
@@ -94,7 +94,7 @@ class CheckFinding(BaseModel):
 
 
 class WriteResult(BaseModel):
-    """Shaped result of one write through the pipeline (KERNEL_API §3.4)."""
+    """Shaped result of one write through the pipeline (docs/7_INTERFACE.md §3.4)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -192,7 +192,7 @@ async def _ruff_autofix(workdir: Path, path: str, pass_no: int) -> tuple[bool, l
 
 
 # ---------------------------------------------------------------------------
-# rule library (DESIGN §4.4/§4.5 — deterministic, trajectory-grown, idiom-carrying)
+# rule library (docs/6_ARCHITECTURE.md §4.4/§4.5 — deterministic, trajectory-grown, idiom-carrying)
 # ---------------------------------------------------------------------------
 
 _NAMEERROR = re.compile(r"NameError: name '(\w+)' is not defined")
@@ -349,7 +349,7 @@ async def check_write(
         fixer = autofix or _ruff_autofix
         # pass 0 = collect-only inventory: seeds the re-appearance detector so a
         # finding that goes away under one fixer and comes back under another is
-        # recognized as a SURVIVOR, not a new bug (DESIGN §4.5 tool-fight rule)
+        # recognized as a SURVIVOR, not a new bug (docs/6_ARCHITECTURE.md §4.5 tool-fight rule)
         ever_keys: set[tuple] = set()
         last_keys: set[tuple] = set()
         for pass_no in range(0, cfg.max_autofix_passes + 1):
@@ -399,7 +399,7 @@ async def check_write(
         findings.append(
             CheckFinding(stage="rules", path=path, code="intent-test-write",
                          message="source-intent write into a test file — gate-easing "
-                                 "is structurally suspect (DESIGN §4.8)")
+                                 "is structurally suspect (docs/6_ARCHITECTURE.md §4.8)")
         )
 
     diff_text, redactions = filter_secrets(

@@ -1,7 +1,7 @@
-# FLOW — the one flow (owner spec, 2026-10-06)
+# CONFIRMED
 
 Single source of truth for how a run processes a task. It replaces the "single-leaf mode vs tree
-mode" split: **a single leaf is just a tree of one node**. `docs/DESIGN.md` §10 describes the older
+mode" split: **a single leaf is just a tree of one node**. `docs/6_ARCHITECTURE.md` §10 describes the older
 layering; where they disagree, this file wins.
 
 **Nothing here leaks the benchmark.** A requirement NEVER names a file, so no step may take a file
@@ -73,16 +73,16 @@ S6  SUMMARY: per issue/node: pass | uncertain | parked-for-user
 
 | case | what happens |
 | --- | --- |
-| How splits | children recurse; the How itself executes nothing; its four lists are its plan/expectation (§11 H1) |
+| How splits | children recurse; the How itself executes nothing; its four lists are its plan/expectation  |
 | How does not split, tests only | W1-W4, then W5 skipped; the test evidence must carry the claim |
 | How does not split, reviews only | W1 (no test), W4 (regression on the visible suite), W5; the review evidence carries the claim |
 | How does not split, both | all of W1-W5; a review that cannot pass may be dropped by a node update, and a test-based claim survives that |
-| How declares neither check | §11 H2: currently unverifiable — the How cannot establish "requirement satisfied" |
-| tests red, judge unavailable/malformed | §11 H8: the verdict is uncredited; the run keeps implementing (today's rule) or stops by policy |
+| How declares neither check | H2 in §holes-found-while-walking-the-flow: currently unverifiable — the How cannot establish "requirement satisfied" |
+| tests red, judge unavailable/malformed | H8 in `.scratch/31-docs-migration/open-items-6.md`: the verdict is uncredited; the run keeps implementing (today's rule) or stops by policy |
 | regression found | judge first (it is a red signal), then iterate or node update |
 | budget/deadline exhausted mid-node | handover: stop with `uncertain`, deliver best evidence, record where it stopped |
 | a criterion that no check can pin | the How says so in its `reason`; the claim cannot rest on it |
-| two nodes writing the same file | §11 H5: they cannot be executed in parallel without isolation |
+| two nodes writing the same file | H5 in `.scratch/31-docs-migration/open-items-6.md`: they cannot be executed in parallel without isolation |
 | one issue passes, another does not | the summary reports per issue; the run as a whole does not claim the failed one |
 
 ## 2. The node structure — fields
@@ -312,31 +312,46 @@ open and are the node-structure work in `.scratch/27-campaign/`.
 | 9 | judge/review/independent test = the same small model | UNCHANGED (they stay the small model); the only stronger-model role is the manual out-of-band regression review (§7.1) |
 | 10 | non-pass states collapse into "not claimed" | explicit three-state test/review, and the node update is a recorded act |
 
-## 10. Open decisions for the owner
+# INFERRED
 
-1. RESOLVED: every in-run judge stays the small model; the strong model appears only as the manual
-   out-of-band regression review (§7.1).
-2. §4.4's last line: when no approach passes, confirm the exact output — current spec: deliver the
-   best-evidence revision, claim nothing, report `uncertain` with the reasons. **Implemented and
-   kept** (`best_of_how_states` / `propagate_node_state`, `01d9bee`; the empty-delivery case is a
-   first-class outcome, `d10e172`).
-3. The parallelism granularity when it is picked up (§7): siblings from the start, or gated by
-   budget/clock; parallel writers need confined work trees.
+## Holes found while walking the flow
 
-## 11. Holes in this flow (found while walking it; none is decided)
+Each hole below was found by walking the flow through its own cases. A settled one states the
+answer it now carries; an open one states what it costs while it is open.
 
-| # | hole | why it matters | proposal |
-| --- | --- | --- | --- |
-| **H1** | RESOLVED: a splitting node's four lists are its OWN work (above the children); a purely parental node leaves them empty, which is normal | — | — |
-| **H2** | RESOLVED: neither check is allowed for trivial work; the `reason` says why, and such a How cannot claim beyond the deterministic checks | — | — |
-| **H3** | RESOLVED: states are pass / fail / uncertain / parked-for-user. A test that says FAIL ends the How as FAIL (never "uncertain"); UNCERTAIN only when the test or the judge itself reports uncertain; when every How is exhausted the node takes the best of them (uncertain if any is uncertain, else fail) | — | — |
-| **H4** | RESOLVED: all Hows exhausted → best-of (uncertain beats fail) → that state propagates upward; a judge's `spec` verdict is still the path that asks the parent to re-plan | — | — |
-| **H5** | RESOLVED: parallel nodes get **separate git worktrees/branches**, merged afterwards | — | — |
-| **H6** | The regression check's coverage | it can only run the VISIBLE test suite; the grader's own suite is withheld by the blind protocol, so a run can be regression-free by our check and still fail the grader | state it plainly in every report: our regression verdict is partial; the external grader is the final word |
-| | *measured 2026-10-08: on this corpus the staged view usually has no visible test at all, so the stage is skipped (`observable=False`) - see `STATUS.md` limit 7* | | |
-| **H7** | When is the judge consulted? | every red (one extra call per attempt) versus after K consecutive reds (today: K=2, plus a volunteer trigger) | every red: T-01/T-05 both burned 4-6 attempts churning against a wrong test, which one judge call would have stopped |
-| | *decided 2026-10-08: K=1 — every red goes to the judge (commit `8cb22be`, `ATTRIBUTION_RED_K`), at most once per attempt* | | |
-| **H8** | The judge is unavailable or malformed | the attribution is missing, and "keep implementing" is a guess | keep implementing for at most one attempt, then treat the test as UNCERTAIN and repair it (a wrong test is the likelier defect in that state) |
-| **H9** | The work unit's stop conditions are not enumerated | "iterate (bounded)" hides: what is the cap, what happens at the cap, does the cap reset when the judge changes the diagnosis | one cap per How (attempts), renewed only by a node update; at the cap the How is confirmed failed and the next How starts |
-| **H10** | Exploration bookkeeping | "every step may explore" says nothing about what the exploration found, who pays for it, or whether the later steps can see it | an exploration result is a first-class artifact: reads are recorded in the trajectory, their excerpts ride into the steps of the SAME node, and the reads are charged to that node's budget |
-| **H11** | The top level with several issues | the flow says "one or more issues" but not whether they are sequential, parallel, or what the run claims when one passes and another does not | execute issues in order (or in parallel only when their `files` do not overlap — H5); the run's report is per issue and the run claims nothing that failed |
+Settled:
+
+- **H1** — a splitting node's four lists are its own work, above the children; a purely parental
+  node leaves them empty, which is normal.
+- **H2** — neither check is required for trivial work; the `reason` says why, and such a How
+  cannot claim beyond the deterministic checks.
+- **H3** — the states are pass, fail, uncertain and parked-for-user. A test that says fail ends the
+  How as a failure, never as uncertain; uncertain only when the test or the judge itself reports it;
+  when every How is exhausted the node takes the best of them.
+- **H4** — all Hows exhausted leads to best-of (uncertain beats fail), and that state propagates
+  upward; a judge's `spec` verdict is still the path that asks the parent to re-plan.
+- **H5** — parallel nodes get separate git worktrees or branches, merged afterwards.
+
+Open, with the proposal each carries:
+
+- **The regression check's coverage.** It can only run the visible test suite, and the blind
+  protocol withholds the grader's own, so a run can be regression-free by our check and still fail
+  the grader. Proposal: state in every report that our regression verdict is partial and the
+  external grader is the last word. Measured on this corpus, the staged view usually has no
+  visible test at all, so the stage is skipped (`docs/2_GOAL.md#known-limits`).
+- **The work unit's stop conditions** are not enumerated: what the cap is, what happens at it, and
+  whether it resets when the judge changes the diagnosis. Proposal: one cap per How, renewed only
+  by a node update; at the cap the How is confirmed failed and the next one starts.
+- **Exploration bookkeeping** — what an exploration found, who pays for it, and whether later
+  steps can see it. Proposal: an exploration result is a first-class artifact; reads are recorded
+  in the trajectory, their excerpts ride into the steps of the same node, and the reads are charged
+  to that node's budget.
+- **The top level with several issues** — whether they run in sequence or in parallel, and what a
+  run claims when one passes and another does not. Proposal: execute in order, or in parallel only
+  when their files do not overlap (H5); the report is per issue and the run claims nothing that
+  failed.
+- **Parallelism granularity.** When a run is parallelised, siblings may start together or be gated
+  by budget and clock; parallel writers need confined work trees either way.
+- **The judge's cadence.** Every red costs one extra call, and a run that churns against a wrong
+  test pays more for not asking. Measured setting: consult the judge on every red, at most once per
+  attempt (`ATTRIBUTION_RED_K`).

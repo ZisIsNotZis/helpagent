@@ -1,4 +1,4 @@
-"""The deterministic REGRESSION stage (FLOW §4 W4, §5 — P1b).
+"""The deterministic REGRESSION stage (docs/6_FLOW.md §4 W4, §5 — P1b).
 
 Three facts are pinned here, exactly the ones the stage exists for:
 

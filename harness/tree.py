@@ -1,8 +1,8 @@
-"""Task tree — the one plan artifact (DESIGN §4.8, KERNEL_API §4.1–4.2).
+"""Task tree — the one plan artifact (docs/6_ARCHITECTURE.md §4.8, docs/7_INTERFACE.md §4.1–4.2).
 
 Handles are plain data/validation surfaces over kernel-owned state: ``NodeHandle``
 performs no model invocation, no exec, no work-tree mutation. The kernel re-validates
-every mutation at the tree commit point (KERNEL_API §4.2 G4 DECISION: script assigns
+every mutation at the tree commit point (docs/7_INTERFACE.md §4.2 G4 DECISION: script assigns
 statuses directly; transition validation happens at commit, not at assignment).
 """
 
@@ -17,7 +17,7 @@ from harness.artifacts import Artifact, ArtifactStore
 
 Status = Literal["pending", "in-progress", "done", "blocked", "stale", "needs-user"]
 
-#: Transition table enforced at commit (KERNEL_API §4.2). Same-status assignment is a
+#: Transition table enforced at commit (docs/7_INTERFACE.md §4.2). Same-status assignment is a
 #: no-op, not a transition. ``pending → done`` is deliberately illegal: closure goes
 #: through the kernel gate (:meth:`NodeHandle.close`), which reaches ``done`` via
 #: ``in-progress`` (see close()). ``done`` may only reopen to ``in-progress`` or be
@@ -33,7 +33,7 @@ TRANSITIONS: dict[str, set[str]] = {
 
 
 class StatusTransitionInvalid(Exception):
-    """Illegal status transition, raised at commit (KERNEL_API §4.2)."""
+    """Illegal status transition, raised at commit (docs/7_INTERFACE.md §4.2)."""
 
 
 # ---------------------------------------------------------------------------
@@ -42,7 +42,7 @@ class StatusTransitionInvalid(Exception):
 
 
 class ArtifactRef(BaseModel):
-    """Typed artifact reference with an explicit producer id (KERNEL_API §4.1)."""
+    """Typed artifact reference with an explicit producer id (docs/7_INTERFACE.md §4.1)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -52,7 +52,7 @@ class ArtifactRef(BaseModel):
 
 class ACEntry(BaseModel):
     """One check of an AC test map: ``{ac_id → [check_id, command | subjective]}``
-    rendered as an entry (KERNEL_API §4.2 set_ac_test_map)."""
+    rendered as an entry (docs/7_INTERFACE.md §4.2 set_ac_test_map)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -65,7 +65,7 @@ class ACEntry(BaseModel):
     @model_validator(mode="after")
     def _subjective_needs_hint(self) -> Self:
         if self.check_kind == "subjective" and not (self.check_hint or "").strip():
-            raise ValueError("subjective check requires check_hint (KERNEL_API §4.2)")
+            raise ValueError("subjective check requires check_hint (docs/7_INTERFACE.md §4.2)")
         return self
 
     @property
@@ -77,11 +77,11 @@ class ACEntry(BaseModel):
 
 
 class Node(BaseModel):
-    """Universal node schema (KERNEL_API §4.1): ``{id, what, why, input, output,
+    """Universal node schema (docs/7_INTERFACE.md §4.1): ``{id, what, why, input, output,
     ac_test_map, risk, produced_artifact_id, status, children}``.
 
     ``files`` is an additional operational field: ready_leaves' file-overlap writer
-    grouping needs each leaf's declared files boundary (KERNEL_API §4.1: "leaves are
+    grouping needs each leaf's declared files boundary (docs/7_INTERFACE.md §4.1: "leaves are
     grouped by overlap of their declared ``files`` boundary"). DECISION: kept on the
     node because the universal schema has no other home for the boundary the grouping
     rule requires; it is the seam scope attached at expansion time.
@@ -103,7 +103,7 @@ class Node(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Findings / results — shaped results, never exception leaks (KERNEL_API §4.1)
+# Findings / results — shaped results, never exception leaks (docs/7_INTERFACE.md §4.1)
 # ---------------------------------------------------------------------------
 
 
@@ -127,7 +127,7 @@ class ValidationFindings(BaseModel):
 
 class CheckResults(BaseModel):
     """Deterministic check verdicts passed into close(); keyed by check key
-    (command or test id). ``skip`` covers skipped/flaky — not a pass (KERNEL_API §4.1)."""
+    (command or test id). ``skip`` covers skipped/flaky — not a pass (docs/7_INTERFACE.md §4.1)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -136,7 +136,7 @@ class CheckResults(BaseModel):
 
 @dataclass
 class CloseResult:
-    """KERNEL_API §4.2: close refuses with ``False`` + reasons. Bool-like so
+    """docs/7_INTERFACE.md §4.2: close refuses with ``False`` + reasons. Bool-like so
     ``if node.close(...)`` reads as the doc's ``-> bool`` while carrying the
     structured rejection reasons."""
 
@@ -169,12 +169,12 @@ class TaskTree:
     # artifacts -------------------------------------------------------------------
 
     def attach(self, node: NodeHandle | str, artifact: Artifact) -> ValidationFindings:
-        """Link a produced artifact to its producer (KERNEL_API §4.6): sets
+        """Link a produced artifact to its producer (docs/7_INTERFACE.md §4.6): sets
         ``produced_artifact_id``, appends the typed ArtifactRef to the node's outputs,
         and enforces the single-producer rule — the same artifact_id attached to a
         second node is a validation finding, never a silent overwrite. The artifact
         schema (incl. producer linkage as a schema field) is validated by the store
-        boundary; content was secret-filtered there (DESIGN §4.2)."""
+        boundary; content was secret-filtered there (docs/6_ARCHITECTURE.md §4.2)."""
         findings = ValidationFindings()
         nid = node if isinstance(node, str) else node.id
         self._node(nid)  # raises if unknown
@@ -222,7 +222,7 @@ class TaskTree:
         input: Iterable[ArtifactRef | dict] | None = None,
         output: Iterable[str] | None = None,
     ) -> NodeHandle:
-        """Tree edit (KERNEL_API §4.1): kernel assigns the id, runs the cascade —
+        """Tree edit (docs/7_INTERFACE.md §4.1): kernel assigns the id, runs the cascade —
         insertion under a ``done`` parent reopens it and touched-branch descendants
         are marked ``stale`` (must re-verify)."""
         self.commit()
@@ -247,7 +247,7 @@ class TaskTree:
         return NodeHandle(self, cid)
 
     def insert_attempt(self, node: NodeHandle, hypothesis: str, **kw) -> NodeHandle:
-        """Bounded-attempt rule (DESIGN §4.8): "next hypothesis = new sibling" —
+        """Bounded-attempt rule (docs/6_ARCHITECTURE.md §4.8): "next hypothesis = new sibling" —
         DECISION: the attempt lands under ``node.parent`` (or under ``node`` itself
         when node is the root), so attempts of one hypothesis chain are siblings."""
         self.commit()
@@ -328,7 +328,7 @@ class TaskTree:
     # -- tree edits / cascade -----------------------------------------------
 
     def _cascade_insert(self, parent: Node) -> None:
-        """Tree-edit cascade (DESIGN §4.8): touched branch ⇒ children marked stale;
+        """Tree-edit cascade (docs/6_ARCHITECTURE.md §4.8): touched branch ⇒ children marked stale;
         done parent reopens. DECISION: only ``done`` descendants become stale — stale
         means "previously verified work must re-verify"; pending work is untouched."""
         if parent.status == "done":
@@ -344,7 +344,7 @@ class TaskTree:
     def validate_dag(self) -> ValidationFindings:
         """Validates I/O edges into an execution DAG: orphan inputs, duplicate
         producers, cycles ⇒ structured findings returned, never a silent stall and
-        never an exception leak (KERNEL_API §4.1, DESIGN §4.8)."""
+        never an exception leak (docs/7_INTERFACE.md §4.1, docs/6_ARCHITECTURE.md §4.8)."""
         findings: list[Finding] = []
         produced_by: dict[str, str] = {}
         for node in self._nodes.values():
@@ -410,7 +410,7 @@ class TaskTree:
 
     def ready_leaves(self) -> list[NodeHandle]:
         """Leaves whose deps are satisfied, not held, and whose files are unlocked —
-        at most one writer per file-overlap group (KERNEL_API §4.1). Read-only nodes
+        at most one writer per file-overlap group (docs/7_INTERFACE.md §4.1). Read-only nodes
         (no files boundary) are never serialized against writers."""
         self.commit()
         done = {nid for nid, n in self._nodes.items() if n.status == "done"}
@@ -446,7 +446,7 @@ class TaskTree:
         return [NodeHandle(self, n.id) for n in ready]
 
     def has_work(self) -> bool:
-        """Read-only: any node still pending execution/verification (KERNEL_API §4.1)."""
+        """Read-only: any node still pending execution/verification (docs/7_INTERFACE.md §4.1)."""
         self.commit()
         return any(n.status in ("pending", "in-progress", "stale") for n in self._nodes.values())
 
@@ -457,7 +457,7 @@ class TaskTree:
     # -- status closure propagation -------------------------------------------
 
     def refresh_status(self) -> None:
-        """Re-validates upward (KERNEL_API §4.1): reopens done parents whose subtree
+        """Re-validates upward (docs/7_INTERFACE.md §4.1): reopens done parents whose subtree
         was touched; auto-closes mapless internal nodes on (c) alone. DECISION: nodes
         WITH a map do not auto-close here — condition (b) needs check results, which
         only :meth:`NodeHandle.close` receives; their closure stays script-proposed."""
@@ -488,7 +488,7 @@ class TaskTree:
     # -- snapshot ---------------------------------------------------------------
 
     def snapshot(self) -> dict:
-        """Read-only nested view; feeds run-summary (KERNEL_API §4.1)."""
+        """Read-only nested view; feeds run-summary (docs/7_INTERFACE.md §4.1)."""
 
         def ser(nid: str) -> dict:
             n = self._nodes[nid]
@@ -510,7 +510,7 @@ class TaskTree:
 
 
 class NodeHandle:
-    """Typed handle over one node (KERNEL_API §4.2). Data, not a primitive."""
+    """Typed handle over one node (docs/7_INTERFACE.md §4.2). Data, not a primitive."""
 
     __slots__ = ("_tree", "_id")
 
@@ -557,11 +557,11 @@ class NodeHandle:
 
     @property
     def produced_artifact_id(self) -> str | None:
-        """Read-only field (KERNEL_API §4.2); set via :meth:`TaskTree.attach`."""
+        """Read-only field (docs/7_INTERFACE.md §4.2); set via :meth:`TaskTree.attach`."""
         return self._node.produced_artifact_id
 
     def attach(self, artifact: Artifact) -> ValidationFindings:
-        """Handle-form of :meth:`TaskTree.attach` (KERNEL_API §4.6)."""
+        """Handle-form of :meth:`TaskTree.attach` (docs/7_INTERFACE.md §4.6)."""
         return self._tree.attach(self, artifact)
 
     @property
@@ -600,14 +600,14 @@ class NodeHandle:
 
     @status.setter
     def status(self, value: Status) -> None:
-        # KERNEL_API §4.2 G4 DECISION: assignment is direct; the kernel re-validates
+        # docs/7_INTERFACE.md §4.2 G4 DECISION: assignment is direct; the kernel re-validates
         # at refresh/commit — invalid states are observable between the two.
         self._tree._pending[self._id] = value
 
     # AC map ----------------------------------------------------------------------
 
     def set_ac_test_map(self, raw: Iterable[ACEntry | dict]) -> ValidationFindings:
-        """Kernel validates every ``ac_id → ≥1 executable check`` (KERNEL_API §4.2);
+        """Kernel validates every ``ac_id → ≥1 executable check`` (docs/7_INTERFACE.md §4.2);
         invalid ⇒ findings returned, never an exception leak. Leaf maps are mandatory;
         internal maps are optional integration views (their entries must resolve to a
         descendant check at close time)."""
@@ -628,7 +628,7 @@ class NodeHandle:
             findings.append(Finding(
                 kind="empty-leaf-map",
                 node_id=self._id,
-                detail="leaf AC map is mandatory (DESIGN §4.8); empty map only valid for internal nodes",
+                detail="leaf AC map is mandatory (docs/6_ARCHITECTURE.md §4.8); empty map only valid for internal nodes",
             ))
         for ac_id, n in by_ac.items():
             if n < 1:  # unreachable by construction; re-checked for close() symmetry
@@ -648,7 +648,7 @@ class NodeHandle:
     ) -> CloseResult:
         """Script proposes closure; the kernel re-checks (a) every AC in the map has
         ≥1 check, (b) those checks pass (results/verdicts passed in), (c) all children
-        closed — and refuses with structured reasons if not green (KERNEL_API §4.2).
+        closed — and refuses with structured reasons if not green (docs/7_INTERFACE.md §4.2).
         The model never decides closure. ``quality`` (judge-panel quality artifact) is
         accepted for API parity and consumed by later milestones. A node without a map
         closes on (c) alone."""
@@ -673,7 +673,7 @@ class NodeHandle:
                     if e.key not in desc_keys:
                         reasons.append(
                             f"integration check {e.key!r} for {e.ac_id} resolves to no descendant check "
-                            "(internal maps are views over descendant checks, KERNEL_API §4.2)"
+                            "(internal maps are views over descendant checks, docs/7_INTERFACE.md §4.2)"
                         )
                     elif results.verdicts.get(e.key) != "pass":
                         reasons.append(
@@ -683,7 +683,7 @@ class NodeHandle:
             # empty map + all children closed ⇒ (c) alone is sufficient
         else:
             if not node.ac_test_map:
-                reasons.append("leaf requires a non-empty AC test map (DESIGN §4.8)")
+                reasons.append("leaf requires a non-empty AC test map (docs/6_ARCHITECTURE.md §4.8)")
             else:
                 acs: dict[str, int] = {}
                 for e in node.ac_test_map:

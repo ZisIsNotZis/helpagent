@@ -1,4 +1,4 @@
-"""Budgeted tree executor over the working leaf (ticket 18, DESIGN §10.1–§10.2).
+"""Budgeted tree executor over the working leaf (ticket 18, docs/6_ARCHITECTURE.md §10.1–§10.2).
 
 The leaf loop (:mod:`harness.leaf`) is the unit of work; this module is the tree that
 composes it. It calls :func:`harness.leaf.run_leaf` **unchanged** for every leaf — no
@@ -259,7 +259,7 @@ class NodeOutcome:
     node_id: str
     claimed: bool
     stop_reason: str
-    #: FLOW §1.5 S3/S5 (P1c): the node's explicit terminal state (one of
+    #: docs/6_FLOW.md §1.5 S3/S5 (P1c): the node's explicit terminal state (one of
     #: :data:`OUTCOME_STATES`, from :func:`harness.leaf.propagate_node_state`/
     #: :func:`harness.leaf.best_of_how_states`/the leaf's own state). ``pass`` only when
     #: every child passed and the integration check passed; a child FAIL makes it
@@ -1070,7 +1070,7 @@ def _parked(node_id: str, reason: str, wall_s: float, *, evidence: str = "",
 
 
 def _how_dict(how: How, state: str = "") -> dict:
-    """One How's recorded facts plus its FLOW §1.5 S5 STATE (P1c).
+    """One How's recorded facts plus its docs/6_FLOW.md §1.5 S5 STATE (P1c).
 
     ``state`` is the per-How three-state (one of :data:`HOW_STATES`) computed from the
     candidate's outcome when it ran; when no state was computed the lifecycle ``status``
@@ -1429,7 +1429,7 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
     greedy = ctx.how_explore <= 1
     records: list[CandidateRecord] = []
     closed: list[tuple[CandidateRecord, NodeOutcome]] = []
-    #: FLOW §1.5 S5 (P1c): the per-How state computed from each candidate's outcome, so
+    #: docs/6_FLOW.md §1.5 S5 (P1c): the per-How state computed from each candidate's outcome, so
     #: an exhausted node can take the BEST of them (uncertain beats fail).
     how_state: dict[str, str] = {}
     repair_action = ""
@@ -1554,7 +1554,7 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
             if selection.needs_repair:
                 # A negative review is an ACTION ITEM, not a lost comparison: do not
                 # accept it; keep working on the remaining Hows. The How ran and its
-                # review rejected, so FLOW §4.2 makes it a FAIL.
+                # review rejected, so docs/6_FLOW.md §4.2 makes it a FAIL.
                 repair_action = selection.repair_reason
                 record.status = "abandoned"
                 cs.hows = cs.hows.with_status(how.id, "abandoned")
@@ -1584,7 +1584,7 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
                 (result.leaf.exhaustion_reason if result.leaf is not None else "")
                 or f"the leaf did not close (stop_reason={stop_reason})")
         cs.fail(how.id, evidence=evidence, reason=stop_reason)
-        # FLOW §1.5 S5 (P1c): the How's state comes from its candidate's outcome — a
+        # docs/6_FLOW.md §1.5 S5 (P1c): the How's state comes from its candidate's outcome — a
         # confirmed red test/planted FAIL is ``fail``, an unevaluated/ran-out candidate is
         # ``uncertain``. A decomposition that could not be applied was never evaluated.
         how_state[how.id] = (result.state if result is not None and result.state
@@ -1642,7 +1642,7 @@ async def _run_hows(ctx: _TreeContext, node: NodeHandle, spec: NodeSpec, budget:
             if ws is not None:
                 abandon_candidate(ws)
         evidence = repair_action or refusal or "no candidate closed"
-        # FLOW §1.5 S5 (P1c): every How exhausted with no pass -> take the BEST of them
+        # docs/6_FLOW.md §1.5 S5 (P1c): every How exhausted with no pass -> take the BEST of them
         # (UNCERTAIN if any How is uncertain, otherwise FAIL), never a silent "parked".
         # Untried/active Hows that never ran read UNCERTAIN, so an unfinished exploration
         # can never be mistaken for a confirmed failure.
@@ -2050,7 +2050,7 @@ async def _run_integration_leaf(ctx: _TreeContext, integration_handle: NodeHandl
                                budget: Budget, workdir: Path) -> list[str]:
     """Run the dedicated integration leaf on the parent's reserve; return its check keys.
 
-    Integration work draws on the parent's reserve (DESIGN §10.2), not the children's
+    Integration work draws on the parent's reserve (docs/6_ARCHITECTURE.md §10.2), not the children's
     split, so a merge can never fold the integration leaf into a source child. Returns
     ``[]`` when no reserve is left OR the leaf exposed no test artifact — and an
     integration leaf with no keys is NOT an integration verdict (ticket 18 gap 1).

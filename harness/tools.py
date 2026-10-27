@@ -1,11 +1,11 @@
-"""Tool wrapper registry (DESIGN §4.6, KERNEL_API §3.2 — M4).
+"""Tool wrapper registry (docs/6_ARCHITECTURE.md §4.6, docs/7_INTERFACE.md §3.2 — M4).
 
 Registry mapping command → output shaper. Common tools get hand-written structured
 summaries; rare tools fall through to the generic shaper. Shaping is
 provenance-independent (kernel and model outputs deserve the same small context);
 the SANDBOX is provenance-dependent and lives in :mod:`harness.exec`.
 
-Contract per KERNEL_API §3.2: ``{exit, verdict, n_failures, excerpts,
+Contract per docs/7_INTERFACE.md §3.2: ``{exit, verdict, n_failures, excerpts,
 suggested_next_action}`` — always ANSI-stripped, byte-capped, deduped; raw output
 belongs to the caller's artifact persistence (through the secret filter), never to
 this module. "Show more" is a help query, not a rerun.
@@ -23,7 +23,7 @@ __all__ = ["REGISTRY", "ShapedOutput", "shape_for"]
 
 @dataclass
 class ShapedOutput:
-    """The tool-specific slice of a shaped result (KERNEL_API §3.2)."""
+    """The tool-specific slice of a shaped result (docs/7_INTERFACE.md §3.2)."""
 
     n_failures: int | None = None
     excerpts: list[str] = field(default_factory=list)
@@ -109,7 +109,7 @@ def shape_git(exit_code: int, out: str, err: str) -> ShapedOutput:
 
 
 def shape_generic(exit_code: int, out: str, err: str) -> ShapedOutput:
-    """Generic fallback (KERNEL_API §3.2): nonzero exit → stderr tail + first
+    """Generic fallback (docs/7_INTERFACE.md §3.2): nonzero exit → stderr tail + first
     error-pattern match; zero exit → head lines. The caller caps bytes."""
     text = out + "\n" + err
     lines = text.splitlines()

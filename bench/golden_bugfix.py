@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Golden bugfix script v1 — M2 milestone core (DESIGN §8 milestone 2: "Kernel
+"""Golden bugfix script v1 — M2 milestone core (docs/6_ARCHITECTURE.md §8 milestone 2: "Kernel
 primitives + artifact store + golden bugfix script + session runner";
 understand_and_plan → leaf pipeline, collapsed to the single-leaf path this corpus
 exercises: task_card → expand → write_spec → draft_acs+gate_decide → write_test →
@@ -14,7 +14,7 @@ gate runs the corpus contract: pytest green + untouched-files byte-identity.
 
 DECISIONS (minimal M2 readings, each flagged inline):
 - D-transport: `implement` edits ride the write_test content envelope — the only
-  content-emitting schema tonight (ENVELOPE_SCHEMAS §10/§11); the M3 tool-loop
+  content-emitting schema tonight (docs/7_ENVELOPES.md §10/§11); the M3 tool-loop
   replaces this. The tree node and ledger still record the implement step.
 - D-gate: checks.py binds UNTOUCHED to the corpus checkout's own repo/ path, so the
   gate computes the same two contracts (pytest green + untouched byte-identity)
@@ -76,7 +76,7 @@ _llm_step_real = llm_step
 
 
 def llm_step(model, step_type, retries=1, **kw):
-    """Script-level step retry (DESIGN §4.1 failure handling: retry with failure
+    """Script-level step retry (docs/6_ARCHITECTURE.md §4.1 failure handling: retry with failure
     summary + missing info). One retry; the violation text becomes the summary
     (erasure-compliant: never the failed attempt's text)."""
     last: Exception | None = None
@@ -159,7 +159,7 @@ def step_task_card(model, request: str) -> Envelope:
 
 def extract_symbols(files: dict[str, str]) -> set[str]:
     """Minimal C1 stand-in: every def/class as a bare name and as a dotted path
-    (pkg.module.name), plus module paths — the grounding check (ENVELOPE_SCHEMAS §4)
+    (pkg.module.name), plus module paths — the grounding check (docs/7_ENVELOPES.md §4)
     accepts references that appear in the injected symbol DB."""
     import re as _re
 
@@ -196,7 +196,7 @@ def jdump(obj) -> str:
 def extract_constants(files: dict[str, str]) -> str:
     """Module-level constant assignments across the repo (FP-7, ticket 04): the
     spec step must SEE the layer where configured values live, not only the
-    symbols where symptoms show. Deterministic harness lookup (DESIGN §2.1 —
+    symbols where symptoms show. Deterministic harness lookup (docs/6_ARCHITECTURE.md §2.1 —
     never the model's job), bounded listing."""
     import re as _re
 
@@ -284,10 +284,10 @@ def step_write_test(model, spec: Envelope, acs: Envelope, workdir: Path, files: 
                     grader_paths: set[str] | None = None) -> Path | None:
     """Write the run's OWN test file.
 
-    Under the blind gate (DESIGN §6/§10) ``files`` is the source-only view, so the
+    Under the blind gate (docs/6_ARCHITECTURE.md §6/§10) ``files`` is the source-only view, so the
     set of paths the repository already owns must be passed separately; otherwise
     every test path looks "outside repo". A path the grader owns is refused
-    outright: the measuring instrument is not the run's to edit (DESIGN §4.8).
+    outright: the measuring instrument is not the run's to edit (docs/6_ARCHITECTURE.md §4.8).
     """
     env = asyncio_run(llm_step(model, "write_test",
         artifacts={"spec_contract": jdump({
@@ -309,7 +309,7 @@ def step_write_test(model, spec: Envelope, acs: Envelope, workdir: Path, files: 
              detail=f"{rel!r} is grader-owned — the run may not write it")
         return None
     # The run may only ADD a new test file: overwriting a shipped one would be
-    # gate-easing (DESIGN §4.8). The old guard tested membership in the
+    # gate-easing (docs/6_ARCHITECTURE.md §4.8). The old guard tested membership in the
     # source-only view, which rejected every new path — the step was dead and
     # wrote no self-test on any v1 run (found by the blind protocol).
     if rel in set(files) | grader_paths:
@@ -347,7 +347,7 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
         # rank: source before tests — the fix belongs in source; editing tests to pass
         # is a test-side ticket (router rule), never the implement move
         boundary = sorted(boundary, key=lambda f: ("test" in f.lower(), f))
-        # guided decomposition (DESIGN §2.2, ticket 05 A/B): enumerate the fix
+        # guided decomposition (docs/6_ARCHITECTURE.md §2.2, ticket 05 A/B): enumerate the fix
         # steps FIRST, then emit under the plan — the thinking structure is
         # harness-decomposed, the filling stays with the model
         # Compose from the staged work tree, never the initial corpus snapshot.
@@ -402,7 +402,7 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
         if env.file_path not in orig_bytes:
             orig_bytes[env.file_path] = target.read_bytes() if target.exists() else None
         harness_written_acc.add(env.file_path)
-        # M3: the write goes through the kernel check pipeline (DESIGN §4.5) —
+        # M3: the write goes through the kernel check pipeline (docs/6_ARCHITECTURE.md §4.5) —
         # format/autofix <=2 passes, tree-sitter parse, typecheck baseline, intent.
         cw = asyncio.run(check_write(workdir, env.file_path, env.content, intent="source"))
         if not cw.ok:
@@ -424,13 +424,13 @@ def step_implement(model, spec: Envelope, workdir: Path, files: dict[str, str],
         if res.exit == 0:
             trajectory.record(step_id=f"implement-{attempt}", node_id="implement", outcome="green")
             return True, env.file_path, history
-        # unified iterate mode (DESIGN §2.4 refined, owner direction 2026-09-18):
+        # unified iterate mode (docs/6_ARCHITECTURE.md §2.4 refined, owner direction 2026-09-18):
         # the draft STAYS on the tree — attempt N+1 sees and improves attempt N's
         # state; failed-attempt text is still never narrated into a retry (the
         # failure summary + test output is the only carried evidence), and the
         # whole draft is erased at the strategy boundary on budget exhaustion.
         last_excerpt = "; ".join(res.excerpts) if res.excerpts else f"pytest exit {res.exit}"
-        # FP-4 family now lives in the kernel rule library (DESIGN §4.5): cross-file
+        # FP-4 family now lives in the kernel rule library (docs/6_ARCHITECTURE.md §4.5): cross-file
         # name resolution is a lookup — harness work, never left to the model.
         checked_files = {rel: (workdir / rel).read_text()
                          for rel in current_files if (workdir / rel).is_file()}
@@ -503,7 +503,7 @@ def main() -> int:
     ap.add_argument("--retry-view", choices=("draft", "initial"), default="draft",
                     help="A/B only: snapshot shown to the model on implementation retries")
     ap.add_argument("--blind", action="store_true",
-                    help="grader tests never enter the run (DESIGN §6 blind gate)")
+                    help="grader tests never enter the run (docs/6_ARCHITECTURE.md §6 blind gate)")
     args = ap.parse_args()
     global GUIDED_IMPLEMENT
     GUIDED_IMPLEMENT = args.guided_implement
@@ -514,7 +514,7 @@ def main() -> int:
     task = load_task(task_dir)
     grader_paths: list[str] = []
     if args.blind:
-        # DESIGN §6/§10: the corpus suite is the grader. It must not reach the
+        # docs/6_ARCHITECTURE.md §6/§10: the corpus suite is the grader. It must not reach the
         # workdir, the file map, or the grounding scope; the run's only
         # verification is whatever it writes for itself.
         grader_paths = excluded_paths(task["files"])

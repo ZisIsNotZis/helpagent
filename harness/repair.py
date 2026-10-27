@@ -1,4 +1,4 @@
-"""Parse-on-arrival + one bounded repair respawn (DESIGN §4.7 Model Interface).
+"""Parse-on-arrival + one bounded repair respawn (docs/6_ARCHITECTURE.md §4.7 Model Interface).
 
 "Post-generation parse with tree-sitter immediately; trivial syntax errors
 auto-repaired, otherwise step respawned with only the broken excerpt."
@@ -13,7 +13,7 @@ still does not parse after the respawn the step raises SchemaViolation and the
 ordinary erasure path takes over.
 
 Wired into ``runner.llm_step`` for CONTENT_STEPS only (write_test — the only
-content-emitting schema left, ENVELOPE_SCHEMAS §24), after schema validation,
+content-emitting schema left, docs/7_ENVELOPES.md §24), after schema validation,
 before the envelope is returned.
 """
 

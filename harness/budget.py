@@ -1,4 +1,4 @@
-"""Node budget (DESIGN §10.2, owner direction 2026-09-29).
+"""Node budget (docs/6_ARCHITECTURE.md §10.2, owner direction 2026-09-29).
 
 The scarce resource for a local-model run is not money — it is the wall clock
 until the human next looks at the run. So the PRIMARY budget is a deadline, and
@@ -10,7 +10,7 @@ reserve for integration, verification, and grants. A child's unused calls return
 to the parent, so an efficient child does not starve its siblings.
 
 Durable: ``to_dict``/``from_dict`` round-trip, because a run may be parked and
-resumed after a human answers (DESIGN §10.5).
+resumed after a human answers (docs/6_ARCHITECTURE.md §10.5).
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ class BudgetError(RuntimeError):
 
 def group_weights(weights: Sequence[int], *, spendable: int,
                   min_each: int) -> list[tuple[int, ...]] | None:
-    """Deterministic child indexing after the weighted-merge rule (DESIGN §10.2).
+    """Deterministic child indexing after the weighted-merge rule (docs/6_ARCHITECTURE.md §10.2).
 
     Returns groups of ``weights`` indices (each ascending) such that every group's
     proportional share of ``spendable`` is ``>= min_each``. The two smallest groups are
@@ -132,7 +132,7 @@ class Budget:
         share = spendable // n_children
         if share < 1:
             # Budget too small to decompose further: the node must do the work
-            # itself instead of splitting into unworkable children (DESIGN §10.2).
+            # itself instead of splitting into unworkable children (docs/6_ARCHITECTURE.md §10.2).
             raise BudgetError("budget too small to decompose: each child would get < 1 call")
         total = share * n_children
         self.calls -= total

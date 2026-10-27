@@ -273,7 +273,7 @@ def test_path_canonicalization_keeps_boundary_narrowing_honest():
 
 
 def test_budget_one_cannot_split(tmp_path, monkeypatch):
-    """DESIGN §10.2: the node pool cannot fund two leaves, so the decomposer is never
+    """docs/6_ARCHITECTURE.md §10.2: the node pool cannot fund two leaves, so the decomposer is never
     called and the node runs as a leaf; a BudgetError never escapes."""
     assert not can_decompose(Budget(calls=1, deadline_ts=_FAR))
     assert not can_decompose(Budget(calls=4, deadline_ts=_FAR))   # spendable 3 // 2 = 1
@@ -815,7 +815,7 @@ def test_failed_integration_reopens_writers_then_a_passing_verdict_closes(tmp_pa
 
 
 def test_declared_write_boundary_violation_is_recorded_not_refused(tmp_path):
-    """FLOW §6 (P1a): ``leaf_spec_from`` hands a child its declared files as BOTH the view
+    """docs/6_FLOW.md §6 (P1a): ``leaf_spec_from`` hands a child its declared files as BOTH the view
     and the write boundary. A sibling's file is no longer refused — the write lands and is
     recorded as a DEVIATION (parameter-layer, never a crash); the leaf's own file and a
     declared-but-missing path it is meant to create are in-plan (no deviation)."""
@@ -3184,12 +3184,12 @@ def test_descendant_request_misses_supply_the_integration_close_gate():
 
 
 # ---------------------------------------------------------------------------
-# P1c-1: the three states and best-of propagation (FLOW §1.5 S3/S5, §4.4)
+# P1c-1: the three states and best-of propagation (docs/6_FLOW.md §1.5 S3/S5, §4.4)
 # ---------------------------------------------------------------------------
 
 
 def test_best_of_how_states_uncertain_beats_fail():
-    """FLOW §1.5 S5 (P1c): a node whose Hows are all exhausted takes the BEST of them —
+    """docs/6_FLOW.md §1.5 S5 (P1c): a node whose Hows are all exhausted takes the BEST of them —
     UNCERTAIN if ANY How is uncertain, otherwise FAIL; an empty/unevaluated list is
     UNCERTAIN, never a fail (and PASS is never returned by best-of)."""
     from harness.leaf import best_of_how_states
@@ -3201,7 +3201,7 @@ def test_best_of_how_states_uncertain_beats_fail():
 
 
 def test_propagate_node_state_child_fail_and_integration():
-    """FLOW §1.5 S3/S5, §4.4 (P1c): a parent is PASS only when EVERY child passed AND the
+    """docs/6_FLOW.md §1.5 S3/S5, §4.4 (P1c): a parent is PASS only when EVERY child passed AND the
     integration check passed; a child FAIL makes it FAIL; otherwise UNCERTAIN."""
     from harness.leaf import propagate_node_state
 
@@ -3238,7 +3238,7 @@ def _run_two_how_leaf_node(tmp_path, monkeypatch, states, *, files=None, out_nam
 
 
 def test_all_hows_fail_makes_the_node_fail(tmp_path, monkeypatch):
-    """(c) FLOW §1.5 S5 (P1c): a How list whose Hows ALL end FAIL yields a FAIL node
+    """(c) docs/6_FLOW.md §1.5 S5 (P1c): a How list whose Hows ALL end FAIL yields a FAIL node
     (never a silent ``parked``), and each How records its own state."""
     out = _run_two_how_leaf_node(tmp_path, monkeypatch, ["fail", "fail"])
     assert out.claimed is False
@@ -3247,7 +3247,7 @@ def test_all_hows_fail_makes_the_node_fail(tmp_path, monkeypatch):
 
 
 def test_one_uncertain_how_makes_the_node_uncertain(tmp_path, monkeypatch):
-    """(d) FLOW §1.5 S5 (P1c): a list with one UNCERTAIN How and the rest FAIL yields an
+    """(d) docs/6_FLOW.md §1.5 S5 (P1c): a list with one UNCERTAIN How and the rest FAIL yields an
     UNCERTAIN node — the best-of lets uncertainty outrank a confirmed failure."""
     out = _run_two_how_leaf_node(tmp_path, monkeypatch,
                                  ["fail", "uncertain", "fail"], out_name="out-d")
@@ -3258,7 +3258,7 @@ def test_one_uncertain_how_makes_the_node_uncertain(tmp_path, monkeypatch):
 
 
 def test_a_failed_child_makes_the_parent_fail(tmp_path, monkeypatch):
-    """(e) FLOW §1.5 S3/S5 (P1c): a child FAIL propagates upward — the parent is FAIL even
+    """(e) docs/6_FLOW.md §1.5 S3/S5 (P1c): a child FAIL propagates upward — the parent is FAIL even
     though its integration check PASSES and the other child passed."""
     workdir = tmp_path / "work"
     stage(workdir)

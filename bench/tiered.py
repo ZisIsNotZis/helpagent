@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tiered flow (DESIGN §8.1, owner decision 2026-09-18) — the §9.10 verdict
+"""Tiered flow (docs/6_ARCHITECTURE.md §8.1, owner decision 2026-09-18) — the §9.10 verdict
 executed: difficulty is DISCOVERED by escalating, never predicted.
 
 Gears (one kernel, shared deterministic safety nets — check_write ladder,

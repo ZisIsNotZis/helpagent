@@ -36,7 +36,7 @@ def close_leaf(handle, command: str):
 
 
 # ---------------------------------------------------------------------------
-# AC map rules (KERNEL_API §4.2)
+# AC map rules (docs/7_INTERFACE.md §4.2)
 # ---------------------------------------------------------------------------
 
 
@@ -121,7 +121,7 @@ def test_subjective_ac_closes_only_with_judge_verdict():
 
 
 # ---------------------------------------------------------------------------
-# Cascade rules (DESIGN §4.8)
+# Cascade rules (docs/6_ARCHITECTURE.md §4.8)
 # ---------------------------------------------------------------------------
 
 
@@ -181,7 +181,7 @@ def test_status_transition_validation_at_commit():
 
 
 # ---------------------------------------------------------------------------
-# DAG validation (KERNEL_API §4.1 — findings, never exceptions)
+# DAG validation (docs/7_INTERFACE.md §4.1 — findings, never exceptions)
 # ---------------------------------------------------------------------------
 
 
@@ -213,7 +213,7 @@ def test_dag_validation_rejects_orphan_duplicate_producer_cycle():
 
 
 # ---------------------------------------------------------------------------
-# Writer grouping (KERNEL_API §4.1 ready_leaves)
+# Writer grouping (docs/7_INTERFACE.md §4.1 ready_leaves)
 # ---------------------------------------------------------------------------
 
 
@@ -355,5 +355,5 @@ def test_insert_attempt_makes_a_sibling():
     t = TaskTree("root")
     first = t.insert_ticket(t.root, "Attempt 1: hypothesis A")
     second = t.insert_attempt(first, "Attempt 2: hypothesis B")
-    assert second.parent.id == t.root.id  # next hypothesis = new sibling (DESIGN §4.8)
+    assert second.parent.id == t.root.id  # next hypothesis = new sibling (docs/6_ARCHITECTURE.md §4.8)
     assert first.parent.id == second.parent.id

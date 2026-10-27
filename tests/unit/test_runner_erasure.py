@@ -1,4 +1,4 @@
-"""Erasure semantics (DESIGN §2.4,): a retry prompt contains the
+"""Erasure semantics (docs/6_ARCHITECTURE.md §2.4,): a retry prompt contains the
 honest failure summary + ground truth — never the failed attempt's text — while the
 append-only ledger retains the failed attempt as evidence."""
 

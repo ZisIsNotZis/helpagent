@@ -1,258 +1,55 @@
 # helpagent — node document
 
-The `helpagent` campaign reached its pre-registered end at revision `45ebb32` and stopped:
-three verdicts are archived (capability parity **INCONCLUSIVE**, verification information
-**PARTLY / not as stated**, tree decomposition **NEGATIVE**) and the product CLI was never
-built. What this repository owes now is not another measurement but a form in which the
-measurement can be read and checked by somebody who is not this machine. This node owns that
-ending. The order of its work follows from one asymmetry: the bytes behind every decisive
-number sit on `/tmp/wave1/final`, a path one reboot erases, while the writing can be restarted
-at any hour from documents that are already committed. So durability comes before authorship —
-the evidence is copied to a declared home and hashed on the first day, before a sentence of the
-preprint exists — and authorship in turn waited on two questions above this node (whether the
-preprint or the frozen recovery line runs first, and what "reproduce" is allowed to cost), each
-of which changed what the next milestone is rather than how it is worded. Both are answered now:
-the second by measurement (the projection), the first by the person on 2026-10-23, in their rule
-that a 短板 is repaired only if the paper needs it — and the paper does not need P1a, as the
-`Current facts` entry below shows file by file. Nothing here re-measures, runs a model, or needs
-a server: this node spends `idle-compute` and writes.
+The law this node runs under is `/home/z/vibe/agent-policy/LAW.md`: read once, not copied here.
+This file holds only the overrides that law needs on this tree, and the state a session must know
+before it reads anything else. Everything else is in `docs/`.
 
-## Roadmap
+## State
 
-### Milestones, owed to root
+The campaign ran to its pre-registered end and stopped: three verdicts archived (capability parity
+**INCONCLUSIVE**, verification information **PARTLY / not as stated**, tree decomposition
+**NEGATIVE**), and the product CLI was never built. What the repository owed was a form in which
+that measurement can be read and checked by somebody who is not this machine, and it is delivered:
+a public preprint, one reproduce command, a traceability table, and a frozen revision.
 
-**M0 — the campaign's evidence secured and the takeover recorded.** Decided by one observation:
-`sha256sum -c` run from the declared home against the committed manifest returns 53 270 `OK`
-lines and zero `FAILED`, and the report naming the home, the manifest, the command and that
-result is in root's mail. Spent: `idle-compute`, local copy and hashing. **Reached** — the
-observation is in the evidence pointers below; the report is WP-0.4.
+M0 (the campaign bytes secured in a declared home and hashed) and M1 (a citable preprint whose
+every decisive number recomputes from the repository alone) are reached. The paper path is
+finished; nothing here waits on a worker. What remains is the person's — a DOI, an arXiv
+submission, approval of M2 — or a new research programme this roadmap does not authorise
+(`docs/0_ROADMAP.md`).
 
-**M1 — a citable preprint whose every decisive number is recomputable from the repository
-alone.** Decided by one observation: on a clean clone at the frozen tag, one command with no
-model server and no network prints `24.640`, `24.960`, `−0.320`, `[−3.520, +3.080]`, `47/70`,
-`14/70` and the R2 rows, and that output equals the table in the paper; and `git tag` names the
-measurement revision. **Accepted and released by root on 2026-10-21, in exactly that wording;
-this node is on it now.** The order question does not gate it: protocol, results, limits and
-the traceability table are worth writing before the answer, because the paper is written
-whichever way the order goes and only its framing changes. "What reproduce may cost" is settled
-here by measurement rather than by the answer: the projection is built over the committed
-rows and its size and fidelity are reported; if the tables cannot be regenerated without the
-2 GB home, that finding *is* the answer and is reported rather than papered over.
+Two commands show that state rather than claim it:
 
-**Reached, in that wording.** `python3 bench/checks/m1_acceptance.py` clones this repository at
-tag `preprint-v1` into a temporary directory, runs the one command there with no untracked home
-present, requires each printed key to be quoted on one line of `docs/paper/`, and requires three
-starved trees to fail loudly; it exits 0 and prints `m1 acceptance: OK`. The tags: `wave1-measurement`
-names the measurement revision `45ebb32`, `preprint-v1` (`93ead45`) names the revision the check
-runs at. What M1 does not deliver, and does not claim, is publication — a DOI or an arXiv
-submission is a `cost` act above this node and is not taken here. The push has since been taken
-above this node (2026-10-23), so the preprint is public; the DOI is not.
+```sh
+python3 reproduce.py                      # every decisive number, from committed rows only
+python3 docs/paper/check_citations.py     # the paper still quotes them; 0 unresolved
+python3 bench/checks/docs_layout.py       # docs/ is still filed by level; 0 problems
+```
 
-**Not on this roadmap:** the recovery line (P1a frozen at the exhausted two-review cap,
-`docs/ROADMAP.md:32`, `.scratch/30-harness-recovery/blocked-checkpoint.md`). The order answer
-arrived on 2026-10-23 and does not put it first: the person's rule repairs a 短板 only when the
-paper's own claims, numbers or commands need it, and the `Current facts` entry below shows they
-need nothing P1a touches. So the recovery line stays where it is — frozen, authorised to no node
-below root — and the paper path is the one this node took.
+## Overrides that hold on this tree
 
-### Work packages
+- **`docs/paper/` is the deliverable and stands outside the level scheme.** It is self-contained,
+  `preprint.md` is a render built by `python3 docs/paper/build_preprint.py`, its numbers are gated
+  against the entry point, and a public tag names a revision of it. Never hand-edit the render;
+  edit the section file and rebuild.
+- **The decisive evidence is not in git.** `bench/runs/wave1/` holds 2.0 GB of campaign bytes,
+  untracked and verified by `bench/manifests/wave1.sha256`. The preprint does not need it: the
+  numbers recompute from `bench/projection/`, half a megabyte, which is tracked.
+- **`.scratch/` is the work record, never truth.** Tickets, measurement records and provenance
+  live there; `docs/` states the current fact. A conflict between them resolves for `docs/`.
+- **Section numbers in `docs/6_ARCHITECTURE.md`, `docs/6_FLOW.md`, `docs/7_INTERFACE.md` and
+  `docs/7_ENVELOPES.md` are load-bearing.** About 240 comments in `harness/`, `tests/` and `bench/`
+  cite them as `DESIGN §4.2` or `ENVELOPE_SCHEMAS §10`; do not renumber, and keep those comments'
+  name→file mapping current.
+- **Documents are referenced by anchor, not by line.** A citation is `path#heading-slug` (heading
+  lowercased, every run of non-alphanumerics collapsed to one hyphen). `docs/paper/check_citations.py`
+  resolves these and re-checks that each number still sits in the text it cites.
+- **Mail lands in `mail/`**, one file per message, and is deleted once its fact is landed in `docs/`
+  — deleting is tidying, not a reply.
 
-| id | package | state |
-| --- | --- | --- |
-| WP-0.1 | Copy `/tmp/wave1/` to the declared home `bench/runs/wave1/` | done — `rsync -a`, 53 270 files, 1 996 009 173 bytes, two runs, exit 0 |
-| WP-0.2 | Hash every file; commit the manifest and the analysis scripts | done — `bench/manifests/wave1.sha256`, `bench/analysis/wave1/` |
-| WP-0.3 | Record the taken-over state (this document, `STATUS.md` route) | done |
-| WP-0.4 | Handover report to root | done |
-| WP-0.5 | Traceability seed: which number comes from which command, and which are not yet re-derived | done — `bench/analysis/wave1/NUMBERS.md` |
-| WP-1.1 | Paper draft: problem, protocol, results 1–3, negative results and retractions, external-validity boundary, reproduce section | done — `docs/paper/`, 8 sections + `numbers.md`, whose row and unknown counts are printed by `docs/paper/check_citations.py` rather than stored |
-| WP-1.2 | Reproduce entry point over a committed projection, inputs asserted, no network and no model | done — `reproduce.py`, `bench/projection/` (472 files, 2 810 rows, 523 499 bytes) |
-| WP-1.3 | Freeze the measurement revision as a tag; integration check that the paper's table equals the command's output | done — `wave1-measurement`, `preprint-v1`, `bench/checks/m1_acceptance.py` |
-| WP-1.4 | Handover report to root naming M1, its command and the decision needed | done — `mail/2026-10-21-helpagent-m1.md` |
+## Where to read
 
-### What was in flight, and how it landed
-
-The copy was widened past the three directories the contract named, because the analyzers read
-more than those three: `analyze_n25.py:40-43` opens `our-n5`, `n9` and `n17` as well, since
-seeds 1..17 of the R1 head-to-head predate the `n25` wave. That is not an optimisation, it is
-the difference between an interval and a silent wrong answer — `read_jsonl` returns `[]` for a
-root that is missing, so with `n17` absent the same script prints `delta +0.06`, `CI
-[−3.35, +3.71]` over 680 rows instead of `−0.320` / `[−3.520, +3.080]` over 1000, and raises
-nothing. So the declared home is the whole `/tmp/wave1` root, and the observable that catches a
-short home is the row count (1000 per arm for R1), which is why `recompute_n25.py` checks it
-before it compares anything.
-
-Proven, in this order. The copy: `rsync -a --numeric-ids /tmp/wave1/ bench/runs/wave1/`,
-`total size is 1 996 009 173`, exit 0, run twice (the first run carried only `n25`, `r2`, `r3`,
-the second the rest of the root; rsync skips what is already equal). Equality of the copy with
-its source, measured rather than assumed: `sha256sum` over both trees, sorted, and `diff` of
-the two lists — empty, 53 270 lines each; the source-side list is kept at
-`bench/runs/wave1-src-manifest.sha256` (untracked, so the equality stays re-checkable while
-`/tmp` survives, and is deletable when it does not). Durability: `sha256sum -c` from the home
-returned 53 270 `OK` and 0 `FAILED`, exit 0. And usability, which is the part a hash cannot
-promise: all three verdicts recompute from the home — see the evidence pointers below.
-
-Landed this advance: two packages ran in parallel into disjoint paths and were integrated here —
-the paper (`docs/paper/`, WP-1.1) and the entry point (`reproduce.py` with `bench/projection/`,
-WP-1.2). Four things the integration repaired rather than noted. The acceptance checker written
-before the package landed starved the tree by deleting `bench/projection/README.md`, a file no
-analyzer reads, so it would have failed a healthy tree: found by the package, fixed here, and its
-victims are now records under `bench/projection/wave1/final/` with the short-sample case added.
-`bench/analysis/wave1/NUMBERS.md` had a four-column header over three-cell rows, broken by this
-node in the act that made the key a column and repaired in the same advance. `docs/paper-plan.md:22`
-claimed "sixteen negative results" where `FINDINGS.md` §三 holds nine rows and §四 three; the
-count is deleted and the sections are named, because a row count is derived and a derived
-number stored by hand drifts. And the paper's citations to this document by line number became
-section references, so editing this file cannot silently invalidate the paper; its references
-into `docs/STATUS.md` and `FINDINGS.md`, which this advance did not touch, stay as line numbers
-and are resolved by `docs/paper/check_citations.py`.
-
-## Current facts
-
-**Secured.** The declared home is `bench/runs/wave1/`, inside this checkout, a byte-for-byte
-mirror of `/tmp/wave1/`: 53 270 files, 1 996 009 173 bytes, including `final/{n25,r2,r3}` and
-the three roots the R1 analysis also reads. The layout is the source's, so the analysis
-scripts resolve their arms unchanged. `git` cannot hold 2.0 GB, so the home is not tracked;
-`bench/runs/*` already ignored it and now names it (`bench/runs/wave1/`, owner: this node).
-What makes it evidence rather than merely present is `bench/manifests/wave1.sha256`: 53 270
-lines, one per file, paths relative to the home, and `sha256sum -c` against it returns 53 270
-`OK`, 0 `FAILED`, exit 0. The analysis scripts have a tracked home too —
-`bench/analysis/wave1/{final,n25,r2,r3}/`, 36 files, 252 KB — so a fresh session finds what
-computes the intervals without mounting the 2 GB; `verify_home.py` checks each of those 36
-against the manifest entry of the file it came from, and all 36 match.
-
-**Recomputable from the home, measured for all three verdicts.** R1: `recompute_n25.py` runs
-the campaign's own `analyze_n25.py` with its four roots pointed at the home and gets
-`24.640` / `24.960` / `−0.320` / `[−3.520, +3.080]` over 1000 rows per arm, equal to the
-recorded `analysis-n25-final.json`. R2: `r2_analyze.py --glob
-'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl'` reproduces `analysis.txt` and
-`analysis.json` byte-identically. R3: `R3=bench/runs/wave1/final/r3 analyze.py` reproduces
-`analysis-r3.txt` byte-identically (`leaf 47/70` in the arm table's 70 runs, `tree-greedy`
-`14/70`, `tree-tournament` `15/70`, McNemar `p ≤ 0.001`). So the three verdicts no longer
-depend on a temporary path for anything a reader needs to check.
-
-**Recomputable from the repository alone, measured.** `python3 reproduce.py` prints 21
-`key value` lines and exits 0 in 4.4 s on a tree with no `bench/runs` at all. It feeds the
-campaign's own analyzers from `bench/projection/wave1/final/` — 472 files, 2 810 rows, 523 499
-bytes raw, 57 561 gzipped, cut from the 62 MiB of inputs the analyzers read — and compares every
-value against the record committed beside its analyzer before it prints one line. Fidelity of
-the projection to the home it was cut from: `python3 bench/analysis/wave1/fix/verify_projection.py`
-returns `ok files=472 rows=2810 mismatches=0`, and one flipped `actual` in a copy returns
-`mismatches=1`, exit 1. Loud failure, three ways, each exiting 1 with zero stdout lines: a
-deleted record (`missing input: … file not found`), a zero-row record (`empty input: … 0 rows
-read`), a short sample (`short sample: R1 arm a (ours) seed 20 — 35 rows, wanted 40 … arm a
-then has 995 of 1000`). Two limits are recorded rather than smoothed: R2's `analysis.json` is
-compared parsed, not byte-wise, because its `stop_reasons` ties depend on set-iteration order;
-and `r3/supp.py`'s one `/tmp` literal is replaced under an exactly-once assertion so a future
-edit stops the run instead of silently reading a temporary path.
-
-**Taken over, as found.** HEAD `73cc4d9` plus root's mail commit `bf0fed7`; working tree clean
-before this node's first write; no git tag; `bench/runs/evidence/` (802 files, 5.4 MB) is the
-only tracked run evidence and it predates the final campaign, newest `20261006`. The whole
-project's decisive numbers hang on three archived verdicts recorded in `docs/STATUS.md` §2–§7.
-
-**Decided.** No new experiment is needed for M1 (the repo's own `docs/paper-plan.md:36-38`
-says so, and this node agrees on the evidence: the analyzers plus the secured rows recompute
-the numbers). Publication — a DOI, a push, a tag — is a `cost` act above this node and is not
-taken here; the push was taken above it, and the state is in the next paragraph.
-
-**Published, and what is still the person's.** Root made the repository public and pushed it on
-2026-10-23; read then with `git ls-remote origin` (`refs/heads/master` = `af963b3`) and
-`curl -s https://api.github.com/repos/ZisIsNotZis/helpagent` (`"private": false`, HTTP 200
-unauthenticated, no token spent). So the preprint is publicly readable at the current revision,
-and it says so on its face (`docs/paper/preprint.md`, `docs/paper/README.md`). What is still
-the person's: a DOI deposit and any arXiv submission, which this node does not take. This node
-publishes nothing further — no DOI, no second public surface — and a tag is not a publication.
-The two frozen tags are on the remote as well (`git ls-remote --tags origin` names
-`preprint-v1` and `wave1-measurement`, read 2026-10-23), so the revision `m1_acceptance.py`
-checks is reachable by a reader, not only by this clone.
-
-**Granted, and what it is.** Root granted the authoring package on 2026-10-21: the spend is
-`tokens` against this level's model budget plus `idle-compute` wall-clock, not metered money, so
-no grant is outstanding for it and no package waits on one. The grant covers this node and the
-workers it dispatches; it does not cover a push, a DOI or a rented device.
-
-**The reproduce interface, fixed here so that two workers cannot diverge.** One command at the
-repository root, `python3 reproduce.py`, run from a clean clone: it needs no `/tmp`, no model
-server and no network, and it must not require the untracked 2 GB home. It prints one
-`key value` line per decisive number (`r1_a_mean_tasks 24.640`, `r1_delta_tasks -0.320`,
-`r1_lo95 -3.520`, `r1_hi95 3.080`, `r3_leaf 47/70`, `r3_tree_greedy 14/70`, and the R2 rows),
-and exits 0 only when every printed value equals the value recorded at campaign time. The paper
-quotes these keys verbatim, so the acceptance is a diff and not a reading.
-
-**A short home fails loudly, by construction.** The n17 trap found on takeover is a requirement
-on the entry point, not a note: a missing root, a zero-row file and a short sample each stop the
-run with a named line naming the input and the count it wanted, before any number is printed.
-The paper's boundary section states this, because a reproduction that reports parity after
-reading an empty directory is worse than no reproduction.
-
-**Answered above, and applied here: the paper goes first, because P1a is not one of its tools (2026-10-23).**
-The person answered the paper-or-repair question with a rule rather than a choice, and the rule is this node's to apply: "we can't wait for research done, so it's fix the 短板 first before doing more research; if tool needed to write paper, fix that, otherwise do paper first".
-The rule turns on one question — do the preprint's claims, numbers or reproduce commands need the repair — and on this tree the answer is no, file by file:
-
-- **Every number the draft uses re-derives without the harness.** Each row of `docs/paper/numbers.md` names one of four commands: a printed key of `python3 reproduce.py` (`docs/paper/numbers.md:21-25`, `:51-53`, `:84-88`), the bare entry point, an analyzer under `bench/analysis/wave1/`, or `unknown` with the gap named. No command executes `harness/` and no `Source` cell names a harness file: `grep -c 'harness/' docs/paper/numbers.md reproduce.py` prints `0` for both.
-- **The entry point and the four scripts it runs import nothing from the harness.** `reproduce.py` uses the standard library and executes the campaign's own analyzers (`reproduce.py:78`, `:176`, `:229`, `:245`); `analyze_n25.py`, `r2_analyze.py`, `r3/analyze.py` and `r3/supp.py` import nothing outside it, and none of them mentions `harness/`. `r2_lane.py` does mention `harness.leaf`, in a docstring: it is the driver that *produced* the rows, not something the entry point runs.
-- **The draft cites harness source once, in the limit that discloses the coupling and never in support of a result.** `grep -rn 'harness/' docs/paper/` prints exactly one line — the §7 sentence that names the attribution heuristic (`docs/paper/07-limits.md:39`) — and every other citation resolves into `docs/STATUS.md`, `FINDINGS.md`, `docs/LEARNINGS.md`, `bench/analysis/wave1/`, `bench/external_score.py`, `bench/corpus/README.md`, `docs/ROADMAP.md` or `docs/paper-plan.md`. Of the files P1a changed (`harness/leaf.py`, `tests/unit/test_own_test_setup.py`, `tests/unit/test_v2_leaf.py` at `999ea9a`), the draft meets exactly one, `leaf.py`, and only through that disclosure.
-- **The counterexample the final review blocked on cannot be inside the measured revision.** `git show 45ebb32:harness/leaf.py | grep -c '_terminal_pytest_exceptions\|_own_test_setup_problem'` prints `0`: the captured-output boundary, the counterfeit-heading route and the setup-repair classifier are code this node's campaign never ran.
-
-So the 短板 for the preprint is not P1a, and the path taken is the paper's.
-One coupling is real and is disclosed rather than repaired: at the measured revision the harness decides whether a red check blames the run's own test or its source by parsing pytest failure text the run can influence (the same heuristic is in this repository today, `harness/leaf.py:3733`; `45ebb32` carries it), and `docs/paper/07-limits.md` now says what that bounds, which is the reading of §5 and not its numbers — the arbiter there is the external grader, not the harness.
-What this decision does not do: it does not spend the repair cycle the person's answer made available (that cycle stays unspent, and P1a stays BLOCKED at its two-review cap, `docs/ROADMAP.md:32`); it does not re-open M2; and it does not publish — a push, a DOI or a submission is still above this node.
-The state, in two commands: `python3 bench/checks/m1_acceptance.py` prints `m1 acceptance: OK` and exits 0, and `python3 docs/paper/check_citations.py` prints a `citations resolved N unresolved 0` line and exits 0, with N printed rather than stored here.
-
-**Closed, this node's own — what "reproduce" may cost.** It costs 0.5 MB of committed rows, not
-2 GB: the decisive numbers recompute from `bench/projection/wave1/final/` with no home, no
-`/tmp`, no model and no network, in under five seconds, and every number is gated against the
-record the campaign committed. The committed projection was the option the open question named;
-it is now measured rather than proposed, so the question no longer blocks anything.
-
-## Evidence pointers
-
-| what | where |
-| --- | --- |
-| the preprint as one file a person reads end to end | `docs/paper/preprint.md` (a render; built and checked by `python3 docs/paper/build_preprint.py [--check]`) |
-| the preprint's abstract, sections and index of kinds | `docs/paper/00-abstract.md`, `docs/paper/README.md` |
-| every number the paper uses, its `file:line` source and the command that re-derives it; the row count and the `unknown` rows are printed by the checker, and every unknown names its gap | `docs/paper/numbers.md` |
-| resolve the paper's citations and its Numbers table (fails loudly on a moved line or a number with no command) | `python3 docs/paper/check_citations.py` → `citations resolved N unresolved 0`, exit 0 (N is printed, not stored) |
-| M1's deciding observation as an exit code: clone at the tag, one command, paper must quote every key, starved trees must fail loudly | `python3 bench/checks/m1_acceptance.py` |
-| recompute every decisive number from committed rows, no home, no `/tmp`, no model, no network | `python3 reproduce.py` |
-| what a projection row is, which fields it keeps, what it cannot show | `bench/projection/README.md` |
-| rebuild or re-check the projection against the home (maintainer recipe; needs the home) | `python3 bench/projection/build_projection.py --check` |
-| projection fidelity to the home it was cut from | `python3 bench/analysis/wave1/fix/verify_projection.py` → `ok files=472 rows=2810 mismatches=0` |
-| declared home for the campaign bytes (2.0 GB, 53 270 files, untracked, verify by hash) | `bench/runs/wave1/` |
-| hash manifest over that home | `bench/manifests/wave1.sha256` |
-| verify the home (rehash every file, check the 36 analysis copies) | `python3 bench/analysis/wave1/verify_home.py` → `ok 53270 mismatch 0 missing 0 analysis-copies-ok 36 analysis-copies-bad 0`, exit 0 |
-| verify with the standard tool instead | `cd bench/runs/wave1 && sha256sum -c ../../manifests/wave1.sha256` → 53 270 OK, 0 FAILED |
-| recompute R1 from the home (`−0.320`, `[−3.520, +3.080]`) | `python3 bench/analysis/wave1/recompute_n25.py` |
-| recompute R2 from the home | `python3 bench/analysis/wave1/r2/r2_analyze.py --glob 'bench/runs/wave1/final/r2/runs/*/*/*/results.jsonl' --out /tmp/r2.json --text /tmp/r2.txt` |
-| recompute R3 from the home | `R3=bench/runs/wave1/final/r3 python3 bench/analysis/wave1/r3/analyze.py` |
-| every number above, the command that re-derives it, and the gaps not yet re-derived | `bench/analysis/wave1/NUMBERS.md` |
-| analysis scripts, tracked copy (36 files) | `bench/analysis/wave1/{final,n25,r2,r3}/` |
-| source-side hash list taken at copy time (untracked, expires with `/tmp`) | `bench/runs/wave1-src-manifest.sha256` |
-| copy and verification logs | `bench/runs/wave1-copy.log`, `-copy-full.log`, `-hash.log`, `-verify.log` (ignored, owner: this node) |
-| three verdicts, every decisive number | `docs/STATUS.md` §2–§7 |
-| negative results and retractions | `FINDINGS.md` §3–§4 |
-| the preprint's own intent and acceptance | `docs/paper-plan.md` |
-| recovery line, frozen | `docs/ROADMAP.md:32`, `.scratch/30-harness-recovery/blocked-checkpoint.md` |
-| why the preprint does not wait on P1a, re-checkable in two commands | `grep -c 'harness/' docs/paper/numbers.md reproduce.py` → `0` for both; `grep -rn 'harness/' docs/paper/` → one line, `docs/paper/07-limits.md:39`, the disclosure and not a result |
-| the decision itself, the person's words and what it cost | `mail/2026-10-23-helpagent-paper-first.md` |
-
-## Entrance
-
-**Start** with `STATUS.md` (one screen: what this is, what state it is in, where progress
-lands), then this file. The law this node runs under is `/home/z/vibe/agent-policy/AGENTS.md`;
-it is read once and not copied here.
-
-**Continue** from the roadmap above. The tree is committed at every hand-over, so the next
-session's first question is only whether mail in `mail/` has changed the order of work. The
-preprint is one file, `docs/paper/preprint.md` — abstract to numbers appendix — with
-`docs/paper/README.md` as its index and read order; `python3 docs/paper/build_preprint.py --check`
-proves the render is current, and `python3 bench/checks/m1_acceptance.py` proves the numbers are.
-
-**Where things differ from the general convention.** The decisive evidence is *not* in git —
-the home above, verified by the manifest, is the highest rung `git` cannot reach. Mail for this
-node lands in `mail/` here; answers to the two raised questions arrive there too.
-
-**Not current, and says so on its face.** `STATUS.md`'s state pin to `999ea9a` and
-`.scratch/active-work.md` (dated 2026-10-09, pointing at a `docs/STATUS.md` §8e that no longer
-exists — `docs/STATUS.md` runs §1–§12) are historical handover notes, kept as records. The
-current state of this project is this file.
+`README.md` is the front door. `docs/0_ROADMAP.md` is the order of work and what is deliberately
+not on it; `docs/2_GOAL.md` holds the verdicts and what they cannot carry; `docs/5_PRODUCT.md`
+holds the deliverable and its publication boundary; `docs/9_IMPLEMENTATION.md#docs-and-the-work-record`
+holds the documentation rule as it applies to this tree.

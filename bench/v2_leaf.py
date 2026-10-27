@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Blind v2 leaf driver — stage source-only, run the leaf, score externally.
 
-Owner direction 2026-09-29 (DESIGN §6/§10). The corpus tests are the GRADER: they
+Owner direction 2026-09-29 (docs/6_ARCHITECTURE.md §6/§10). The corpus tests are the GRADER: they
 never enter the run. This driver
 
 1. stages the task's *source-only* projection into a workdir (``stage_blind``),
@@ -9,7 +9,7 @@ never enter the run. This driver
 3. scores whatever the run produced on a OWN pristine copy via
    :func:`bench.external_score.external_score`,
 4. prints the two facts that matter — what the run CLAIMED and what the grader
-   FOUND — plus the resulting quadrant (DESIGN §10.7), and
+   FOUND — plus the resulting quadrant (docs/6_ARCHITECTURE.md §10.7), and
 5. persists one run record (JSON) with the claim, the verdict, the quadrant, and
    the cost counters.
 
@@ -295,7 +295,7 @@ def build_spec(task: dict) -> LeafSpec:
 
     ``grader_paths`` is the UNION of the staged-owned paths (every test path / test
     infrastructure path :func:`harness.staging.owned_paths` owns) and the corpus task's
-    own ``UNTOUCHED`` list from ``checks.py`` (ticket 17 F2). FLOW §6 (P1a): the frozen
+    own ``UNTOUCHED`` list from ``checks.py`` (ticket 17 F2). docs/6_FLOW.md §6 (P1a): the frozen
     list is NO LONGER A WRITE GUARD — a run never consults it to decide what it may
     write. A write to a grader/frozen path (or a test path, test infrastructure, a
     module-shadow path, or a path outside the declared boundary) LANDs and is recorded as
@@ -382,7 +382,7 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         "review": review_enabled,
         "claimed": outcome.claimed,
         "claimed_basis": outcome.claimed_basis,
-        #: FLOW §1.5 S5 / §4 (P1c): the explicit terminal state (pass | uncertain | fail
+        #: docs/6_FLOW.md §1.5 S5 / §4 (P1c): the explicit terminal state (pass | uncertain | fail
         #: plus parked/needs-user) computed from the terminal test/review evidence.
         "state": outcome.state,
         "verification_basis": outcome.verification_basis,
@@ -440,7 +440,7 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         "failure_report": (dataclasses.asdict(outcome.failure_report)
                            if outcome.failure_report is not None else None),
         "evidence_gap": outcome.evidence_gap,
-        # FLOW §4 W4 / §5 (P1b): the visible-suite regression evidence on the delivered
+        # docs/6_FLOW.md §4 W4 / §5 (P1b): the visible-suite regression evidence on the delivered
         # revision (the ids that passed on the pristine source and no longer pass, the
         # recorded baseline, the suite output, and whether the suite was observable on
         # both runs — an empty list with observable=False is UNOBSERVABLE, not "clean").
@@ -548,7 +548,7 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
         # deterministic "attribution unavailable" fallback.
         "judge_unavailable": outcome.judge_unavailable,
         "refusals": outcome.refusals,
-        # FLOW §6 (P1a): the writes the run made OUTSIDE its declared plan (never refused;
+        # docs/6_FLOW.md §6 (P1a): the writes the run made OUTSIDE its declared plan (never refused;
         # each carries its pre-run bytes) and the restores the driver performed on the
         # produced repository BEFORE grading, so the grader sees the same bytes it saw
         # when off-plan writes were refused.
@@ -573,7 +573,7 @@ def build_record(task_id: str, goal: str, outcome: LeafOutcome, *, withheld: lis
 
 def _judge_question(request: JudgeRequest) -> str:
     """The fresh-context judge prompt. With ``fresh=True`` the runner injects no
-    artifacts, so the evidence rides the question verbatim (DESIGN §2.4 / §10.1).
+    artifacts, so the evidence rides the question verbatim (docs/6_ARCHITECTURE.md §2.4 / §10.1).
 
     Ticket 21 round 2 (fix 2): the run's own failing ASSERTION lines are surfaced
     explicitly (not only inside the full test and the possibly-truncated excerpt), so a
@@ -598,7 +598,7 @@ def _judge_question(request: JudgeRequest) -> str:
 
 
 async def model_judge(model: Any, request: JudgeRequest) -> JudgeVerdict:
-    """The driver's DEFAULT judge: a FRESH-CONTEXT model call (DESIGN §10.1 step 5).
+    """The driver's DEFAULT judge: a FRESH-CONTEXT model call (docs/6_ARCHITECTURE.md §10.1 step 5).
 
     It sees only the run's own evidence — goal, ACs, the run's own test, the failing
     output, and the blind source view — never a grader path. It reuses the existing
@@ -707,7 +707,7 @@ def _numbered_acs(acs: list[str]) -> str:
 
 def _independent_test_question(request: IndependentTestRequest) -> str:
     """The fresh-context independent-test prompt. With ``fresh=True`` the runner injects
-    no artifacts, so the evidence rides the question verbatim (DESIGN §2.4 / §10.1 step 5).
+    no artifacts, so the evidence rides the question verbatim (docs/6_ARCHITECTURE.md §2.4 / §10.1 step 5).
     It sees the goal, the NUMBERED ACs, and the ORIGINAL/FINAL source of the changed files
     — never the run's own test and never a grader path. It is asked for ONE DISTINCT test
     function per criterion, each named with its own criterion index (``test_ac1_...``,
@@ -857,7 +857,7 @@ def run_once(task_dir: Path, out_dir: Path, server: str, calls: int,
         clear_sinks()
     wall = round(time.monotonic() - started, 1)
 
-    # FLOW §6 (P1a): every recorded write deviation is restored to its pre-run bytes
+    # docs/6_FLOW.md §6 (P1a): every recorded write deviation is restored to its pre-run bytes
     # (or dropped when the run invented it) BEFORE grading, so the grader sees the same
     # bytes it saw when off-plan writes were refused.
     produced = produced_files(workdir)

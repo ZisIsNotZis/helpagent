@@ -2,7 +2,7 @@
 """Blind sweep of the v2 leaf loop: claimed vs grader, one line per task.
 
 Reuses ``bench/v2_leaf.run_once`` so the sweep and the single-task CLI cannot
-drift. Wall-clock is the primary budget (DESIGN §10.2), so the sweep is a plain
+drift. Wall-clock is the primary budget (docs/6_ARCHITECTURE.md §10.2), so the sweep is a plain
 sequential loop with a per-task deadline and no retries hidden from the record.
 
 Usage:

@@ -1,4 +1,4 @@
-"""Artifact store invariants (DESIGN §4.2, KERNEL_API §4.6,):
+"""Artifact store invariants (docs/6_ARCHITECTURE.md §4.2, docs/7_INTERFACE.md §4.6,):
 bounded without truncation (split-window path), secret filter at the store
 boundary, producer linkage as a schema field, single-producer rule."""
 

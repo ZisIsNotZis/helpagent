@@ -20,7 +20,10 @@ What it checks, in the order it runs:
      ``python3 reproduce.py`` (the value is then a field of a record the entry point compares in
      full), a command recorded in ``bench/analysis/wave1/NUMBERS.md``, or ``unknown``;
    - for a printed key, the row's value must appear in the value the entry point prints.
-3. Every numeral in the prose of ``docs/paper/*.md`` (except ``numbers.md``, which is the
+3. Every ``path#anchor`` and ``path §Heading`` written in this repository's own documents — the
+   level documents, `README.md`, `AGENTS.md`, `CONTRIBUTING.md` — resolves, so the documents
+   cannot point at a heading that a later edit renamed.
+4. Every numeral in the prose of ``docs/paper/*.md`` (except ``numbers.md``, which is the
    oracle) appears in a ``Value`` cell of the numbers table. Identifiers, ``§N`` cross
    references, ``path:line`` citations and exit statuses are not quantities and are skipped;
    fenced code blocks are skipped.
@@ -374,6 +377,26 @@ def prose_numerals() -> None:
                     fail(f"{md.name}:{lineno}: numeral {token} has no row in numbers.md")
 
 
+def walk_doc_refs() -> None:
+    """Every `path#anchor` and `path §Heading` written in this repository's own documents resolves.
+
+    The paper's references are the ones a reader follows into the evidence, but the level documents
+    reference each other too, and a moved heading breaks those the same way. All markdown outside
+    `docs/paper/`, `bench/runs/` and `.scratch/` is scanned; the two skipped trees are the render's
+    input and the work record.
+    """
+    for md in sorted(list(REPO.glob("*.md")) + list((REPO / "docs").rglob("*.md"))):
+        if md.parts[-2] == "paper" if len(md.parts) > 1 else False:
+            continue
+        if "bench/runs" in str(md):
+            continue
+        for lineno, line in enumerate(read_lines(md), start=1):
+            for m in ANCHOR.finditer(line):
+                resolve_anchor(m.group(0), f"{md.relative_to(REPO)}:{lineno}")
+            for m in SECTION.finditer(line):
+                resolve_section(m.group(1), m.group(2), f"{md.relative_to(REPO)}:{lineno}")
+
+
 def main() -> int:
     printed, have_entry = entry_point()
     if have_entry:
@@ -393,6 +416,7 @@ def main() -> int:
                     if norm(value) not in quantities(printed[key]) and norm(value) != norm(printed[key]):
                         fail(f"the paper states {key} {value}, reproduce.py prints {printed[key]}")
     walk_refs()
+    walk_doc_refs()
     check_numbers(printed, have_entry)
     prose_numerals()
     for line in problems:

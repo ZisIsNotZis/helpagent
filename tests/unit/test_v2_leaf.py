@@ -514,7 +514,7 @@ def test_non_test_self_test_path_is_relocated_into_tests(tmp_path):
 
 
 def test_implement_writes_to_a_test_or_grader_path_land_as_deviations(tmp_path):
-    """FLOW §6 (P1a): an implementation write to the run's OWN test or a grader path is
+    """docs/6_FLOW.md §6 (P1a): an implementation write to the run's OWN test or a grader path is
     NO LONGER refused — it LANDS and is recorded as a deviation, and the driver restores
     the run's own test and drops the invented grader file before grading."""
     from bench.blind_run import produced_files, restore_deviations
@@ -2491,7 +2491,7 @@ def test_v2_driver_iv_mode_changes_the_claim_basis(tmp_path, monkeypatch):
 
 
 def test_run_written_conftest_lands_is_a_deviation_and_is_restored_before_grading(tmp_path):
-    """Attack 3B, ported to FLOW §6 (P1a): a run-written ``conftest.py`` with a
+    """Attack 3B, ported to docs/6_FLOW.md §6 (P1a): a run-written ``conftest.py`` with a
     ``pytest_sessionfinish`` hook is NO LONGER refused — it lands, is recorded as a
     DEVIATION (test infrastructure), and the driver restores it before grading, so the
     grader never sees the run's hook."""
@@ -2519,7 +2519,7 @@ def test_run_written_conftest_lands_is_a_deviation_and_is_restored_before_gradin
 
 
 def test_leaf_records_a_module_shadow_source_write_as_a_deviation(tmp_path):
-    """Attack 3A, ported to FLOW §6 (P1a): a run-authored top-level module that shadows an
+    """Attack 3A, ported to docs/6_FLOW.md §6 (P1a): a run-authored top-level module that shadows an
     interpreter import is no longer refused at write time — it lands and is recorded as a
     DEVIATION (the gate still refuses to RUN with a shadow in the tree, and the driver
     restores it before grading)."""
@@ -2596,7 +2596,7 @@ def test_run_record_records_deviations_refusals_and_the_isolation_env():
                           deviation_restores=[restore_line])
 
     assert record["refusals"] == outcome.refusals
-    # FLOW §6 (P1a): the deviation is persisted with its snapshotted original (None = the
+    # docs/6_FLOW.md §6 (P1a): the deviation is persisted with its snapshotted original (None = the
     # run created it) and the driver's restore is recorded.
     assert record["deviations"] == [
         {"path": "json.py", "reason": "a module-shadow path", "original": None}]
@@ -2612,7 +2612,7 @@ def test_run_record_records_deviations_refusals_and_the_isolation_env():
 
 
 def test_end_to_end_shadow_module_wrong_fix_is_not_a_true_success(tmp_path, monkeypatch):
-    """The driver case an adversarial pass demonstrated, ported to FLOW §6 (P1a): a wrong
+    """The driver case an adversarial pass demonstrated, ported to docs/6_FLOW.md §6 (P1a): a wrong
     fix whose only other change is a run-authored ``json.py`` must not reach the
     true-success quadrant. The shadow write LANDS and is recorded as a deviation, then the
     driver restores it before grading, so the real source bug stands and the run reports
@@ -2732,7 +2732,7 @@ def test_an_exit_zero_without_a_report_is_not_green():
 # grader then restored — a false success.
 
 def test_t31_untouched_files_are_grader_paths_and_the_write_is_a_deviation(tmp_path):
-    """FLOW §6 (P1a): the corpus ``UNTOUCHED`` files stay in ``grader_paths`` (for the
+    """docs/6_FLOW.md §6 (P1a): the corpus ``UNTOUCHED`` files stay in ``grader_paths`` (for the
     deviation record, the coverage exemption, and the external grader's restore), but they
     are NO LONGER a write guard: a write to ``api/__init__.py`` LANDS and is recorded as a
     deviation, then restored before grading."""
@@ -2770,7 +2770,7 @@ def test_t31_untouched_files_are_grader_paths_and_the_write_is_a_deviation(tmp_p
     assert any("fetch" in m for m in out.coverage_missing)
 
 
-# --------------------------- FLOW §6 (P1a): allow + record + restore instead of refuse
+# --------------------------- docs/6_FLOW.md §6 (P1a): allow + record + restore instead of refuse
 
 
 def test_off_plan_write_lands_is_recorded_and_restores_before_grading(tmp_path):
@@ -3278,7 +3278,7 @@ def test_grant_calibre_evidence_is_required_for_a_review_backed_claim(tmp_path):
     observed behaviour) DOES claim, so the rule blocks thin evidence without blocking a
     substantive review.
 
-    FLOW §1.5 S4 W5 (P1c): the review here is forced by an UNRESOLVABLE criterion while
+    docs/6_FLOW.md §1.5 S4 W5 (P1c): the review here is forced by an UNRESOLVABLE criterion while
     the run's own test is GREEN, so the review seam legitimately runs; a red own test
     would end the How as FAIL before any review (see
     ``test_a_red_test_with_an_implementation_wrong_judge_ends_the_how_fail``)."""
@@ -4783,7 +4783,7 @@ def test_conflict_text_says_cannot_characterise_when_the_assertions_are_identica
 
 
 def test_exhaustion_review_does_not_run_over_a_red_own_test(tmp_path):
-    """FLOW §1.5 S4 W2/W5, §4.1, §11 H3 (P1c): a test FAIL ends the How as FAIL and the
+    """docs/6_FLOW.md §1.5 S4 W2/W5, §4.1, §11 H3 (P1c): a test FAIL ends the How as FAIL and the
     review does NOT run. This REVERSES the old ticket-22 path where the graded review
     outranked a red own test: at exhaustion the run's own test is RED on the final
     revision, so the approving reviewer is never consulted, nothing is claimed, and the
@@ -4812,7 +4812,7 @@ def test_exhaustion_review_does_not_run_over_a_red_own_test(tmp_path):
 
 
 def test_exhaustion_review_does_not_run_over_a_red_test_with_a_vacuous_iv(tmp_path):
-    """FLOW §1.5 S4 W2/W5, §4.1, §11 H3 (P1c): even when the independent test is vacuous
+    """docs/6_FLOW.md §1.5 S4 W2/W5, §4.1, §11 H3 (P1c): even when the independent test is vacuous
     (``independent-test-not-red`` after its one repair), the run's OWN test is RED on the
     final revision, so the review does NOT run and nothing is claimed; the leaf's state is
     FAIL. The old ticket-22 'the review decides over the red test' path is gone."""
@@ -5003,7 +5003,7 @@ def test_coverage_miss_blocks_an_ok_review_verdict(tmp_path):
 # ===========================================================================
 
 def test_main_path_review_does_not_run_over_a_red_own_test(tmp_path):
-    """FLOW §1.5 S4 W2/W5, §4.1, §11 H3 (P1c): the MAIN-PATH review route no longer runs
+    """docs/6_FLOW.md §1.5 S4 W2/W5, §4.1, §11 H3 (P1c): the MAIN-PATH review route no longer runs
     once the run's own test is RED on the final revision. Sequence (the old ticket-22
     scenario): attempt 1 makes the own test green but a criterion resolves to no artifact,
     so review is forced and REJECTS; attempt 2 writes a wrong fix (own test RED) the
@@ -5269,7 +5269,7 @@ def test_claim_gate_enforces_every_rule_directly():
 
 
 def test_claim_gate_refuses_a_visible_suite_regression():
-    """FLOW §4 W4 / §5 (P1b): a baseline-green test that no longer passes is a hard block
+    """docs/6_FLOW.md §4 W4 / §5 (P1b): a baseline-green test that no longer passes is a hard block
     on EVERY leaf route, through the ONE gate's ``regressions`` input."""
     base = {
         "criteria_count": 1, "ledger": _gate_ledger(), "own_test": "tests/t.py",
@@ -5939,7 +5939,7 @@ def test_request_level_coverage_blocks_the_review_route(tmp_path):
 
 
 def test_red_own_test_blocks_the_review_before_a_red_independent_verification(tmp_path):
-    """FLOW §1.5 S4 W2/W5, §4.1 (P1c): the run's own test is RED on the final revision,
+    """docs/6_FLOW.md §1.5 S4 W2/W5, §4.1 (P1c): the run's own test is RED on the final revision,
     so the REVIEW SEAM never opens --- the review does not run regardless of the
     independent verification. The IV still runs on the delivered code and is recorded as
     ``independent-test-red-on-final``, but the outcome is FAIL either way. The old ticket
@@ -5967,7 +5967,7 @@ def test_red_own_test_blocks_the_review_before_a_red_independent_verification(tm
 
 
 def test_red_own_test_stops_the_review_even_with_a_vacuous_independent_test(tmp_path):
-    """FLOW §1.5 S4 W2/W5, §4.1 (P1c): a VACUOUS independent test (it passes on the
+    """docs/6_FLOW.md §1.5 S4 W2/W5, §4.1 (P1c): a VACUOUS independent test (it passes on the
     pristine source) does not matter once the run's own test is RED on the final
     revision: the review seam stays shut, nothing is claimed, and the leaf's state is
     FAIL. (The claim-gate rule that a vacuous IV does not block a review is pinned in
@@ -6176,12 +6176,12 @@ def test_requirement_coverage_exempts_a_criterion_naming_a_frozen_artifact(tmp_p
 
 
 # ===========================================================================
-# P1c-1: the three states + How terminal semantics (FLOW §1.5 S4/S5, §4, §11 H3/H4)
+# P1c-1: the three states + How terminal semantics (docs/6_FLOW.md §1.5 S4/S5, §4, §11 H3/H4)
 # ===========================================================================
 
 
 def test_leaf_terminal_state_maps_the_three_states_and_the_parked_cases():
-    """FLOW §1.5 S5 / §4 (P1c): the explicit state machine — a claim is PASS; a confirmed
+    """docs/6_FLOW.md §1.5 S5 / §4 (P1c): the explicit state machine — a claim is PASS; a confirmed
     red test is FAIL (never UNCERTAIN); a give-up with no confirmed failure is UNCERTAIN;
     a deadline/call-budget handover is PARKED; a broken environment is NEEDS-USER."""
     from harness.leaf import OUTCOME_STATES, leaf_terminal_state
@@ -6202,7 +6202,7 @@ def test_leaf_terminal_state_maps_the_three_states_and_the_parked_cases():
 
 
 def test_a_red_test_with_an_implementation_wrong_judge_ends_the_how_fail(tmp_path):
-    """FLOW §1.5 S4 W2/W5, §4.1, §11 H3 (P1c) (a): a red own test plus a judge that
+    """docs/6_FLOW.md §1.5 S4 W2/W5, §4.1, §11 H3 (P1c) (a): a red own test plus a judge that
     attributes the failure to the IMPLEMENTATION exhausts the retries as FAIL — the review
     is NEVER called (a FAIL test does not reach the review seam)."""
     spec = make_spec()
@@ -6227,7 +6227,7 @@ def test_a_red_test_with_an_implementation_wrong_judge_ends_the_how_fail(tmp_pat
 
 
 def test_b_red_test_with_a_judge_repair_into_a_discriminating_test_continues(tmp_path):
-    """FLOW §1.5 S4 W2/W5, §6.1 (P1c) (b): when the judge attributes the red test to the
+    """docs/6_FLOW.md §1.5 S4 W2/W5, §6.1 (P1c) (b): when the judge attributes the red test to the
     TEST, a bounded repair that IS a real discriminator (red on the pristine source) is
     accepted and the How CONTINUES to the next attempt — it does not end as a red-test
     FAIL. (Contrast (a): an implementation-wrong judge leaves the red test in place and
@@ -6257,7 +6257,7 @@ def test_b_red_test_with_a_judge_repair_into_a_discriminating_test_continues(tmp
 
 
 def test_leaf_state_is_pass_for_a_claim_and_fail_for_an_exhausted_red_test(tmp_path):
-    """FLOW §1.5 S5 (P1c): the leaf's explicit state end-to-end — a discriminating own
+    """docs/6_FLOW.md §1.5 S5 (P1c): the leaf's explicit state end-to-end — a discriminating own
     test that greens is PASS; a red own test at exhaustion is FAIL."""
     green = tmp_path / "green"
     spec = make_spec()

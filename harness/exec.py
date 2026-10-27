@@ -1,12 +1,12 @@
-"""Minimal sandboxed exec (DESIGN §4.6, KERNEL_API §3.2 — M2 slice).
+"""Minimal sandboxed exec (docs/6_ARCHITECTURE.md §4.6, docs/7_INTERFACE.md §3.2 — M2 slice).
 
 v0 scope, honestly bounded: allowlist + policy-blocked shaped results + output
 shaping. NO container/network/filesystem policy yet — that is M4's tool-wrapper
-milestone (DESIGN §4.6 "container, network policy"). What M2 guarantees:
+milestone (docs/6_ARCHITECTURE.md §4.6 "container, network policy"). What M2 guarantees:
 
 - a model-provenance command outside the allowlist is a **policy-blocked shaped
   result**, never an exception, and never reaches the diagnose pipeline (§4.6);
-- kernel/script provenance runs (script-provenance exec is trusted, DESIGN §4.1
+- kernel/script provenance runs (script-provenance exec is trusted, docs/6_ARCHITECTURE.md §4.1
   trust boundary), but the result is still shaped and byte-capped;
 - output is ANSI-stripped and byte-capped; raw output belongs to the caller's
   artifact persistence (through the secret filter), not to this module.
@@ -42,7 +42,7 @@ _FAILURE_MARKERS = ("FAILED", "ERROR", "error:", "assert", "Traceback", "E   ")
 
 @dataclass
 class ShapedResult:
-    """A shaped execution result — data, never an exception leak (KERNEL_API §3.2)."""
+    """A shaped execution result — data, never an exception leak (docs/7_INTERFACE.md §3.2)."""
 
     command: list[str]
     exit: int | None
@@ -91,7 +91,7 @@ def _shape(command: list[str], exit_code: int | None, stdout: str, stderr: str) 
 
 
 # ---------------------------------------------------------------------------
-# sandbox (M4, DESIGN §4.6 "container, network policy"): bwrap for MODEL provenance
+# sandbox (M4, docs/6_ARCHITECTURE.md §4.6 "container, network policy"): bwrap for MODEL provenance
 # ---------------------------------------------------------------------------
 
 #: Roots hidden from model-provenance commands (empty tmpfs over the ro base):
@@ -150,12 +150,12 @@ async def exec(
 ) -> ShapedResult:
     """Run ``cmd`` in ``workdir``. A model-provenance command outside the allowlist
     returns a policy-blocked shaped result (routed to an allowlist request by the
-    caller — NEVER an exception, NEVER a probe-failure count, DESIGN §4.6)."""
+    caller — NEVER an exception, NEVER a probe-failure count, docs/6_ARCHITECTURE.md §4.6)."""
     wd = Path(workdir)
     cmd = [str(c) for c in cmd]
     shaping_cmd = list(cmd)   # shaping keys on the caller's command, not the sandbox argv
     if provenance == "model" and (not cmd or Path(cmd[0]).name not in allowlist):
-        # first-class shaped result (DESIGN §4.6) — and a first-class STATS counter
+        # first-class shaped result (docs/6_ARCHITECTURE.md §4.6) — and a first-class STATS counter
         # (2026-09-17 owner alignment: policy_blocked is tracked, never silent)
         note("policy_blocked", command=cmd[0] if cmd else "")
         return ShapedResult(
@@ -174,7 +174,7 @@ async def exec(
             return ShapedResult(
                 command=cmd, exit=None, verdict="policy_blocked", policy_blocked=True,
                 excerpts=["model-provenance exec refused: sandbox (bwrap) unavailable — "
-                          "never unsandboxed (DESIGN §4.6, KERNEL_API §3.2)"],
+                          "never unsandboxed (docs/6_ARCHITECTURE.md §4.6, docs/7_INTERFACE.md §3.2)"],
             )
         cmd = wrapped
     started = asyncio.get_event_loop().time()

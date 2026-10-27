@@ -17,7 +17,8 @@ the record committed beside it before a single number is printed:
 The `r1_width_*`, `r1_half_width`, `r1_within_share_pct`, `r1_asymptotic_width` and
 `r1_needed_estimate` keys are one further R1 derivation: the same analyzer at N=17 and N=25, plus
 a variance decomposition of the paired per-task differences at N=25. They have no JSON record of
-their own; their criterion is the sentence that states them in `docs/STATUS.md` §3, which is read
+their own; their criterion is the sentence that states them in `docs/2_GOAL.md#r1-capability-parity`, which
+is read
 here and compared digit for digit, so a record and a recomputation cannot drift apart silently.
 
 Exit 0 only when every printed value equals the value recorded at campaign time. A missing
@@ -147,12 +148,12 @@ def compute_r1() -> dict:
 def compute_widths() -> dict:
     """§3's interval-width argument, derived and gated against the record that states it.
 
-    The campaign recorded these quantities as a sentence in `docs/STATUS.md` §3 and never as a
+    The campaign recorded these quantities as a sentence in `docs/2_GOAL.md` and never as a
     record of their own, so the draft used to list them as numbers no command re-derives. They
     are one analyzer run per N plus a variance decomposition; `interval_widths.py` in the
     campaign's analysis directory owns the arithmetic and `interval-widths.json` its digits.
     This function recomputes, requires the committed record to agree, and requires the record's
-    sentence in `docs/STATUS.md` to agree digit for digit — a record and a recomputation cannot
+    sentence in `docs/2_GOAL.md` to agree digit for digit — a record and a recomputation cannot
     drift apart without stopping the run.
     """
     sys.path.insert(0, str(ANALYSIS / "n25"))
@@ -173,17 +174,17 @@ def compute_widths() -> dict:
                   f"{got['n']['25']['width']:.2f}", f"{got['within_share_pct']:.1f}",
                   f"{got['asymptotic_width']:.1f}", f"{got['needed_estimate']:.1f}"]
     if stated != recomputed:
-        raise Fail(f"R1 widths: recomputed {recomputed} but docs/STATUS.md §3 states {stated}")
+        raise Fail(f"R1 widths: recomputed {recomputed} but docs/2_GOAL.md states {stated}")
     return got
 
 
 def width_sentence() -> list[str]:
-    """The six numbers `docs/STATUS.md` §3 states for the width argument, in its order.
+    """The six numbers `docs/2_GOAL.md` states for the width argument, in its order.
 
     The campaign's own statement is the criterion, so it is read rather than trusted: the
     paragraph is found by its opening words and every backticked quantity in it is taken.
     """
-    path = REPO / "docs" / "STATUS.md"
+    path = REPO / "docs" / "2_GOAL.md"
     lines = path.read_text(encoding="utf-8").splitlines()
     start = next((i for i, ln in enumerate(lines)
                   if "did not resolve it" in ln and "Why N=" in ln), None)

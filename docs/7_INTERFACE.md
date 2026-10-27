@@ -1,17 +1,15 @@
-# KERNEL API — helpagent runtime kernel
+# INFERRED
 
 Specification of the script-facing surface of the runtime kernel that executes versioned
-SE-methodology scripts (`scripts/v1/`,.md). Implementable as-is; schemas
-referenced but not defined here live in **ENVELOPE_SCHEMAS.md**.
-
----
+SE-methodology scripts (`scripts/v1/*.md`). Implementable as-is; schemas
+referenced but not defined here live in **`docs/7_ENVELOPES.md`**.
 
 ## 1. Trust model and the capability-object principle
 
-- **Script = strategy, trusted.** Author code, full privileges, no sandbox (DESIGN §4.1).
+- **Script = strategy, trusted.** Author code, full privileges, no sandbox (`docs/6_ARCHITECTURE.md`).
   The script decides sequence, questions, injection decisions, retry/split/park logic.
 - **Kernel = invariants.** Model runner + grammar envelopes, artifact schema validation,
-  check pipeline on every write, erasure semantics (§2.4), sandbox, ledger/stats, memory
+  check pipeline on every write, erasure semantics (`docs/6_ARCHITECTURE.md`), sandbox, ledger/stats, memory
   governance, global run budget. Kernel never interprets the script.
 - **Sandbox scope:** wraps **model-implication execution only**. Every command reaching
   `exec()` with `provenance="model"` passes filesystem scoping, allowlist, container,
@@ -22,7 +20,7 @@ referenced but not defined here live in **ENVELOPE_SCHEMAS.md**.
   tree, (iv) pause for the user, or (v) write governed memory. Every other name reachable
   from `k` is a **handle or accessor**: a typed, read/validation/persistence surface over
   kernel-owned state that performs none of (i)–(v) and consumes no budget. Handles are
-  data, not primitives. `<!-- DECISION: this rule is the reconciliation criterion for §8; DESIGN enumerates six primitives but not the status of other k.* names; this is the minimal consistent reading. -->`
+  data, not primitives. `<!-- DECISION: this rule is the reconciliation criterion for the gaps in `.scratch/31-docs-migration/open-items-7.md`; `docs/6_ARCHITECTURE.md` enumerates six primitives but not the status of other k.* names; this is the minimal consistent reading. -->`
 - **A/B comparability:** same kernel + same corpus ⇒ the script revision is the only
   variable. The kernel must therefore be deterministic in everything except the model.
 
@@ -52,10 +50,10 @@ referenced but not defined here live in **ENVELOPE_SCHEMAS.md**.
 | `k.artifacts.write(artifact, node=...)` | → `tree.attach(node, artifact)` | §4.6 |
 | `k.git.dirty / k.git.reset_hard_clean / k.lock` | kernel-internal, behind `boot_recover` | §6 |
 | `boot_recover(k, workdir)` | sanctioned kernel entry point `k.boot_recover(workdir)` | §6 |
-| `k.triage_rules(failures)` | **raised** — see §8 | §8 |
+| `k.triage_rules(failures)` | **raised** — see `.scratch/31-docs-migration/open-items-7.md` | `.scratch/31-docs-migration/open-items-7.md` |
 
 Everything in this table is either one of the six primitives, a handle/accessor method, or
-raised in §8. No seventh primitive is introduced.
+raised in `.scratch/31-docs-migration/open-items-7.md`. No seventh primitive is introduced.
 
 ---
 
@@ -63,7 +61,7 @@ raised in §8. No seventh primitive is introduced.
 
 All are `async`. Error convention: **programmer errors** (bad argument types, unknown
 step_type, invalid handle) raise immediately; **operational outcomes** (check failures,
-policy denials) return shaped results per ENVELOPE_SCHEMAS.md; **parked outcomes**
+policy denials) return shaped results per `docs/7_ENVELOPES.md`; **parked outcomes**
 (needs-user, budget) raise after durably recording parked state. Every call appends its
 event to the log (§5) and its counters to the ledger before returning or raising.
 
@@ -74,12 +72,12 @@ async def llm(step_type: str,
               artifacts: dict[str, ArtifactRef],
               question: str,
               tools: list[str] | None = None,
-              fresh: bool = False) -> StepResult   # see ENVELOPE_SCHEMAS.md
+              fresh: bool = False) -> StepResult   # see `docs/7_ENVELOPES.md`
 ```
 
 - Loads `prompts/<step_type>.md` verbatim into the byte-stable prefix (missing file ⇒
   `PromptNotFound` raise at call time, never a silent fallback). Composes suffix via the
-  composer (per-call adaptive injection, no fixed cap; per-category sub-budgets §4.3).
+  composer (per-call adaptive injection, no fixed cap; per-category sub-budgets `docs/6_ARCHITECTURE.md`).
   `fresh=True` composes without author-context artifacts (reviewers, judges).
 - `tools` = per-step-type tool set from the wrapper registry; within the step the model
   proposes tool calls — one-shot proposal → sandboxed exec → shaped result. Tool rounds
@@ -94,26 +92,26 @@ async def llm(step_type: str,
   schema validation; ledger/stats recording; budget accounting; erasure — the failed
   attempt's text is never returned to a later invocation, only a failure summary.
 - **Schema library.** `harness/envelopes.SCHEMAS` holds one grammar envelope per
-  `step_type` (ENVELOPE_SCHEMAS §0–§23, §26–§29), **28 registered** as of ticket 20. Ticket 22
-  adds no schema: it extends the existing `plan_node` (ENVELOPE_SCHEMAS §23) envelope (and
+  `step_type` (`docs/7_ENVELOPES.md` §0–§23, §26–§29), **28 registered** as of ticket 20. Ticket 22
+  adds no schema: it extends the existing `plan_node` (`docs/7_ENVELOPES.md` §23) envelope (and
   its `ChildPlan`) with the PLAN-TIME fields — round 3 replaced the single
   `verification_policy` enum with TWO LISTS, `planned_tests` and `planned_reviews` (both
   default empty; `verification_reason` is REQUIRED iff both are empty) — so the count stays
   28.
   Ticket 18's
-  newest was `plan_node` (ENVELOPE_SCHEMAS §23): the node tree's ONE fused
+  newest was `plan_node` (`docs/7_ENVELOPES.md` §23): the node tree's ONE fused
   decompose+specify call — a node's `children` plus its own goal/behavior/files/ACs plus the
   planned test points (`planned_tests`, ticket 19 D / 22 r3) and the planned review angles
   (`planned_reviews`/`verification_reason`/`best_effort`+
   `best_effort_reason`, ticket 22) in a single invocation.
-  Ticket 19 adds `leaf_review` (ENVELOPE_SCHEMAS §26): the review-based verification verdict
+  Ticket 19 adds `leaf_review` (`docs/7_ENVELOPES.md` §26): the review-based verification verdict
   used when no test can carry verification (goal + ACs + final diff → a five-grade ordinal
   verdict for ONE angle + evidence, ticket 20).
-  Ticket 20 adds `verify` (ENVELOPE_SCHEMAS §27): the WRITTEN `none+reason` justification used
+  Ticket 20 adds `verify` (`docs/7_ENVELOPES.md` §27): the WRITTEN `none+reason` justification used
   only when the plan opted into `best_effort` and neither a discriminating test nor an
   independent review could carry the claim; a claim that survives it is recorded UNVERIFIED.
-  Ticket 20 step 2a adds `how_list` (ENVELOPE_SCHEMAS §28): the node's FIRST planning step,
-  N ranked approaches. Ticket 20 step 2b-ii adds `manager_decision` (ENVELOPE_SCHEMAS §29):
+  Ticket 20 step 2a adds `how_list` (`docs/7_ENVELOPES.md` §28): the node's FIRST planning step,
+  N ranked approaches. Ticket 20 step 2b-ii adds `manager_decision` (`docs/7_ENVELOPES.md` §29):
   the node's managing call — ONE decision from the closed four plus a required reason over
   the node's structured record.
 
@@ -142,13 +140,13 @@ async def compose(node: NodeHandle, spec: ArtifactRef, files: list[Path],
                   *, failure: FailureSummary | None = None) -> ComposedContext
 ```
 
-- DESIGN §4.1 names this primitive `inject(...)`; the script-facing name is `compose`.
-  `compose` is the one budgeted-injection primitive (DESIGN describes the same capability).
+- `docs/6_ARCHITECTURE.md` names this primitive `inject(...)`; the script-facing name is `compose`.
+  `compose` is the one budgeted-injection primitive (`docs/6_ARCHITECTURE.md` describes the same capability).
 - Builds `byte-stable prefix + step suffix`: conventions, related code excerpts, covering
   tests, AC, negative guidance, rule-library hits, memory matches, gotchas, help answers
   — per-category sub-budgets, no universal token cap; the info-miss counter is the
   discipline. `failure=` injects the honest failure summary + missing info of a prior
-  round (never the failed attempt's text — erasure, §2.4).
+  round (never the failed attempt's text — erasure, `docs/6_ARCHITECTURE.md`).
 - Repo-index lookups served from the Index handle's state (§4.4); memory matches served
   from the governed memory store (provisional items at low injection priority).
 - Raises: nothing operational. Pure assembly; no budget consumed beyond what the
@@ -213,7 +211,7 @@ next tree commit point and emits an event per mutation.
 
 ### 4.1 `TaskTree`
 
-The one plan artifact (DESIGN §4.8,). Node schema:
+The one plan artifact (`docs/6_ARCHITECTURE.md`). Node schema:
 `{id, what, why, input, output, ac_test_map, risk, produced_artifact_id, status, children}`;
 `input`/`output` are typed artifact references with explicit producer ids. Status ∈
 `{pending, in-progress, done, blocked, stale, needs-user}`. Methods:
@@ -253,7 +251,7 @@ first; re-validates `done` parents whose subtree was touched. A node with no map
   E2E/integration ACs expressible without repeating leaf ACs at every ancestor; an entry
   that resolves to nothing fails the node's close, which is the existing generic path
   (findings → re-expansion) rather than a new mechanism. -->`). Authored by `draft_acs`
-  and **decided by `gate_decide` before the map is frozen** (ENVELOPE_SCHEMAS §6).
+  and **decided by `gate_decide` before the map is frozen** (`docs/7_ENVELOPES.md` §6).
 - `node.close(results, quality, verdicts) -> bool` — the script proposes closure; the
   kernel re-checks (a)(b)(c) itself and refuses (`False` + reasons) if not green. The
   model never decides closure (F7/F8).
@@ -262,7 +260,7 @@ first; re-validates `done` parents whose subtree was touched. A node with no map
 
 ### 4.3 `tree.gate` (closure gate, bound to the tree handle)
 
-`<!-- DECISION: k.gate.* operates only on the tree's AC maps; binding it to the TaskTree handle keeps it a handle method (§1 criterion) while remaining kernel-enforced per DESIGN §4.8. -->`
+`<!-- DECISION: k.gate.* operates only on the tree's AC maps; binding it to the TaskTree handle keeps it a handle method (§1 criterion) while remaining kernel-enforced per `docs/6_ARCHITECTURE.md`. -->`
 
 - `tree.gate.run(ac_test_map) -> GateResults` — mechanically executes every deterministic
   check in the map (existence/completeness of tests per AC checked by code, never by LLM).
@@ -286,7 +284,7 @@ first; re-validates `done` parents whose subtree was touched. A node with no map
   the locate/reproduce artifact) = cuts around the failing symbol, stack frames and covering
   tests, for tasks where the location is the unknown. All read-only.
   `<!-- DECISION: the model must not choose the file to change from filenames alone — that is
-  a lookup, and DESIGN §2.1 forbids handing the model a lookup. The mode split keeps
+  a lookup, and `docs/6_ARCHITECTURE.md` forbids handing the model a lookup. The mode split keeps
   propose-validate for feature work without letting a diagnostic plan be fabricated from names. -->`
 
 ### 4.5 Trajectory / Ledger read access
@@ -321,7 +319,7 @@ it triggers the pre-declared split-window path.
 
 ## 5. Event log contract
 
-Append-only event stream; both the ledger and the UI consume it (the UI design (dropped 2026-10-06; see docs/FLOW.md).md §8 — the UI
+Append-only event stream; both the ledger and the UI consume it (the UI design (dropped 2026-10-06; see `docs/6_ARCHITECTURE.md`) — the UI
 is a consumer, not a peer; killing the UI changes nothing). The same events the ledger
 records; the UI adds zero new state.
 
@@ -329,7 +327,7 @@ records; the UI adds zero new state.
   committed (a step's events never precede its artifact persistence). Crash mid-step ⇒ no
   events for the unflushed step; the last committed step is the truth (§6).
 - **Envelope:** `{run_id, seq, ts, type, node_id?, script_revision, payload}` — payload
-  schemas in ENVELOPE_SCHEMAS.md.
+  schemas in `docs/7_ENVELOPES.md`.
 - **Event types:** `node.status_changed{from,to,reason}` · `step.completed{step_id,
   artifact_ref, counters}` · `llm.invocation{step_type, tokens, wall_model, wall_tool,
   cache_hit, fresh}` (no content) · `exec.result{exit, verdict, policy_blocked?}` (shaped
@@ -388,46 +386,15 @@ the global cap is what stops 3,000-leaf trees.
 
 ---
 
-## 8. Gaps requiring a 7th primitive or kernel-internal reclassification
-
-**G1. `k.triage_rules(failures)` (D1 mechanical failure triage).** Not one of the six
-primitives; not a method on any handle the script otherwise holds; yet it is real kernel
-logic (deterministic rule-library application, H job). **Raised.**
-Recommendation: reclassify as a read-only query surface on the Knowledge Service, exposed
-as `index.rules.triage(failures)` — same status as the Index handle: deterministic,
-consumes/produces data only, no model invocation, no budget. This respects §1's criterion
-(never invokes/executes/mutates/pauses/governs) without a 7th primitive. Alternative if
-rejected: make triage a step the script performs via `llm()` with an M fallback — but
-that contradicts D1's "H rules → M fallback" ordering. *(Recommendation stands: handle
-query surface, not a primitive.)*
-
-**G2. Script-authored artifacts that are not `llm()` results.** `k.artifacts.write` was
-folded into `tree.attach` on the grounds that every scripted artifact in v1 originates
-from an `llm()` call. If a future script needs to persist a purely harness-computed
-artifact (e.g. a benchmark stats artifact), `tree.attach` must accept store-less drafts —
-still a tree-handle method, since schema validation + secret filter + single-producer are
-kernel-side anyway. No 7th primitive required; watch for scripts wanting *unattached*
-artifact storage (store-level `put/get`), which would be a genuine new surface.
-
-**G3. `k.lock` as a general facility.** Folded into `boot_recover`. If scripts ever need
-other critical sections (v1 has none — work-tree exclusivity is kernel-enforced via
-file-overlap groups), a general script-facing lock would be a new capability outside all
-six primitives. Keep it kernel-internal until a concrete script needs it.
-
-**G4. Direct `node.status` assignment vs handle-enforced transitions.** The script
-assigns statuses directly. Kernel re-validation at commit is the minimal
-reconciliation, but it means invalid states are observable between assignment and commit.
-If that proves bug-prone, switch to `node.set_status()` with an eager transition table —
-a handle-method change, not a primitive change.
-
-No seventh primitive is introduced by this spec. Every script call in is
-accounted for in §2.
+The gap section that used to sit at §8 — where a seventh primitive would otherwise be needed —
+is not interface and lives in `.scratch/31-docs-migration/open-items-7.md`. The section number is
+retired here so that no citation of §8 can resolve to the wrong thing.
 
 ---
 
 ## 9. Tree runner entry points (ticket 18)
 
-The budgeted node tree (DESIGN §10.1–§10.2) is driven by three script-facing functions in
+The budgeted node tree (`docs/6_ARCHITECTURE.md`) is driven by three script-facing functions in
 `harness/tree_run.py`. None is a seventh primitive: they compose the six primitives over
 the `TaskTree` handle and call `run_leaf` (the leaf loop) VERBATIM for every leaf.
 
@@ -491,7 +458,7 @@ manager loop are composition over the six primitives (the first planning call is
   `escalate-or-park`. Automatic advance is allowed ONLY when a feasibility review judged
   the How infeasible; otherwise the manager decides. Every decision is recorded
   (`CandidateSet.decisions`). The REAL manager is a fresh-context model call
-  (`bench/v2_tree.model_manager`, ENVELOPE_SCHEMAS §29) wired into the product tree driver;
+  (`bench/v2_tree.model_manager`, `docs/7_ENVELOPES.md` §29) wired into the product tree driver;
   with no manager injected the node parks.
 - **The plan-time test list flows to the leaf.** A child's declared test cases ride its
   `NodeSpec.test_cases` into `leaf_spec_from`'s `LeafSpec.test_cases` unchanged, so the leaf
@@ -521,3 +488,57 @@ manager loop are composition over the six primitives (the first planning call is
   directory (`how_case == "fallback-leaf-How"`; only a failing leaf fails the How); and the
   chosen candidate's slice is reserved out of the node pool BEFORE its planning / manager /
   feasibility calls, which draw on the node's reserve, so they cannot starve it.
+
+## Entry point contract
+
+**The reproduce interface, fixed here so that two workers cannot diverge.** One command at the
+repository root, `python3 reproduce.py`, run from a clean clone: it needs no `/tmp`, no model
+server and no network, and it must not require the untracked 2 GB home. It prints one
+`key value` line per decisive number (`r1_a_mean_tasks 24.640`, `r1_delta_tasks -0.320`,
+`r1_lo95 -3.520`, `r1_hi95 3.080`, `r3_leaf 47/70`, `r3_tree_greedy 14/70`, and the R2 rows),
+and exits 0 only when every printed value equals the value recorded at campaign time. The paper
+quotes these keys verbatim, so the acceptance is a diff and not a reading.
+
+**A short home fails loudly, by construction.** The n17 trap found on takeover is a requirement
+on the entry point, not a note: a missing root, a zero-row file and a short sample each stop the
+run with a named line naming the input and the count it wanted, before any number is printed.
+The paper's boundary section states this, because a reproduction that reports parity after
+reading an empty directory is worse than no reproduction.
+
+## Gaps the primitive set leaves open
+
+The kernel spec raised four gaps against its own primitive set. None of them needs a
+seventh primitive; each names what would change if the gap ever has to close.
+
+**G1. `k.triage_rules(failures)` (D1 mechanical failure triage).** Not one of the six
+primitives; not a method on any handle the script otherwise holds; yet it is real kernel
+logic (deterministic rule-library application, H job). **Raised.**
+Recommendation: reclassify as a read-only query surface on the Knowledge Service, exposed
+as `index.rules.triage(failures)` — same status as the Index handle: deterministic,
+consumes/produces data only, no model invocation, no budget. This respects `docs/7_INTERFACE.md` §1's criterion
+(never invokes/executes/mutates/pauses/governs) without a 7th primitive. Alternative if
+rejected: make triage a step the script performs via `llm()` with an M fallback — but
+that contradicts D1's "H rules → M fallback" ordering. *(Recommendation stands: handle
+query surface, not a primitive.)*
+
+**G2. Script-authored artifacts that are not `llm()` results.** `k.artifacts.write` was
+folded into `tree.attach` on the grounds that every scripted artifact in v1 originates
+from an `llm()` call. If a future script needs to persist a purely harness-computed
+artifact (e.g. a benchmark stats artifact), `tree.attach` must accept store-less drafts —
+still a tree-handle method, since schema validation + secret filter + single-producer are
+kernel-side anyway. No 7th primitive required; watch for scripts wanting *unattached*
+artifact storage (store-level `put/get`), which would be a genuine new surface.
+
+**G3. `k.lock` as a general facility.** Folded into `boot_recover`. If scripts ever need
+other critical sections (v1 has none — work-tree exclusivity is kernel-enforced via
+file-overlap groups), a general script-facing lock would be a new capability outside all
+six primitives. Keep it kernel-internal until a concrete script needs it.
+
+**G4. Direct `node.status` assignment vs handle-enforced transitions.** The script
+assigns statuses directly. Kernel re-validation at commit is the minimal
+reconciliation, but it means invalid states are observable between assignment and commit.
+If that proves bug-prone, switch to `node.set_status()` with an eager transition table —
+a handle-method change, not a primitive change.
+
+No seventh primitive is introduced by this spec. Every script call in is
+accounted for in `docs/7_INTERFACE.md` §2.

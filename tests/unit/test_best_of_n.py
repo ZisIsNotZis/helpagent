@@ -1,4 +1,4 @@
-"""Best-of-N at decision points (DESIGN §4.7): sample N, deterministic checker
+"""Best-of-N at decision points (docs/6_ARCHITECTURE.md §4.7): sample N, deterministic checker
 selects — here the checker is schema validation, first valid candidate wins."""
 
 import asyncio

@@ -98,7 +98,7 @@ def is_test_infrastructure(rel: str) -> bool:
 
 
 def owned_paths(rel: str) -> bool:
-    """ONE definition of what a run may never touch (DESIGN §6/§10.3).
+    """ONE definition of what a run may never touch (docs/6_ARCHITECTURE.md §6/§10.3).
 
     Every consumer — :func:`source_only`/:func:`stage_blind`, the leaf's self-test and
     source-write guards, and the external grader's restore set — classifies with this

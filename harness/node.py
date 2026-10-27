@@ -1,6 +1,6 @@
 """Node plan — the fused per-node decompose+specify call and its deterministic gate.
 
-Ticket 18 (DESIGN §10.1–§10.2). The tree layer turns one working leaf into a budgeted
+Ticket 18 (docs/6_ARCHITECTURE.md §10.1–§10.2). The tree layer turns one working leaf into a budgeted
 tree: requirement triage → per-node decompose+specify → leaves → integration. This
 module owns the *plan* half of that layer:
 
@@ -8,7 +8,7 @@ module owns the *plan* half of that layer:
   ``children`` list) and SPECIFIES (the node's own goal/behavior/files/ACs), so the
   per-node cost is a single call (owner requirement). ``children == []`` declares the
   node a LEAF. Registered in :data:`harness.envelopes.SCHEMAS` as ``plan_node``
-  (ENVELOPE_SCHEMAS §23; the registry went 23 → 24 — an additive contract extension,
+  (docs/7_ENVELOPES.md §23; the registry went 23 → 24 — an additive contract extension,
   deliberate and documented, never a silent drift).
 - :class:`NodeSpec` / :class:`Decomposition` — the frozen, validated plan data the
   runner consumes.
@@ -17,7 +17,7 @@ module owns the *plan* half of that layer:
   DISJOINTNESS, leaf/internal shape, ``est_calls >= 1``, ``what`` dedupe, depth and
   child-count caps, and free-text file-token grounding.
 - :func:`can_decompose` / :func:`group_weights` / :meth:`Budget.split_weighted` — the
-  budget gate: a node with budget 1 cannot split (DESIGN §10.2), and a child whose
+  budget gate: a node with budget 1 cannot split (docs/6_ARCHITECTURE.md §10.2), and a child whose
   weighted share falls below :data:`MIN_LEAF_CALLS` is merged (union boundary) or the
   node is forced to a leaf rather than emitting an unworkable child.
 - :func:`plan_node` — the ONE call, its bounded one-shot re-ask, and the force-leaf
@@ -448,7 +448,7 @@ def validate_decomposition(
 
 def can_decompose(budget: Budget, n_children: int = 2, *,
                   min_leaf_calls: int = MIN_LEAF_CALLS) -> bool:
-    """DESIGN §10.2: a node whose non-reserve pool cannot fund ``n_children`` leaves of
+    """docs/6_ARCHITECTURE.md §10.2: a node whose non-reserve pool cannot fund ``n_children`` leaves of
     ``min_leaf_calls`` each must not even call the decomposer — it runs as a leaf."""
     if n_children < 1:
         return False

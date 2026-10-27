@@ -1,4 +1,4 @@
-"""Tree-sitter parse-on-arrival + the bounded repair respawn (DESIGN §4.7)."""
+"""Tree-sitter parse-on-arrival + the bounded repair respawn (docs/6_ARCHITECTURE.md §4.7)."""
 
 import asyncio
 

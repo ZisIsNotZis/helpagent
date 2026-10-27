@@ -1,5 +1,5 @@
 """Envelope schema invariants — + the grammar pairs from
-ENVELOPE_SCHEMAS §0–§23."""
+docs/7_ENVELOPES.md §0–§23."""
 
 import asyncio
 

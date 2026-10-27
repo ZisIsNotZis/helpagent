@@ -452,7 +452,7 @@ def test_owned_path_definition_is_the_same_in_every_consumer():
     """One definition of what a run may not touch (ticket 17 round 5): staging's
     ``owned_paths`` drives the blind projection, the leaf's source-write DEVIATION
     classifier, and the grader's restore set, so a newly guarded infrastructure path
-    cannot leak past any of them. FLOW §6 (P1a): the classifier no longer REFUSES — a
+    cannot leak past any of them. docs/6_FLOW.md §6 (P1a): the classifier no longer REFUSES — a
     non-empty reason is a recorded deviation."""
     spec = leaf_mod.LeafSpec(goal="g", files={"pkg/calc.py": "x = 1\n"}, acs=[],
                              interfaces=[])

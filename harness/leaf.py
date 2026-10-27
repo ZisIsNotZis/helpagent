@@ -1,6 +1,6 @@
 """v2 leaf loop — one node that owns its test, iterates red→green, and never lies.
 
-Owner direction 2026-09-29 (DESIGN §10.1–§10.7, ticket 17), tightened by the fix
+Owner direction 2026-09-29 (docs/6_ARCHITECTURE.md §10.1–§10.7, ticket 17), tightened by the fix
 round policy: **the loop must be unable to manufacture a false success.** The v1
 golden pipeline was carried by the corpus tests it could read; the blind protocol
 then exposed that its self-test step was dead and that a red self-test was DROPPED
@@ -10,7 +10,7 @@ instead of kept as the target. This module is the replacement: a single leaf tha
    ARRIVAL (a green test does not exercise the failure — re-ask once, then stop
    honestly with ``no-red-target``; the file is KEPT as the target),
 2. iterates implementation against that test under a :class:`~harness.budget.Budget`
-   and the bounded-attempt rule (3 × files, cap 9; DESIGN §4.8),
+   and the bounded-attempt rule (3 × files, cap 9; docs/6_ARCHITECTURE.md §4.8),
 3. escalates along L1–L5, refusing an escalation that neither adds information nor
    shrinks the unit (recorded ``wasted``; the ladder still advances), and
 4. stops only on green, node exhaustion, a spec bubble, a deadline handover, a
@@ -24,10 +24,10 @@ Fixed contract points, each deliberate:
 - **Blind view.** ``LeafSpec.files`` is the source-only projection; ``grader_paths``
   are owned by the grader and never enter a prompt, an artifact, or the workdir.
   Writes to a grader path, an existing path, a non-test path, or beyond the repo are
-  refused (DESIGN §6/§10.6).
+  refused (docs/6_ARCHITECTURE.md §6/§10.6).
 - **D-transport (golden_bugfix precedent).** ``Implement`` carries no file content,
   so implementation edits ride the ``write_test`` envelope — the only content-carrying
-  schema (ENVELOPE_SCHEMAS §10/§11). No new schema was added: ``SCHEMAS`` stays at 23
+  schema (docs/7_ENVELOPES.md §10/§11). No new schema was added: ``SCHEMAS`` stays at 23
   entries (pinned by test_envelopes_schema), and the leaf reuses the documented
   transport rather than widening the library.
 - **No false success, ever.** Green is a MACHINE-READABLE pytest report, never the
@@ -94,7 +94,7 @@ Fixed contract points, each deliberate:
   (``verification_basis="review"``, ``claimed_basis="review"``) with the disagreement
   RECORDED (``verification_disagreement``); a rejecting review blocks it. The
   ``claimed_basis``/strength label is kept so a consumer can filter to test-backed claims
-  only, and the price (a review can be wrong) is stated plainly in DESIGN §10.8a. Ticket
+  only, and the price (a review can be wrong) is stated plainly in docs/6_ARCHITECTURE.md §10.8a. Ticket
   22 round 2 adds the GRANT-CALIBRE evidence rule: because the review route is now
   load-bearing, a review that is about to GRANT must name the acceptance criterion it
   serves AND the specific behaviour/observable/value it verified — a changed path, a bare
@@ -228,7 +228,7 @@ Fixed contract points, each deliberate:
   ``delivered_revision`` carries ``restore_refused``/``restore_refused_reason`` naming the
   untouched artifact. The record also names the best tier/rank/attempt/reason, the
   delivered file list, and whether a restoration happened over the last-written tree.
-- **THE RUN'S OWN TEST IS SPLIT PER CASE ON THE PRISTINE SOURCE (P3c/FIX 1).** FLOW §4
+- **THE RUN'S OWN TEST IS SPLIT PER CASE ON THE PRISTINE SOURCE (P3c/FIX 1).** docs/6_FLOW.md §4
   W3 says every DECLARED case must be red on the pristine source, but the gate only
   required the FILE to be red: a file with one discriminating case plus one case that
   PASSES on the pristine source (it asserts the reported symptom) passed the gate, and
@@ -352,7 +352,7 @@ __all__ = [
     "verification_reason_problem",
 ]
 
-#: The in-node escalation ladder (DESIGN §10.4 L1–L5). L6–L8 restructure the tree
+#: The in-node escalation ladder (docs/6_ARCHITECTURE.md §10.4 L1–L5). L6–L8 restructure the tree
 #: or ask the human; those belong to the parent, so the leaf stops and bubbles
 #: instead of pretending to execute them.
 LADDER: tuple[str, ...] = (
@@ -366,7 +366,7 @@ LADDER: tuple[str, ...] = (
 #: Which :data:`harness.attempts.TargetLayer` each rung interrogates. L1 adds
 #: samples (the sampling layer); L2–L4 decompose/explore/diagnose the implementation;
 #: L5 is the independent review that reads the failure against the SPEC as the
-#: highest contract (DESIGN §10.1 step 5). Three distinct layers are reachable over
+#: highest contract (docs/6_ARCHITECTURE.md §10.1 step 5). Three distinct layers are reachable over
 #: the ladder, which is what lets :func:`attempts.exhausted` ever return True here.
 STRATEGY_LAYER: dict[str, str] = {
     "L1-resample": "sampling",
@@ -462,10 +462,10 @@ NO_CHANGE_DELIVERY_STOPS: tuple[str, ...] = ("", "green", "green-after-test-rewr
 _TIER_RANK: dict[str, int] = {"test": 2, "review": 1, "none": 0}
 
 # ---------------------------------------------------------------------------
-# The three states, the How terminal rules and the best-of (FLOW §1.5 S4/S5, §4)
+# The three states, the How terminal rules and the best-of (docs/6_FLOW.md §1.5 S4/S5, §4)
 # ---------------------------------------------------------------------------
 
-#: FLOW §1.5 S3/S5, §4 (P1c): the terminal state of a node, a How, or a leaf run.
+#: docs/6_FLOW.md §1.5 S3/S5, §4 (P1c): the terminal state of a node, a How, or a leaf run.
 #: ``pass`` a check carried the claim; ``fail`` a check RAN and FAILED on the final
 #: revision (a red test, a rejected review) --- never "uncertain"; ``uncertain`` the
 #: check could not be evaluated, or the run ran out with no confirmed failure; ``parked``
@@ -473,7 +473,7 @@ _TIER_RANK: dict[str, int] = {"test": 2, "review": 1, "none": 0}
 #: cannot be fixed in-process.
 OUTCOME_STATES: tuple[str, ...] = ("pass", "uncertain", "fail", "parked", "needs-user")
 
-#: FLOW §1.5 S5 (P1c): the three states a How contributes to a node's best-of. A node
+#: docs/6_FLOW.md §1.5 S5 (P1c): the three states a How contributes to a node's best-of. A node
 #: whose Hows are all exhausted is UNCERTAIN when ANY How is uncertain (or unevaluated),
 #: otherwise FAIL --- a node with a passing How is ``pass`` before best-of is consulted.
 HOW_STATES: tuple[str, ...] = ("pass", "uncertain", "fail")
@@ -489,7 +489,7 @@ _HOW_STATE_BY_STATUS: dict[str, str] = {
 def own_test_fail(own_test: str | None, gate: GateReport | None) -> bool:
     """True when the run's own test is a CONFIRMED FAIL on the final revision.
 
-    FLOW §4.1 (P1c): ``fail`` is a declared test that RAN and is RED. A missing,
+    docs/6_FLOW.md §4.1 (P1c): ``fail`` is a declared test that RAN and is RED. A missing,
     anomalous, or unobserved report (a collection/import error, a transport fault) is
     UNCERTAIN, never a fail --- only a real observed red ends the How as FAIL and closes
     the review seam. M4 (P4a): a report whose red is only errors/collection failures is
@@ -514,7 +514,7 @@ def _gate_blocks_as_red(gate: GateReport | None) -> bool:
 
 
 def best_of_how_states(states: Sequence[str]) -> str:
-    """FLOW §1.5 S5 (P1c): the state of a node whose Hows are all exhausted.
+    """docs/6_FLOW.md §1.5 S5 (P1c): the state of a node whose Hows are all exhausted.
 
     UNCERTAIN if ANY How is uncertain (or unevaluated), otherwise FAIL. ``pass`` is never
     returned here: a node with a passing How is ``pass`` before best-of is consulted. An
@@ -530,7 +530,7 @@ def best_of_how_states(states: Sequence[str]) -> str:
 
 def propagate_node_state(children: Sequence[str], *, integration_passed: bool = False,
                          own: str = "") -> str:
-    """FLOW §1.5 S3/S5, §4.4 (P1c): an internal node's state from its children.
+    """docs/6_FLOW.md §1.5 S3/S5, §4.4 (P1c): an internal node's state from its children.
 
     ``fail`` if any child failed (or the node's own integration work failed); ``pass``
     only when EVERY child passed AND the integration check passed; otherwise
@@ -548,7 +548,7 @@ def leaf_terminal_state(*, claimed: bool, needs_user: bool, stop_reason: str,
                         signal: str, own_test_failed: bool,
                         review_verdicts: Sequence[ReviewVerdict] = (),
                         no_change_delivery: bool = False) -> str:
-    """FLOW §4.1/§4.2/§1.5 S5 (P1c): a leaf run's terminal state.
+    """docs/6_FLOW.md §4.1/§4.2/§1.5 S5 (P1c): a leaf run's terminal state.
 
     ``pass`` when a claim held; ``needs-user`` for a park the environment alone can fix;
     ``parked`` for a deadline/call-budget handover; ``fail`` when a check RAN and FAILED
@@ -1089,7 +1089,7 @@ class LeafSpec:
     """The blind leaf contract.
 
     ``files`` is the source-only view the run may see; ``grader_paths`` are owned by
-    the grader and must never reach the run (DESIGN §6/§10.6).
+    the grader and must never reach the run (docs/6_ARCHITECTURE.md §6/§10.6).
 
     ``write_boundary`` is the declared write scope the leaf may modify (a node's plan
     boundary). It is ``None`` for the single-leaf driver, whose boundary is the whole
@@ -1262,7 +1262,7 @@ class FailureReport:
     criteria: tuple[CriterionLedgerEntry, ...] = ()
     evidence_gap: bool = False
     evidence_gap_reason: str = ""
-    #: FLOW §4 W4 / §5 (P1b): the visible-suite REGRESSION evidence. ``regressions`` are
+    #: docs/6_FLOW.md §4 W4 / §5 (P1b): the visible-suite REGRESSION evidence. ``regressions`` are
     #: the baseline test ids that no longer pass on the delivered revision; ``regression_
     #: observable`` is True only when the suite was observed on BOTH the pristine baseline
     #: and the final revision (so an empty ``regressions`` with ``observable=False`` is
@@ -1335,7 +1335,7 @@ class LeafOutcome:
     exhaustion_reason: str
     layers_used: list[str]
     stop_reason: str = ""
-    #: FLOW §1.5 S5 / §4 (P1c): the run's explicit terminal state (one of
+    #: docs/6_FLOW.md §1.5 S5 / §4 (P1c): the run's explicit terminal state (one of
     #: :data:`OUTCOME_STATES`): ``pass`` | ``uncertain`` | ``fail`` plus the ``parked``/
     #: ``needs-user`` cases. Computed in :func:`finish` from the terminal test/review
     #: evidence by :func:`leaf_terminal_state` --- a confirmed red test is always ``fail``,
@@ -1397,7 +1397,7 @@ class LeafOutcome:
     # a normalized landing spot. Persisted in the run record so a forged-green attempt
     # is visible after the fact.
     refusals: list[str] = field(default_factory=list)
-    #: FLOW §6 (P1a): every write the run made OUTSIDE its declared plan, with the pre-run
+    #: docs/6_FLOW.md §6 (P1a): every write the run made OUTSIDE its declared plan, with the pre-run
     #: bytes snapshotted for restore before grading. A deviation is RECORDED, never
     #: refused (the one exception is a path that cannot be written at all — a bad SHAPE).
     deviations: list[WriteDeviation] = field(default_factory=list)
@@ -1521,7 +1521,7 @@ class LeafOutcome:
     #: (the terminal revision is delivered instead). Empty when no evidence snapshot
     #: existed.
     delivered_revision: dict[str, Any] = field(default_factory=dict)
-    #: FLOW §4 W4 / §5 (P1b): the visible-suite REGRESSION evidence on the delivered
+    #: docs/6_FLOW.md §4 W4 / §5 (P1b): the visible-suite REGRESSION evidence on the delivered
     #: revision. ``regressions`` are the baseline test ids that no longer pass;
     #: ``regression_observable`` is True only when the visible suite was OBSERVED on both
     #: the pristine baseline and the final revision (so an empty ``regressions`` with
@@ -2073,7 +2073,7 @@ def claim_decision(
        diff touches all N, on EVERY route (ticket 23 round 4, fix 2: including the tree's
        ``integration`` close, which used to bypass it);
     3c. no claim when the visible-suite REGRESSION check found a baseline-green test that
-       no longer passes on this revision (FLOW §4 W4 / §5, P1b) — a hard block on every
+       no longer passes on this revision (docs/6_FLOW.md §4 W4 / §5, P1b) — a hard block on every
        leaf route;
     4. on the REVIEW route the graded review DECIDES over a conflicting TEST (ticket 22
        item 3): an approving review carries the claim even when the run's own test is red
@@ -2196,7 +2196,7 @@ def claim_decision(
     if not ledger:
         return _blocked_claim("empty-ledger")
     if regressions:
-        # FLOW §4 W4 / §5 (P1b): the visible test suite was green on the pristine source
+        # docs/6_FLOW.md §4 W4 / §5 (P1b): the visible test suite was green on the pristine source
         # and one of those tests no longer passes on this revision — a REGRESSION blocks
         # the claim on EVERY route (the grader's suite is withheld, so this is the
         # deterministic part of the regression check that the run itself can observe).
@@ -2470,7 +2470,7 @@ def _is_repeat(history: Sequence[Attempt], strategy: str) -> bool:
     Only a ``novel`` verdict (a genuinely new failure signature or file set) earns
     another run of the same rung. A ``same`` verdict claimed no new idea, and an
     ``undecided`` verdict is an UNVERIFIED novelty claim — the model's own word is
-    never trusted alone (DESIGN §10.4) — so both refuse the repeat (the T-31 defect:
+    never trusted alone (docs/6_ARCHITECTURE.md §10.4) — so both refuse the repeat (the T-31 defect:
     nine identical retries). A judge-authorized test rewrite is recorded as a real
     attempt, so an identical repeated rewrite is refused here too.
     """
@@ -2620,7 +2620,7 @@ def _new_test_problem(rel: str, spec: LeafSpec, workdir: Path) -> str:
 def _source_write_deviation(rel: str, spec: LeafSpec, self_test: str | None) -> str:
     """Why a write to ``rel`` is a DEVIATION from the plan ("" when it is in-plan).
 
-    FLOW §5/§6 (P1a): a write to a path the run is not allowed to change is NO LONGER
+    docs/6_FLOW.md §5/§6 (P1a): a write to a path the run is not allowed to change is NO LONGER
     refused. It lands, and this reason is recorded as a deviation (telemetry + the leaf
     outcome + the :class:`~harness.attempts.Attempt`) so the pre-existing bytes can be
     restored before grading. The declared ``files``/``write_boundary`` remain the PLAN:
@@ -2659,7 +2659,7 @@ def _source_write_deviation(rel: str, spec: LeafSpec, self_test: str | None) -> 
 
 @dataclass(frozen=True)
 class WriteDeviation:
-    """One write the run made OUTSIDE its declared plan (FLOW §6, P1a).
+    """One write the run made OUTSIDE its declared plan (docs/6_FLOW.md §6, P1a).
 
     ``reason`` is :func:`_source_write_deviation`'s classification. ``original`` is the
     pre-run content of the path (``None`` when the run CREATED it), snapshotted at the
@@ -6006,7 +6006,7 @@ async def run_leaf(
     iv_attempts = 0
     iv_repairs = 0
     refusals: list[str] = []
-    # FLOW §6 (P1a): every write the run made OUTSIDE its declared plan (a grader-owned/
+    # docs/6_FLOW.md §6 (P1a): every write the run made OUTSIDE its declared plan (a grader-owned/
     # frozen path, a test path, test infrastructure, a module-shadow path, or a path
     # outside the write boundary). The write LANDED; each entry carries the pre-run bytes
     # so the driver can restore it before grading.
@@ -6110,7 +6110,7 @@ async def run_leaf(
     # revision — the restore-refusal rule for an own-test snapshot needs it.
     coverage_files: dict[str, str] | None = None
     coverage_missing_at: tuple[str, ...] = ()
-    # FLOW §4 W4 / §5 (P1b): the visible-suite REGRESSION stage. ``regression_baseline``
+    # docs/6_FLOW.md §4 W4 / §5 (P1b): the visible-suite REGRESSION stage. ``regression_baseline``
     # is captured on the PRISTINE staged source before the run's first write (None when
     # the staged view ships no visible test file). ``regression_last`` caches the last
     # check keyed by the deliverable-file map it was computed on, so the same revision is
@@ -6480,7 +6480,7 @@ async def run_leaf(
         return documented_api_problem(spec, workdir, baseline)
 
     async def ensure_regression_baseline() -> VisibleSuiteBaseline | None:
-        """Capture the visible suite's baseline on the PRISTINE staged source (FLOW §5).
+        """Capture the visible suite's baseline on the PRISTINE staged source (docs/6_FLOW.md §5).
 
         Runs ONCE, before the run's first write (the self-test write in step 1), so the
         recorded ids come from the source the run started with. Skipped entirely when the
@@ -6501,7 +6501,7 @@ async def run_leaf(
         return regression_baseline
 
     async def regression_now() -> RegressionCheck:
-        """The regression check for the revision CURRENTLY on disk (FLOW §4 W4).
+        """The regression check for the revision CURRENTLY on disk (docs/6_FLOW.md §4 W4).
 
         Reuses the cached result when the deliverable-file map is unchanged, so a claim
         evaluation and the terminal record do not run the visible suite twice on the same
@@ -7337,7 +7337,7 @@ async def run_leaf(
         outranked (ticket 22 item 3). On a refusal it records the specific blocker — the
         test-vs-test CONFLICT, ``green-after-test-rewrite``, the zero-criteria or
         empty-ledger block, the coverage block, or the covenant re-check — and stops.
-        A visible-suite REGRESSION (FLOW §4 W4 / §5, P1b) is the one refusal that does NOT
+        A visible-suite REGRESSION (docs/6_FLOW.md §4 W4 / §5, P1b) is the one refusal that does NOT
         stop: it records the failing ids and returns False so the caller can rework.
         Returns True when the claim was granted.
         """
@@ -7379,7 +7379,7 @@ async def run_leaf(
             stop("honest-failure", "no-acceptance-criteria", "no-acceptance-criteria")
             return False
         if decision.blocker == "regression":
-            # FLOW §4 W4 / §5 (P1b): the visible suite was green on the pristine source and
+            # docs/6_FLOW.md §4 W4 / §5 (P1b): the visible suite was green on the pristine source and
             # a test that passed there no longer passes on this revision. This is a RED
             # signal: the claim is REFUSED on every route and the failing ids become the
             # next attempt's context. On the main path the caller iterates (rework); where
@@ -7732,7 +7732,7 @@ async def run_leaf(
                     # second independent check) instead.
                     test_could_not_carry = True
                 else:
-                    # FLOW §4 W4 / §5 (P1b): the regression check on the FINAL revision
+                    # docs/6_FLOW.md §4 W4 / §5 (P1b): the regression check on the FINAL revision
                     # is a hard input to the gate here too (no iteration is possible now).
                     regression = await regression_now()
                     decision = claim_decision(
@@ -7986,7 +7986,7 @@ async def run_leaf(
         concrete = any(e.state in ("satisfied", "violated") for e in ledger)
         evidence_gap = bool(not claimed and not concrete
                             and (stop_reason or signal) in EVIDENCE_GAP_STOPS)
-        # FLOW §4 W4 / §5 (P1b): the visible-suite regression evidence for the DELIVERED
+        # docs/6_FLOW.md §4 W4 / §5 (P1b): the visible-suite regression evidence for the DELIVERED
         # revision. ``observable`` is True only when the suite ran on BOTH the pristine
         # baseline and the final revision; an empty regression set with "unobservable" is
         # never read as "no regression". A best-evidence RESTORE changes the revision after
@@ -8065,7 +8065,7 @@ async def run_leaf(
                  iv_unmet_tests=list(report.iv_unmet_tests),
                  own_test_symptom_ids=list(report.own_test_symptom_ids),
                  documented_api_missing=list(report.documented_api_missing))
-        # FLOW §1.5 S5 / §4 (P1c): the explicit terminal state, from the terminal
+        # docs/6_FLOW.md §1.5 S5 / §4 (P1c): the explicit terminal state, from the terminal
         # test/review evidence (a confirmed red test is FAIL, never UNCERTAIN).
         terminal_state = leaf_terminal_state(
             claimed=claimed, needs_user=needs_user, stop_reason=stop_reason,
@@ -8163,7 +8163,7 @@ async def run_leaf(
         False when neither route is available.
         """
         nonlocal verification_basis, review_reason
-        # FLOW §1.5 S4 W5 / §4.1 / §11 H3 (P1c): the REVIEW SEAM. A test PASS or
+        # docs/6_FLOW.md §1.5 S4 W5 / §4.1 / §11 H3 (P1c): the REVIEW SEAM. A test PASS or
         # UNCERTAIN may proceed to the review; a test that RAN and FAILED ends this How
         # as FAIL and the review does NOT run. (A test that was never written, or was
         # deliberately dropped after a rewrite, is ABSENT, not a fail, so review-only and
@@ -8405,7 +8405,7 @@ async def run_leaf(
         stop("handover", "deadline", "deadline")
         return finish()
 
-    # ---- FLOW §4 W4 / §5 (P1b): capture the REGRESSION baseline on the PRISTINE staged
+    # ---- docs/6_FLOW.md §4 W4 / §5 (P1b): capture the REGRESSION baseline on the PRISTINE staged
     # source BEFORE the run's first write. Skipped when the staged view ships no visible
     # test file (the grader's own suite is withheld, so a corpus baseline is empty).
     await ensure_regression_baseline()
@@ -8688,7 +8688,7 @@ async def run_leaf(
 
         # normal path: write the source candidate and run the tests
         # Ticket 26: the source write accepts up to N files (a multi-site fix such as T-31
-        # has four call sites). FLOW §6 (P1a): every file lands; a file the run is not
+        # has four call sites). docs/6_FLOW.md §6 (P1a): every file lands; a file the run is not
         # allowed to change is a recorded DEVIATION (never a refusal), snapshotted so it
         # can be restored before grading.
         write_status = getattr(env, "status", "unable")
@@ -8752,7 +8752,7 @@ async def run_leaf(
             last_excerpts = [_refusal_feedback(refused_pairs, spec)]
         elif attempt_deviations:
             # A deviation does not refuse the attempt, but the next attempt must know which
-            # paths were off-plan so it can move onto the declared files (FLOW §6.2 item 5).
+            # paths were off-plan so it can move onto the declared files (docs/6_FLOW.md §6.2 item 5).
             last_excerpts = [_deviation_feedback(deviations[deviations_before:], spec)]
         if raw_mode and wrote and source_rel:
             # Ticket 25 RAW = DEVELOPMENT ONLY: no tests, no independent test, no review,
@@ -8825,7 +8825,7 @@ async def run_leaf(
         # Ticket 19 B / ticket 20: when no test can carry verification, the declared review
         # ANGLES are the gate (weighted, critical-angle veto, no negative grade).
         if verification_basis == "review" and wrote and source_rel:
-            # FLOW §1.5 S4 W2/W5, §4.1, §11 H3 (P1c): once review verification is in
+            # docs/6_FLOW.md §1.5 S4 W2/W5, §4.1, §11 H3 (P1c): once review verification is in
             # force it owns every later attempt --- UNLESS the run's own test is a
             # CONFIRMED FAIL on the final revision. A FAIL test ends this How as FAIL and
             # the review does NOT run (the candidate below is recorded fail and the loop
@@ -9223,7 +9223,7 @@ async def run_leaf(
                 route = "independent-test" if iv_approved else "reason"
             else:
                 route = "own-test"
-            # FLOW §4 W4 / §5 (P1b): the visible-suite regression check for THIS revision.
+            # docs/6_FLOW.md §4 W4 / §5 (P1b): the visible-suite regression check for THIS revision.
             # It is a hard input to the ONE gate; a regression REFUSES the claim and the
             # failing ids drive the next attempt (rework) instead of a blind retry.
             regression = await regression_now()
@@ -9268,7 +9268,7 @@ async def run_leaf(
                                     "independent-test-non-discriminating"):
                 # A regression blocks the claim (above) and DRIVES ANOTHER ITERATION:
                 # record the failed candidate and let the loop rework with the failing ids
-                # as context (FLOW §6.2 item 6). M2 (P4a) adds the review-route agreement
+                # as context (docs/6_FLOW.md §6.2 item 6). M2 (P4a) adds the review-route agreement
                 # blockers to the same re-iteration path: the run keeps working instead of
                 # claiming a revision a judge or a non-discriminating verifier disputes.
                 candidate.outcome = "fail"
@@ -9317,7 +9317,7 @@ async def run_leaf(
         emit("final_verification", stop_reason=stop_reason)
         await final_verification()
 
-    # ---- FLOW §4 W4 / §5 (P1b): record the regression verdict for the DELIVERED
+    # ---- docs/6_FLOW.md §4 W4 / §5 (P1b): record the regression verdict for the DELIVERED
     # revision. A run that already evaluated the current revision reuses the cached
     # check; a run whose last evaluation was on an earlier revision (or that never reached
     # a claim) runs it here, so the failure report always carries the regression evidence.
@@ -9390,7 +9390,7 @@ def _refusal_feedback(pairs: Sequence[tuple[str, str]], spec: LeafSpec) -> str:
 
 
 def _deviation_feedback(entries: Sequence[WriteDeviation], spec: LeafSpec) -> str:
-    """What the model is told after a write LANDED but was OFF-PLAN (FLOW §6, P1a).
+    """What the model is told after a write LANDED but was OFF-PLAN (docs/6_FLOW.md §6, P1a).
 
     The write is applied and recorded as a deviation (then restored before grading), so
     the attempt is not refused — but the model must still move onto a declared file. This
@@ -9412,7 +9412,7 @@ def _write_one(
     baseline: dict[str, str | None],
     deviations: list[WriteDeviation] | None = None,
 ) -> tuple[bool, str, str, bool, bool]:
-    """Apply ONE file through the blind write seam (FLOW §6, P1a).
+    """Apply ONE file through the blind write seam (docs/6_FLOW.md §6, P1a).
 
     Returns ``(wrote, rel, reason, shape, noop)``. A write to a path the run is not
     allowed to change (a grader-owned/frozen path, a test path, test infrastructure, a

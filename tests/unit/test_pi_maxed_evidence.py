@@ -1,6 +1,6 @@
 """Integrity guard for the maxed-config pi evidence (bench/runs/evidence/pi-maxed-20261006).
 
-The fairness correction recorded in ``docs/STATUS.md`` section 8 rests on these files. If a
+The fairness correction recorded in ``docs/2_GOAL.md`` section 8 rests on these files. If a
 future edit silently changes them (a hand-edit, a partial re-run, a lost band) the headline
 numbers in the docs stop matching the evidence; this test makes that failure loud.
 

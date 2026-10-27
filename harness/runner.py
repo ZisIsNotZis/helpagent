@@ -1,10 +1,10 @@
-"""Minimal runner glue: the script-facing ``llm_step`` (KERNEL_API §3.1) plus the
-deterministic prompt composer used by the erasure tests (DESIGN §2.4).
+"""Minimal runner glue: the script-facing ``llm_step`` (docs/7_INTERFACE.md §3.1) plus the
+deterministic prompt composer used by the erasure tests (docs/6_ARCHITECTURE.md §2.4).
 
 Scope tonight: schema validation of model output against the envelope library, the
 ``SchemaViolation`` path (recorded, then raised), a minimal append-only ledger, and
 ``compose_prompt``. The llama.cpp transport, grammar decoding, bounded re-ask, and
-the full ledger/stats subsystem are later milestones (DESIGN §8 M1).
+the full ledger/stats subsystem are later milestones (docs/6_ARCHITECTURE.md §8 M1).
 """
 
 from __future__ import annotations
@@ -27,8 +27,8 @@ from harness.telemetry import jsonable_envelope, record
 CONTEXT_SENSITIVE_STEPS = frozenset({"expand", "draft_acs", "write_spec", "test_plan", "write_test"})
 
 # Code-carrying steps: the envelope content is a whole file and goes through the
-# tree-sitter parse-on-arrival + bounded repair respawn (DESIGN §4.7, harness/repair.py).
-# write_test is the only content-emitting schema left (ENVELOPE_SCHEMAS §24).
+# tree-sitter parse-on-arrival + bounded repair respawn (docs/6_ARCHITECTURE.md §4.7, harness/repair.py).
+# write_test is the only content-emitting schema left (docs/7_ENVELOPES.md §24).
 CONTENT_STEPS = frozenset({"write_test", "implement_write"})
 
 #: The label the model sees for a step. ``implement_write`` is the leaf's source write;
@@ -51,7 +51,7 @@ STABLE_COVERED_KEYS = frozenset({
 })
 
 # ---------------------------------------------------------------------------
-# Byte-stable prefix — scaffold + static standing knowledge only (DESIGN §2.7).
+# Byte-stable prefix — scaffold + static standing knowledge only (docs/6_ARCHITECTURE.md §2.7).
 # ---------------------------------------------------------------------------
 
 PREFIX = """\
@@ -64,7 +64,7 @@ Do not invent ids, files, or symbols that were not injected below."""
 
 @dataclass
 class LLMRequest:
-    """The composed request handed to the model runner (KERNEL_API §3.1)."""
+    """The composed request handed to the model runner (docs/7_INTERFACE.md §3.1)."""
 
     step_type: str
     artifacts: dict[str, str]
@@ -77,7 +77,7 @@ class LLMRequest:
 @dataclass
 class FailureSummary:
     """Honest failure summary of a prior round — the ONLY thing a retry sees of it
-    (DESIGN §2.4 erasure: never the failed attempt's text)."""
+    (docs/6_ARCHITECTURE.md §2.4 erasure: never the failed attempt's text)."""
 
     step_type: str
     summary: str
@@ -85,12 +85,12 @@ class FailureSummary:
 
 
 class SchemaViolation(Exception):
-    """Model output failed schema validation after recording (KERNEL_API §3.1)."""
+    """Model output failed schema validation after recording (docs/7_INTERFACE.md §3.1)."""
 
 
 # ---------------------------------------------------------------------------
 # Minimal ledger stand-in — append-only; entries are stats/evidence, never injected
-# into model context (DESIGN §2.4b, KERNEL_API §4.5). Full ledger is a later milestone.
+# into model context (docs/6_ARCHITECTURE.md §2.4b, docs/7_INTERFACE.md §4.5). Full ledger is a later milestone.
 # DECISION: module-level append-only list with note/entries only — no delete/edit API
 # exists, which is the invariant pins ("Ledger exposes append/query only").
 # ---------------------------------------------------------------------------
@@ -99,7 +99,7 @@ _LEDGER: list[dict[str, Any]] = []
 
 
 def note(kind: str, text: str = "", **fields: Any) -> None:
-    """Append a typed event to the ledger (KERNEL_API §4.5 ledger.note)."""
+    """Append a typed event to the ledger (docs/7_INTERFACE.md §4.5 ledger.note)."""
     entry: dict[str, Any] = {"kind": kind, "text": text, **fields}
     _LEDGER.append(entry)
 
@@ -127,16 +127,16 @@ def compose_prompt(
     failure: FailureSummary | None = None,
     role: str | None = None,
 ) -> str:
-    """Byte-stable prefix + step suffix (DESIGN §4.3).
+    """Byte-stable prefix + step suffix (docs/6_ARCHITECTURE.md §4.3).
 
-    ``fresh=True`` composes without author-context artifacts (KERNEL_API §3.1:
+    ``fresh=True`` composes without author-context artifacts (docs/7_INTERFACE.md §3.1:
     reviewers, judges). DECISION: we cannot distinguish author-context artifacts from
     evidence within the artifacts dict, so a fresh session omits the artifacts block
     entirely; whatever the decider must see is injected through the question as
     ground truth.
 
     ``failure`` injects the honest failure summary + missing info — never the failed
-    attempt's text (DESIGN §2.4a; KERNEL_API §3.3 compose(failure=...)).
+    attempt's text (docs/6_ARCHITECTURE.md §2.4a; docs/7_INTERFACE.md §3.3 compose(failure=...)).
     """
     parts: list[str] = [PREFIX]
     stable = (artifacts or {}).get(STABLE_ARTIFACT_KEY) or ""
@@ -180,7 +180,7 @@ def compose_prompt(
             parts.append(f"  {key}: {artifacts[key]}")
     parts.append(f"QUESTION: {question}")
     if failure is not None:
-        parts.append("PRIOR ROUND FAILED — failure summary only (failed attempt's text erased, DESIGN §2.4):")
+        parts.append("PRIOR ROUND FAILED — failure summary only (failed attempt's text erased, docs/6_ARCHITECTURE.md §2.4):")
         parts.append(f"  step: {failure.step_type}")
         parts.append(f"  summary: {failure.summary}")
         if failure.missing:
@@ -191,8 +191,8 @@ def compose_prompt(
 
 def schema_for_step(step_type: str) -> type[Envelope]:
     """Registry lookup. Unknown step_type is a programmer error → immediate raise
-    (KERNEL_API §3). ``judge_<aspect>`` step types resolve to the generic JudgeAspect
-    entry; the per-run aspect enum is bound at decode time (ENVELOPE_SCHEMAS §18)."""
+    (docs/7_INTERFACE.md §3). ``judge_<aspect>`` step types resolve to the generic JudgeAspect
+    entry; the per-run aspect enum is bound at decode time (docs/7_ENVELOPES.md §18)."""
     if step_type in SCHEMAS:
         return SCHEMAS[step_type]
     if step_type.startswith(JUDGE_STEP_PREFIX):
@@ -221,16 +221,16 @@ async def llm_step(
     ac_id ∈ map, files_touched ⊆ boundary) — the caller (script) injects it.
 
     ``best_of_n>1`` samples N candidates and the deterministic checker (schema
-    validation) selects the first valid one (DESIGN §4.7). Each candidate is one
+    validation) selects the first valid one (docs/6_ARCHITECTURE.md §4.7). Each candidate is one
     model call and gets its own ``llm_invocation`` ledger note with token/cache
-    counters (KERNEL_API §5 — counters only, never content).
+    counters (docs/7_INTERFACE.md §5 — counters only, never content).
 
     For CONTENT_STEPS the envelope content additionally goes through the tree-sitter
-    parse-on-arrival + bounded repair respawn (DESIGN §4.7, harness/repair.py).
+    parse-on-arrival + bounded repair respawn (docs/6_ARCHITECTURE.md §4.7, harness/repair.py).
     ``repair=False`` marks a respawn — a respawn never recurses into repair, which is
     what makes §4.7's "ONE bounded respawn" structural rather than counter-based.
 
-    DECISION (KERNEL_API §3.1 "SchemaViolation ... after bounded re-ask"): the bounded
+    DECISION (docs/7_INTERFACE.md §3.1 "SchemaViolation ... after bounded re-ask"): the bounded
     re-ask loop for schema violations is kernel retry machinery from a later milestone;
     tonight the glue records the violation in the ledger and raises immediately (the
     §4.7 repair respawn for parse failures is the one wired exception).
@@ -266,7 +266,7 @@ async def llm_step(
         so a valid first candidate costs one call. DECISION: asymmetry is safe — the
         selection rule (first valid) is identical on both sides. Yields
         (output, wall_model_s): the model wall time is per-call, tool/infra wall
-        is the run remainder (DESIGN §1 goal 6 dual-lane cost accounting)."""
+        is the run remainder (docs/6_ARCHITECTURE.md §1 goal 6 dual-lane cost accounting)."""
         import time as _time
 
         if best_of_n > 1 and hasattr(model, "complete_n"):
@@ -311,7 +311,7 @@ async def llm_step(
                 continue
         else:
             payload = out
-        # parameter-layer tolerance (DESIGN §4.7, owner policy 2026-09-17):
+        # parameter-layer tolerance (docs/6_ARCHITECTURE.md §4.7, owner policy 2026-09-17):
         # deterministic near-miss normalization BEFORE validation; every fire is a
         # first-class counter (frequent fire on one field = composer-bug signal)
         payload, tolerance_notes = normalize_payload(payload)
@@ -336,7 +336,7 @@ async def llm_step(
                 and step_type in CONTENT_STEPS
                 and isinstance(getattr(envelope, "content", None), str)
             ):
-                # DESIGN §4.7: the deterministic checker selects. For content steps, schema
+                # docs/6_ARCHITECTURE.md §4.7: the deterministic checker selects. For content steps, schema
                 # validity alone is too weak a filter — a candidate echoing the artifact
                 # block passes the grammar but can never run. Prefer the first candidate
                 # that both validates AND parses; if none parses, fall through to the
@@ -357,7 +357,7 @@ async def llm_step(
             break
         except ValidationError as exc:
             # the full pydantic detail (incl. offending values) is ledger evidence —
-            # append-only, never injected into a later prompt (DESIGN §2.4b)
+            # append-only, never injected into a later prompt (docs/6_ARCHITECTURE.md §2.4b)
             note("validation_failed", step_type=step_type, detail=str(exc))
             first_msg = exc.errors()[0]["msg"] if exc.errors() else "invalid envelope"
             failure_message = (

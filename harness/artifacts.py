@@ -1,14 +1,14 @@
-"""Typed artifact store (DESIGN §4.2, KERNEL_API §4.6).
+"""Typed artifact store (docs/6_ARCHITECTURE.md §4.2, docs/7_INTERFACE.md §4.6).
 
 - Typed: pydantic Artifact, validated on write.
 - Bounded: a hard size cap; overflow on code artifacts raises SplitWindowRequired —
-  the pre-declared split path — and NEVER truncates (DESIGN §4.2 "Code output
+  the pre-declared split path — and NEVER truncates (docs/6_ARCHITECTURE.md §4.2 "Code output
   overflow never truncates").
 - Secret filter at the store boundary: every artifact's content is filtered BEFORE
   persistence; the filter returns the redacted form and a count — the secret itself
-  is never logged anywhere (DESIGN §4.2, ticket-01 discipline).
+  is never logged anywhere (docs/6_ARCHITECTURE.md §4.2, ticket-01 discipline).
 - Producer linkage: an artifact carries its producing node id; the tree's attach
-  enforces the single-producer rule (KERNEL_API §4.6 single-producer validation).
+  enforces the single-producer rule (docs/7_INTERFACE.md §4.6 single-producer validation).
 """
 
 from __future__ import annotations
@@ -19,17 +19,17 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-#: Hard content cap in characters (DESIGN §4.2 "Bounded: hard size caps").
+#: Hard content cap in characters (docs/6_ARCHITECTURE.md §4.2 "Bounded: hard size caps").
 SIZE_CAP = 32_000
 
 # Kinds that carry executable/code content — the split-window path applies to them
-# (ENVELOPE_SCHEMAS §10: write_test is "the only content-emitting schema left").
+# (docs/7_ENVELOPES.md §10: write_test is "the only content-emitting schema left").
 CODE_KINDS = frozenset({"file", "code", "write_test", "implement"})
 
 
 class SplitWindowRequired(Exception):
     """Raised when a code artifact exceeds SIZE_CAP. Never truncates; the caller
-    must take the pre-declared split-window path (DESIGN §4.2, ENVELOPE_SCHEMAS §10)."""
+    must take the pre-declared split-window path (docs/6_ARCHITECTURE.md §4.2, docs/7_ENVELOPES.md §10)."""
 
 
 # -- secret filter ------------------------------------------------------------
@@ -64,7 +64,7 @@ def filter_secrets(content: str) -> tuple[str, int]:
 
 
 class Artifact(BaseModel):
-    """One persisted artifact (KERNEL_API §4.6). ``content`` is ALREADY
+    """One persisted artifact (docs/7_INTERFACE.md §4.6). ``content`` is ALREADY
     secret-filtered — the store filters at the boundary before validation."""
 
     model_config = ConfigDict(extra="forbid")
@@ -88,7 +88,7 @@ class Artifact(BaseModel):
         if kind not in CODE_KINDS and len(v) > SIZE_CAP:
             raise ValueError(
                 f"artifact content exceeds SIZE_CAP ({len(v)} > {SIZE_CAP}) — "
-                "non-code artifacts have no split path (DESIGN §4.2)"
+                "non-code artifacts have no split path (docs/6_ARCHITECTURE.md §4.2)"
             )
         return v
 
@@ -108,10 +108,10 @@ class ArtifactStore:
         if artifact_id in self._artifacts:
             raise ValueError(f"artifact {artifact_id!r} already exists (append-only)")
         if kind in CODE_KINDS and len(content) > SIZE_CAP:
-            # Never truncate: raise the pre-declared split path (DESIGN §4.2).
+            # Never truncate: raise the pre-declared split path (docs/6_ARCHITECTURE.md §4.2).
             raise SplitWindowRequired(
                 f"code artifact {artifact_id!r} is {len(content)} chars > cap {SIZE_CAP}; "
-                "take the split-window path (ENVELOPE_SCHEMAS §10)"
+                "take the split-window path (docs/7_ENVELOPES.md §10)"
             )
         filtered, n = filter_secrets(content)
         art = Artifact(

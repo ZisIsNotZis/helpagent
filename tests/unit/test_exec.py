@@ -29,7 +29,7 @@ def test_model_provenance_outside_allowlist_is_policy_blocked_never_exception(tm
 
 
 def test_kernel_provenance_runs_outside_allowlist(tmp_path: Path):
-    # script/kernel provenance is trusted (DESIGN §4.1 trust boundary)
+    # script/kernel provenance is trusted (docs/6_ARCHITECTURE.md §4.1 trust boundary)
     res = _run(["bash", "-c", "echo hi"], tmp_path, provenance="kernel")
     assert res.ok and "hi" in res.stdout_tail
 
@@ -72,7 +72,7 @@ def test_path_scoping_blocks_by_path_not_argv0(tmp_path: Path):
 
 
 def test_network_denied_inside_sandbox(tmp_path: Path):
-    """DESIGN §4.6 network policy: even an ALLOWLISTED command cannot reach the
+    """docs/6_ARCHITECTURE.md §4.6 network policy: even an ALLOWLISTED command cannot reach the
     network inside the sandbox (defense in depth beyond the allowlist)."""
     res = _run(["python3", "-c",
                 "import socket; socket.create_connection(('1.1.1.1', 80), timeout=2)"],

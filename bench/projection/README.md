@@ -67,5 +67,5 @@ stronger claim and the one a reader without the home can check.
 The rows are evidence that the analyzers were fed the campaign's values; they are not the
 campaign's trace of how each value was produced. A reader who wants to know why
 `T-31-parameter-threading` fell from `1.00` under `leaf` to `0.00` under `tree-greedy` needs the
-home (or `bench/analysis/wave1/r3/supp-r3.txt` and `docs/STATUS.md` §2–§7). That boundary is
+home (or `bench/analysis/wave1/r3/supp-r3.txt` and `docs/2_GOAL.md`). That boundary is
 the paper's own boundary section, not a gap in the projection.

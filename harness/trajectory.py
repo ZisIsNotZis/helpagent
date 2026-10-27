@@ -1,8 +1,8 @@
-"""Trajectory: harness-owned git snapshots (DESIGN §4.5, KERNEL_API §4.5).
+"""Trajectory: harness-owned git snapshots (docs/6_ARCHITECTURE.md §4.5, docs/7_INTERFACE.md §4.5).
 
 The MODEL never calls git. After every action that mutated the work tree the
 harness records ``{step_id, node_id, files_changed, diff, outcome}``. The
-recorded baseline also powers the user-edit conflict rule (DESIGN §4.8
+recorded baseline also powers the user-edit conflict rule (docs/6_ARCHITECTURE.md §4.8
 "work-tree exclusivity"): a divergence the harness cannot attribute to its own
 writes pauses the leaf (``needs-user``) — never a silent overwrite.
 """
@@ -85,7 +85,7 @@ class Trajectory:
         return [l for l in out.splitlines() if l.strip()]
 
     def diff(self, node_id: str | None = None) -> str:
-        """The recorded snapshot diff for one node (KERNEL_API §4.5 trajectory.diff),
+        """The recorded snapshot diff for one node (docs/7_INTERFACE.md §4.5 trajectory.diff),
         or the whole work-tree diff when no node is given."""
         if node_id is None:
             return _git(self.workdir, "diff", "HEAD")
@@ -137,7 +137,7 @@ class Trajectory:
         self, baseline: dict[str, str], changed_by_harness: set[str]
     ) -> list[str]:
         """Files that diverged from the baseline but were NOT written by the harness
-        — i.e. the user (or anything else) touched the running work tree. DESIGN
+        — i.e. the user (or anything else) touched the running work tree. docs/6_ARCHITECTURE.md
         §4.8: detected via the per-step git snapshot → conflict → pause +
         needs-user, never silent overwrite."""
         now = self.file_hashes()

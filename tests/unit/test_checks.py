@@ -49,7 +49,7 @@ def test_autofix_stops_after_two_passes(tmp_path: Path):
 
 def test_tool_fight_oscillation_records_fail_pattern(tmp_path: Path):
     """Fixer A reintroduces B's finding and vice versa → after 2 passes escalate;
-    the ledger records the tool_fight survivor (DESIGN §4.5 FAIL_PATTERN)."""
+    the ledger records the tool_fight survivor (docs/6_ARCHITECTURE.md §4.5 FAIL_PATTERN)."""
 
     flip = {"n": -1}
 
@@ -88,7 +88,7 @@ def test_fixer_clean_on_first_pass_runs_one_pass(tmp_path: Path):
 
 def test_unfixable_write_rolls_back_worktree(tmp_path: Path):
     """Parse survivor ⇒ byte-restore; the work tree never holds a non-parsing file
-    (DESIGN §4.5, KERNEL_API §3.4 unfixable ⇒ rollback)."""
+    (docs/6_ARCHITECTURE.md §4.5, docs/7_INTERFACE.md §3.4 unfixable ⇒ rollback)."""
     (tmp_path / "mod.py").write_text("x = 1\n")
     broken = "def f(:\n    return 1\n"
     res = _run(tmp_path, "mod.py", broken, config=CheckConfig(stages=("autofix", "parse")))
@@ -116,7 +116,7 @@ def test_path_escape_is_a_shaped_policy_result(tmp_path: Path):
 
 def test_type_check_filters_at_finding_level(tmp_path: Path):
     """A write that breaks a CALLER in an untouched file keeps the finding
-    (finding-level, not invocation-level scoping, DESIGN §4.5); pre-existing
+    (finding-level, not invocation-level scoping, docs/6_ARCHITECTURE.md §4.5); pre-existing
     untouched-file noise never blocks."""
     (tmp_path / "mod.py").write_text("def greet(x):\n    return x\n")
     (tmp_path / "caller.py").write_text("from mod import greet\n\n"

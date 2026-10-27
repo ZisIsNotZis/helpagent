@@ -12,32 +12,32 @@ kinds of number sit outside that sentence and say so where they occur: the start
 §6 were measured on earlier revisions, one of them at a smaller context and not re-measured at
 the final one. No
 claim is made about other models, other corpora, other languages or real repositories
-(`docs/STATUS.md:209`). The model is small by current standards; a stronger model could erase
+(`docs/2_GOAL.md#known-limits`). The model is small by current standards; a stronger model could erase
 the reliability advantage measured here or change the sign of the structure results, and neither
-is tested (`docs/LEARNINGS.md:55`).
+is tested (`docs/6_ARCHITECTURE.md#harness-as-program-model-as-fallback-node`).
 
 **A synthetic corpus.** The tasks are seeded bugs in small self-contained repositories,
 verifying red-to-green by hand before entry (`bench/corpus/README.md:19`), plus anchors drawn
-from Exercism exercises (`docs/paper-plan.md:21`). They are not real projects, and the corpus
+from Exercism exercises (`docs/9_IMPLEMENTATION.md#where-the-evidence-is`). They are not real projects, and the corpus
 was authored by the harness's author, which is a conflict the anchors only partly mitigate.
 
 **One baseline, at one configuration.** The comparison arm is one mature CLI with its own knobs
-maxed (`docs/STATUS.md:21`). The improved-prompt baseline arm is unmeasured
-(`docs/STATUS.md:213`), so "no detected difference" is a statement about this baseline as
+maxed (`docs/6_ARCHITECTURE.md#fair-comparison-precondition`). The improved-prompt baseline arm is unmeasured
+(`docs/2_GOAL.md#known-limits`), so "no detected difference" is a statement about this baseline as
 configured, not about free-form agents in general.
 
 **The regression stage is unobservable here.** Each task's `repo/tests/` is the grader's suite
 and the blind protocol withholds it, so the staged view usually contains no visible test file,
-and "no regression" rests on the external grader's own suite (`docs/STATUS.md:202`).
+and "no regression" rests on the external grader's own suite (`docs/2_GOAL.md#known-limits`).
 
 **The internal verifiers are not independent.** They share the model's weights; fresh context
-helps and does not make them independent (`docs/STATUS.md:188`). Adversarial code can forge the
-gate's own evidence — the design is tamper-evident, not tamper-proof (`docs/STATUS.md:193`).
+helps and does not make them independent (`docs/2_GOAL.md#known-limits`). Adversarial code can forge the
+gate's own evidence — the design is tamper-evident, not tamper-proof (`docs/2_GOAL.md#known-limits`).
 A weak but genuinely discriminating test passes the harness's checks without encoding the
-requirement, and that class produced the residual false successes (`docs/STATUS.md:195`).
+requirement, and that class produced the residual false successes (`docs/2_GOAL.md#known-limits`).
 Missed success — a run that fixes the task and cannot verify it — is the strongest residual on
-the quality axis (`docs/STATUS.md:198`). The review tier is measured, not proven
-(`docs/STATUS.md:200`).
+the quality axis (`docs/2_GOAL.md#known-limits`). The review tier is measured, not proven
+(`docs/2_GOAL.md#known-limits`).
 
 **The harness's own attribution of a red check is a heuristic, and no number here rests on it.**
 When a check goes red, the measured revision decides from the parsed pytest failure text whether the run's own test or the source it edited is at fault, and the run writes both the test and any output that parsing can read — the heuristic is in this repository today (`harness/leaf.py:3733`) and the measured revision `45ebb32` carries it.
@@ -50,23 +50,23 @@ is driven with its per-turn output capped at `8192` tokens, a quarter of the ser
 that the rest of the window stays available to the tool transcript (`bench/pi_baseline.py:71`).
 The bounded audit found baseline samples that stopped at that cap or reported the context size
 exceeded before any code write, while the driver-level counters record no timeout
-(`docs/STATUS.md:39`). "No crashes and no timeouts" therefore does not mean every baseline
+(`docs/2_GOAL.md#r1-capability-parity`). "No crashes and no timeouts" therefore does not mean every baseline
 inference completed: how many of its failed runs this cost is unrecorded, and the parity number
 does not exclude a baseline loss from it.
 
 **The remaining false successes are on the plain green path.** At the end of the campaign they
 come from runs whose own test was green, whose independent test was green and whose review
 approved, and which the grader then failed; the rules that close the review route are not fully
-applied to that green route (`docs/STATUS.md:206`). Two of the campaign's stated goals are
+applied to that green route (`docs/2_GOAL.md#known-limits`). Two of the campaign's stated goals are
 therefore not met as written: zero false successes was not reached (`2.2`% in the head-to-head, and the full
 ablation arm still produced a false success), and not every final failure has a deviation-point explanation
-(`docs/STATUS.md:100`). "A claim gate buys honesty" means it made lying measurable, not that it
+(`docs/2_GOAL.md#r2-verification-information`). "A claim gate buys honesty" means it made lying measurable, not that it
 removed it.
 
 **Some quantities are unmeasured, and are recorded as unknown.** The baseline's token count is
 partly unmeasured, because its driver carries no token counters, so its cost figure is not
-recomputable from the final rows (`docs/STATUS.md:128`). Wall-clock is unclean and not
-comparable across arms (`docs/STATUS.md:131`). Every quantity that carries §3's argument now
+recomputable from the final rows (`docs/8_DETAIL.md#cost`). Wall-clock is unclean and not
+comparable across arms (`docs/8_DETAIL.md#cost`). Every quantity that carries §3's argument now
 re-derives (`python3 reproduce.py`); the baseline's token count, the wall-clock subset and the
 size of the truncation above do not, and the numbers table records each as unknown with its gap
 named.
@@ -76,22 +76,22 @@ named.
 The following sentences are not in this paper, and their absence is deliberate:
 
 - that the harness has parity with the baseline, or is "essentially equivalent" to it — the
-  pre-registered test returned INCONCLUSIVE (`docs/STATUS.md:28`);
+  pre-registered test returned INCONCLUSIVE (`docs/2_GOAL.md#the-three-requirements-and-their-verdicts`);
 - that the harness is worse than the baseline — inferiority is not established either
-  (`docs/STATUS.md:54`);
+  (`docs/2_GOAL.md#r1-capability-parity`);
 - that decomposition, field refinement or structural superiority in general is refuted — the
-  negative is bundle-, corpus- and model-scoped (`docs/STATUS.md:123`);
+  negative is bundle-, corpus- and model-scoped (`docs/2_GOAL.md#r3-decomposition-and-multi-approach`);
 - that tests or review are worthless — the measured effects are workflow effects with
-  unresolved contrasts, not information measurements (`docs/STATUS.md:100`);
-- that this harness is cheaper, in tokens or in wall-clock (`docs/STATUS.md:127`,
-  `docs/STATUS.md:131`);
+  unresolved contrasts, not information measurements (`docs/2_GOAL.md#r2-verification-information`);
+- that this harness is cheaper, in tokens or in wall-clock (`docs/8_DETAIL.md#cost`,
+  `docs/8_DETAIL.md#cost`);
 - that more seeds would have resolved the parity question — that is a projection from observed
-  task effects, not an impossibility proof (`docs/STATUS.md:61`);
+  task effects, not an impossibility proof (`docs/2_GOAL.md#r1-capability-parity`);
 - that the goal is impossible or that the design is proven superior: the campaign ends with no
-  proof of superiority and no proof of impossibility (`docs/STATUS.md:212`).
+  proof of superiority and no proof of impossibility (`docs/2_GOAL.md#known-limits`).
 
 The product the research was for — one command you point at your own repository — does not
-exist (`docs/ROADMAP.md:45`), so nothing here is a claim about a tool anyone can run.
+exist (`docs/2_GOAL.md#the-campaign-slices-and-their-verdicts`), so nothing here is a claim about a tool anyone can run.
 
 ## What reproduction can and cannot establish
 
@@ -106,4 +106,4 @@ There is also a failure mode specific to reproduction, and it is a boundary in i
 reader who feeds the analysis a short input gets a *different experiment* rather than an error
 (`bench/analysis/wave1/NUMBERS.md:75`). Section 8 states how the entry point closes that hole by
 construction, and why a reproduction that reports parity after reading an empty directory is
-worse than no reproduction at all (`AGENTS.md` §Current facts).
+worse than no reproduction at all (`docs/7_INTERFACE.md#entry-point-contract).

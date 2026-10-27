@@ -1,5 +1,5 @@
 """Contract test — the happy-path bugfix scenario executed against
-FakeModelRunner over a stubbed task tree. This is KERNEL_API.md's executable form for
+FakeModelRunner over a stubbed task tree. This is docs/7_INTERFACE.md's executable form for
 the golden flow: understand → plan (clean trial split) → DAG validated → spec → AC map
 authored+decided → parallel code+tests → gate → run summary."""
 
@@ -79,7 +79,7 @@ SCRIPT: dict[str, list[EnvelopeSpec | dict]] = {
 
 
 async def happy_path_bugfix(model: FakeModelRunner, tree: TaskTree) -> tuple[RunSummary, dict]:
-    """The golden bugfix flow (DESIGN §4.1) against the six-primitive-shaped surface.
+    """The golden bugfix flow (docs/6_ARCHITECTURE.md §4.1) against the six-primitive-shaped surface.
     The script owns flow topology; every semantic decision stays harness-side."""
     envelopes: dict[str, object] = {}
     # -- understand --
@@ -161,7 +161,7 @@ def test_scenario_happy_path_bugfix():
     assert tree.root.children[0].status == "done"
     assert not tree.has_work()
 
-    # every model-authored artifact carries the mandatory self-summary (DESIGN §4.2)
+    # every model-authored artifact carries the mandatory self-summary (docs/6_ARCHITECTURE.md §4.2)
     assert summary.outcome == "complete" and summary.comment
     assert envelopes["write_test"].comment
     assert envelopes["implement"].comment

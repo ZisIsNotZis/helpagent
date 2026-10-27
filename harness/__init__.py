@@ -1,7 +1,7 @@
 """helpagent harness — kernel-side building blocks (M1 slice).
 
-- :mod:`harness.envelopes` — every envelope schema from ENVELOPE_SCHEMAS §0–§23 + registry
-- :mod:`harness.tree` — TaskTree / NodeHandle (KERNEL_API §4.1–4.2)
+- :mod:`harness.envelopes` — every envelope schema from docs/7_ENVELOPES.md §0–§23 + registry
+- :mod:`harness.tree` — TaskTree / NodeHandle (docs/7_INTERFACE.md §4.1–4.2)
 - :mod:`harness.fake_model` — FakeModelRunner + misbehavior helpers
 - :mod:`harness.runner` — llm_step glue, prompt composer, minimal ledger
 """

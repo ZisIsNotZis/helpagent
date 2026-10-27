@@ -1,4 +1,4 @@
-"""The deterministic REGRESSION stage (FLOW §4 W4, §5 — P1b).
+"""The deterministic REGRESSION stage (docs/6_FLOW.md §4 W4, §5 — P1b).
 
 Before this module there was no regression check: a run could break a test that passed
 before it started and still claim "requirement satisfied". The stage here is entirely
@@ -13,7 +13,7 @@ deterministic and model-free:
 * a regression is a hard input to the single claim gate (:func:`harness.leaf.claim_decision`,
   via its ``regressions`` parameter), recorded with the failing ids and the suite output.
 
-Honesty (FLOW §11 H6): only the VISIBLE suite can be checked — the grader's own suite never
+Honesty (docs/6_FLOW.md §11 H6): only the VISIBLE suite can be checked — the grader's own suite never
 enters the run — so a "no regression" verdict is PARTIAL and the external grader is the final
 word. A suite that could not be OBSERVED (no machine-readable report, a transport error, a
 refused run) is recorded as **unobservable**, never as "no regression".

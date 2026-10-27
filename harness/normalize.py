@@ -1,4 +1,4 @@
-"""Parameter-layer tolerance (DESIGN §4.7, owner policy 2026-09-17).
+"""Parameter-layer tolerance (docs/6_ARCHITECTURE.md §4.7, owner policy 2026-09-17).
 
 Intent-legible small errors — enum near-misses, case slips, stray whitespace —
 are normalized deterministically BEFORE schema validation, so an operationally
@@ -23,7 +23,7 @@ from typing import Any
 
 __all__ = ["ENUM_ALIASES", "normalize_payload"]
 
-#: field name → the schema's own Literals (ENVELOPE_SCHEMAS §0/§2/§6). Case
+#: field name → the schema's own Literals (docs/7_ENVELOPES.md §0/§2/§6). Case
 #: slips of a canonical value itself ("OK" → "ok") are also tolerance-foldable;
 #: this table is the drift-guard reconciliation point.
 ENUM_CANONICALS: dict[str, tuple[str, ...]] = {
@@ -36,20 +36,20 @@ ENUM_CANONICALS: dict[str, tuple[str, ...]] = {
 #: schema drift by tests/unit/test_normalize.py (every canonical must be
 #: accepted by the corresponding Literal).
 ENUM_ALIASES: dict[str, dict[str, str]] = {
-    # envelope status (ENVELOPE_SCHEMAS §0: every schema carries status)
+    # envelope status (docs/7_ENVELOPES.md §0: every schema carries status)
     "status": {
         "success": "ok", "succeeded": "ok", "fine": "ok",
         "failure": "failed", "error": "failed", "fail": "failed",
         "block": "blocked",
     },
-    # ACEntry.check_kind (ENVELOPE_SCHEMAS §6)
+    # ACEntry.check_kind (docs/7_ENVELOPES.md §6)
     "check_kind": {
         "tests": "test", "pytest": "test", "unit-test": "test", "unit_test": "test",
         "script_assertion": "script-assertion", "assertion": "script-assertion",
         "script": "script-assertion",
         "judge": "subjective", "manual": "subjective",
     },
-    # TaskCard.task_class (ENVELOPE_SCHEMAS §2) — FP-5 family (case/spacing slips
+    # TaskCard.task_class (docs/7_ENVELOPES.md §2) — FP-5 family (case/spacing slips
     # only; the CLASS wobble itself is a routing problem, see FAIL_PATTERNS FP-5)
     "task_class": {
         "bug_fix": "bugfix", "bug-fix": "bugfix", "bug": "bugfix",

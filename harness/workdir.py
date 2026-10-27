@@ -1,4 +1,4 @@
-"""Workdir lifecycle: single-instance lock + boot-time recovery (KERNEL_API §6,). "Sudden death means the trajectory may not reflect the last
+"""Workdir lifecycle: single-instance lock + boot-time recovery (docs/7_INTERFACE.md §6,). "Sudden death means the trajectory may not reflect the last
 mutations ... on program boot (single-instance lock per workdir — never two
 harness processes in one workdir): reset everything we don't know and that is
 not ignored in the workdir." """
@@ -45,7 +45,7 @@ def _exclude_lockfile(workdir: Path) -> None:
 def lock(workdir: Path):
     """Pid-stamped lockfile (O_CREAT|O_EXCL — atomic). A second acquisition from a
     DIFFERENT live process raises WorkdirLocked (never two harness processes in one
-    workdir, KERNEL_API §6); same-process re-entry is legal (a script may hold the
+    workdir, docs/7_INTERFACE.md §6); same-process re-entry is legal (a script may hold the
     lock and call boot_recover). A STALE lock (owner pid dead) is stealable, so a
     crashed run cannot wedge the workdir forever."""
     workdir = Path(workdir)
@@ -60,7 +60,7 @@ def lock(workdir: Path):
         if old_pid and _pid_alive(old_pid) and old_pid != os.getpid():
             raise WorkdirLocked(
                 f"workdir {workdir} is locked by live pid {old_pid} (never two harness "
-                "processes in one workdir, KERNEL_API §6)"
+                "processes in one workdir, docs/7_INTERFACE.md §6)"
             )
         path.unlink()  # stale: owner is gone
     fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)

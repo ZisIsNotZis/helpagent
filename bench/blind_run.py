@@ -66,7 +66,7 @@ def produced_files(workdir: Path) -> dict[str, str]:
 
 
 def restore_deviations(produced: dict[str, str], deviations) -> tuple[dict[str, str], list[str]]:
-    """Put every recorded write DEVIATION back before grading (FLOW §6, P1a).
+    """Put every recorded write DEVIATION back before grading (docs/6_FLOW.md §6, P1a).
 
     A deviation (a write outside the run's declared plan — a grader-owned/frozen/test
     path, a module-shadow path, or a path outside the write boundary) LANDED during the

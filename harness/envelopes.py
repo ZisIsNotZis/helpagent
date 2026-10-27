@@ -1,7 +1,7 @@
-"""Grammar-target output contracts for every ``llm_step`` (ENVELOPE_SCHEMAS.md §0–§23).
+"""Grammar-target output contracts for every ``llm_step`` (docs/7_ENVELOPES.md §0–§23).
 
 Every model invocation returns exactly one envelope; schemas are *selected* by the
-harness, never authored by the model (DESIGN §4.2). This module is the pydantic v2
+harness, never authored by the model (docs/6_ARCHITECTURE.md §4.2). This module is the pydantic v2
 form of the grammar: enums, patterns, list caps, and the conditional pairs the doc
 marks "grammar-enforced".
 
@@ -43,8 +43,8 @@ def req(**kwargs: object) -> Any:  # returns a pydantic FieldInfo with the senti
     return Field(default=REQUIRED, **kwargs)  # type: ignore[call-overload]
 
 
-#: Deterministic stopword list for Lesson topic keys (ENVELOPE_SCHEMAS §22 "no
-#: stopwords (deterministic)"; DESIGN §4.4 "term sanity: 1–6 normalized terms, no
+#: Deterministic stopword list for Lesson topic keys (docs/7_ENVELOPES.md §22 "no
+#: stopwords (deterministic)"; docs/6_ARCHITECTURE.md §4.4 "term sanity: 1–6 normalized terms, no
 #: stopwords"). Minimal closed set; matcher is exact-term presence until measured.
 STOPWORDS: frozenset[str] = frozenset(
     {
@@ -58,7 +58,7 @@ STOPWORDS: frozenset[str] = frozenset(
 
 _TOPIC_TERM = re.compile(r"^[a-z0-9_-]+$")
 #: File-path-shaped tokens inside free strings — used by the grounding check on
-#: ``expand`` children (ENVELOPE_SCHEMAS §4: "any file path or symbol they name must
+#: ``expand`` children (docs/7_ENVELOPES.md §4: "any file path or symbol they name must
 #: appear in the injected candidate scope or the symbol DB").
 _FILE_TOKEN = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_./-]*\.[A-Za-z0-9_]+")
 
@@ -70,7 +70,7 @@ def file_tokens(text: str) -> set[str]:
 
 
 def _candidate_files(ctx: dict) -> set[str]:
-    """Union of injected candidate-cut file scopes (ENVELOPE_SCHEMAS §4: each cut
+    """Union of injected candidate-cut file scopes (docs/7_ENVELOPES.md §4: each cut
     carries ``{seam_id, files, rationale}``)."""
     files: set[str] = set(ctx.get("grounding_files") or ())
     seams = ctx.get("candidate_seams")
@@ -111,12 +111,12 @@ class NestedModel(BaseModel):
         if missing:
             label = type(self)._missing_label or type(self).__name__
             raise ValueError(
-                f"{label} requires fields: {missing} (ENVELOPE_SCHEMAS §0)")
+                f"{label} requires fields: {missing} (docs/7_ENVELOPES.md §0)")
         return self
 
     @classmethod
     def __get_pydantic_json_schema__(cls, core_schema: Any, handler: Any) -> dict[str, Any]:
-        """Keep the GENERATED GRAMMAR in step with the runtime guard (ENVELOPE_SCHEMAS §0).
+        """Keep the GENERATED GRAMMAR in step with the runtime guard (docs/7_ENVELOPES.md §0).
 
         A :func:`req` field's DEFAULT is the sentinel, so pydantic does not list it as
         ``required`` in the JSON schema. The server's constrained-decoding grammar is
@@ -136,9 +136,9 @@ class NestedModel(BaseModel):
 
 
 class Envelope(BaseModel):
-    """Base conventions, fixed for every envelope (ENVELOPE_SCHEMAS §0).
+    """Base conventions, fixed for every envelope (docs/7_ENVELOPES.md §0).
 
-    ``comment`` is the mandatory self-summary field (DESIGN §4.2) — presence is
+    ``comment`` is the mandatory self-summary field (docs/6_ARCHITECTURE.md §4.2) — presence is
     enforced; the "≤2 lines" prose limit stays a form/rendering concern, not a bound.
     """
 
@@ -157,7 +157,7 @@ class Envelope(BaseModel):
 
     @model_validator(mode="after")
     def _grammar_branch(self) -> Self:
-        """ENVELOPE_SCHEMAS §0: the grammar branches on status — the ok branch requires
+        """docs/7_ENVELOPES.md §0: the grammar branches on status — the ok branch requires
         the payload fields; the unable branch requires ``unable_reason`` and forbids
         payload fields (one grammar alternative each)."""
         base = {"status", "comment", "unable_reason"}
@@ -165,10 +165,10 @@ class Envelope(BaseModel):
             payload = set(self.model_fields_set) - base
             if payload:
                 raise ValueError(
-                    f"unable branch forbids payload fields (ENVELOPE_SCHEMAS §0): {sorted(payload)}"
+                    f"unable branch forbids payload fields (docs/7_ENVELOPES.md §0): {sorted(payload)}"
                 )
             if not (self.unable_reason and self.unable_reason.strip()):
-                raise ValueError("unable_reason REQUIRED iff status=='unable' (ENVELOPE_SCHEMAS §0)")
+                raise ValueError("unable_reason REQUIRED iff status=='unable' (docs/7_ENVELOPES.md §0)")
         else:
             if self.unable_reason is not None:
                 raise ValueError("unable_reason is forbidden unless status=='unable' (REQUIRED iff unable)")
@@ -178,7 +178,7 @@ class Envelope(BaseModel):
             )
             if missing:
                 raise ValueError(
-                    f"payload fields are required unless status=='unable' (ENVELOPE_SCHEMAS §0 ok-branch): "
+                    f"payload fields are required unless status=='unable' (docs/7_ENVELOPES.md §0 ok-branch): "
                     f"{missing}"
                 )
         return self
@@ -252,7 +252,7 @@ class ChildFill(NestedModel):
         (not stored on the model)."""
         candidates = (info.context or {}).get("candidate_seams")
         if candidates is not None and v not in candidates:
-            raise ValueError(f"seam_id {v!r} is not among the injected candidate cuts (ENVELOPE_SCHEMAS §4)")
+            raise ValueError(f"seam_id {v!r} is not among the injected candidate cuts (docs/7_ENVELOPES.md §4)")
         return v
 
     @field_validator("what", "why")
@@ -279,7 +279,7 @@ class ChildFill(NestedModel):
             if tok not in allowed:
                 raise ValueError(
                     f"ungrounded reference {tok!r}: not in injected candidate scope or symbol DB "
-                    "(ENVELOPE_SCHEMAS §4)"
+                    "(docs/7_ENVELOPES.md §4)"
                 )
         return v
 
@@ -314,7 +314,7 @@ class SplitReview(Envelope):
         if self._unset(self.ok) or self._unset(self.issues):
             return self  # unable branch: payload absent
         if self.ok and self.issues:
-            raise ValueError("SplitReview ok==True requires issues==[] (ENVELOPE_SCHEMAS §5)")
+            raise ValueError("SplitReview ok==True requires issues==[] (docs/7_ENVELOPES.md §5)")
         return self
 
 
@@ -334,7 +334,7 @@ class DraftAC(NestedModel):
     def _subjective_needs_hint(self) -> Self:
         # §6: subjective entries must carry check_hint (feeds the judge panel).
         if self.check_kind == "subjective" and not (self.check_hint or "").strip():
-            raise ValueError("check_kind=='subjective' requires check_hint (ENVELOPE_SCHEMAS §6)")
+            raise ValueError("check_kind=='subjective' requires check_hint (docs/7_ENVELOPES.md §6)")
         return self
 
 
@@ -350,7 +350,7 @@ class DraftACs(Envelope):
         node_kind = (info.context or {}).get("node_kind")
         if node_kind == "leaf" and not v:
             raise ValueError("a leaf's AC map is mandatory; empty list is only valid for internal nodes "
-                             "(ENVELOPE_SCHEMAS §6)")
+                             "(docs/7_ENVELOPES.md §6)")
         return v
 
     @model_validator(mode="after")
@@ -416,7 +416,7 @@ class SpecReview(Envelope):
         if self._unset(self.ok) or self._unset(self.issues):
             return self  # unable branch: payload absent
         if self.ok and self.issues:
-            raise ValueError("SpecReview ok==True requires issues==[] (ENVELOPE_SCHEMAS §8)")
+            raise ValueError("SpecReview ok==True requires issues==[] (docs/7_ENVELOPES.md §8)")
         return self
 
 
@@ -440,7 +440,7 @@ class TestCase(NestedModel):
         queue_test_writing concern, not a schema bound."""
         ac_map = (info.context or {}).get("ac_map")
         if ac_map is not None and v not in ac_map:
-            raise ValueError(f"ac_id {v!r} not present in the leaf's AC test map (ENVELOPE_SCHEMAS §9)")
+            raise ValueError(f"ac_id {v!r} not present in the leaf's AC test map (docs/7_ENVELOPES.md §9)")
         return v
 
 
@@ -564,7 +564,7 @@ class ProposeProbe(Envelope):
 class Lesson(NestedModel):
     """§22 fill-in form — embedded via InterpretProbe.lesson. Topic key is 1–6
     normalized AND-terms (deterministic matcher — exact term presence); provenance is
-    mandatory (governance pipeline, DESIGN §4.4)."""
+    mandatory (governance pipeline, docs/6_ARCHITECTURE.md §4.4)."""
 
     line: str = req(min_length=1)
     topic_key: list[str] = req(min_length=1, max_length=6)
@@ -576,16 +576,16 @@ class Lesson(NestedModel):
     def _term_sanity(cls, v: list[str]) -> list[str]:
         for term in v:
             if not _TOPIC_TERM.fullmatch(term):
-                raise ValueError(f"topic term {term!r} must match ^[a-z0-9_-]+$ (ENVELOPE_SCHEMAS §22)")
+                raise ValueError(f"topic term {term!r} must match ^[a-z0-9_-]+$ (docs/7_ENVELOPES.md §22)")
             if term in STOPWORDS:
-                raise ValueError(f"topic term {term!r} is a stopword (ENVELOPE_SCHEMAS §22)")
+                raise ValueError(f"topic term {term!r} is a stopword (docs/7_ENVELOPES.md §22)")
         return v
 
 
 class LessonEnvelope(Envelope):
     """§22 as a STANDALONE step: the doc's `class Lesson(Base)` is the fill-in form
     (embedded via §15), but a standalone llm_step returns an envelope — so the form
-    rides in the standard §0 envelope with its `unable` alternative (DESIGN §4.7:
+    rides in the standard §0 envelope with its `unable` alternative (docs/6_ARCHITECTURE.md §4.7:
     every envelope schema includes it)."""
 
     line: str = req(min_length=1)
@@ -598,9 +598,9 @@ class LessonEnvelope(Envelope):
     def _term_sanity(cls, v: list[str]) -> list[str]:
         for term in v:
             if not _TOPIC_TERM.fullmatch(term):
-                raise ValueError(f"topic term {term!r} must match ^[a-z0-9_-]+$ (ENVELOPE_SCHEMAS §22)")
+                raise ValueError(f"topic term {term!r} must match ^[a-z0-9_-]+$ (docs/7_ENVELOPES.md §22)")
             if term in STOPWORDS:
-                raise ValueError(f"topic term {term!r} is a stopword (ENVELOPE_SCHEMAS §22)")
+                raise ValueError(f"topic term {term!r} is a stopword (docs/7_ENVELOPES.md §22)")
         return v
 
 
@@ -639,9 +639,9 @@ class DebugJudge(Envelope):
             return self  # unable branch: payload absent
         ranks = [f.rank for f in self.fixes]
         if len(set(ranks)) != len(ranks):
-            raise ValueError("RankedFix ranks must be unique (ENVELOPE_SCHEMAS §16)")
+            raise ValueError("RankedFix ranks must be unique (docs/7_ENVELOPES.md §16)")
         if sorted(ranks) != list(range(1, len(ranks) + 1)):
-            raise ValueError("RankedFix ranks must be contiguous starting at 1 (ENVELOPE_SCHEMAS §16)")
+            raise ValueError("RankedFix ranks must be contiguous starting at 1 (docs/7_ENVELOPES.md §16)")
         return self
 
 
@@ -658,7 +658,7 @@ class NewIssue(NestedModel):
 
 
 class FixAttempt(Envelope):
-    # DECISION: §17 lists Literal["fixed","failed","blocked"], but DESIGN §4.7 and
+    # DECISION: §17 lists Literal["fixed","failed","blocked"], but docs/6_ARCHITECTURE.md §4.7 and
     # require the grammar-enforced `unable: reason` alternative in
     # EVERY envelope schema — so "unable" stays legal here (the §17 "ok"-equivalent
     # is spelled "fixed"); blocked_kind/blocked_reason remain iff status=="blocked".
@@ -676,7 +676,7 @@ class FixAttempt(Envelope):
         kind_set = self.blocked_kind is not None
         reason_set = self.blocked_reason is not None and bool(self.blocked_reason.strip())
         if blocked and not (kind_set and reason_set):
-            raise ValueError("status=='blocked' requires blocked_kind and blocked_reason (ENVELOPE_SCHEMAS §17)")
+            raise ValueError("status=='blocked' requires blocked_kind and blocked_reason (docs/7_ENVELOPES.md §17)")
         if not blocked and (kind_set or reason_set):
             raise ValueError("blocked_kind/blocked_reason are forbidden unless status=='blocked' (REQUIRED iff)")
         return self
@@ -704,7 +704,7 @@ class JudgeAspect(Envelope):
     def _target_in_map(cls, v: str, info: ValidationInfo) -> str:
         ac_map = (info.context or {}).get("ac_map")
         if ac_map is not None and v not in ac_map:
-            raise ValueError(f"target_ac_id {v!r} not present in the leaf's AC map (ENVELOPE_SCHEMAS §18)")
+            raise ValueError(f"target_ac_id {v!r} not present in the leaf's AC map (docs/7_ENVELOPES.md §18)")
         return v
 
     @model_validator(mode="after")
@@ -712,13 +712,13 @@ class JudgeAspect(Envelope):
         if self._unset(self.verdict) or self._unset(self.evidence):
             return self  # unable branch: payload absent
         if self.verdict == "fail" and not self.evidence.strip():
-            raise ValueError("verdict=='fail' requires non-empty evidence (ENVELOPE_SCHEMAS §18)")
+            raise ValueError("verdict=='fail' requires non-empty evidence (docs/7_ENVELOPES.md §18)")
         return self
 
 
 def build_judge_aspect_model(aspects: Sequence[str]) -> type[JudgeAspect]:
     """Per-run instantiation: the aspect echo field becomes a closed enum over the
-    run's configured judge aspects (ENVELOPE_SCHEMAS §18)."""
+    run's configured judge aspects (docs/7_ENVELOPES.md §18)."""
     values = tuple(aspects)
     if not values:
         raise ValueError("judge_aspects config must not be empty")
@@ -754,10 +754,10 @@ class GateDecide(Envelope):
         if self._unset(self.decision) or self._unset(self.weakens_gate):
             return self  # unable branch: payload absent
         if self.decision == "reject" and not (self.explanation and self.explanation.strip()):
-            raise ValueError("decision=='reject' requires explanation (ENVELOPE_SCHEMAS §20)")
+            raise ValueError("decision=='reject' requires explanation (docs/7_ENVELOPES.md §20)")
         if self.weakens_gate and self.decision != "reject":
-            # grammar pair: gate-easing proposals are structurally suspect (DESIGN §4.8)
-            raise ValueError("weakens_gate==True requires decision=='reject' (ENVELOPE_SCHEMAS §20)")
+            # grammar pair: gate-easing proposals are structurally suspect (docs/6_ARCHITECTURE.md §4.8)
+            raise ValueError("weakens_gate==True requires decision=='reject' (docs/7_ENVELOPES.md §20)")
         return self
 
 
@@ -781,12 +781,12 @@ class ProposeGrowth(Envelope):
 
 
 # ---------------------------------------------------------------------------
-# §23 plan_node — the fused decompose+specify call (ticket 18, DESIGN §10.1)
+# §23 plan_node — the fused decompose+specify call (ticket 18, docs/6_ARCHITECTURE.md §10.1)
 # ---------------------------------------------------------------------------
 
 
 class DeclaredTest(NestedModel):
-    """One PLANNED test point (ENVELOPE_SCHEMAS §23; tickets 19 D, 22 round 3): the test
+    """One PLANNED test point (docs/7_ENVELOPES.md §23; tickets 19 D, 22 round 3): the test
     FILE, the test FUNCTION NAMES, and (optionally) WHAT the test verifies, for one
     acceptance criterion. The harness verifies mechanically from the report that the file
     exists and every name is a collected, passing node id; a missing file/name is a
@@ -800,7 +800,7 @@ class DeclaredTest(NestedModel):
 
 
 class ChildPlan(NestedModel):
-    """One child of a decomposition (ENVELOPE_SCHEMAS §23): goal + boundary + ACs +
+    """One child of a decomposition (docs/7_ENVELOPES.md §23): goal + boundary + ACs +
     the PLAN's two verification LISTS + a budget weight. ``what``/``why``/``kind``/
     ``est_calls`` are REQUIRED; ``files``/``acs``/``interfaces``/``planned_tests``/
     ``planned_reviews`` default to empty (a leaf child's AC map is enforced by
@@ -838,7 +838,7 @@ class ChildPlan(NestedModel):
                 and not (self.verification_reason or "").strip():
             raise ValueError(
                 "a child with neither planned_tests nor planned_reviews requires a "
-                "verification_reason (ENVELOPE_SCHEMAS §23, ticket 22 round 3)")
+                "verification_reason (docs/7_ENVELOPES.md §23, ticket 22 round 3)")
         return self
 
 
@@ -886,7 +886,7 @@ class PlanNode(Envelope):
                 and not (self.verification_reason or "").strip():
             raise ValueError(
                 "a node with neither planned_tests nor planned_reviews requires a "
-                "verification_reason (ENVELOPE_SCHEMAS §23, ticket 22 round 3)")
+                "verification_reason (docs/7_ENVELOPES.md §23, ticket 22 round 3)")
         return self
 
 
@@ -896,7 +896,7 @@ class PlanNode(Envelope):
 
 
 class HowEntry(NestedModel):
-    """One ranked HOW for a node (ENVELOPE_SCHEMAS §28).
+    """One ranked HOW for a node (docs/7_ENVELOPES.md §28).
 
     ``text`` is a short paragraph of HOW this would be done, ``reason`` why it is worth
     a look. The model does NOT name or rank them: a live measurement showed it writing
@@ -913,7 +913,7 @@ class HowEntry(NestedModel):
 
 
 class HowList(Envelope):
-    """The FIRST planning step of a node: N ranked HOWs (ENVELOPE_SCHEMAS §28;
+    """The FIRST planning step of a node: N ranked HOWs (docs/7_ENVELOPES.md §28;
     ticket 20 step 2a).
 
     The Hows are the DIVERSITY AXIS: one call lists the candidate approaches IN PRIORITY
@@ -936,7 +936,7 @@ class HowList(Envelope):
             return self  # unable branch: payload absent
         texts = [h.text.strip() for h in self.hows]
         if len(set(texts)) != len(texts):
-            raise ValueError("How texts must be distinct (ENVELOPE_SCHEMAS §28)")
+            raise ValueError("How texts must be distinct (docs/7_ENVELOPES.md §28)")
         return self
 
 
@@ -947,7 +947,7 @@ class HowList(Envelope):
 
 
 class ManagerDecisionEnvelope(Envelope):
-    """The node's MANAGING CALL decision after a How failed or exhausted (ENVELOPE_SCHEMAS
+    """The node's MANAGING CALL decision after a How failed or exhausted (docs/7_ENVELOPES.md
     §29; ticket 20 step 2b-ii).
 
     A FRESH-CONTEXT call over the node's STRUCTURED RECORD (`harness.how.NodeRecordView`:
@@ -964,13 +964,13 @@ class ManagerDecisionEnvelope(Envelope):
 
 
 # ---------------------------------------------------------------------------
-# Registry: {step_type: model} — the per-leaf-type schema library (DESIGN §4.2:
+# Registry: {step_type: model} — the per-leaf-type schema library (docs/6_ARCHITECTURE.md §4.2:
 # selected, never authored by the model). ``judge_<aspect>`` step types resolve via
 # the runner's wildcard prefix to the generic JudgeAspect entry.
 # ---------------------------------------------------------------------------
 
 class FixPlan(Envelope):
-    """Guided decomposition for implement (DESIGN §2.2 owner-approved variant,
+    """Guided decomposition for implement (docs/6_ARCHITECTURE.md §2.2 owner-approved variant,
     ticket 05 A/B): before emitting a fix, the model lists 2-8 ordered steps.
     The harness feeds the plan back into the implement call - the STRUCTURE of
     the thinking is harness-decomposed, the filling stays with the model."""
@@ -980,7 +980,7 @@ class FixPlan(Envelope):
 
 class LeafReview(Envelope):
     """Review-based verification of the final diff for ONE review ANGLE (tickets 19 B /
-    20, ENVELOPE_SCHEMAS §26).
+    20, docs/7_ENVELOPES.md §26).
 
     Used ONLY when no test can carry verification (the own test could not be made red, a
     judge-attributed test could not be repaired into a discriminator, or the test path is
@@ -997,7 +997,7 @@ class LeafReview(Envelope):
 
 
 class VerifyRecord(Envelope):
-    """The WRITTEN ``none+reason`` justification (ticket 20, ENVELOPE_SCHEMAS §27).
+    """The WRITTEN ``none+reason`` justification (ticket 20, docs/7_ENVELOPES.md §27).
 
     Used ONLY when a node wrote code and neither a discriminating test nor an independent
     review can carry its claim. ``reason`` states why testing or reviewing was not

@@ -33,7 +33,7 @@ __all__ = [
 
 TargetLayer = Literal["decomposition", "spec", "implementation", "tests", "sampling"]
 
-# The escalation ladder (DESIGN §10.4), ordered by cost. L1-L5 stay inside the
+# The escalation ladder (docs/6_ARCHITECTURE.md §10.4), ordered by cost. L1-L5 stay inside the
 # node; L6-L7 restructure the tree; L8 asks the human without blocking the run.
 Strategy = Literal[
     "L1-resample",         # more samples, same strategy
@@ -193,7 +193,7 @@ class Attempt(BaseModel):
     #: so the escalation must not treat this like "the same attempt again" — see
     #: :func:`harness.leaf._mode` / ``_implement_question``.
     refused: bool = False
-    #: FLOW §6 (P1a): the paths this attempt wrote OUTSIDE its declared plan — a
+    #: docs/6_FLOW.md §6 (P1a): the paths this attempt wrote OUTSIDE its declared plan — a
     #: grader-owned/frozen/test path, a module-shadow path, or a path outside the
     #: node's declared write boundary. The write LANDED (never refused), is snapshotted
     #: for restore before grading, and is recorded here and on the leaf outcome.

@@ -1,4 +1,4 @@
-"""Injection-first knowledge pack (DESIGN §4.4, M6).
+"""Injection-first knowledge pack (docs/6_ARCHITECTURE.md §4.4, M6).
 
 Pin: deterministic extraction (signatures / cross-file callers / constants),
 bounded rendering, empty-when-nothing-applies, and the T-31 use case — the

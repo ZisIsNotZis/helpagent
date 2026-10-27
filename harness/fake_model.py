@@ -127,7 +127,7 @@ class FakeModelRunner:
 
 def ok_edit(path: str, content: str) -> EnvelopeSpec:
     """``implement`` envelope: whole-file edit + self-summary. DECISION: the Implement
-    schema (ENVELOPE_SCHEMAS §11) carries no file contents — changes travel via the
+    schema (docs/7_ENVELOPES.md §11) carries no file contents — changes travel via the
     trajectory git snapshots — so ``content`` is deliberately not represented in the
     envelope body; the helper keeps the signature."""
     return EnvelopeSpec(body={
@@ -138,7 +138,7 @@ def ok_edit(path: str, content: str) -> EnvelopeSpec:
 
 
 def unable(reason: str) -> EnvelopeSpec:
-    """The grammar-enforced ``unable: reason`` alternative (DESIGN §2.2/§4.7)."""
+    """The grammar-enforced ``unable: reason`` alternative (docs/6_ARCHITECTURE.md §2.2/§4.7)."""
     return EnvelopeSpec(body={
         "status": "unable",
         "comment": "Cannot proceed; reason recorded.",
@@ -164,8 +164,8 @@ def schema_violation(missing: str = "self_summary") -> EnvelopeSpec:
 
 
 def code_with_syntax_error() -> EnvelopeSpec:
-    """Valid envelope whose string field carries broken Python (ENVELOPE_SCHEMAS §10
-    WriteTest content) — caught by the post-generation parse tier (DESIGN §4.7)."""
+    """Valid envelope whose string field carries broken Python (docs/7_ENVELOPES.md §10
+    WriteTest content) — caught by the post-generation parse tier (docs/6_ARCHITECTURE.md §4.7)."""
     broken = "def test_expiry():\n    assert expires_at(61) == 'expired' :\n"
     return EnvelopeSpec(body={
         "status": "ok",

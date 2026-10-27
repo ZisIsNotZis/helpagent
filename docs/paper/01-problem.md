@@ -9,20 +9,20 @@ look improved without any improvement existing:
 1. **The harness grades itself.** Its own tests, its own review, its own claim of success.
    With one model behind all of them, a shared misreading can pass code, own test,
    independent test and review together, and the external grader is then the only arbiter
-   (`docs/STATUS.md:188`, `docs/LEARNINGS.md:80`).
+   (`docs/2_GOAL.md#known-limits`, `docs/3_REQUIREMENT.md#a-verification-pipeline-that-can-be-reused`).
 2. **The comparison is throttled.** If our configuration clamps the baseline — thinking off,
    a small context window — the baseline loses and the harness "wins". The campaign made this
-   mistake once and retracted the comparison it produced (`docs/LEARNINGS.md:147`); the
-   correction moved the result *against* the harness (`docs/STATUS.md:21`).
+   mistake once and retracted the comparison it produced (`docs/3_REQUIREMENT.md#measuring-a-harness-honestly`); the
+   correction moved the result *against* the harness (`docs/6_ARCHITECTURE.md#fair-comparison-precondition`).
 3. **The number moves with seeds.** One run of `40` tasks is a draw from a task population
    with large between-task heterogeneity. Any single run can be read as a win, and more runs
-   can be collected until one is (`docs/STATUS.md:57`).
+   can be collected until one is (`docs/2_GOAL.md#r1-capability-parity`).
 4. **The harness can destroy capability it already had.** Delivered bytes were compared
    against every revision the run wrote, not only the ones it claimed; that forensic found
    cases where a revision that already passed the grader was discarded and a failing one
-   delivered (T-17 and T-28 — `docs/STATUS.md:67`). The
-   campaign's starting position, ours `24/40` against `27/40` (`docs/STATUS.md:64`), was
-   therefore a harness-side loss, not a capability ceiling (`docs/LEARNINGS.md:145`).
+   delivered (T-17 and T-28 — `docs/2_GOAL.md#r1-capability-parity`). The
+   campaign's starting position, ours `24/40` against `27/40` (`docs/2_GOAL.md#r1-capability-parity`), was
+   therefore a harness-side loss, not a capability ceiling (`docs/3_REQUIREMENT.md#measuring-a-harness-honestly`).
 
 These four are the design constraints on any measurement that wants to be believed. They
 produce the questions this paper answers:
@@ -35,10 +35,10 @@ produce the questions this paper answers:
   anything over a single monolithic leaf?
 
 The answers, in short and without softening, are: **INCONCLUSIVE** at the pre-registered
-margin (`docs/STATUS.md:28`), **partly and not as stated** for verification
-(`docs/STATUS.md:29`), and **NEGATIVE** for the current tree bundle (`docs/STATUS.md:30`).
+margin (`docs/2_GOAL.md#the-three-requirements-and-their-verdicts`), **partly and not as stated** for verification
+(`docs/2_GOAL.md#the-three-requirements-and-their-verdicts`), and **NEGATIVE** for the current tree bundle (`docs/2_GOAL.md#the-three-requirements-and-their-verdicts`).
 The campaign's goals — parity or superiority, verification that carries information, a product
-CLI — remain unmet or unresolved, and are not disproved (`docs/STATUS.md:4`).
+CLI — remain unmet or unresolved, and are not disproved (`docs/2_GOAL.md#known-limits`).
 
 ## What this paper contributes
 
@@ -48,7 +48,7 @@ CLI — remain unmet or unresolved, and are not disproved (`docs/STATUS.md:4`).
    INCONCLUSIVE at its maximum sample size, with a computed reason why more seeds on this
    corpus would not have resolved it (§3).
 3. One strong negative point: the leaf fixed `47/70` runs, the two tree arms fixed `14/70` and
-   `15/70` (`docs/STATUS.md:109`). It is a negative for a bundle, and §4 states exactly
+   `15/70` (`docs/2_GOAL.md#r3-decomposition-and-multi-approach`). It is a negative for a bundle, and §4 states exactly
    what it does and does not refute.
 4. A verification ablation with one positive, several unresolved, and an unfavourable cost
    result (§5).

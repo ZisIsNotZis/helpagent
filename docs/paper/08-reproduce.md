@@ -3,17 +3,17 @@
 Everything in this paper can be re-derived from the repository alone, with no network, no model
 server and no access to the campaign's archive. The interface is fixed in the repository's own
 node document so that two implementers cannot diverge from it
-(`AGENTS.md` §Current facts):
+(`docs/7_INTERFACE.md#entry-point-contract):
 
 ```sh
 python3 reproduce.py
 ```
 
 Run from a clean clone at the repository root. It needs no temporary path, no model server, no
-network, and it must not require the untracked campaign archive (`AGENTS.md` §Current facts). It prints one
+network, and it must not require the untracked campaign archive (`docs/7_INTERFACE.md#entry-point-contract). It prints one
 `key value` line per decisive number and exits 0 only when every printed value equals the value
-recorded at campaign time (`AGENTS.md` §Current facts). The paper quotes these keys verbatim, so accepting
-this section is a diff and not a reading (`AGENTS.md` §Current facts).
+recorded at campaign time (`docs/7_INTERFACE.md#entry-point-contract). The paper quotes these keys verbatim, so accepting
+this section is a diff and not a reading (`docs/7_INTERFACE.md#entry-point-contract).
 
 ## The keys, verbatim
 
@@ -35,7 +35,7 @@ mean, the row count, the shortfall against the margin, the interval-width quanti
 five R2 arm totals, and the R2 contrasts (`r2_full_minus_own_iv_correctness`,
 `r2_full_minus_own_iv_ci`, `r2_full_minus_own_iv_p`, `r2_full_minus_own_review_claimed`,
 `r2_full_minus_own_review_false`). The node document delegates the R2 rows to the entry point in
-the same sentence (`AGENTS.md` §Current facts); the exact key list is what the program prints, and the
+the same sentence (`docs/7_INTERFACE.md#entry-point-contract); the exact key list is what the program prints, and the
 numbers table carries every one of them. A key named on the command line selects that line —
 `python3 reproduce.py r1_delta_tasks` prints one line — and a key the program does not print is
 refused with the list of keys it does.
@@ -100,7 +100,7 @@ the failure mode of §3 needs:
 
 So the reproduction fails loudly by construction: a missing root, a zero-row file and a short
 sample each stop the run with a named line before any number is printed
-(`AGENTS.md` §Current facts). This is the lesson of the trap in §3 — the campaign's readers return
+(`docs/7_INTERFACE.md#entry-point-contract). This is the lesson of the trap in §3 — the campaign's readers return
 an empty list for a file that is not there, so a starved input does not raise, it reports a
 different experiment (`bench/analysis/wave1/NUMBERS.md:75`).
 

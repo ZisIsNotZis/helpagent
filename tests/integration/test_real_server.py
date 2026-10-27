@@ -43,7 +43,7 @@ def test_real_whole_file_edit_through_llm_step():
     ok, node = parse_python(env.content)
     assert ok, f"model content did not parse: {env.content!r}"
     assert "MinirepoError" in env.content and "pytest.raises" in env.content
-    # the invocation note carries token/cache counters (KERNEL_API §5: no content)
+    # the invocation note carries token/cache counters (docs/7_INTERFACE.md §5: no content)
     invocations = [e for e in ledger_entries() if e["kind"] == "llm_invocation"]
     assert invocations and invocations[-1]["prompt_tokens"] > 0
     assert invocations[-1]["completion_tokens"] > 0
