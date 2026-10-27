@@ -121,7 +121,7 @@ Requires Python 3.12+ and [`uv`](https://docs.astral.sh/uv/); dependencies are P
 
 ```sh
 uv sync                              # dev deps, from uv.lock
-uv run pytest -q -p no:warnings      # the gate: unit + contract, no model, <10s
+uv run pytest -q -p no:warnings      # the gate: unit + contract, no model, ~2 min
 python3 reproduce.py                 # the numbers still recompute
 python3 docs/paper/check_citations.py
 python3 bench/checks/m1_acceptance.py   # the frozen tag and HEAD both re-derive
