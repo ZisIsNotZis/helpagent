@@ -211,7 +211,7 @@ are checked against the entry point (`docs/5_PRODUCT.md#the-deliverable`).
 | every number the paper uses, its source and the command that re-derives it; the row count and the `unknown` rows are printed by the checker, and every unknown names its gap | `docs/paper/numbers.md` |
 | resolve the paper's citations and its Numbers table (fails loudly on a moved anchor or a number with no command), and every document's cross-reference | `python3 docs/paper/check_citations.py` → `citations resolved N unresolved 0`, exit 0 (N is printed, not stored) |
 | prove `docs/` still obeys the level scheme: level file names, zone order, unique anchors, no line-number references | `python3 bench/checks/docs_layout.py` → `docs layout: 0 problem(s)` |
-| M1's deciding observation as an exit code: clone at the tag, one command, paper must quote every key, starved trees must fail loudly | `python3 bench/checks/m1_acceptance.py` |
+| M1's deciding observation as an exit code: clone at the frozen tag and at `HEAD`, each revision compared to its own paper, starved trees must fail loudly | `python3 bench/checks/m1_acceptance.py` |
 | recompute every decisive number from committed rows, no home, no `/tmp`, no model, no network | `python3 reproduce.py` |
 | what a projection row is, which fields it keeps, what it cannot show | `bench/projection/README.md` |
 | rebuild or re-check the projection against the home (maintainer recipe; needs the home) | `python3 bench/projection/build_projection.py --check` |

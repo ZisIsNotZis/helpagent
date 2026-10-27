@@ -1,3 +1,23 @@
+# EXPLICIT
+
+## No GPU, and none expected on this machine
+
+The machine this node runs on is a light laptop with no GPU, and the person states that no GPU is
+expected here soon. The campaign served its 4B model on the GPU that is now gone; the runnable
+slices, the head-to-head, the R2 ablation and M2 all start a local model server.
+
+The consequence is a constraint, not a preference. A campaign-scale re-measurement is CPU
+inference at a few tokens per second against arms of a thousand runs, so it is not affordable
+here; and a comparison run in a different server window than the archived baseline would not be
+the fair comparison above. So this node can produce no new capability, verification or cost
+number, and no behaviour change can ship, because `#a-behaviour-change-needs-a-measurement`
+cannot be satisfied. What remains executable is deterministic offline work: the gate, the paper,
+its numbers, and the checks that read tracked bytes.
+
+What the Goal still needs from a reader does not need a GPU: the preprint and its recomputation
+are the deliverable. A person with compute reopens the measurement items in
+`docs/0_ROADMAP.md#not-on-this-roadmap`.
+
 # CONFIRMED
 
 ## A comparison is fair before it is measured

@@ -7,18 +7,24 @@ is that sentence turned into an exit code, so nobody has to read the repository 
 
     python3 bench/checks/m1_acceptance.py [tag]
 
-It does five things in a temporary directory, never in this working tree:
+It does five things in a temporary directory, never in this working tree, once per revision
+(default: the frozen tag `preprint-v1` and `HEAD`):
 
-1. `git clone` this repository at `tag` — a clone carries only tracked files, so the untracked
-   2 GB home `bench/runs/wave1/` is absent by construction and cannot be used.
+1. `git clone` this repository and detach at the revision — a clone carries only tracked files,
+   so the untracked 2 GB home `bench/runs/wave1/` is absent by construction and cannot be used.
 2. Runs `python3 reproduce.py` inside the clone, with a clean environment, and requires exit 0.
-3. Requires every `key value` line it printed to appear on one line of the paper's sources,
-   which is how "the output equals the paper's table" stops being a reading and becomes a diff.
+3. Requires every `key value` line it printed to appear on one line of that revision's paper
+   sources, which is how "the output equals the paper's table" stops being a reading and becomes
+   a diff. Comparing against the revision's own paper, not the working tree's, is what lets the
+   same command check the frozen acceptance revision and the tip.
 4. Requires the run to fail loudly: with one projection record deleted, with one truncated to
    zero rows, and with one short of the rows an arm needs, each must exit non-zero AND name the
    input it was missing, printing no number first. A silent short-home result is the trap this
    project already fell into.
-5. Prints one summary line and exits 0 only if all of the above hold.
+5. Prints one summary line and exits 0 only if all of the above hold for every revision.
+
+The default therefore proves the revision a reader reproduces and the current tip in one run: a
+later paper edit cannot regress the tree while this check stays green on the old tag alone.
 
 Read-only with respect to this working tree; it writes only into a `mktemp -d`.
 """
@@ -33,7 +39,6 @@ import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-PAPER = REPO / "docs" / "paper"
 KEYLINE = re.compile(r"^([a-z0-9_]+)\s+(\S+)$")
 
 
@@ -50,23 +55,25 @@ def parse_keys(out: str) -> dict[str, str]:
     return got
 
 
-def paper_text() -> str:
-    if not PAPER.is_dir():
+def paper_text(root: Path) -> str:
+    paper = root / "docs" / "paper"
+    if not paper.is_dir():
         return ""
-    return "\n".join(p.read_text(encoding="utf-8") for p in sorted(PAPER.rglob("*.md")))
+    return "\n".join(p.read_text(encoding="utf-8") for p in sorted(paper.rglob("*.md")))
 
 
-def main(argv: list[str]) -> int:
-    tag = argv[1] if len(argv) > 1 else "preprint-v1"
+def check_revision(rev: str, tmp: Path) -> tuple[int, list[str]]:
+    """Check one revision against its own tracked bytes; return (keys, failures)."""
     failures: list[str] = []
-    tmp = Path(tempfile.mkdtemp(prefix="m1-accept-"))
+    slug = re.sub(r"[^A-Za-z0-9_.-]+", "_", rev)
+    clone = tmp / f"clone-{slug}"
     try:
-        clone = tmp / "clone"
-        r = run(["git", "clone", "--quiet", "--branch", tag, "--single-branch",
-                 str(REPO), str(clone)], cwd=tmp)
+        r = run(["git", "clone", "--quiet", "--no-checkout", str(REPO), str(clone)], cwd=tmp)
         if r.returncode != 0:
-            print(f"FAIL clone at {tag}: {r.stderr.strip()}")
-            return 1
+            return 0, [f"clone: {r.stderr.strip()}"]
+        r = run(["git", "checkout", "--quiet", "--detach", rev], cwd=clone)
+        if r.returncode != 0:
+            return 0, [f"checkout {rev}: {r.stderr.strip()}"]
         if (clone / "bench" / "runs" / "wave1").exists():
             failures.append("the clone carries the untracked home; the test would not prove independence")
 
@@ -75,13 +82,12 @@ def main(argv: list[str]) -> int:
 
         first = run([sys.executable, "reproduce.py"], cwd=clone, env=env)
         if first.returncode != 0:
-            print(f"FAIL reproduce.py exit {first.returncode}\n{first.stdout}\n{first.stderr}")
-            return 1
+            return 0, [f"reproduce.py exit {first.returncode}: {first.stdout.strip()} {first.stderr.strip()}"]
         keys = parse_keys(first.stdout)
         if len(keys) < 8:
             failures.append(f"reproduce.py printed only {len(keys)} recognisable key lines")
 
-        text = paper_text()
+        text = paper_text(clone)
         if not text:
             failures.append("docs/paper/ has no markdown to compare against")
         for k, v in sorted(keys.items()):
@@ -105,7 +111,7 @@ def main(argv: list[str]) -> int:
                      ("zero-rows", "empty", lambda p: p.write_text("")),
                      ("short sample", "short", drop_rows)]
             for label, keyword, mutate in cases:
-                work = tmp / f"case-{keyword}"
+                work = tmp / f"case-{slug}-{keyword}"
                 shutil.copytree(clone, work)
                 victim = work / "bench" / "projection" / "wave1" / "final" / rows_file.relative_to(
                     clone / "bench" / "projection" / "wave1" / "final")
@@ -121,15 +127,31 @@ def main(argv: list[str]) -> int:
                 elif parse_keys(got.stdout):
                     failures.append(f"{label}: printed numbers before failing")
     finally:
+        shutil.rmtree(clone, ignore_errors=True)
+    return len(keys), failures
+
+
+def main(argv: list[str]) -> int:
+    revs = [argv[1]] if len(argv) > 1 else ["preprint-v1", "HEAD"]
+    tmp = Path(tempfile.mkdtemp(prefix="m1-accept-"))
+    try:
+        dirty = run(["git", "status", "--porcelain", "--", "docs/paper",
+                     "bench/projection", "reproduce.py"], cwd=REPO).stdout.strip()
+        if dirty:
+            print("NOTE uncommitted changes under the paper or its numbers; HEAD is what is checked")
+        results = {rev: check_revision(rev, tmp) for rev in revs}
+    finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
+    failures = [f"{rev}: {reason}" for rev, (_keys, reasons) in results.items() for reason in reasons]
     if failures:
         for f in failures:
             print(f"FAIL {f}")
-        print(f"m1 acceptance: FAIL ({len(failures)} reason(s)) at tag {tag}")
+        print(f"m1 acceptance: FAIL ({len(failures)} reason(s)) at {', '.join(revs)}")
         return 1
-    print(f"m1 acceptance: OK — {tag}: {len(keys)} keys reproduced from tracked bytes only, "
-          f"every one quoted by the paper, and a starved tree fails loudly")
+    counts = ", ".join(f"{rev} {keys} keys" for rev, (keys, _r) in results.items())
+    print(f"m1 acceptance: OK — {counts} reproduced from tracked bytes only, every one quoted by "
+          f"its revision's paper, and a starved tree fails loudly")
     return 0
 
 

@@ -14,7 +14,9 @@ from this repository in one command.**
 > **Status: archived research.** The campaign ran to its pre-registered end. None of the three
 > goals was established and none was disproved; the product this was built toward does not exist.
 > What it produced is a measurement protocol, three verdicts and a body of retracted claims — now
-> written as a paper a person can read and check without running a model.
+> written as a paper a person can read and check without running a model. The campaign cannot be
+> extended from this checkout: it ran a local 4B model on a GPU, and the machine holding it now has
+> none ([`docs/3_REQUIREMENT.md#no-gpu-and-none-expected-on-this-machine`](docs/3_REQUIREMENT.md#no-gpu-and-none-expected-on-this-machine)).
 
 ## 1. Read the result
 
@@ -122,6 +124,7 @@ uv sync                              # dev deps, from uv.lock
 uv run pytest -q -p no:warnings      # the gate: unit + contract, no model, <10s
 python3 reproduce.py                 # the numbers still recompute
 python3 docs/paper/check_citations.py
+python3 bench/checks/m1_acceptance.py   # the frozen tag and HEAD both re-derive
 ```
 
 A task needs a local llama.cpp server; start it, check `/health`, then drive one task:

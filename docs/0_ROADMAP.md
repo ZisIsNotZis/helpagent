@@ -1,5 +1,12 @@
 # CONFIRMED
 
+## The Goal, and the hardware it has to run on
+
+The Goal is a public preprint whose decisive numbers re-derive from the repository alone, and it
+is reached. The compute this node has is a constraint on the route, not on that Goal: no GPU here
+and none expected soon (`docs/3_REQUIREMENT.md#no-gpu-and-none-expected-on-this-machine`). Every
+remaining measurement needs a local model server. This roadmap draws the consequence below.
+
 ## What this node owed, and what it delivered
 
 Two milestones, each decided by an observation rather than by a claim.
@@ -15,6 +22,11 @@ alone.** Decided by one observation: on a clean clone at the frozen tag, one com
 server and no network prints the decisive numbers and they equal the paper's table, and a starved
 tree fails loudly. `python3 bench/checks/m1_acceptance.py` is that observation as an exit code;
 it prints `m1 acceptance: OK` and exits 0. Reached and accepted above this node.
+
+The check now decides two revisions by default — the frozen tag `preprint-v1` and `HEAD` — and
+compares each revision's output against that revision's own paper. So the acceptance revision a
+reader reproduces and the current tip are both proven, and a later paper edit cannot regress the
+tip while a green check on the old tag says nothing about it.
 
 What M1 does not deliver, and does not claim, is publication. It delivered a reading form, a
 reproduce entry point, a traceability table and the freeze. The push was taken above this node,
@@ -49,7 +61,9 @@ this node and the workers it dispatches; it does not cover a push, a DOI or a re
 
 ## Not on this roadmap
 
-Deferred, with the reason each is deferred and what would reopen it:
+Each item below needs a local model server, which this node's hardware cannot provide; a plan to
+schedule one here would be a plan to wait for a GPU. What reopens an item is a person with
+compute, not a change of order in this document:
 
 - **A corpus or design with the power to settle R1.** The observed task effects project an
   asymptotic interval width of about `6.3` tasks, so the 40-task corpus cannot carry a decisive
@@ -64,6 +78,9 @@ Deferred, with the reason each is deferred and what would reopen it:
   evaluation.
 - **An improved-prompt baseline arm.** Never measured, so "structure beats a better prompt"
   remains untested.
+- **A token-counted baseline run.** `pi`'s driver carries no token counters, so its `~9k`
+  tokens per task comes from the recorded reference and cannot be recomputed from the final rows
+  (`docs/8_DETAIL.md#cost`). Closing it means running the baseline again with a counter.
 - **A clean single-lane wall-clock comparison.** Both arms were measured under conditions that do
   not match; a re-measurement would close a gap the paper currently names.
 - **A sweep of the forced-leaf thresholds, and requirement-level splitting on a design that
@@ -74,7 +91,10 @@ delivered.
 
 ## Where the order stands
 
-M0 and M1 are reached; the paper path is the one this node took, and it is finished. Nothing in
-this repository is waiting on a worker. What remains is either the person's act (a DOI, an arXiv
-submission, approval of M2) or a new research programme that this roadmap deliberately does not
-authorise.
+M0 and M1 are reached and accepted; the paper path is the one this node took, and it is finished.
+The M1 check now covers the frozen tag and the tip, so the deliverable cannot regress behind a
+green tag check. Nothing in this repository is waiting on a worker. The measurement items above
+need compute this node does not have, so they are closed here rather than deferred. What remains
+is either the person's act (a DOI, an arXiv submission, approval of M2) or a person with compute
+who wants to reopen the research. No further step is authorised from this machine, and none is
+needed for the Goal the paper was written to reach.

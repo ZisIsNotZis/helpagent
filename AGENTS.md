@@ -14,15 +14,18 @@ a public preprint, one reproduce command, a traceability table, and a frozen rev
 
 M0 (the campaign bytes secured in a declared home and hashed) and M1 (a citable preprint whose
 every decisive number recomputes from the repository alone) are reached. The paper path is
-finished; nothing here waits on a worker. What remains is the person's — a DOI, an arXiv
-submission, approval of M2 — or a new research programme this roadmap does not authorise
-(`docs/0_ROADMAP.md`).
+finished; nothing here waits on a worker. The machine this node runs on has no GPU and none is
+expected soon, so no new measurement can be taken here: the measurement research is closed on
+this hardware (`docs/3_REQUIREMENT.md#no-gpu-and-none-expected-on-this-machine`). What remains is
+the person's — a DOI, an arXiv submission, approval of M2 — or a person with compute who reopens
+it (`docs/0_ROADMAP.md`).
 
-Two commands show that state rather than claim it:
+The commands that show that state rather than claim it:
 
 ```sh
 python3 reproduce.py                      # every decisive number, from committed rows only
 python3 docs/paper/check_citations.py     # the paper still quotes them; 0 unresolved
+python3 bench/checks/m1_acceptance.py     # the frozen tag and HEAD both re-derive
 python3 bench/checks/docs_layout.py       # docs/ is still filed by level; 0 problems
 ```
 

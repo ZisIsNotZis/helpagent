@@ -31,7 +31,9 @@ checked the paper" is a diff rather than a reading.
 M1 was promised as an observation, not as a claim: a clean clone at the frozen tag, one command,
 no model server and no network, the printed values equal to the paper's table, and a starved
 tree failing loudly. `bench/checks/m1_acceptance.py` is that sentence as one exit code, and it
-runs in a temporary directory without touching the working tree.
+runs in a temporary directory without touching the working tree. By default it checks the frozen
+tag and `HEAD`, each against its own revision's paper, so the acceptance revision a reader
+reproduces and the current tip are decided together.
 
 ## Maintaining the evidence
 

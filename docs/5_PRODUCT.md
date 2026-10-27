@@ -132,6 +132,8 @@ step that is genuinely reversible after the fact.
 - **The product CLI.** `helpagent "<request>"` against an arbitrary repository was the thing the
   research was for and was never built; V6 exists as a promise and a UI sketch,
   `docs/mockups/mission_control.html`.
-- **A second evaluation.** The M2 controlled evaluation needs the person's approval again and is
-  not started (`docs/0_ROADMAP.md#the-frozen-recovery-line`).
+- **A second evaluation.** The M2 controlled evaluation needs the person's approval again, and it
+  needs a local model server that this node's hardware cannot run
+  (`docs/3_REQUIREMENT.md#no-gpu-and-none-expected-on-this-machine`); it is not started
+  (`docs/0_ROADMAP.md#the-frozen-recovery-line`).
 - **A DOI, an arXiv submission, any further public surface.** The person's, listed above.
