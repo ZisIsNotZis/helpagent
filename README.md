@@ -4,6 +4,8 @@
 
 # helpagent
 
+**项目状态 · 未完成（2026-11-26）**。已关闭公开测量轮，从干净远端树复跑 reproduce.py 与引文审计，506 解引用、0 缺失。Vibe 的后续小模型工作流目标仍开放。 封存已结束研究结论，以独立协议和合适对照验收下一项收益。
+
 ### A coding harness wrapped around a 4B local model, measured to its pre-registered end — with the losing half of the record kept.
 
 **It answers one question with evidence instead of a demo: does a program wrapped around a small
